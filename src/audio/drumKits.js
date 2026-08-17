@@ -226,9 +226,11 @@ export const DEFAULT_NOTE_MAPPING = {
     tm: 'conga-mid/mc50',
     tl: 'conga-low/lc50',
     cb: 'cowbell/cb',
-    wh: 91,
-    wm: 86,
-    wl: 81,
+    // #889 (Han 2026-08-14, "remap de woodblocks wh=c7 wm=c6 wl=c5"): MIDI note numbers, C4=60
+    // canonical (noteUtils.js) → C7=96, C6=84, C5=72. Was 91/86/81 (G6/D6/A5).
+    wh: 96,
+    wm: 84,
+    wl: 72,
     other: 'clap/cp',
 };
 
@@ -397,7 +399,7 @@ export const KIT_NOTE_MAPPINGS = {
         tm: ['TomMid_01', 'TomMid_02', 'TomMid_03'],
         tl: ['TomLow_01', 'TomLow_02'],
         cb: ['Cowbell_02', 'Cowbell_03', 'Cowbell_04', 'Cowbell_05', 'Cowbell_09', 'Cowbell_10', 'Cowbell_11'],
-        wh: 91, wm: 86, wl: 81,
+        wh: 96, wm: 84, wl: 72,
         other: ['Clap_01', 'Clap_02', 'Clap_03', 'Clap_04', 'Clap_05', 'Clap_06', 'Clap_07'],
     },
 
@@ -410,7 +412,7 @@ export const KIT_NOTE_MAPPINGS = {
         cr: 'ride', cc: 'crash', crt: 'ride', cct: 'crash',
         cc_bell: 'crash', cr_bell: 'ride',
         th: 'tom-1', tm: 'tom-2', tl: 'tom-3', cb: 'cowbell',
-        wh: 91, wm: 86, wl: 81,
+        wh: 96, wm: 84, wl: 72,
         other: 'clap',
     },
 
@@ -422,7 +424,7 @@ export const KIT_NOTE_MAPPINGS = {
         cr: 'ride', cc: 'crash', crt: 'ride', cct: 'crash',
         cc_bell: 'crash', cr_bell: 'ride',
         th: 'tom-h', tm: 'tom-m', tl: 'tom-l', cb: 'cowbell',
-        wh: 91, wm: 86, wl: 81,
+        wh: 96, wm: 84, wl: 72,
         other: 'clap',
     },
 
@@ -433,7 +435,7 @@ export const KIT_NOTE_MAPPINGS = {
         cr: 'cymbal', cc: 'cymbal', crt: 'cymbal', cct: 'cymbal',
         cc_bell: 'cymbal', cr_bell: 'cymbal',
         th: 'tom-hi', tm: 'tom-mid', tl: 'tom-low', cb: 'clap',
-        wh: 91, wm: 86, wl: 81,
+        wh: 96, wm: 84, wl: 72,
         other: 'clap',
     },
 
@@ -446,7 +448,7 @@ export const KIT_NOTE_MAPPINGS = {
         cr: 'cymball', cc: 'cymball', crt: 'cymball', cct: 'cymball',
         cc_bell: 'cymball', cr_bell: 'cymball',
         th: 'tom-high', tm: 'tom-high', tl: 'tom-low', cb: 'cowbell',
-        wh: 91, wm: 86, wl: 81,
+        wh: 96, wm: 84, wl: 72,
         other: 'clap',
     },
 };

@@ -296,6 +296,26 @@ const convertRankedArrayToMelody = (
                 activeSlotsSet.add(idx);
             }
         }
+
+        // #889 (Han 2026-08-14, "forceer altijd de eerste noot van een maat, ook als daar geen
+        // akkoord staat, en gebruik de root van het huidige (vorige) akkoord"): the loop above only
+        // forces a root where a chord SEGMENT starts. A measure whose downbeat doesn't coincide with
+        // a chord change (the chord sustains from the previous measure) got no forced root there.
+        // Force every measure's first slot too, using getActiveChord to resolve whichever chord is
+        // sounding at that slot (the current/previous chord) — a no-op where the segment loop above
+        // already forced that exact slot.
+        for (let m = 0; m < numMeasures; m++) {
+            const idx = m * numberOfSlotsPerMeasure;
+            if (forcedRootSlots.has(idx)) continue;
+            const chord = getActiveChord(m, randomizationNotes, idx);
+            if (!chord) continue;
+            forcedRootSlots.set(idx, chord);
+            const s = allSlots[idx];
+            if (s && s.priority === null) {
+                s.priority = 'top';
+                activeSlotsSet.add(idx);
+            }
+        }
     }
 
     logger.debug('convertRanked', 'active slots', {

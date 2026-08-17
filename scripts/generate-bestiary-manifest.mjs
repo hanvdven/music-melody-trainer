@@ -82,7 +82,14 @@ import {
 } from './bestiary/animationDefs.mjs';
 
 // ═══ SECTION: FOLDER MAP & CATEGORY OVERRIDES ═══
-const ROOT = join(process.cwd(), 'src/assets/ASSORTED/characters');
+// #955 (boot-slowness initiative, Han 2026-08-13): the actual PNGs moved to public/ASSORTED
+// (served as flat static assets, outside Vite's module graph, to eliminate ~1100 eager import
+// requests at boot — see bestiaryAssets.js). This scan root is the ONLY thing that changed here:
+// the relPath STRING TEMPLATE below is unchanged ('../assets/ASSORTED/characters/...', the same
+// literal text as before the move) since it's just a symbolic key bestiaryAssets.js resolves
+// against public/ASSORTED at runtime, not an actual filesystem path — changing it would have meant
+// regenerating (and re-verifying) the whole hand-tuned manifest for zero behavioural benefit.
+const ROOT = join(process.cwd(), 'public/ASSORTED/characters');
 const OUT = join(process.cwd(), 'src/model/bestiaryManifest.generated.js');
 
 // Category → folder(s). #671 (Han 2026-08-03, third follow-up: "verdeel characters onder volgens mijn
@@ -354,6 +361,9 @@ const FRAME_OVERRIDES = [
     // #870 (Han 2026-08-12, "ratfolk axe: 64x32") — was falling through to the generic square-guess (32x32,
     // wrong); 768×160 / 64×32 = 12 cols × 5 rows, exact — matches Han's 5 named animations exactly.
     { test: (p) => /\/animals\/critters\/Ratfolk Axe/i.test(p), frame: { w: 64, h: 32 } },
+    // #989 (Han 2026-08-14, "bestiary pass"): Crab Sprite Sheet.png (dropped in ASSET DROP, moved into
+    // animals/critters) — 128x128, 4x4 grid, all 16 cells filled.
+    { test: (p) => /\/animals\/critters\/Crab Sprite Sheet/i.test(p), frame: { w: 32, h: 32 } },
 ];
 function frameOverrideFor(relPath) {
     const hit = FRAME_OVERRIDES.find((o) => o.test(relPath));
@@ -550,6 +560,13 @@ const ROW_LABEL_OVERRIDES = [
             'Idle (Spank)', 'Idle (Kneel)',
         ],
     },
+    // #989 (Han 2026-08-14, "bestiary pass": "crab. r1 idle, r2 move, r3 death, r4 attack") — note this
+    // order is NOT the default ['Idle','Move','Attack','Death'] guess (death/attack swapped).
+    { test: (p) => /\/animals\/critters\/Crab Sprite Sheet/i.test(p), labels: ['Idle', 'Move', 'Death', 'Attack'] },
+    // #989 (Han 2026-08-14, "herlabel de laatste animatie van pigeon: death -> fly") — this is the
+    // MISSPELLED standalone "Pidgeon Sprite Sheet.png" file (renamed to "Pigeon (Rock Dove)" below), NOT
+    // the correctly-spelled "Pigeon" sourced from critters sheet.png (already fly-labelled, see CRITTER_ROWS).
+    { test: (p) => /\/animals\/critters\/Pidgeon Sprite Sheet/i.test(p), labels: ['Idle', 'Move', 'Attack', 'Fly'] },
 ];
 function labelsFor(relPath) {
     return ROW_LABEL_OVERRIDES.find((o) => o.test(relPath))?.labels || ROW_LABELS;
@@ -1356,6 +1373,20 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
                 continue;
             }
 
+            // #989 (Han 2026-08-14, "bestiary pass": "water-birds: elke rij is een ander dier, noem ze
+            // duck_1 ... duck_8, en de laatste 3 goose_1,...,goose_3. Maak er maar kleurvarianten van in de
+            // bestiary"): 11 rows, each a single-frame static colour pose — 8 "Duck" variants + 3 "Goose"
+            // variants, grouped as two creatures (bestiaryAssets.js groups by `${category}::${base}`).
+            if (/\/animals\/critters\/water-birds\.png$/i.test(relPath)) {
+                const WATERBIRD_FRAME = { w: 32, h: 32 };
+                const defs = [
+                    ...Array.from({ length: 8 }, (_, i) => ({ rows: [i], category: 'critters', base: 'Duck', variant: `duck_${i + 1}` })),
+                    ...Array.from({ length: 3 }, (_, i) => ({ rows: [8 + i], category: 'critters', base: 'Goose', variant: `goose_${i + 1}` })),
+                ];
+                manifest.push(...expandNamedRows(absPath, relPath, WATERBIRD_FRAME, defs));
+                continue;
+            }
+
             // #692 (Han: "evil wizard.png. rij 1: wizard evil, rij 2: wizard skeleton") — one file, two
             // different creatures (see `expandEvilWizard` above).
             if (/char_passive\/Evil Wizard\.png$/i.test(relPath)) {
@@ -1996,6 +2027,8 @@ manifest.splice(0, manifest.length, ...mergeMaidEntries(manifest));
 // line per guard type.
 // ═══ SECTION: SWATCH + PORTRAIT + BRAND-STRIP ═══
 const SWATCH_OVERRIDES = [
+    // #989 (Han 2026-08-14, "firefly: lightsource, geel-groen")
+    { base: 'Firefly', variant: null, c1: '#c6e02c' },
     { base: 'Archer sheet', variant: null, c1: '#fdd835', c2: '#eeeeee' },   // "archer normal: geel/wit"
     { base: 'Skeleton', variant: 'Ghost', c1: '#8fb8e0' },                   // "flets blauw"
     { base: 'Skeleton', variant: 'Full White', c1: '#eeeeee' },
@@ -2171,6 +2204,13 @@ for (const entry of manifest) {
         'Worm Sprite Sheet - Left': 'Worm Left',
     };
     if (STRIP_SHEET_RENAME[entry.base]) entry.base = STRIP_SHEET_RENAME[entry.base];
+    // #989 (Han 2026-08-14, "tag as bird: blue jay, pigeon (rename: 'pigeon (collared dove)'), goose, pidgeon
+    // (rename: 'pigeon (rock dove)')"): disambiguates the two previously-separate, confusingly-named "Pigeon"
+    // (correctly spelled, sourced from the packed critters sheet.png) and "Pidgeon" (misspelled, standalone
+    // sprite file) into two clearly-named real species. Every set below referencing the OLD bare names is
+    // updated to the new ones (this rename runs before the tag-derivation checks further down the loop).
+    if (entry.base === 'Pigeon') entry.base = 'Pigeon (Collared Dove)';
+    if (entry.base === 'Pidgeon') entry.base = 'Pigeon (Rock Dove)';
     // "alle critters (behalve die uit de critter sheet)" — category-level rule (not a name list): every
     // 'critters'-category entry faces right EXCEPT the ones sourced from critters sheet.png (Frog/Pigeon/
     // Blue Jay/Rat/Snail/Turtle/Firefly/Ladybird/Fly/Butterfly/Mosquito/the CRITTER_ROWS Dragonfly), which
@@ -2507,9 +2547,10 @@ for (const entry of manifest) {
     // system (useWorldCritterSpawns.js). Explicit name rosters, same §6c convention as RANGED_NAMES/
     // TOWNSFOLK_ANIMAL_NAMES/ALWAYS_FLYING_NAMES — no formula can derive "this creature is hostile" or
     // "lives in water" from a name/folder/animation alone.
+    // #989 (Han 2026-08-14, "geef hostile tag aan: eye monster") — added to the existing roster.
     const HOSTILE_NAMES = new Set([
         'Akaname', 'Brain Mole Monarch', 'Cacodaemon', 'Corrupted Treant', 'Ghoul', 'Giant Fly',
-        'Giant Dragonfly', 'Imp', 'Intellect Devourer',
+        'Giant Dragonfly', 'Imp', 'Intellect Devourer', 'Eye Monster',
     ]);
     if (HOSTILE_NAMES.has(entry.base)) tags.push('hostile');
     const GROUND_NATURE_NAMES = new Set([
@@ -2519,15 +2560,53 @@ for (const entry of manifest) {
         'Squirrel', 'Stinky Skunk', 'Tiny Chick', 'Tunneling Mole', 'Worm',
     ]);
     if (GROUND_NATURE_NAMES.has(entry.base)) tags.push('ground');
-    const WATER_NATURE_NAMES = new Set(['Coral Crab', 'Croaking Toad', 'Slow Turtle']);
+    // #989 (Han 2026-08-14, "crab. (water, animal, critter)") — Crab Sprite Sheet.png added.
+    const WATER_NATURE_NAMES = new Set(['Coral Crab', 'Croaking Toad', 'Slow Turtle', 'Crab']);
     if (WATER_NATURE_NAMES.has(entry.base)) tags.push('water');
     const UNDERWATER_NATURE_NAMES = new Set(['Jellyfish', 'Octopus']);
     if (UNDERWATER_NATURE_NAMES.has(entry.base)) tags.push('underwater');
     // Han: "geef tag nature en flying (als hij er nog niet op zit) aan: fly (small), bumble bee, honking
     // goose, leaping frog, pidgeon" — Fly (Small)/Bumble Bee already get 'flying' from their own animation
     // key / ALWAYS_FLYING_NAMES respectively; this roster only needs the ones that were missing it.
-    const FLYING_NATURE_ADD_NAMES = new Set(['Honking Goose', 'Leaping Frog', 'Pidgeon']);
+    // #989: 'Pidgeon' renamed to 'Pigeon (Rock Dove)' above — this Set uses the NEW name so the check still
+    // matches (this runs in the same loop iteration, after the rename).
+    const FLYING_NATURE_ADD_NAMES = new Set(['Honking Goose', 'Leaping Frog', 'Pigeon (Rock Dove)']);
     if (FLYING_NATURE_ADD_NAMES.has(entry.base) && !tags.includes('flying')) tags.push('flying');
+    // #989 (Han 2026-08-14, "bestiary pass" — a new species-level tag, narrower than 'flying'/'critter', the
+    // RPG-world's bird spawner filters on so a "bird" marker only ever picks an actual bird species):
+    // "tag as bird: blue jay, pigeon (rename: 'pigeon (collared dove)'), goose, pidgeon (rename: 'pigeon
+    // (rock dove)')" + the water-birds sheet's own "(bird, animal, critter, on_water)" tag list (Duck/Goose).
+    const BIRD_NAMES = new Set(['Blue Jay', 'Pigeon (Collared Dove)', 'Goose', 'Pigeon (Rock Dove)', 'Duck']);
+    if (BIRD_NAMES.has(entry.base)) tags.push('bird');
+    // #989: "de bedoeling is dat on water creatures heen en weer zwemmen" — habitat tag the RPG-world's
+    // swim-behaviour code (RpgLevelPanel.jsx) filters on, distinct from the pre-existing 'water'
+    // (WATER_NATURE_NAMES, land critters that merely live NEAR water, e.g. Coral Crab/Croaking Toad).
+    const ON_WATER_NAMES = new Set(['Duck', 'Goose']);
+    if (ON_WATER_NAMES.has(entry.base)) tags.push('on_water');
+    // #989 (Han 2026-08-14, "geef nieuwe tag 'night' aan plague bat en swooping bat") — used by the
+    // RPG-world's day/dusk/dawn/night critter spawn gating (day: no 'night'; dusk/dawn: all; night: only
+    // 'night').
+    const NIGHT_NAMES = new Set(['Plague Bat', 'Swooping Bat']);
+    if (NIGHT_NAMES.has(entry.base)) tags.push('night');
+    // #989 (Han 2026-08-14, "firefly: lightsource, geel-groen") — colour handled via SWATCH_OVERRIDES above;
+    // this just flags it as an actual light-emitting creature (no consumer wired yet — descriptive data,
+    // same convention as `facing` originally was per §870).
+    if (entry.base === 'Firefly') tags.push('lightsource');
+    // #989 (Han 2026-08-14, one-time snapshot correction, NOT a persistent rule — "haal de critter tag weg
+    // van: giant fly, bat, mosquito, giant dragonfly, brain mole monarch, phoenixling, cocadaemon, portal,
+    // eye monster, flying brain monster" + "alle monsters die nu hostile hebben moeten de critter tag
+    // verliezen [...] pas gewoon toe op de huidige set"): union of Han's explicit list and the roster
+    // captured by HOSTILE_NAMES ABOVE, as a literal name list — deliberately NOT "if hostile then no
+    // critter" (that would also strip 'critter' from any hostile creature added later, which Han explicitly
+    // ruled out).
+    const NO_CRITTER_NAMES = new Set([
+        'Giant Fly', 'Bat', 'Mosquito', 'Giant Dragonfly', 'Brain Mole Monarch', 'Phoenixling', 'Cacodaemon',
+        'Green Portal', 'Purple Portal', 'Eye Monster', 'Flying Brain Monster', ...HOSTILE_NAMES,
+    ]);
+    if (NO_CRITTER_NAMES.has(entry.base)) {
+        const i = tags.indexOf('critter');
+        if (i !== -1) tags.splice(i, 1);
+    }
     // #924 round 9 (Han: "you gave all critters the nature tag, not just the ones I explicitly mentioned and
     // the ones in the sheet 'critter sheet.png'"): 'nature' is exactly (a) the packed 16-species
     // "critters sheet.png" (`expandCritters`/CRITTER_ROWS — literal small real-world fauna: Frog, Pigeon,
@@ -2540,9 +2619,10 @@ for (const entry of manifest) {
     // 'Dragonfly (Small)': the packed sheet's own row is renamed away from bare 'Dragonfly' earlier in the
     // pipeline (line ~2152, disambiguating it from the unrelated, much bigger "Giant Dragonfly") — by the
     // time tags are derived here, `entry.base` already reflects that rename.
+    // #989: 'Pigeon' renamed to 'Pigeon (Collared Dove)' above — this Set uses the NEW name.
     const CRITTER_SHEET_SPECIES_NAMES = new Set([
-        'Frog', 'Pigeon', 'Blue Jay', 'Rat', 'Snail', 'Turtle', 'Firefly', 'Ladybird', 'Fly', 'Butterfly',
-        'Mosquito', 'Dragonfly (Small)',
+        'Frog', 'Pigeon (Collared Dove)', 'Blue Jay', 'Rat', 'Snail', 'Turtle', 'Firefly', 'Ladybird', 'Fly',
+        'Butterfly', 'Mosquito', 'Dragonfly (Small)',
     ]);
     const NATURE_NAMES = new Set([
         ...CRITTER_SHEET_SPECIES_NAMES, ...GROUND_NATURE_NAMES, ...WATER_NATURE_NAMES, ...UNDERWATER_NATURE_NAMES,

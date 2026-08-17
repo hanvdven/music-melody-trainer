@@ -19093,7 +19093,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_passive/Town crier.png",
     "base": "Town crier",
     "variant": null,
-    "width": 576,
+    "width": 640,
     "height": 64,
     "frame": {
       "w": 64,
@@ -19145,6 +19145,10 @@ export default [
           {
             "row": 0,
             "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
           }
         ]
       }
@@ -57338,7 +57342,6 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter",
       "hostile"
     ]
   },
@@ -58328,7 +58331,6 @@ export default [
     "facing": "right",
     "being": "other",
     "tags": [
-      "critter",
       "magical",
       "hostile"
     ]
@@ -59454,7 +59456,8 @@ export default [
     "tags": [
       "flying",
       "critter",
-      "move"
+      "move",
+      "night"
     ]
   },
   {
@@ -59604,7 +59607,8 @@ export default [
     "tags": [
       "flying",
       "critter",
-      "move"
+      "move",
+      "night"
     ]
   },
   {
@@ -59840,7 +59844,6 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter",
       "hostile"
     ]
   },
@@ -60245,7 +60248,6 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter",
       "hellish",
       "hostile"
     ]
@@ -60758,6 +60760,123 @@ export default [
   },
   {
     "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/Crab Sprite Sheet.png",
+    "base": "Crab",
+    "variant": null,
+    "width": 128,
+    "height": 128,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 17,
+      "w": 26,
+      "h": 15
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "move",
+        "label": "Move",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "move",
+      "attack",
+      "critter",
+      "water",
+      "nature"
+    ]
+  },
+  {
+    "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters/Dragonfly Sprite Sheet.png",
     "base": "Giant Dragonfly",
     "variant": null,
@@ -60893,7 +61012,6 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter",
       "hostile"
     ]
   },
@@ -61536,8 +61654,8 @@ export default [
     "being": "other",
     "tags": [
       "flying",
-      "critter",
-      "move"
+      "move",
+      "hostile"
     ]
   },
   {
@@ -62415,7 +62533,6 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter",
       "ranged"
     ]
   },
@@ -62881,7 +62998,6 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter",
       "undead",
       "hostile"
     ]
@@ -63019,7 +63135,6 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter",
       "hostile"
     ]
   },
@@ -65147,7 +65262,6 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter",
       "hellish",
       "hostile"
     ]
@@ -65348,7 +65462,6 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter",
       "hostile"
     ]
   },
@@ -67039,14 +67152,13 @@ export default [
     "tags": [
       "flying",
       "move",
-      "attack",
-      "critter"
+      "attack"
     ]
   },
   {
     "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters/Pidgeon Sprite Sheet.png",
-    "base": "Pidgeon",
+    "base": "Pigeon (Rock Dove)",
     "variant": null,
     "width": 128,
     "height": 128,
@@ -67128,8 +67240,8 @@ export default [
         ]
       },
       {
-        "key": "death",
-        "label": "Death",
+        "key": "fly",
+        "label": "Fly",
         "cells": [
           {
             "row": 3,
@@ -67147,16 +67259,20 @@ export default [
             "row": 3,
             "col": 3
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
     ],
     "facing": "right",
     "being": "animal",
     "tags": [
+      "flying",
       "move",
       "attack",
       "critter",
-      "flying",
+      "bird",
       "nature"
     ]
   },
@@ -69294,6 +69410,413 @@ export default [
   },
   {
     "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_1",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_2",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_3",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 4,
+      "y": 21,
+      "w": 24,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_4",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_5",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 4,
+      "y": 21,
+      "w": 24,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_6",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_7",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Duck",
+    "variant": "duck_8",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 5,
+      "y": 21,
+      "w": 23,
+      "h": 11
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Goose",
+    "variant": "goose_1",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 2,
+      "y": 15,
+      "w": 28,
+      "h": 17
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Goose",
+    "variant": "goose_2",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 2,
+      "y": 15,
+      "w": 28,
+      "h": 17
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/water-birds.png",
+    "base": "Goose",
+    "variant": "goose_3",
+    "width": 32,
+    "height": 352,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 2,
+      "y": 15,
+      "w": 28,
+      "h": 17
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "tags": [
+      "critter",
+      "bird",
+      "on_water"
+    ]
+  },
+  {
+    "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters/Worm Sprite Sheet - Left.png",
     "base": "Worm Left",
     "variant": null,
@@ -69820,7 +70343,7 @@ export default [
   {
     "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters sheet.png",
-    "base": "Pigeon",
+    "base": "Pigeon (Collared Dove)",
     "variant": null,
     "width": 80,
     "height": 256,
@@ -69887,6 +70410,7 @@ export default [
     "tags": [
       "flying",
       "move",
+      "bird",
       "nature"
     ]
   },
@@ -69956,6 +70480,7 @@ export default [
     "tags": [
       "flying",
       "move",
+      "bird",
       "nature"
     ]
   },
@@ -70215,10 +70740,12 @@ export default [
         ]
       }
     ],
+    "swatchColor": "#c6e02c",
     "being": "animal",
     "tags": [
       "flying",
       "move",
+      "lightsource",
       "nature"
     ]
   },

@@ -1,0 +1,38 @@
+{
+  "_purpose": "Hand-maintained registry of which instrument/sample belongs to which env-audio entity in the RPG world (birds, water, and eventually NPCs). Requested by Han (2026-08-17, ticket #925/#993): 'Maak eventueel een json die je bijwerkt om dit soort info up to date te houden (welk instrument, horend bij welke entiteit, etc)'. Update this file whenever an env-audio instrument/source choice changes -- it is the source of truth for what's implemented vs. still a placeholder/blocked, read by humans and agents, not imported by app code.",
+  "entities": {
+    "bird": {
+      "instrument": "shakuhachi",
+      "sourceType": "real MIDI",
+      "source": "src/songs/world_midis/bird sounds.mid",
+      "layerCount": 5,
+      "status": "implemented, instrument fidelity pending",
+      "notes": "One independent panned voice per currently-audible bird critter (world-distance chunk model). Han's Reaper project (src/assets/ASSET DROP/bird sounds.rpp, 2026-08-17) names each bird track with its intended instrument in parens: pigeon/cuckoo/sparrow hi/sparrow low/owl all '(piccolo)', duck '(bassoon)' -- ALL of them currently still play uniformly on shakuhachi (the original #924 choice). piccolo and bassoon are now locally extracted (src/constants/instruments.jsx, scripts/extract-soundfont-samples.mjs) and available to switch to, but the bird_sounds.mid actually loaded at runtime still only has the original 5 unison-shakuhachi tracks -- switching per-species instruments needs a re-export of bird sounds.mid (like the water one) AND a generate-bird-sounds.mjs change to route by track name (currently plays any track uniformly, see script header). Not yet done -- ask Han before touching, per CLAUDE.md #9k (avoid guessing on musical/UX decisions).",
+      "ticket": "#924 (original), #1025 (view/distance gating)"
+    },
+    "water_hum": {
+      "instrument": "viola",
+      "sourceType": "real MIDI",
+      "source": "src/songs/world_midis/water sounds.mid (track 'water hum (viola - hold ad infinitum)')",
+      "status": "implemented",
+      "notes": "One continuous held note (no natural release, relies on the viola sample's own real loop points), panned/faded by the chunk model. Pitch/velocity read straight from the generated manifest (scripts/generate-water-sounds.mjs -> src/model/waterSoundsManifest.generated.js) instead of a hand-picked placeholder -- source MIDI has exactly one 8-beat note (C2, velocity 76) meant to be held indefinitely, matching Han's original 'hele lange noot, zonder release' framing.",
+      "ticket": "#1025"
+    },
+    "water_glockenspiel": {
+      "instrument": "glockenspiel",
+      "sourceType": "real MIDI",
+      "source": "src/songs/world_midis/water sounds.mid (track 'water (glockenspiel)')",
+      "status": "implemented",
+      "notes": "Plays the REAL composed 18-note phrase (~7 beats) via playMelodies() periodically while water is in audible range -- replaced the earlier placeholder (a single random note from a hand-picked pool on tubular_bells, which was never even locally extracted). glockenspiel is now locally extracted (GM program 10).",
+      "ticket": "#1025"
+    },
+    "water_percussion": {
+      "instrument": null,
+      "sourceType": "real MIDI, no instrument available yet",
+      "source": "src/songs/world_midis/water sounds.mid (track 'water (percussion-standard)') -- a real 2-measure GM drum pattern (kick/hihat/ride/conga/cabasa note numbers) is now in src/model/waterSoundsManifest.generated.js's waterPercussion layer, just not wired to any instrument/voice yet.",
+      "status": "blocked -- no GM percussion kit available in this app's loaded soundfonts",
+      "notes": "Han (2026-08-16): 'er is een percussie-instrument. Gebruik perc standard uit de sf2.' drumKits.js's GM_ACOUSTIC_KITS are hard-flagged available:false -- no pad-to-GM-MIDI mapping exists yet. Han (2026-08-17): 'gebruik maar gewoon freepats' -- waiting on Han to supply the specific FreePats file/URL (an agent should not guess/fetch an unconfirmed external audio source).",
+      "ticket": "#1037"
+    }
+  }
+}

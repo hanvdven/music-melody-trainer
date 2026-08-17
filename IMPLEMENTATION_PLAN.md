@@ -25,7 +25,19 @@ Han, terwijl #988's WAV-conversie op de achtergrond draaide:
    - RPG music volume (levelmuziek incl. vogels) — default mf
    - RPG visibility — opacity van de rpg-layer in het level, 100 of 50.
 
-Interview loopt (research + AskUserQuestion) voordat er iets geïmplementeerd wordt (CLAUDE.md §4b).
+Interview afgerond (Han 2026-08-14):
+1. Chorus: getriggerd door vergelijking gespeelde pitch vs. verwachte/target-noot uit de huidige
+   melodie/oefening (instrument-input, bijv. trompet — niet mic/pitch-detectie).
+2. Damaged-audio (`assets/other/rpg voice starter pack/type3/damagedN.wav`): triggert op HETZELFDE
+   moment als een bestaande "gemist"-beoordeling (niet een nieuwe aparte 1/8e-drempel-check).
+3. Settings: NIEUWE, losse setters die bovenop de 3 bestaande, ongerelateerde volume-paden
+   (VOL_STEPS level-tracks / MF_VOLUME ambient / raw-float one-shot fx) een gain-multiplier leggen
+   — geen samenvoeging tot 1 bus nu (apart, groter project indien ooit nodig).
+
+Opgesplitst in 3 kanban-tickets (design→plan→impl→test), parallel op te pakken:
+- Chorus-op-foute-noot + debug chorus-strength regelaar
+- Enemy damagedN audio bij "gemist"
+- RPG fx volume / RPG music volume / RPG visibility settings (onder num-measures-setter)
 
 ## 2026-08-14 — 🔨 #988 SplendidGrandPiano als standaard piano
 
@@ -4658,3 +4670,189 @@ not be even better to download the full smplr package?"
   `acoustic_grand_piano` buffers. Slug unchanged; zero call-site changes (all 7 verified).
 - ✅ 13 new tests; architecture.md §227 + §224 pointer; CLAUDE.md §7a E029 + §8 ownership row.
   `test:run` / `build` / `lint` green (same 1 pre-existing unrelated ldtkWorld failure).
+
+## 2026-08-14 — ⏳ CR: cello/percussion note-release cutoff (interview loopt)
+
+Han (na #889 UAT), 3 gerelateerde meldingen:
+1. **Cello klinkt lelijk, stopt abrupt** — bijv. level 2: cellonoten lijken maar ~3 tellen te duren
+   in een 4/4-maat. Ook te hoog. **Zet cello range op G♯1–G2.** Doel van de cello-track: een
+   constante "dreigende" ondertoon.
+2. **App-breed probleem: noten worden on release meteen afgesloten** — geen doorklinkende staart.
+   Zeker hoorbaar bij percussie met lange staart (vibraphone). **Laat percussie-instrumenten altijd
+   volledig uitspelen on release: marimba, koto, xylophone, woodblock.**
+3. **Sommige instrumenten bruut afgesneden** — bijv. SAW en harmonica duren maar heel kort.
+   Han vermoedt (mid-turn vraag): is dit een kapot attack-hold-release (ADSR) mechanisme?
+
+Interview + verkenning (envelope/note-off/cello-duration code) nog te doen voor implementatie
+(CLAUDE.md §4b — hard stop, ook al lijkt de oorzaak voor de hand liggend).
+
+Interview + implementatie afgerond ✅:
+- Twee losse oorzaken gevonden: (1) sustain-instrumenten (cello/saw/harmonica/orgel/...) hadden
+  helemaal geen loop-audio geëxtraheerd uit de .sf2 — geen envelope-bug, de sample-data zelf was te
+  kort; (2) decay-percussie (marimba/koto/xylophone/woodblock) kreeg een vroege stop() ongeacht de
+  natuurlijke uitklinktijd van het sample.
+- Fix 1 (sustain): `extract-soundfont-samples.mjs` neemt nu SF2 loop-points (startLoop/endLoop,
+  SampleModes) mee; `localInstruments.js` bouwt lokale instrumenten via smplr's `Smplr` +
+  `soundfontToSmplrJson` (native Web Audio looping) i.p.v. de vlakke `Sampler`-buffers-map — geen
+  nieuwe/langere audiobestanden nodig, alleen 2 extra getallen per noot.
+- Fix 2 (let ring): `LET_RING_INSTRUMENTS` (constants/instruments.jsx) + `playMelodies.js` slaat
+  `duration` over voor marimba/xylophone/koto/woodblock — smplr plant dan geen stop() in, sample
+  speelt vanzelf tot het einde uit.
+- UAT-correctie: vibraphone bleek als enige mallet-instrument wél SF2-loop-data te hebben (echte
+  vibraphone heeft sustainpedaal) — verplaatst van "let ring" naar het loop-mechanisme.
+- SAW: hele (korte) sample wordt geloopt (Han: "beschouw hele sample als loop"). Harmonica had al
+  bruikbare SF2-loop-data, geen aparte fix nodig.
+- Cello-range → G♯1-G2 (was C2-B2), alleen `LEVEL_BASS_SIMPLE` (level 2), pitch-shift onder C♯2
+  geaccepteerd. "3 tellen i.p.v. 4"-klacht bleek dezelfde envelope-bug, niet `force_chord_roots` —
+  generatielogica ongewijzigd gelaten.
+- architecture.md §232. `test:run`/`build`/lint groen (zelfde 3 pre-existing losstaande
+  ldtkWorld-failures, ongerelateerd aan deze wijziging).
+
+## 2026-08-17 — 🐞✅ #1039 Eend ver rechts van het water (LEVEL_MIN_X-mismatch)
+
+Han: "ik zie een eend heeel ver naar rechts in het level, die is dus niet goed geplaatst op het
+water." Root cause: `waterSpanNear()` (RpgLevelPanel.jsx) vergeleek watertegels' CANVAS-LOCAL
+`worldX` rechtstreeks met de X_on_water-marker's ABSOLUTE `spawnX` — exact dezelfde
+LEVEL_MIN_X-coördinatenruimte-bug als #1024 (lichten) en #925 (`nearestWaterX` in
+useWorldAmbientMusic.js), maar deze call site werd bij die eerdere fixronde gemist. Fix: `+
+LEVEL_MIN_X` toegevoegd aan de tegel-worldX-vergelijkingen, zelfde patroon als de bestaande fixes.
+
+## 2026-08-17 — 🔨 CR: stop/unload alle env-audio bij level sluiten (#1038)
+
+Han: "bij level sluiten; unload/stop alle geluid." Gelogd als kanban #1038 — nog te verifiëren of
+de bestaande cleanup in useWorldAmbientMusic.js (per-effect cancelled-flag + clearInterval/
+clearTimeout + celloStopFn) daadwerkelijk ALLE stemmen stopt (incl. per-vogel Smplr-instances in de
+`voices` Map), niet alleen de scheduling-timers.
+
+## 2026-08-17 — 🔨 #1025 vervolg: echte water-MIDI ontvangen (bird sounds.rpp/.mid in ASSET DROP)
+
+Han's eerdere claim "het staat mee in bird sounds :)" bleek te verwijzen naar het Reaper-project
+(`src/assets/ASSET DROP/bird sounds.rpp`, niet de bestaande `src/songs/world_midis/bird sounds.mid`
+die AL sinds #924 ongewijzigd was). De .rpp bevat de ECHTE tracknamen incl. instrument-tussen-haakjes
+conventie: vogels grotendeels `(piccolo)` behalve duck `(bassoon)` (nog niet in de app als lokaal
+instrument geëxtraheerd — interview met Han loopt of dit nu moet); water: `water hum (viola - hold ad
+infinitum)`, `water (glockenspiel)`, `water (percussion-standard)`. Han heeft daarna een echte
+`.mid`-export gedropt (4 tracks: bird sounds/meta, water percussion 56 notes, water hum 1 sustained
+note, water glockenspiel 18 notes) — vervangt de eerdere cello/tubular_bells-placeholders in
+useWorldAmbientMusic.js zodra verwerkt. Percussion-instrument zelf blijft geblokkeerd op #1037
+(FreePats-bron nog niet aangeleverd).
+
+## 2026-08-17 — 🔨 Nieuwe feature: Collision_mask laag (hoogte-variabele grond, bijv. boomstam-diagonalen)
+
+Han: "ik heb een collision mask geplaatst. tenzij anders vermeld, moet karakter 'op de collision map'
+wandelen. Dus bij de boomstam zijn nu wat diagonale vlakken waar het personage over moet wandelen,
+waardoor de y-positie van de hero moet veranderen. regel: geen collision map: gewoon op 32px
+wandelen. wel collision map: hoogte wordt bepaald door collision map." Nieuwe LDtk-laag
+`Collision_mask` (Tiles-laag, eigen tileset `collsion-mask.png`, 64×80px = 20 tiles) gevonden en
+gedecodeerd: elk tile-ID is een silhouet-heightmap (per kolom binnen de 16px-tile geeft de bovenste
+opake pixelrij de grondhoogte aan — tile 0 = volledig opaak/vlak, tiles 8/9 = een vloeiende
+45°-diagonaal, tiles 6/7/12/13 = trapsgewijze varianten). Interview lopend (§4b hard-stop — nieuwe
+feature, raakt de stand-anchor-invariant) over: (1) klopt deze lezing (hoogste = kleinste pixelrij =
+hoogste grond)? (2) wat betekent een volledig transparante kolom binnen een wel-geplaatste tile (geen
+override, of een specifieke hoogte)? (3) geldt dit voor alle grond-statende entiteiten (hero/pet/NPC/
+kritters) of alleen de hero? Nog niet geïmplementeerd.
+
+## 2026-08-17 — 🐞 Bug: eenden niet bottom-bottom geankerd (herziening van #989)
+
+Han: "de eenden staan niet goed geankerd. bottom-bottom (zoals alle entiteiten dat zouden moeten.)"
+— dit draait EXPLICIET #989's eerdere keuze terug (`translate(-50%, 50%)`, center-center-anker met
+LDtk's eigen entity-anchor) naar bottom-anchor, consistent met hero/pet/NPC/Slime (`bottom:
+standAnchor`/`GROUND_ANCHOR`, geen translate-offset). Ondubbelzinnig verzoek, direct geïmplementeerd
+zonder extra interview (Han's herhaalde "zoals alle entiteiten" is zelf al de bevestiging).
+
+## 2026-08-17 — 🐞 Bug: eenden zwemmen eindeloos naar rechts (verkeerde water-tile-subtype meegenomen)
+
+Han: "eenden zwemmen eindeloos naar rechts. Ze moeten op het water blijven (de water tiles van het
+derde type (dus niet de randen)." Onderzoek: `Water_tile`-laag gebruikt een tileset
+(`GandalfHardcore Animated Water Tiles.png`) met 3 duidelijk visueel verschillende 16px-rijbanden (elk
+met 2 animatieframes) — band 1 (y=0/16, gekartelde rand + effen vlak), band 2 (y=32/48, verticale
+"waterval"-textuur), band 3 (y=64/80, effen vlak + gekartelde rand). De app classificeert momenteel
+ALLE Water_tile-tiles uniform als `kind: 'water'` (ldtkWorld.js regel 339) — geen onderscheid naar
+band/type. `waterSpanNear()` (RpgLevelPanel.jsx) pakt dus de volle breedte van alle 3 banden samen,
+inclusief randtiles, wat de zwem-grens te ruim (mogelijk zelfs onbegrensd ogend) maakt. Interview
+lopend over welke band Han bedoelt met "het derde type" voordat de tile-classificatie wordt
+uitgebreid.
+
+**Update (impl afgerond):** interview leverde logicalRow 1 op, maar Han meldde daarna dat de eenden
+nog steeds eindeloos naar rechts zwommen. Her-onderzoek met de ECHTE level-data (i.p.v. nog een gok)
+toonde: in Level_1 (waar beide eend-markers staan, abs X 208/320) is logicalRow 2 een aaneengesloten
+vijver van 20 tiles (abs X 192-352, exact om beide eenden heen), terwijl logicalRow 1 daar maar 4
+decoratieve tiles ver buiten die range is. Gecorrigeerd naar logicalRow 2. build groen, Han's re-test
+loopt.
+
+## 2026-08-17 — ✅ #1040 Collision_mask feature + #1041 eend-anker bottom-bottom
+
+Interview afgerond (zie boven): hoogte-lezing bevestigd (bovenste opake pixelrij per kolom = grondhoogte,
+tile's eigen px-positie + kolomhoogte, geen aparte baseline nodig), transparante kolommen vallen terug op
+flat 32px, scope = alle grond-statende entiteiten BEHALVE flying/on-water (die krijgen een eigen vaste
+WATER_STAND_HEIGHT_PX=16).
+
+Implementatie: `scripts/generate-collision-heights.mjs` (nieuw, decodeert collsion-mask.png via pngjs tot
+een per-tile-per-kolom heightmap) → `src/model/collisionMaskHeights.generated.js`. `ldtkWorld.js`'s
+`groundHeightAt(canvasLocalX)` zoekt de dekkende Collision_mask-tile op en valt terug op STAND_HEIGHT_PX
+waar geen tile ligt of de kolom transparant is. `RpgLevelPanel.jsx`'s ene gedeelde `standAnchor` werd
+`standAnchorFor(worldX)` (elke entiteit vraagt zijn EIGEN X op) voor hero/pet/NPC/Slime;
+`WorldWanderer`-grondkritters (`onGround` flag) volgen dezelfde lookup tijdens het wandelen; vliegende
+kritters ongewijzigd; zwemkritters krijgen de nieuwe vaste `WATER_STAND_HEIGHT_PX=16`.
+
+Eend-anker (#1041): Han's expliciete "bottom-bottom, zoals alle entiteiten" draait #989's eerdere
+center-center-keuze terug — `translate(-50%, 50%)` → `translateX(-50%)`.
+
+Han live bevestigd: "collision werkt! :D". `test:run`/`build`/`lint` groen. architecture.md §240
+geschreven + 2 bug-log-entries (duck-anchor, duck-swim-bounds).
+
+## 2026-08-17 — 🐞✅ #1042 ronde 2: eenden zwommen over land tussen twee losse vijvers
+
+Han's eigen inzicht: `waterSpanNear` pakte het globale min/max over ALLE watertiles op eenzelfde rij,
+dus overbrugde het de grond TUSSEN losse, niet-verbonden vijvers (Level_1's vijver + Level_3's veel
+grotere vijver zitten toevallig op dezelfde relatieve hoogte). Fix: contiguity-walk vanaf de tile het
+dichtst bij spawnX, alleen uitbreiden zolang opeenvolgende tiles echt aangrenzend zijn (gap <= gridSize).
+Han bevestigd: "ducks werken <3".
+
+## 2026-08-17 — ✅ #1032 Water-reflectie (vijvers spiegelen bomen/decor + entiteiten)
+
+Interview: bomen/decor/entiteiten (incl. animatie) allemaal spiegelen; bomen op de "ruwe laag" (geen
+shimmer); geen parallax, geen terrain (water zit nooit onder terrain); volgorde animatie-reflectie-
+shimmer zodat het water zelf shimmer geeft aan de reflectie.
+
+Implementatie: `WaterReflectionLayer.jsx` (nieuw) — vijvers via flood-fill over ALLE watertiles
+gegroepeerd (`waterPonds`), `REFLECTABLE_TILES` (ldtkWorld.js: STATIC_TILE_LAYERS+FOLIAGE_LAYERS, geen
+terrain/pavement/parallax) gecomposit via dezelfde `loadTileImages`/`drawTilesToCanvas` als LdtkScenery,
+per vijver gespiegeld via CSS `scaleY(-1)` rond de vijver's eigen surfaceY. Gemount VOOR de water-shimmer
+laag zodat die er overheen shimmert (volgorde via z-order, geen pixel-distortie nodig).
+
+Entiteiten: reflectie als GENEST kind binnen dezelfde positioned wrapper (geen aparte ref/tick-loop) —
+erft live position/frame/facing automatisch. Eenden/zwemkritters (WorldWanderer): spiegelen altijd om
+hun EIGEN positie (Han: "moet aan de ducks plakken, want zij zitten direct op het water"). Hero/pet/NPC/
+Slime: zelfde truc, maar gated op `isNearWater(worldX)` (alleen zichtbaar binnen een vijver's span).
+Ground-kritters (niet zwemmend) nog niet gedekt — imperatieve rAF-ref-loop zonder re-render om op te
+gaten, kleine vervolgstap.
+
+Han live bevestigd (na ronde 1, vijver+bomen): "yes!!! prachtig!!". `test:run`/`build`/`lint` groen na
+elke ronde. architecture.md §241 geschreven.
+
+## 2026-08-17 — 🐞✅ #1032 ronde 4: reflectie-anker + debug grid gebruikte verkeerde zoom-factor
+
+Han's scherpe observatie: "die plakt vast aan de hero base... x=24 van de onderrand ligt veel hoger dan
+ik zou verwachten." Twee onafhankelijke bugs gevonden:
+1. Entity-reflectie (hero/pet/NPC) spiegelde om de entiteit's EIGEN voetpositie (correct voor eenden,
+   fout voor entiteiten die niet exact op waterhoogte staan) — nu een STANDALONE sibling die om de
+   omvattende vijver's eigen `surfaceY` spiegelt, en verplaatst uit de entiteit's eigen `transform`-de
+   wrapper (CSS maakt een transformed element een nieuw containing block, wat de absolute left/bottom
+   anders stilletjes had gebroken).
+2. `DebugGrid` gebruikte de LEGACY vaste `ZOOM=3` constante i.p.v. de actuele dynamische `zoom` — verklaart
+   waarom de gridlijnen niet op de tiles pasten en waarom "24" er verkeerd uitzag. Nu `zoom`-prop, plus een
+   rode debug-lijn op native hoogte 24 (REFLECTION_DEPTH_PX) zodat Han het visueel kan verifiëren.
+CharacterDoll/WorldCreature's eigen box-wiskunde nagekeken — beide zijn al bottom-flush met de visuele
+voeten (eerdere #664/#693-rondes), dus geen aparte "op zijn kop"-ankerbug gevonden/nodig.
+
+## 2026-08-17 — ✅ #1038 stop/unload alle env-audio bij level sluiten — afgerond
+
+`useWorldAmbientMusic.js`'s 3 effects riepen alleen `clearTimeout`/`clearInterval` op — nooit
+`stop()`/`disconnect()` op de smplr-instrumenten zelf, dus reeds geplande/klinkende noten speelden na
+unmount gewoon door. Piano (cached instance) krijgt `stop()`; vogel-stemmen + water-instrumenten (elke
+mount een NIEUWE instance) krijgen `disconnect()`. Test-mock aangepast (ving een echte unmount-crash op
+voor die shipte). `test:run`/`build`/`lint` groen.
+
+**Openstaand:** vogel-instrumentgetrouwheid (piccolo/bassoon per soort) blijft geblokkeerd — geen nieuwe
+bird-MIDI-export in ASSET DROP sinds de laatste check.

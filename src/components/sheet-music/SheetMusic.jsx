@@ -209,6 +209,11 @@ const SheetMusic = ({
   onEnemyTotal,                     // #693 round 8 — reports the level's total slime/enemy count
   onCritterTotal,                   // #693 round 8 — reports the level's total critter (rest) count
   sideScroll = false,               // #660 Level 2 — slimes fly in from the right toward a hit-zone
+  // #889 (Han 2026-08-14): how many quarter-beats of lead-time a slime/note gets before reaching the
+  // hit zone — meter-aware (derived in levels.js's normalizeLevel from timeSignature, "2 measures").
+  // Was previously never forwarded here, so SheetRpgLayer silently used its own internal `= 8`
+  // (4/4-only) default regardless of what the level actually computed.
+  beatsOnScreen = 8,
   levelAudioStart = null,           // §88 — audio-time (s) the level backing started; scroll anchors to it
   // #662 (Han 2026-08-02, "slimes mogen alleen zichtbaar zijn TIJDENS een level"): distinct from
   // `sideScroll` — Level 1 is a level too but is NOT sideScroll (static idle slimes). Gates whether
@@ -2888,6 +2893,7 @@ const SheetMusic = ({
                     bpm={bpm}
                     timeSignature={timeSignature}
                     sideScroll={sideScroll}
+                    beatsOnScreen={beatsOnScreen}
                     enemyType={enemyType}
                     wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}
                     decorativeWizard={decorativeWizard}

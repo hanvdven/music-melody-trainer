@@ -5,6 +5,7 @@
 import ramLevelRaw from '../../assets/ASSORTED/LDtk/RAM level.ldtk?raw';
 import { evaluateRuleGroup } from './ldtkAutoTile';
 import { tilesetUrlFor } from './tilesetUrls';
+import { COLLISION_TILE_HEIGHTS, COLLISION_TILE_COLS } from '../../model/collisionMaskHeights.generated';
 
 const ldtk = JSON.parse(ramLevelRaw);
 const TILESETS_BY_UID = Object.fromEntries(ldtk.defs.tilesets.map((t) => [t.uid, t]));
@@ -109,6 +110,24 @@ export const ENTITY_INSTANCES = ALL_ENTITY_INSTANCES.reduce((acc, e) => {
 // already sit at this same height in the authored file, but the app's own ground line is intentionally
 // fixed independent of any one entity's placement).
 export const STAND_HEIGHT_PX = 32;
+
+// #1040 (Han 2026-08-17, collision-mask interview: "all ground-anchored entities... exclude flying and
+// on-water, they have different height rules — flying/oscillating for air, fixed at 16px for on-water"):
+// swim critters (X_on_water) get their OWN fixed anchor, same pattern as STAND_HEIGHT_PX but a distinct
+// (lower) value — NOT derived from the collision map and NOT from the marker's own authored Y, so a duck
+// floats at a consistent height regardless of exactly where the level author dropped its spawn marker.
+export const WATER_STAND_HEIGHT_PX = 16;
+
+// #1032 round 6 bugfix (Han 2026-08-17, "de lijn staat op 32px van de bodem, ik had duidelijk 24px
+// gezegd. Dit is een visuele keuze van mij... zet de lijn op 28px"): the reflection mirror axis is NOT
+// derived from pond tile data at all — it's Han's own hand-tuned constant, same pattern as
+// STAND_HEIGHT_PX/WATER_STAND_HEIGHT_PX. Confirmed by his own worked example: hero standing on a
+// Collision_mask ramp at height 48 should reflect to height 16 — i.e. mirrored around a FIXED line, not
+// the pond's own (possibly different) tile-derived surfaceY and not the entity's own current (possibly
+// elevated) position. An earlier round used `pond.surfaceY` instead, which happened to read 32 for this
+// level's water tiles — coincidentally close to, but NOT the same thing as, this deliberately separate
+// hand-tuned value.
+export const WATER_REFLECTION_AXIS_PX = 28;
 
 function tilesetForLayerInstance(li) {
     return li.__tilesetDefUid != null ? TILESETS_BY_UID[li.__tilesetDefUid] : null;
@@ -351,4 +370,48 @@ export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = '
         animatedTilesBack: animated.back, animatedTilesFront: animated.front,
         backgroundLayers, gridSize: LEVEL_LAYERS[0].layers.Terrain.__gridSize,
     };
+}
+
+// #1032 (Han 2026-08-17, water reflection interview: "tree, decor, entities... allemaal wel... voor bomen
+// mag je de ruwe laag pakken, dus shimmer negeren. parallax hoeft niet, en terrain ook niet (want water is
+// nooit ónder terrain)"): trees/decor/structures — deliberately excludes Terrain_Tiles/Pavement (real
+// terrain, never visible under water) and BACKGROUND_LAYERS (parallax, explicitly excluded).
+// #1032 round 8 bugfix (Han: "ik kan de brug niet zien op het water"): the ORIGINAL version only included
+// STATIC_TILE_LAYERS/FOLIAGE_LAYERS (a fixed list, computed once) — bridge/tavern tiers are NOT fixed
+// layers, they're chosen dynamically per `buildWorld({tavernTier, bridgeTier})` call
+// (`TAVERN_TIER_LAYERS[tavernTier]`/`BRIDGE_TIER_LAYERS[bridgeTier]`), so a hardcoded once-computed list
+// could never have included whichever one is actually active. Now a function taking the SAME
+// `{tavernTier, bridgeTier}` buildWorld() itself takes, reusing its own tier-lookup tables (§6c) —
+// callers re-derive it whenever those tiers change, same as buildWorld() itself.
+export function reflectableTilesFor({ tavernTier = 'Tent', bridgeTier = 'Log' } = {}) {
+    return [...STATIC_TILE_LAYERS, ...FOLIAGE_LAYERS, TAVERN_TIER_LAYERS[tavernTier], BRIDGE_TIER_LAYERS[bridgeTier]]
+        .flatMap(staticLayerTiles);
+}
+
+// #1040 (Han 2026-08-17, "tenzij anders vermeld, moet karakter 'op de collision map' wandelen... geen
+// collision map: gewoon op 32px wandelen. wel collision map: hoogte wordt bepaald door collision map"):
+// Collision_mask doesn't vary by season/city/tavern/bridge tier (unlike buildWorld()'s other layers), so
+// it's computed once here rather than per buildWorld() call.
+const COLLISION_MASK_GRID_SIZE = LEVEL_LAYERS[0].layers.Terrain.__gridSize;
+const COLLISION_MASK_TILES = staticLayerTiles('Collision_mask');
+
+// #1040: canvasLocalX (a world X already converted via `- LEVEL_MIN_X`, matching every other LDtk tile
+// consumer in this file) -> ground height, in the SAME "native px up from the level's own bottom edge"
+// unit as STAND_HEIGHT_PX (directly usable as a `bottom` CSS value once scaled by zoom). Finds whichever
+// Collision_mask tile covers that X (the layer is authored as a single non-overlapping strip, so the
+// first match is the only match); a tile's own per-column height (COLLISION_TILE_HEIGHTS, decoded from
+// the tileset's own pixel silhouette — scripts/generate-collision-heights.mjs, CLAUDE.md §6c) converts to
+// this unit via `LEVEL_PX_HEIGHT - (tile.worldY + columnHeight)`. Falls back to the flat STAND_HEIGHT_PX
+// when no tile covers this X, or when the covered column has no opaque pixel — both per Han's own
+// confirmed interview answers (2026-08-17), not a guess.
+export function groundHeightAt(canvasLocalX) {
+    const tile = COLLISION_MASK_TILES.find(
+        (t) => canvasLocalX >= t.worldX && canvasLocalX < t.worldX + COLLISION_MASK_GRID_SIZE);
+    if (!tile) return STAND_HEIGHT_PX;
+    const tileId = (tile.src[1] / COLLISION_MASK_GRID_SIZE) * COLLISION_TILE_COLS + (tile.src[0] / COLLISION_MASK_GRID_SIZE);
+    let col = Math.floor(canvasLocalX - tile.worldX);
+    if (tile.flipX) col = COLLISION_MASK_GRID_SIZE - 1 - col;
+    const h = COLLISION_TILE_HEIGHTS[tileId]?.[col];
+    if (h == null || h < 0) return STAND_HEIGHT_PX;
+    return LEVEL_PX_HEIGHT - (tile.worldY + h);
 }

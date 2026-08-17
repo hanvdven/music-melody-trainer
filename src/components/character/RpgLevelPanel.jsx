@@ -12,12 +12,13 @@ import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
 import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
 import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
+import WaterReflectionLayer from './WaterReflectionLayer';
 import useLdtkWaterInstances from './useLdtkWaterInstances';
 import LdtkScenery from './LdtkScenery';
 import LdtkAnimatedTiles from './LdtkAnimatedTiles';
 import useLdtkFoliageInstances from './useLdtkFoliageInstances';
 import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
-import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH } from '../../levels/ldtk/ldtkWorld';
+import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, WATER_STAND_HEIGHT_PX, WATER_REFLECTION_AXIS_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH, groundHeightAt, reflectableTilesFor } from '../../levels/ldtk/ldtkWorld';
 import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
 import LdtkLitGround from './LdtkLitGround';
 import useWorldAmbientMusic from '../../hooks/useWorldAmbientMusic';
@@ -97,6 +98,8 @@ const AMBIENT_DARK_RGB = [13, 20, 46];      // matches the shader's AMBIENT_DARK
 // to the valid 0..255 byte range, i.e. 255): 100/255, 100/255, 255/255.
 const WISP_LIGHT_COLOR01 = [100 / 255, 100 / 255, 1.0];
 const HERO_LIGHT_COLOR01 = [1.0, 0.85, 0.25];
+// #1032 round 8 (Han: "het kampvuur heeft nog geen lichtbron"): warm orange/amber, matching a real fire.
+const CAMPFIRE_LIGHT_COLOR01 = [1.0, 0.55, 0.15];
 const mixRgb = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const rgbCss = ([r, g, b], a = 1) => `rgba(${r},${g},${b},${a})`;
 const FLOOR_SHEET = { w: 288, h: 576 };
@@ -207,13 +210,25 @@ function SheetCrop({ url, sheet, row, col, tile = TILE, wTiles = 1, hTiles = 1, 
 // explicitly asked for "een 32x32 grid, waarin de tiles geplaatst zijn" so tile alignment can be eyeballed.
 // #693 round 7: now drawn in WORLD space (shifted by the camera like everything else) so the grid still
 // lines up with tiles/props as the camera scrolls, instead of a screen-fixed grid that would drift.
-function DebugGrid({ widthPx, heightPx, cameraX }) {
-    const cols = Math.ceil((LEVEL_MAX_X - LEVEL_MIN_X) * ZOOM / T);
-    const rows = Math.ceil(heightPx / T);
-    const originX = widthPx / 2 - cameraX * ZOOM + LEVEL_MIN_X * ZOOM;
+// #1032 round 4 bugfix (Han: "die gridlines passen niet precies op level tiles. Gebruik je universele
+// schalingfactor?"): confirmed — this used the module-level fixed `ZOOM`/`T` (legacy scenery's 3x)
+// instead of the CALLER's actual current zoom, which in LDtk mode is `dynamicZoom` (viewport-responsive,
+// see `zoom` in RpgLevelPanel), a DIFFERENT value in practice. Every gridline was off by that ratio — not
+// a rounding error, a wrong scale factor entirely. Now takes `zoom` as a prop and derives its own tile
+// size from it (`TILE * zoom`), matching every other LDtk-mode element in this file.
+function DebugGrid({ widthPx, heightPx, cameraX, zoom }) {
+    const t = TILE * zoom;
+    const cols = Math.ceil((LEVEL_MAX_X - LEVEL_MIN_X) * zoom / t);
+    const rows = Math.ceil(heightPx / t);
+    const originX = widthPx / 2 - cameraX * zoom + LEVEL_MIN_X * zoom;
     const lines = [];
-    for (let c = 0; c <= cols; c++) lines.push(<div key={`v${c}`} style={{ position: 'absolute', left: originX + c * T, top: 0, width: 1, height: heightPx, background: 'rgba(0,255,255,0.35)' }} />);
-    for (let r = 0; r <= rows; r++) lines.push(<div key={`h${r}`} style={{ position: 'absolute', top: heightPx - r * T, left: 0, height: 1, width: widthPx, background: 'rgba(0,255,255,0.35)' }} />);
+    for (let c = 0; c <= cols; c++) lines.push(<div key={`v${c}`} style={{ position: 'absolute', left: originX + c * t, top: 0, width: 1, height: heightPx, background: 'rgba(0,255,255,0.35)' }} />);
+    for (let r = 0; r <= rows; r++) lines.push(<div key={`h${r}`} style={{ position: 'absolute', top: heightPx - r * t, left: 0, height: 1, width: widthPx, background: 'rgba(0,255,255,0.35)' }} />);
+    // #1032 round 6 bugfix (Han: "de lijn staat op 32px... ik had duidelijk 24px gezegd. Dit is een
+    // visuele keuze van mij... zet de lijn op 28px"): NOT per-pond tile-derived (round 4's approach was
+    // wrong per Han's own correction) — a single line at his own fixed `WATER_REFLECTION_AXIS_PX`,
+    // matching what `EntityReflection`/`WaterReflectionLayer` actually mirror around now.
+    lines.push(<div key="reflection-axis" style={{ position: 'absolute', bottom: WATER_REFLECTION_AXIS_PX * zoom, left: 0, height: 2, width: widthPx, background: 'red' }} />);
     return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>{lines}</div>;
 }
 
@@ -302,13 +317,45 @@ const randomTaggedVariant = (requiredTags, timeOfDay) => {
 // object's `animatedTiles*` — see ldtkWorld.js), minus a 16px margin on each end, so a swim marker's
 // wander box never drifts onto land. Falls back to a small fixed span around the spawn point if no water
 // tile is found at that exact row (defensive — should not happen for a correctly-placed X_on_water marker).
+// #1039 bugfix (Han 2026-08-17, "een eend heel ver naar rechts, niet goed geplaatst op het water"): the
+// SAME LEVEL_MIN_X coordinate-space bug documented above for point lights (§1024) and water audio
+// (§925/useWorldAmbientMusic's nearestWaterX) — `t.worldX` is CANVAS-LOCAL (0-based, tileFromLdtkEntry's
+// `offsetX = lvl.worldX - LEVEL_MIN_X`) while `spawnX` (an X_on_water marker's `__worldX`) is ABSOLUTE.
+// This function was never touched by the #1024 fix pass, so the duck's swim bounds landed off by exactly
+// LEVEL_MIN_X, pushing its wander box far outside the actual water tiles.
+// #1042 bugfix (Han 2026-08-17, "eenden zwemmen eindeloos naar rechts... water tiles van het derde type,
+// dus niet de randen"): the water tileset has 3 visually distinct row-bands, each its own animation pair
+// — `withAnimMeta`'s `logicalRow` (ldtkWorld.js, already computed for the animation cycling, §6c reuse)
+// is exactly `Math.floor(src[1] / 32)`, i.e. 0/1/2 for those 3 bands. First interview round picked
+// logicalRow 1 (the "waterfall" ripple texture) based on a verbal description, but the actual placed
+// level data contradicted that: in Level_1 (where both duck markers actually sit, abs X 208/320),
+// logicalRow 1 is only 4 decorative tiles far outside the ducks' area, while logicalRow 2 is a coherent
+// 20-tile pond spanning abs X 192-336 — exactly bracketing both ducks. logicalRow 2 is the real swimmable
+// open water; 0/1 are shoreline/waterfall-accent decoration, not swimmable area.
+// #1042 round 2 bugfix (Han 2026-08-17, "misschien is dit aan de hand: je neemt het meest rechter
+// watertile als grens? maar er zijn meerdere water-entiteiten; dus zo gaan eenden ook al het 'land
+// tussen water' op"): confirmed exactly right — the previous version took the global min/max across
+// EVERY tile at a similar Y row, bridging across separate, unrelated ponds elsewhere in the level (e.g.
+// Level_1's small pond and Level_3's much larger one both sit at the same relative row) and everything
+// (land included) between them. Fixed by walking outward from the tile nearest spawnX, only while
+// consecutive tiles are truly ADJACENT (gap <= gridSize) — this isolates the single CONTIGUOUS pond the
+// duck actually spawned in, the same "derive the real connected body, don't just take extremes" principle
+// as an autotile flood-fill.
 const WATER_EDGE_MARGIN = 16;
+const OPEN_WATER_LOGICAL_ROW = 2;
 function waterSpanNear(spawnX, spawnY, world) {
-    const waterTiles = [...world.animatedTilesBack, ...world.animatedTilesFront].filter((t) => t.kind === 'water');
-    const row = waterTiles.filter((t) => Math.abs(t.worldY - spawnY) < world.gridSize);
+    const waterTiles = [...world.animatedTilesBack, ...world.animatedTilesFront]
+        .filter((t) => t.kind === 'water' && t.logicalRow === OPEN_WATER_LOGICAL_ROW);
+    const row = waterTiles.filter((t) => Math.abs((t.worldY) - spawnY) < world.gridSize);
     if (!row.length) return { minX: spawnX - 16, maxX: spawnX + 16 };
-    const minX = Math.min(...row.map((t) => t.worldX)) + WATER_EDGE_MARGIN;
-    const maxX = Math.max(...row.map((t) => t.worldX + world.gridSize)) - WATER_EDGE_MARGIN;
+    const abs = row.map((t) => t.worldX + LEVEL_MIN_X).sort((a, b) => a - b);
+    let seedIdx = 0, bestDist = Infinity;
+    abs.forEach((x, i) => { const d = Math.abs(x - spawnX); if (d < bestDist) { bestDist = d; seedIdx = i; } });
+    let lo = seedIdx, hi = seedIdx;
+    while (lo > 0 && abs[lo] - abs[lo - 1] <= world.gridSize) lo--;
+    while (hi < abs.length - 1 && abs[hi + 1] - abs[hi] <= world.gridSize) hi++;
+    const minX = abs[lo] + WATER_EDGE_MARGIN;
+    const maxX = abs[hi] + world.gridSize - WATER_EDGE_MARGIN;
     return minX <= maxX ? { minX, maxX } : { minX: spawnX, maxX: spawnX };
 }
 
@@ -342,7 +389,7 @@ const RETURN_DURATION_MS = 1200;
 // separate, much simpler ping-pong motion (no oscillate/bezier — a real world-space back-and-forth,
 // horizontal only) between the water tile span's own edges (`waterSpan`, computed in `waterSpanNear`).
 const SWIM_SPEED = 4;
-function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef }) {
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, onGround, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef, globalIllumination = 1 }) {
     const elRef = useRef(null);
     const facingRef = useRef(1);
     const posRef = useRef({ x: spawnX, y: spawnY });
@@ -372,7 +419,11 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                 if (nx >= waterSpan.maxX) { nx = waterSpan.maxX; swimDirRef.current = -1; }
                 else if (nx <= waterSpan.minX) { nx = waterSpan.minX; swimDirRef.current = 1; }
                 if (nx !== posRef.current.x) facingRef.current = swimDirRef.current;
-                posRef.current = { x: nx, y: spawnY };   // "geen verticale drift"
+                // #1040 (Han: "on-water fixed at 16px"): a fixed anchor, same mechanism as
+                // STAND_HEIGHT_PX/standAnchor below — LEVEL_PX_HEIGHT-y fed through the SAME `bottom`
+                // formula this component already uses, so a duck floats at a consistent height regardless
+                // of the marker's own authored spawnY, not "no vertical drift from spawnY" anymore.
+                posRef.current = { x: nx, y: LEVEL_PX_HEIGHT - WATER_STAND_HEIGHT_PX };
             } else {
                 const isDutyPerch = canPerch && ((now + perchPhase) % 12000) > 8000;
                 if (isDutyPerch && stateRef.current === 'wander') {
@@ -402,7 +453,10 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                 } else {
                     const dx = oscillate(seedX, now, rangeX / 2, WANDER_SPEED);
                     const dy = rangeY > 0 ? oscillate(seedY, now, rangeY / 2, WANDER_SPEED) : 0;
-                    const nx = spawnX + dx, ny = spawnY - dy;
+                    const nx = spawnX + dx;
+                    // #1040 (Han: ground critters follow Collision_mask same as the hero) — same
+                    // canvasLocalX/LEVEL_PX_HEIGHT conversion the fixed water anchor above uses.
+                    const ny = onGround ? LEVEL_PX_HEIGHT - groundHeightAt(nx - LEVEL_MIN_X) : spawnY - dy;
                     if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
                     posRef.current = { x: nx, y: ny };
                     if (perched) setPerched(false);
@@ -411,11 +465,11 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
             if (elRef.current) {
                 elRef.current.style.left = `${worldToScreenXRef.current(posRef.current.x)}px`;
                 elRef.current.style.bottom = `${(LEVEL_PX_HEIGHT - posRef.current.y) * zoom}px`;
-                // #989 ("zorg dat het anker van de vogels netjes uitlijnt met het anker van de entity in
-                // LDtk, dus midden centrum aan midden centrum"): LDtk's own entity anchor is its CENTER, but
-                // `bottom` above anchors this wrapper's BOTTOM edge there — translateY(50%) shifts the whole
-                // wrapper down by half its own (auto) height so its vertical CENTER lands on spawnY instead.
-                elRef.current.style.transform = 'translate(-50%, 50%)';
+                // #1040 (Han 2026-08-17, "de eenden staan niet goed geankerd. bottom-bottom (zoals alle
+                // entiteiten dat zouden moeten)"): reverses #989's earlier center-center anchor (LDtk's own
+                // entity anchor is its CENTER) back to bottom-bottom, matching every other standing entity's
+                // convention (hero/pet/NPC/Slime all anchor via a plain `bottom` with no translateY offset).
+                elRef.current.style.transform = 'translateX(-50%)';
             }
             // #925 follow-up (Han 2026-08-16, "enkel bird sounds wanneer bird in beeld"): this is the ONLY
             // place a bird's true LIVE (wandering) world position exists — posRef never escapes this
@@ -437,6 +491,23 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
     return (
         <div ref={elRef} style={{ position: 'absolute' }}>
             <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
+            {/* #1032 (Han: "ducks weerspiegeling moet aan de ducks plakken, want zij zitten direct op het
+                water"): a swim critter's reflection just mirrors around ITS OWN current position — no
+                separate pond-surface lookup needed, since a duck IS the water surface by construction.
+                Nested inside the SAME ref-positioned wrapper (not a second top-level ref) so it tracks the
+                live rAF-driven position/frame/facing for free, `inset:0` guarantees it exactly overlaps the
+                real sprite's own box so `transformOrigin:'bottom'` mirrors around its actual feet line. */}
+            {swim && (
+                <div style={{
+                    position: 'absolute', inset: 0, transform: 'scaleY(-1)', transformOrigin: 'bottom',
+                    // #1032 round 5 (Han: "lijkt van onder belicht te worden"): same day/night brightness
+                    // match every other reflection now gets — bypasses the WebGL lighting pass, so without
+                    // this a duck's reflection would stay full-brightness even at night.
+                    opacity: 0.35, filter: `brightness(${globalIllumination})`, pointerEvents: 'none',
+                }}>
+                    <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
+                </div>
+            )}
         </div>
     );
 }
@@ -570,6 +641,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         () => buildWorld({ season, city, tavernTier, bridgeTier }),
         [season, city, tavernTier, bridgeTier],
     );
+    // #1032 round 8 bugfix (Han: "ik kan de brug niet zien op het water"): the reflectable set now
+    // depends on the CURRENTLY-active tavern/bridge tier, same deps buildWorld() itself uses for those.
+    const reflectableTiles = useMemo(
+        () => reflectableTilesFor({ tavernTier, bridgeTier }),
+        [tavernTier, bridgeTier],
+    );
     // #RAM-level BUG FIX (Han 2026-08-11, "ik zie nu heeeel veel flitsen op alle lagen; totaal niet
     // speelbaar"): `groundTiles={[...world.groundTilesBack, ...world.foliageTilesBack]}` (the flat-fallback
     // merge added this round) built a NEW array literal on every RpgLevelPanel render — and this component
@@ -606,6 +683,87 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const nonWaterAnimatedTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind !== 'water'), [world.animatedTilesFront]);
     const waterInstancesBack = useLdtkWaterInstances(waterTilesBack, world.gridSize, sceneryMode);
     const waterInstancesFront = useLdtkWaterInstances(waterTilesFront, world.gridSize, sceneryMode);
+    // #1032 (Han 2026-08-17, water reflection): groups ALL water tiles (any visual band, unlike
+    // waterSpanNear's swim-only logicalRow-2 filter — a pond's visual EXTENT includes its shoreline/edge
+    // tiles too) into connected components via flood-fill (adjacent = both X and Y within one gridSize —
+    // a pond can be more than one tile tall). Only `[minX,maxX]` is used by the reflection code (WHERE to
+    // clip horizontally) — the mirror axis itself is Han's own fixed `WATER_REFLECTION_AXIS_PX` (round 6),
+    // not a per-pond tile-derived height, so no `surfaceY` field is kept here.
+    const waterPonds = useMemo(() => {
+        const tiles = [...waterTilesBack, ...waterTilesFront];
+        const visited = new Set();
+        const ponds = [];
+        for (let i = 0; i < tiles.length; i++) {
+            if (visited.has(i)) continue;
+            const stack = [i];
+            visited.add(i);
+            const cluster = [];
+            while (stack.length) {
+                const idx = stack.pop();
+                cluster.push(tiles[idx]);
+                for (let j = 0; j < tiles.length; j++) {
+                    if (visited.has(j)) continue;
+                    if (Math.abs(tiles[j].worldX - tiles[idx].worldX) <= world.gridSize
+                        && Math.abs(tiles[j].worldY - tiles[idx].worldY) <= world.gridSize) {
+                        visited.add(j);
+                        stack.push(j);
+                    }
+                }
+            }
+            ponds.push({
+                minX: Math.min(...cluster.map((t) => t.worldX)) + LEVEL_MIN_X,
+                maxX: Math.max(...cluster.map((t) => t.worldX + world.gridSize)) + LEVEL_MIN_X,
+            });
+        }
+        return ponds;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [waterTilesBack, waterTilesFront, world.gridSize]);
+    // #1032 round 2 (Han: "die plakt vast aan de hero base. Voor de eenden moet de weerkaatsing aan de
+    // eenden plakken, maar voor de brug, bomen, etc niet, dan moet je spiegel over [de rand]"): the round-1
+    // nested self-mirror was correct ONLY for ducks (always exactly AT the water surface by construction —
+    // see WorldWanderer's own reflection). Hero/pet/NPC/Slime stand on dry land near a pond's edge, often
+    // at a DIFFERENT height than the water itself (collision-mask terrain, a raised bank, ...) — mirroring
+    // around their OWN foot anchor reflected them at the wrong line ("stuck to the hero's own base"
+    // regardless of where the actual water was). Fixed: a STANDALONE sibling (not nested inside the
+    // entity's own wrapper) positioned directly at the CONTAINING POND's own `surfaceY` — same axis
+    // `WaterReflectionLayer` uses for decor/trees/bridge, so entities and scenery reflect at the exact same
+    // line. `extraTransform` carries the hero's CSS-level `scaleX(facing)` (pet/NPC/Slime handle facing
+    // internally via their own `facing` prop instead, so they don't need it).
+    // #1032 round 6 bugfix (Han: "de reflectie staat nu op 32px [pond-tile-derived] i.p.v. de vaste
+    // spiegel-as. Als hero op de boomstam staat is de baseline op y=48, dan zou de reflectie op y=16
+    // moeten staan"): the mirror axis is Han's own FIXED constant (`WATER_REFLECTION_AXIS_PX`), never the
+    // entity's own current (possibly Collision_mask-elevated) position and never a pond's tile-derived
+    // surfaceY — still GATED on pond membership (only shows near actual water), just no longer anchored
+    // to that pond's specific height.
+    // #1032 round 7 bugfix (Han: "de baseline van de reflectie plakt nog altijd aan de reflectielijn;
+    // dit is wiskundig onjuist. De baseline van de reflectie moet dezelfde afstand van de spiegellijn
+    // hebben als de afstand van de hero"): confirmed — round 6 positioned this wrapper's OWN `bottom` AT
+    // the fixed axis itself, then mirrored around the wrapper's own bottom edge — since `scaleY(-1)`
+    // around an element's own bottom edge leaves THAT edge fixed, the reflection's feet stayed glued to
+    // the axis line regardless of the entity's real height. Real mirror symmetry: a point `d` px ABOVE
+    // the axis reflects to `d` px BELOW it, i.e. the wrapper's `bottom` must be `2*axis - entityHeight`,
+    // not `axis`. Matches Han's own worked example exactly (entity height 48, axis 32 in his example →
+    // reflected bottom 2*32-48=16).
+    const EntityReflection = ({ worldX, extraTransform, children }) => {
+        const pond = waterPonds.find((p) => worldX >= p.minX && worldX <= p.maxX);
+        if (!pond) return null;
+        const axisPx = WATER_REFLECTION_AXIS_PX * zoom;
+        const entityHeightPx = standAnchorFor(worldX);
+        const reflectedBottomPx = 2 * axisPx - entityHeightPx;
+        return (
+            <div style={{
+                position: 'absolute', left: worldToScreenX(worldX), bottom: reflectedBottomPx,
+                transform: `translateX(-50%) scaleY(-1)${extraTransform ? ` ${extraTransform}` : ''}`,
+                transformOrigin: 'bottom', opacity: 0.35,
+                // #1032 round 5 (Han: "lijkt van onder belicht te worden"): same day/night brightness
+                // match as WaterReflectionLayer's decor mirror — entity reflections bypass the WebGL
+                // lighting pass too, so without this they'd stay full-brightness even at night.
+                filter: `brightness(${foliageParams.globalIllumination})`, pointerEvents: 'none',
+            }}>
+                {children}
+            </div>
+        );
+    };
     // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en
     // reageren op licht"): ground/terrain/building/decor tiles (world.groundTilesBack/Front — everything
     // EXCEPT background parallax layers and foliage, which already have their own lit pipelines) get a
@@ -652,10 +810,35 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // LEVEL_MIN_X converts both lights into the SAME canvas-local space every LDtk consumer already uses.
     // Scoped to LDtk-mode mounts only — Legacy mode's own `lights` literals use a different, untouched
     // convention (single hardcoded level, no LEVEL_MIN_X concept) and are left as-is.
+    // #1040 follow-up bugfix (Han 2026-08-17, "de normal map behaviour response op de light is flipped...
+    // als van de laatste change kan het karakter een hoge y-positie hebben"): confirmed — the hero's light
+    // height below was hardcoded to 32 (the OLD flat STAND_HEIGHT_PX assumption), predating the
+    // Collision_mask feature. Now that the hero's REAL standing height (`standAnchorFor`) can be higher on
+    // sloped terrain, this stale constant put the light source BELOW the hero's actual current position —
+    // e.g. standing on a ramp near the tree trunk, the lighting calc still assumed height 32 while the
+    // sprite rendered higher, making the trunk's normal-map response look like it was lit from below/wrong
+    // vertical direction. Fixed with the SAME `groundHeightAt` lookup `standAnchorFor` uses (native px, no
+    // `* zoom` — this array's `worldHeight` is already world-space, matching the existing `0`/`32` literals).
+    // #1032 round 8 (Han: "het kampvuur heeft nog geen lichtbron. Zet de lichtbron altijd in het midden
+    // van de sprite. (bij wisp staat deze op de laagste plek in het level, bij karakter op baseline, mag
+    // echt in het midden van de sprite"): campfire tiles are already canvas-local (kind:'campfire' in
+    // world.animatedTilesBack/Front, ldtkWorld.js) — the light sits at the sprite's own CENTROID (average
+    // of every campfire tile's own center point), unlike the Wisp (ground level) or hero (its own stand
+    // anchor). Averages across ALL campfire-kind tiles, so this assumes one campfire per level — correct
+    // for the current level, would need per-cluster grouping (same flood-fill idea as `waterPonds`) if a
+    // future level ever placed more than one.
+    const campfireLight = useMemo(() => {
+        const tiles = [...world.animatedTilesBack, ...world.animatedTilesFront].filter((t) => t.kind === 'campfire');
+        if (!tiles.length) return null;
+        const cx = tiles.reduce((sum, t) => sum + t.worldX + world.gridSize / 2, 0) / tiles.length;
+        const cyFromTop = tiles.reduce((sum, t) => sum + t.worldY + world.gridSize / 2, 0) / tiles.length;
+        return { worldX: cx, worldHeight: LEVEL_PX_HEIGHT - cyFromTop, color: CAMPFIRE_LIGHT_COLOR01 };
+    }, [world]);
     const ldtkLights = useMemo(() => [
         { worldX: NPC_X - LEVEL_MIN_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
-        { worldX: playerX - LEVEL_MIN_X, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
-    ], [playerX]);
+        { worldX: playerX - LEVEL_MIN_X, worldHeight: groundHeightAt(playerX - LEVEL_MIN_X), color: HERO_LIGHT_COLOR01 },
+        ...(campfireLight ? [campfireLight] : []),
+    ], [playerX, campfireLight]);
 
     // #693 round 7 (Han: "level should start moving when the character is at 1/3 of either screen edge"):
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
@@ -723,11 +906,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // identifier with a NARROWER tag requirement than `X_critter_flying` — "bird: spawn een random critter
     // + bird" + "vogels mogen alleen nog maar bird+flying zijn" (checked again below, since not every
     // bird-tagged creature necessarily has a real fly animation).
+    // #1040 (Han 2026-08-17, collision-mask interview: "all ground-anchored entities... exclude flying
+    // and on-water"): `onGround` marks the ONE habitat that should follow Collision_mask's terrain height
+    // as it wanders, same as the hero/pet/NPC/Slime (`standAnchorFor`) — flying critters keep their own
+    // spawnY+oscillate height, swim critters keep the fixed WATER_STAND_HEIGHT_PX anchor.
     const HABITAT_CONFIG = {
-        X_bird_flying: { tags: ['bird', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false },
-        X_critter_flying: { tags: ['critter', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false },
-        X_critter_ground: { tags: ['critter', 'ground'], rangeX: 32, rangeY: 0, canPerch: false, swim: false },
-        X_on_water: { tags: ['critter', 'on_water'], rangeX: 0, rangeY: 0, canPerch: false, swim: true },
+        X_bird_flying: { tags: ['bird', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false, onGround: false },
+        X_critter_flying: { tags: ['critter', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false, onGround: false },
+        X_critter_ground: { tags: ['critter', 'ground'], rangeX: 32, rangeY: 0, canPerch: false, swim: false, onGround: true },
+        X_on_water: { tags: ['critter', 'on_water'], rangeX: 0, rangeY: 0, canPerch: false, swim: true, onGround: false },
     };
     const critterWanderers = useMemo(() => {
         const out = [];
@@ -804,7 +991,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // Hero/pet/Wisp/Slime always stand on this line, regardless of which scenery is showing underneath
     // them — LDtk mode uses the hardcoded `STAND_HEIGHT_PX` (own comment above) scaled by the SAME dynamic
     // zoom every other LDtk element uses; legacy mode keeps its own fixed `GROUND_ANCHOR`.
-    const standAnchor = sceneryMode === 'LDtk' ? STAND_HEIGHT_PX * zoom : GROUND_ANCHOR;
+    // #1040 (Han 2026-08-17, collision-mask interview: "all ground-anchored entities... exclude flying and
+    // on-water"): each entity now asks `groundHeightAt` for ITS OWN X — a single shared `standAnchor`
+    // constant can't represent a sloped/stepped Collision_mask area, since different entities standing at
+    // different X positions may be on different parts of a ramp. `groundHeightAt` takes a CANVAS-LOCAL X
+    // (canonical conversion: absolute worldX - LEVEL_MIN_X, same as `ldtkLights` above) and already
+    // falls back to flat STAND_HEIGHT_PX where no Collision_mask tile covers that X.
+    const standAnchorFor = (absoluteWorldX) => sceneryMode === 'LDtk'
+        ? groundHeightAt(absoluteWorldX - LEVEL_MIN_X) * zoom
+        : GROUND_ANCHOR;
     const foliageInstanceProps = (inst) => ({
         diffuseUrl: inst.diffuseUrl, diffuseUV: inst.diffuseUV, normalUrl: inst.normalUrl,
         screenX: localWorldToScreenX(inst.localX),
@@ -821,6 +1016,9 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // single-instance-per-object behaviour (see ForegroundFoliageLayer.jsx's own comment on this).
         groundDistOffset: inst.localBottomFromLevelBottom,
         wave: inst.wave, skew: inst.skew,
+        // #1032: passed through so ForegroundFoliageLayer's draw loop can swap in water's own pixel-switch
+        // uniforms (`foliageInstanceProps` explicitly whitelists fields, so this needs listing here too).
+        isWater: inst.isWater,
     });
     // #RAM-level (Han 2026-08-11, "de animatie is behoorlijk schokkerig... hoe is de performance?"):
     // `ForegroundFoliageLayer` draws ONE `gl.drawArrays` call per instance, not batched (its own file
@@ -1061,6 +1259,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
                 />
             )}
+            {/* #1032: mounted BEFORE the water shimmer instances below (z-order = behind them), so the
+                water's own semi-transparent ripple composites on top of this mirrored decor/tree layer —
+                "animatie-reflectie-shimmer" ordering, via z-order rather than distorting the reflection's
+                own pixels. */}
+            {sceneryMode === 'LDtk' && (
+                <WaterReflectionLayer
+                    reflectableTiles={reflectableTiles} gridSize={world.gridSize} ponds={waterPonds}
+                    worldToScreenX={worldToScreenX} leftPxForFactor={leftPxForFactor} zoom={zoom}
+                    globalIllumination={foliageParams.globalIllumination}
+                />
+            )}
             {sceneryMode === 'LDtk' && (foliageInstancesBack.length > 0 || waterInstancesBack.length > 0) && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
@@ -1184,12 +1393,20 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 (never walks itself) so `WorldCreature` falls back to its 'idle'. stopPropagation so
                 clicking it doesn't ALSO walk-to-tap-point on top of walk-to-NPC. */}
             {wispVariant && (
-                <div
-                    onClick={(e) => { e.stopPropagation(); clickNpc(); }}
-                    style={{ position: 'absolute', left: worldToScreenX(NPC_X), bottom: standAnchor, transform: 'translateX(-50%)', cursor: 'pointer' }}
-                >
-                    <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
-                </div>
+                <>
+                    <div
+                        onClick={(e) => { e.stopPropagation(); clickNpc(); }}
+                        style={{ position: 'absolute', left: worldToScreenX(NPC_X), bottom: standAnchorFor(NPC_X), transform: 'translateX(-50%)', cursor: 'pointer' }}
+                    >
+                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
+                    </div>
+                    {/* #1032: a SIBLING, never nested inside the entity's own `transform`-ed wrapper above
+                        — CSS makes a transformed element a new containing block for `position:absolute`
+                        descendants, which would silently break this reflection's own left/bottom math. */}
+                    <EntityReflection worldX={NPC_X}>
+                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
+                    </EntityReflection>
+                </>
             )}
 
             {/* Slime — #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"):
@@ -1198,12 +1415,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 die op de slime van de RPG-wereld"): now clickable, same walk-then-talk pattern as the Wisp
                 (stopPropagation so it doesn't ALSO walk-to-tap-point on top of walk-to-Slime). */}
             {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
-                <div
-                    onClick={(e) => { e.stopPropagation(); clickSlime(); }}
-                    style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchor, transform: 'translateX(-50%)', cursor: 'pointer' }}
-                >
-                    <WorldSlime frame={petFrame} zoom={zoom} />
-                </div>
+                <>
+                    <div
+                        onClick={(e) => { e.stopPropagation(); clickSlime(); }}
+                        style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchorFor(ENTITY_WORLD_X.Slime), transform: 'translateX(-50%)', cursor: 'pointer' }}
+                    >
+                        <WorldSlime frame={petFrame} zoom={zoom} />
+                    </div>
+                    <EntityReflection worldX={ENTITY_WORLD_X.Slime}>
+                        <WorldSlime frame={petFrame} zoom={zoom} />
+                    </EntityReflection>
+                </>
             )}
 
             {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
@@ -1214,7 +1436,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 <WorldWanderer
                     key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
                     rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
-                    swim={w.swim} waterSpan={w.waterSpan}
+                    swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
                     frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
                     isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
                 />
@@ -1225,17 +1447,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 the pet is rendered as its OWN trailing sprite below, so the doll's built-in pet LAYER is
                 stripped here to avoid double-drawing it glued to the character's hip. */}
             {char && (
-                <div style={{
-                    position: 'absolute', left: worldToScreenX(playerX), bottom: standAnchor,
-                    transform: `translateX(-50%) scaleX(${facing})`,
-                }}>
-                    {/* #924 (Han 2026-08-12, "mijn personage heeft geen animatie. Hero moet ook idle
-                        animatie tonen"): idle frame was hardcoded to 0 — a single frozen frame, no cycling
-                        at all. `petFrame` already ticks at the shared bpm-coupled idle cadence
-                        (frameMsForBpm, #923) for the pet/wisp/slime — reused here (§6c) instead of a second
-                        idle-frame counter. */}
-                    <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
-                </div>
+                <>
+                    <div style={{
+                        position: 'absolute', left: worldToScreenX(playerX), bottom: standAnchorFor(playerX),
+                        transform: `translateX(-50%) scaleX(${facing})`,
+                    }}>
+                        {/* #924 (Han 2026-08-12, "mijn personage heeft geen animatie. Hero moet ook idle
+                            animatie tonen"): idle frame was hardcoded to 0 — a single frozen frame, no cycling
+                            at all. `petFrame` already ticks at the shared bpm-coupled idle cadence
+                            (frameMsForBpm, #923) for the pet/wisp/slime — reused here (§6c) instead of a second
+                            idle-frame counter. */}
+                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
+                    </div>
+                    <EntityReflection worldX={playerX} extraTransform={`scaleX(${facing})`}>
+                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
+                    </EntityReflection>
+                </>
             )}
 
             {/* Pet — trails the player at a delay (useRpgLevelState's PET_FOLLOW_GAP leash). #693 round 8
@@ -1246,11 +1473,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 to the old hand-rolled `WorldPet`/`PET_CROP` convention only if a pet sheet has no bestiary
                 match. Renders nothing if no pet is equipped. */}
             {petUrl && (
-                <div style={{ position: 'absolute', left: worldToScreenX(petX), bottom: standAnchor, transform: 'translateX(-50%)' }}>
-                    {petVariant
-                        ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
-                        : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
-                </div>
+                <>
+                    <div style={{ position: 'absolute', left: worldToScreenX(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
+                        {petVariant
+                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
+                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
+                    </div>
+                    <EntityReflection worldX={petX}>
+                        {petVariant
+                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
+                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
+                    </EntityReflection>
+                </>
             )}
 
             {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
@@ -1378,7 +1612,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             {size.w > 0 && <EdgeHoldZone side="left" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
             {size.w > 0 && <EdgeHoldZone side="right" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
 
-            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraX} />}
+            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraX} zoom={zoom} />}
 
             {/* #141 round 2 (Han: "implement 3 maps and let me toggle") — cycles the foliage shader's debug
                 channel, gated on debugMode like every other debug affordance in this file (§3a). #141 round
@@ -1620,6 +1854,9 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
             <ParamSlider label="Wave B: speed" value={params.waveSpeedB} min={0} max={1} step={0.01} onChange={(v) => onChange('waveSpeedB', v)} />
             <ParamSlider label="Wave: steps" value={params.waveSteps} min={2} max={10} step={1} onChange={(v) => onChange('waveSteps', v)} />
             <ParamSlider label="Wave: dither amount" value={params.ditherAmount} min={0} max={1} step={0.01} onChange={(v) => onChange('ditherAmount', v)} />
+            {/* #1032 round 8 (Han: "wave en water mogen dezelfde steps, speed, noise, dither, blend mode
+                hebben... dus enkel white caps op water"): steps/dither/blend mode reverted to the ONE
+                shared preset above (water included) — only white caps stay water-exclusive, see below. */}
             <ParamSlider label="Wave: highlight strength" value={params.highlightStrength} min={0} max={0.6} step={0.01} onChange={(v) => onChange('highlightStrength', v)} />
             <ParamSelect label="Wave: blend mode" value={params.waveBlendMode} onChange={(v) => onChange('waveBlendMode', v)} />
             <ParamSelect label="Wave: blend mode 2 (averaged)" value={params.waveBlendMode2} onChange={(v) => onChange('waveBlendMode2', v)} />
@@ -1643,8 +1880,10 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
             {/* #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op
                 het water") — global params, see ForegroundFoliageLayer's own uWhiteCapThreshold/Strength
                 comment for why this isn't water-specific despite the water motivation. */}
-            <ParamSlider label="White cap: threshold" value={params.whiteCapThreshold} min={0.5} max={1} step={0.01} onChange={(v) => onChange('whiteCapThreshold', v)} />
-            <ParamSlider label="White cap: strength" value={params.whiteCapStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('whiteCapStrength', v)} />
+            {/* #1032 round 8 (Han: "bomen enzo moeten geen white caps hebben; white cap enkel op water"):
+                white caps are now water-exclusive — no shared/global variant exists anymore. */}
+            <ParamSlider label="Water white cap: threshold" value={params.waterWhiteCapThreshold} min={0.5} max={1} step={0.01} onChange={(v) => onChange('waterWhiteCapThreshold', v)} />
+            <ParamSlider label="Water white cap: strength" value={params.waterWhiteCapStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('waterWhiteCapStrength', v)} />
             {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
                 settings"): Wind and Time-of-day moved to the World debug panel (top-left) — see that
                 panel's own LevelPicker calls, driven by the SAME `foliageParams`/`setFoliageParam`. */}

@@ -1,17 +1,28 @@
 // #668 (Han 2026-08-03, "scan de map characters en maak een bestiary met alle niet-hero personages"):
 // runtime companion to bestiaryManifest.generated.js (produced by scripts/generate-bestiary-manifest.mjs).
 // The generator can't resolve Vite asset URLs (it runs under plain Node) — this module does that half:
-// import.meta.glob for URLs, joined against the generated metadata by relPath, then grouped into ONE
+// a {relPath: url} lookup, joined against the generated metadata by relPath, then grouped into ONE
 // "creature" per `base` with a `variants` array (colour siblings — Slime blue/green/red, the 7 Archer
 // colours, farm-animal colours, …), mirroring how characterAssets.js groups clothing colour variants.
 import MANIFEST, { ACCESSORIES } from './bestiaryManifest.generated.js';
+import { ASSORTED_FILES } from './assortedFileList.generated.js';
 
 // #691 (Han 2026-08-04, archer/wizard projectile panel): `portraitRelPath` can now point at `fx/` (arrow.png,
 // Projectile sheet blue.png) — a sibling glob merged in, since those files live outside `characters/`.
-const SHEETS = {
-    ...import.meta.glob('../assets/ASSORTED/characters/**/*.png', { eager: true, query: '?url', import: 'default' }),
-    ...import.meta.glob('../assets/ASSORTED/fx/**/*.png', { eager: true, query: '?url', import: 'default' }),
-};
+//
+// #955 (boot-slowness initiative, Han 2026-08-13): characters/ + fx/ used to be TWO eager
+// `import.meta.glob(..., { eager: true, query: '?url' })` calls — together the single largest
+// contributor to a measured ~1100-of-1606-request boot cost, since ES module semantics require
+// every one of those ~1100 files to round-trip the dev server before React can render anything.
+// The actual PNGs now live in public/ (served as flat static files, outside Vite's module graph
+// entirely — zero request cost until something actually renders a sprite). ASSORTED_FILES (from
+// scripts/generate-assorted-file-list.mjs) replaces the glob's file-discovery role; this object is
+// built to have the EXACT SAME {relPath: url} shape and key format
+// ('../assets/ASSORTED/characters/...' / '../assets/ASSORTED/fx/...') the old glob produced, so
+// every `SHEETS[...]` lookup below needed zero changes.
+const SHEETS = Object.fromEntries(
+    ASSORTED_FILES.map((relPath) => [`../assets/ASSORTED/${relPath}`, `/ASSORTED/${relPath}`]),
+);
 
 // #669: `frame`/`animations` (with `cells: [{row,col}]` sequences — needed for the horse's cross-row-
 // stitched animations) come straight from the manifest now; this module only resolves URLs and groups.

@@ -6,8 +6,10 @@
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// #1038 (Han: "bij level sluiten; unload/stop alle geluid"): useWorldAmbientMusic's cleanup now calls
+// stop()/disconnect() on every instrument it creates — stub both so unmount() doesn't throw.
 vi.mock('../../audio/localInstruments', () => ({
-    createMelodicInstrument: vi.fn(() => ({ load: Promise.resolve() })),
+    createMelodicInstrument: vi.fn(() => ({ load: Promise.resolve(), stop: vi.fn(), disconnect: vi.fn() })),
 }));
 vi.mock('../../audio/playMelodies', () => ({ default: vi.fn() }));
 vi.mock('../../audio/worldClock', () => ({ nextMeasureStartTime: vi.fn(() => 10) }));

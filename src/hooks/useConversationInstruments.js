@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
-import { Soundfont } from 'smplr';
 import { getEntityAudioProfile } from '../audio/conversationEntities';
+import { createMelodicInstrument } from '../audio/localInstruments';
 
 // #922 (Han 2026-08-12, RPG conversation system, "ik wil voor verschillende entiteiten verschillende
 // instrumenten geven: wisp: ocarina, slime: marimba, wizard: xylophone, default: marimba"): lazily-created,
@@ -23,7 +23,7 @@ export default function useConversationInstruments(context) {
         const { instrument: slug, octave } = getEntityAudioProfile(entity);
         if (!context) return { instrument: null, octave };
         if (!instrumentCacheRef.current[slug]) {
-            instrumentCacheRef.current[slug] = new Soundfont(context, { instrument: slug, destination: context.destination });
+            instrumentCacheRef.current[slug] = createMelodicInstrument(context, slug);
         }
         const cacheKey = entity || 'default';
         const cached = profileCacheRef.current[cacheKey];

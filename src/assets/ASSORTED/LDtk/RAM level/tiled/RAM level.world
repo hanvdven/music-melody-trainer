@@ -1,8 +1,0 @@
-{
-	"maps": [
-		{ "fileName": "0001_Level_0.tmx", "x": -1792, "y": 0 },
-		{ "fileName": "0002_Level_1.tmx", "x": 5184, "y": 0 },
-		{ "fileName": "0003_Level_2.tmx", "x": 600, "y": 272 }
-	],
-	"type": "world"
-}

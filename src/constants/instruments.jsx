@@ -94,6 +94,8 @@ export const INSTRUMENT_GROUPS = [
         label: 'strings',
         items: [
             { name: 'violin', group: 'strings', slug: 'violin', family: 'strings' },
+            // #1025 (Han 2026-08-17, water hum track: "viola - hold ad infinitum"): GM program #42.
+            { name: 'viola', group: 'strings', slug: 'viola', family: 'strings' },
             { name: 'cello', group: 'strings', slug: 'cello', family: 'strings' },
             { name: 'ensemble', group: 'strings', slug: 'string_ensemble_1', family: 'strings' },
             { name: 'contrabass', group: 'strings', slug: 'contrabass', family: 'strings' },
@@ -109,8 +111,12 @@ export const INSTRUMENT_GROUPS = [
             { name: 'sax', group: 'wind', slug: 'tenor_sax', family: 'wind' },
             { name: 'clarinet', group: 'wind', slug: 'clarinet', family: 'wind' },
             { name: 'oboe', group: 'wind', slug: 'oboe', family: 'wind' },
+            // #1025 (Han 2026-08-17, bird tracks: "pigeon/cuckoo/sparrow/owl (piccolo)"): GM #73.
+            { name: 'piccolo', group: 'wind', slug: 'piccolo', family: 'wind' },
             { name: 'flute', group: 'wind', slug: 'flute', family: 'wind' },
             { name: 'harmonica', group: 'wind', slug: 'harmonica', family: 'wind' },
+            // #1025 (Han 2026-08-17, bird track: "duck (bassoon)"): GM #71.
+            { name: 'bassoon', group: 'wind', slug: 'bassoon', family: 'wind' },
             // #922 (Han 2026-08-12, RPG conversation system: "wisp: ocarina" — confirmed present in the GM
             // soundfont set the app already loads from (gleitz.github.io/midi-js-soundfonts), program #80
             // "Ocarina", same 'pipe' family as flute/piccolo/recorder — just never added as a playable option).
@@ -141,6 +147,8 @@ export const INSTRUMENT_GROUPS = [
             { name: 'marimba', group: 'percussion tuned', slug: 'marimba', family: 'percussion tuned' },
             { name: 'vibraphone', group: 'percussion tuned', slug: 'vibraphone', family: 'percussion tuned' },
             { name: 'xylophone', group: 'percussion tuned', slug: 'xylophone', family: 'percussion tuned' },
+            // #1025 (Han 2026-08-17, water track: "water (glockenspiel)"): GM program #10.
+            { name: 'glockenspiel', group: 'percussion tuned', slug: 'glockenspiel', family: 'percussion tuned' },
         ],
     },
     {
@@ -188,6 +196,27 @@ const LABEL_BY_SLUG = Object.fromEntries(
 export const instrumentNameForSlug = (slug) =>
     LABEL_BY_SLUG[slug] || 'keys — grand piano'; // fallback label tracks the re-categorised default (Han 2026-06-22)
 
+// #889 follow-up (Han 2026-08-14, "laat percussieinstrumenten altijd volledig uitspelen on
+// release"): one-shot DECAY instruments — struck once, the recording itself rings out and fades
+// over a second or more — must never be cut short by the note's notated duration. This is
+// UNRELATED to sustain-loop instruments (cello, harmonica, saw, organ, …, see
+// localInstruments.js's loop-region wiring): those loop their raw sample WHILE HELD; these instead
+// simply skip playMelodies.js's early stop() scheduling and let the (short, un-looped) recording
+// play to its own natural end. A curated set, not a formula — "does this instrument's real-world
+// timbre decay/ring after being struck" is an editorial classification, not something derivable
+// from SF2 metadata alone (§6c: arbitrary curated data, same precedent as GM_PROGRAM/
+// PERCUSSION_KIT_CATEGORIES). 'woodblock' here is the MELODIC woodblock slug (the metronome's own
+// instrument, InstrumentSettings.js's defaultMetronomeInstrumentSettings) — NOT the wh/wm/wl
+// percussion pad IDs (drumKits.js), which are a different thing entirely.
+//
+// UAT correction (Han 2026-08-14, "vibra still missing its tail"): vibraphone was in this set
+// initially, but its FluidR3_GM zones turned out to be the one mallet instrument with real SF2
+// loop points (a real vibraphone has a sustain/damper pedal), so it now goes through the LOOP path
+// instead (localInstruments.js / extract-soundfont-samples.mjs's NEVER_LOOP_LOCAL, which it was
+// also removed from). A looping instrument must keep a real stop() at its notated duration — being
+// in this set too would make it ring forever (no natural sample end for a loop to fall back on).
+export const LET_RING_INSTRUMENTS = new Set(['marimba', 'xylophone', 'koto', 'woodblock']);
+
 // slug → icons8 icon basename. A GENUINE per-instrument lookup: icons8 ships distinct art per
 // instrument, so there is no formula to derive it — this is the user-supplied "what an instrument
 // looks like" data, which §6c explicitly allows as a table. Han 2026-06-17: use the ROCK MUSIC
@@ -221,6 +250,7 @@ const SLUG_TO_ICON = {
     synth_bass_1: 'electronic-music',
     // strings
     violin: 'violin',
+    viola: 'violin',                    // PLACEHOLDER — TODO(icons8): real viola asset icons8-viola-100.png (#1025)
     cello: 'cello',
     string_ensemble_1: 'classic-music', // PLACEHOLDER — TODO(icons8): "Stage" asset icons8-stage-100.png (Han wants a Stage icon)
     contrabass: 'cello',                // PLACEHOLDER — TODO(icons8): real contrabass asset icons8-contrabass-100.png
@@ -231,8 +261,10 @@ const SLUG_TO_ICON = {
     tenor_sax: 'saxophone',
     clarinet: 'clarinet',
     oboe: 'bassoon',
+    piccolo: 'flute',                   // PLACEHOLDER — TODO(icons8): real piccolo asset icons8-piccolo-100.png (#1025)
     flute: 'flute',
     harmonica: 'harmonica',             // real asset restored from origin/main (Han 2026-06-22)
+    bassoon: 'bassoon',                 // real asset, already present (#1025)
     ocarina: 'flute',                   // PLACEHOLDER — TODO(icons8): real ocarina asset icons8-ocarina-100.png
     shakuhachi: 'flute',                // PLACEHOLDER — TODO(icons8): real shakuhachi asset icons8-shakuhachi-100.png
     koto: 'classic-music',              // PLACEHOLDER — TODO(icons8): real koto asset icons8-koto-100.png
@@ -241,6 +273,7 @@ const SLUG_TO_ICON = {
     marimba: 'xylophone',
     vibraphone: 'xylophone',            // Han 2026-06-22: use xylophone icon
     xylophone: 'xylophone',
+    glockenspiel: 'bell-lyre',          // real asset, already present (#1025)
     // voice
     voice_oohs: 'choir',                // Han 2026-06-22: both voice items use the choir icon
     choir_aahs: 'choir',

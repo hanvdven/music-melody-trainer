@@ -274,8 +274,23 @@ import InstrumentSettings from '../model/InstrumentSettings';
 import SONGS from '../songs/songIndex.js';
 import { noteToMidi } from '../theory/noteUtils';
 import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, TICKS_PER_BEAT } from '../constants/timing';
+import { DEFAULT_TIME_SIG } from '../constants/generatorDefaults';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
+
+// Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
+// moet zijn na 2 maten (6 kwarttellen)"), generalized #889 (Han 2026-08-14): `beatsOnScreen` (the
+// slime/note flight lead-time) is always counted in QUARTER-note beats (SheetRpgLayer's
+// `beatMs = 60000/bpm`, TICKS_PER_BEAT = a quarter note — timing.js) — NOT in the time signature's
+// own numerator/denominator units. A literal "8" (copy-pasted from the original 4/4-only levels 1-9,
+// where 2 measures of 4/4 happens to equal 8 quarter-beats) silently breaks for any other meter: 3/4
+// -> 6, 6/8 -> 6 (NOT 12 — 6/8 is 2 dotted-half-notes = 6 quarter-beats' worth of TIME, not 6
+// numerator-units), 7/8 -> 7, 5/4 -> 10. Derived from ticks so it's correct for every time signature,
+// compound or simple (§6c) — used as the ALWAYS-derived default for every level (song-backed or
+// procedural); no level should hand-write this literal.
+const deriveBeatsOnScreen = (timeSignature) => Math.round(
+    LEVEL_LEAD_IN_BARS * TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]) / TICKS_PER_BEAT
+);
 
 // #871 (Han 2026-08-11, "abc music en level namen"): a level with `songId` plays a FIXED song (see
 // songs/loadSong.js) instead of procedural generation. bpm/timeSignature/numMeasures/notesPerMeasure/
@@ -297,17 +312,7 @@ const songLevelDefaults = (songDef) => {
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
         range: { min, max },
         key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
-        // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen;
-        // dat moet zijn na 2 maten (6 kwarttellen)"): `beatsOnScreen` (the slime/note flight lead-time)
-        // is always counted in QUARTER-note beats (SheetRpgLayer's `beatMs = 60000/bpm`, TICKS_PER_BEAT
-        // = a quarter note — timing.js) — NOT in the time signature's own numerator/denominator units. A
-        // literal "8" (copy-pasted from the original 4/4-only levels 1-9, where 2 measures of 4/4
-        // happens to equal 8 quarter-beats) silently breaks for any other meter: 3/4 -> 6, 6/8 -> 6 (NOT
-        // 12 — 6/8 is 2 dotted-half-notes = 6 quarter-beats' worth of TIME, not 6 numerator-units).
-        // Derived from ticks so it's correct for every time signature, compound or simple (§6c).
-        beatsOnScreen: Math.round(
-            LEVEL_LEAD_IN_BARS * TICKS_PER_WHOLE * (songDef.timeSignature[0] / songDef.timeSignature[1]) / TICKS_PER_BEAT
-        ),
+        beatsOnScreen: deriveBeatsOnScreen(songDef.timeSignature),
         // Bug fix (Han 2026-08-11, #871 UAT: "percussie en bas zijn zichtbaar, terwijl er geen muziek
         // is meegegeven in het lied" / "laat die dan leeg"): these 7 abc songs ship `bass: null,
         // percussion: null` (only a fixed treble line + chords). Read by useLevel's applyConfig to skip
@@ -337,7 +342,13 @@ const normalizeLevel = (lvl) => {
     const merged = lvl.songId ? { ...songLevelDefaults(SONG_BY_ID[lvl.songId]), ...lvl } : lvl;
     const numRepeats = merged.numRepeats ?? (merged.enemyType === 'Wizard' ? 2 : 1);
     const totalMeasures = merged.totalMeasures ?? (merged.numBlocks != null ? merged.numMeasures * numRepeats * merged.numBlocks : merged.numMeasures);
-    return { ...merged, numRepeats, totalMeasures };
+    // #889: procedural (non-song) levels had no beatsOnScreen derivation at all — every entry had to
+    // hand-write the literal, and several non-4/4 levels (6/8, 3/4, 7/8, 5/4) carried the wrong
+    // 4/4-derived "8" (see deriveBeatsOnScreen above). Song levels already get a correct derived value
+    // via songLevelDefaults; this covers the procedural side too, same formula, same fallback-only-if-
+    // omitted convention as numRepeats/totalMeasures above.
+    const beatsOnScreen = merged.beatsOnScreen ?? (merged.sideScroll ? deriveBeatsOnScreen(merged.timeSignature ?? DEFAULT_TIME_SIG) : undefined);
+    return { ...merged, numRepeats, totalMeasures, ...(beatsOnScreen !== undefined ? { beatsOnScreen } : {}) };
 };
 
 const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));
@@ -350,24 +361,34 @@ const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(
 // #925 (Han 2026-08-13, "zet voor alle liedjes de cello default op 'on chord change', en roots …
 // notes per measure = 2"): the level cello's rule is now `force_chord_roots` — it plants the chord
 // root on EVERY chord change (passing chords included) and fills the rest of the measure with the
-// usual ranked-slot priority. notesPerMeasure is a MINIMUM under that rule, so 2 means "at least
-// two notes per measure, plus a root for every extra chord change".
+// usual ranked-slot priority. notesPerMeasure is a MINIMUM under that rule.
+// #889 (Han 2026-08-14, "zet de bass; notes per measure default voor alle levels op 1"): reverts
+// #925's bump back to 1 for both level bass presets below — notesPerMeasure stays a MINIMUM under
+// force_chord_roots, so a forced root on every chord change can still add more notes than 1/measure;
+// this only lowers the floor when a measure has no chord change of its own.
 export const LEVEL_CELLO_RULE = 'force_chord_roots';
 
 export const LEVEL_BASS_SIMPLE = {
-    notesPerMeasure: 2,            // #925: minimum under force_chord_roots (was 1)
+    notesPerMeasure: 1,            // #889 (was 2 under #925, originally 1 under #663)
     smallestNoteDenom: 1,          // whole note
     rhythmVariability: 0,
     notePool: 'chord',
     randomizationRule: LEVEL_CELLO_RULE,
-    range: { min: 'C2', max: 'B2' },
+    // #889 follow-up (Han 2026-08-14, "cello is heel lelijk... ook te hoog voor mijn gevoel. Zet de
+    // cello range op g#1-g2" — the cello track's purpose is a constant "threatening" undertone):
+    // was C2-B2. G#1 sits below the lowest actually-recorded local cello sample (C#2,
+    // localInstrumentBuffers.generated.js) — Han explicitly accepted the resulting downward
+    // pitch-shift/detune rather than staying inside the sampled range.
+    range: { min: 'G#1', max: 'G2' },
 };
 
 // The non-simplified values (Level 8's "gewoon zoals nu") — derived from the app's own bass default so
-// there is exactly ONE place these 5 numbers live (§6c), not a second hardcoded copy for the "off" case.
+// there is exactly ONE place these numbers live (§6c), not a second hardcoded copy for the "off" case,
+// EXCEPT notesPerMeasure/randomizationRule which the level cello deliberately overrides (see #889/#925
+// comments above — the app-wide plain-bass default stays untouched for non-level bass usage).
 const DEFAULT_BASS = InstrumentSettings.defaultBassInstrumentSettings();
 export const LEVEL_BASS_DEFAULT = {
-    notesPerMeasure: DEFAULT_BASS.notesPerMeasure,
+    notesPerMeasure: 1,            // #889: level default, independent of the app-wide DEFAULT_BASS value
     smallestNoteDenom: DEFAULT_BASS.smallestNoteDenom,
     rhythmVariability: DEFAULT_BASS.rhythmVariability,
     notePool: DEFAULT_BASS.notePool,

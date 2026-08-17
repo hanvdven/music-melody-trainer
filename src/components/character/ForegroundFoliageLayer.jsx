@@ -467,20 +467,21 @@ void main() {
         float ambientWeight = (uInstanceKind == 1) ? (0.6 + 0.4 * ambientNdotl) : (0.4 + 0.6 * ambientNdotl);
         float strengthScale = uHighlightStrength * ambientWeight;
         trueColor = blendHighlightDual(diffuse.rgb, HIGHLIGHT_COLOR, waveQuant, strengthScale, uWaveBlendMode, uWaveBlendMode2);
+
+        // #1032 round 7 redesign (Han: "wat white cap strength doet: het maakt wat wit is in de water
+        // sprite nog witter. Wat ik EIGENLIJK wou is wat wit is in de wave band duidelijk maken op het
+        // water"): the ORIGINAL version (below, removed) checked the raw SOURCE SPRITE's own diffuse
+        // luminance — Han's actual intent is a crest wherever the WAVE BAND ITSELF (waveQuant, the
+        // shimmer's own animated highlight, already blended into trueColor above) is bright, not
+        // wherever the underlying art happens to have white pixels baked in. Needs waveQuant in scope,
+        // hence moved inside this branch — a white cap only makes sense where a wave band exists at all.
+        if (waveQuant > uWhiteCapThreshold) {
+            float capMix = clamp((waveQuant - uWhiteCapThreshold) / max(1.0 - uWhiteCapThreshold, 0.0001), 0.0, 1.0) * uWhiteCapStrength;
+            trueColor = mix(trueColor, vec3(1.0), capMix);
+        }
     } else if (uDebugChannel == 2) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
-    }
-
-    // #925 follow-up: white caps — a near-white source pixel (e.g. a water-crest highlight painted into
-    // the art) gets pulled further toward pure white, proportional to how far its own luminance already
-    // is above uWhiteCapThreshold. Runs on trueColor (after the wave highlight, before ambient/lighting)
-    // so caps participate in the SAME ambient-darken/point-light pipeline as everything else — a cap in a
-    // dark corner still dims with the rest of the scene, it doesn't ignore lighting.
-    float diffuseLum = dot(diffuse.rgb, vec3(0.299, 0.587, 0.114));
-    if (diffuseLum > uWhiteCapThreshold) {
-        float capMix = clamp((diffuseLum - uWhiteCapThreshold) / max(1.0 - uWhiteCapThreshold, 0.0001), 0.0, 1.0) * uWhiteCapStrength;
-        trueColor = mix(trueColor, vec3(1.0), capMix);
     }
 
     // Global illumination (round 11): darken toward AMBIENT_DARK_COLOR, never pure black; point lights then
@@ -642,11 +643,20 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     // term weak for a flat surface not facing the light head-on; this flat/radial term bypasses that gate
     // entirely. Round 27 preset: 0.2.
     flatIllumination: 0.2,
-    // #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op het
-    // water"): only near-white source pixels (>0.85 luminance) get pulled the rest of the way toward pure
-    // white, at 60% strength — a visible but not overpowering crest glare.
-    whiteCapThreshold: 0.85,
-    whiteCapStrength: 0.6,
+    // #1032 round 8 (Han 2026-08-17, "wave en water mogen dezelfde steps, speed, noise, dither, blend
+    // mode hebben... dus enkel white caps op water, alle andere shimmer settings hetzelfde op bomen en
+    // water (dus hopelijk lichtere berekening). bomen enzo moeten geen white caps hebben; white cap enkel
+    // op water"): round 6/7 gave water its OWN full shimmer preset (steps/dither/blend modes/white caps),
+    // but Han reconsidered — ONLY white caps should differ between water and everything else waving
+    // (trees/tent/grass); steps/dither/blend mode stay the SHARED `waveSteps`/`ditherAmount`/
+    // `waveBlendMode`/`waveBlendMode2` above for every instance, water included (simpler, and per Han's
+    // own note, a lighter per-frame computation — fewer uniform branches in the draw loop below). The
+    // `water*` variants of those four were removed entirely (dead now that nothing reads them).
+    // White caps are the ONE exception: gated to water-only in the draw loop (`inst.isWater ? ... :
+    // disabled`), never applied to trees/tent/grass at all — there is no longer a "shared" white cap
+    // concept, only this water-exclusive one.
+    waterWhiteCapThreshold: 0.7,
+    waterWhiteCapStrength: 0.85,
 };
 
 export default function ForegroundFoliageLayer({
@@ -867,8 +877,8 @@ export default function ForegroundFoliageLayer({
             gl.uniform1f(uStretchAmount, p.stretchAmount);
             gl.uniform1f(uNormalStrength, p.normalStrength);
             gl.uniform1f(uFlatIllumination, p.flatIllumination);
-            gl.uniform1f(uWhiteCapThreshold, p.whiteCapThreshold);
-            gl.uniform1f(uWhiteCapStrength, p.whiteCapStrength);
+            // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
+            // per-instance-only (water exclusive), see the draw loop below.
 
             for (const inst of instancesRef.current) {
                 const diffuseTex = await getTexture(inst.diffuseUrl);
@@ -891,6 +901,16 @@ export default function ForegroundFoliageLayer({
                 gl.uniform1f(uGroundDistOffset, inst.groundDistOffset || 0);
                 gl.uniform1i(uInstanceKind, inst.kind === 'floor' ? 1 : 0);
                 gl.uniform1i(uHasWave, inst.wave === false ? 0 : 1);
+                gl.uniform1f(uWaveSteps, p.waveSteps);
+                gl.uniform1f(uDitherAmount, p.ditherAmount);
+                gl.uniform1i(uWaveBlendMode, p.waveBlendMode);
+                gl.uniform1i(uWaveBlendMode2, p.waveBlendMode2);
+                // #1032 round 8 (Han: "white cap enkel op water"): the ONE shimmer param that's still
+                // per-instance — 0 strength is a genuine no-op (`capMix` collapses to 0), disabling the
+                // effect entirely for trees/tent/grass rather than falling back to some other "shared"
+                // white cap value (that shared concept no longer exists).
+                gl.uniform1f(uWhiteCapThreshold, inst.isWater ? p.waterWhiteCapThreshold : 1.0);
+                gl.uniform1f(uWhiteCapStrength, inst.isWater ? p.waterWhiteCapStrength : 0.0);
                 gl.uniform1i(uHasSkew, inst.skew ? 1 : 0);
                 gl.uniform1i(uEdgeLitOnly, inst.edgeLitOnly ? 1 : 0);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

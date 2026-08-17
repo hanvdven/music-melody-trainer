@@ -15,9 +15,10 @@
  *   export const LOCAL_MY_INSTRUMENT_BUFFERS = { 'C4': '/samples/...', ... };
  *   and add  myInstrument: LOCAL_MY_INSTRUMENT_BUFFERS  to LOCAL_INSTRUMENT_BUFFERS.
  */
-import { Soundfont, Sampler, SplendidGrandPiano } from 'smplr';
+import { Soundfont, Smplr, SplendidGrandPiano, soundfontToSmplrJson } from 'smplr';
 import { EXTRACTED_INSTRUMENT_BUFFERS } from './localInstrumentBuffers.generated.js';
 import { SPLENDID_LOCAL_BASE_URL, splendidPianoStorage } from './splendidPianoStorage.js';
+import { noteToMidi } from '../theory/noteUtils.js';
 
 /**
  * Maps an instrument slug (used in InstrumentSettings) to a local sample
@@ -25,13 +26,13 @@ import { SPLENDID_LOCAL_BASE_URL, splendidPianoStorage } from './splendidPianoSt
  */
 export const LOCAL_INSTRUMENT_BUFFERS = EXTRACTED_INSTRUMENT_BUFFERS;
 
-// smplr 0.20.0 bug: samplerToSmplrJson includes `defaults: { detune: options.detune }` in the
-// generated JSON. When options.detune is undefined, it overrides PARAM_DEFAULTS.detune=0 with
-// undefined during resolveParams, producing NaN -> "non-finite AudioParam" TypeError. Passing
-// explicit 0 values here prevents undefined from reaching PARAM_DEFAULTS overrides. (Moved here
-// from useInstruments.js, which used to duplicate this exact block for its percussion Sampler
-// paths — see createMelodicInstrument below.)
-const SAMPLER_SAFE_DEFAULTS = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
+// smplr 0.20.0 bug: an undefined `detune`/`ampRelease`/`lpfCutoffHz` in a SmplrJson's `defaults`
+// overrides PARAM_DEFAULTS' own 0-values with `undefined` during resolveParams, producing NaN ->
+// "non-finite AudioParam" TypeError. Passing explicit values here prevents that. Field names match
+// smplr's PlaybackParams (`ampRelease`, not the old Sampler-class-specific `decayTime` — see #889
+// follow-up below, which moved local-instrument construction off the plain `Sampler` class onto
+// `Smplr` directly so per-note loop regions can be described).
+const SMPLR_SAFE_DEFAULTS = { detune: 0, ampRelease: 0.3, lpfCutoffHz: 20000 };
 
 /**
  * #955 (offline-boot initiative, Han 2026-08-13): single point of decision for "does this
@@ -66,21 +67,60 @@ export function createMelodicInstrument(context, slug, options = {}) {
   // Soundfont-only option with no SplendidGrandPianoConfig equivalent, so it is ignored here
   // (nothing passes it for a melodic slug today).
   if (slug === SPLENDID_PIANO_SLUG) {
-    return new SplendidGrandPiano(context, {
+    const inst = new SplendidGrandPiano(context, {
       destination,
       baseUrl: SPLENDID_LOCAL_BASE_URL,
       storage: splendidPianoStorage,
       formats: ['wav'],
     });
+    inst.instrumentSlug = slug;   // #889 follow-up — see LET_RING_INSTRUMENTS in constants/instruments.jsx
+    return inst;
   }
 
   const localBuffers = LOCAL_INSTRUMENT_BUFFERS[slug];
   if (localBuffers) {
-    return new Sampler(context, { destination, buffers: localBuffers, ...SAMPLER_SAFE_DEFAULTS });
+    const inst = new Smplr(context, buildLocalSmplrJson(slug, localBuffers), { destination });
+    inst.instrumentSlug = slug;
+    return inst;
   }
-  return new Soundfont(context, {
+  const inst = new Soundfont(context, {
     instrument: slug,
     destination,
     ...(disableScheduler ? { disableScheduler } : {}),
   });
+  inst.instrumentSlug = slug;
+  return inst;
+}
+
+// #889 follow-up (Han 2026-08-14, "app-wide: noten worden on release meteen afgesloten... zeker
+// hoorbaar bij percussie-instrumenten als vibraphone"): the plain `Sampler` class's flat
+// note->URL `buffers` map has no channel for per-sample loop metadata (smplr 0.20.0's
+// `SamplerConfig.buffers` type), even though the underlying `Smplr`/`Voice` engine fully supports
+// native Web-Audio looping (`source.loop/.loopStart/.loopEnd`). So local instruments are now built
+// via `Smplr` directly, fed a SmplrJson whose regions carry loop points extracted from the source
+// .sf2 (scripts/extract-soundfont-samples.mjs — `loopStart`/`loopEnd` in seconds, only present for
+// notes whose SF2 zone actually declares sustain-looping, e.g. cello/organ/choir/pads/harmonica/
+// saw — a struck/plucked/decay instrument's SF2 zone has no loop, so it plays through once as
+// before). Reuses smplr's OWN `soundfontToSmplrJson(noteNames, loopData)` — the exact function its
+// CDN Soundfont class uses for its own (separately-hosted) loop-data JSON — instead of hand-rolling
+// the same keyRange-spreading/loop-region logic a second time (§6c/§6d); only `samples`
+// (baseUrl/formats/map) is swapped afterwards to point at this app's local WAV files instead of
+// smplr's base64-embedded/CDN note data.
+function buildLocalSmplrJson(slug, localBuffers) {
+  const noteNames = Object.keys(localBuffers);
+  const loopData = {};
+  for (const note of noteNames) {
+    const entry = localBuffers[note];
+    if (entry.loopStart != null && entry.loopEnd != null) {
+      loopData[noteToMidi(note)] = [entry.loopStart, entry.loopEnd];
+    }
+  }
+  const json = soundfontToSmplrJson(noteNames, Object.keys(loopData).length ? loopData : undefined);
+  json.samples = {
+    baseUrl: `/samples/Instruments/${slug}`,
+    formats: ['wav'],
+    map: Object.fromEntries(noteNames.map((note) => [note, localBuffers[note].file])),
+  };
+  json.defaults = SMPLR_SAFE_DEFAULTS;
+  return json;
 }

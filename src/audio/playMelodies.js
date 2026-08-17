@@ -1,6 +1,7 @@
 import { resolveNotePitch } from './playSound';
 import { PERCUSSION_INTERRUPT_GROUP, METRONOME_NOTE_IDS } from './drumKits';
 import { secondsPerTick } from '../constants/timing.js';
+import { LET_RING_INSTRUMENTS } from '../constants/instruments.jsx';
 
 const playMelodies = (
   melodies,
@@ -121,6 +122,14 @@ const playMelodies = (
           if (id === 'sg') gain = gain * 0.49;
 
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
+          // #889 follow-up (Han 2026-08-14, "laat percussieinstrumenten altijd volledig uitspelen
+          // on release"): one-shot decay/mallet instruments (marimba/vibraphone/xylophone/koto/
+          // woodblock) must never be cut short by the note's notated duration — the recording
+          // itself should simply play to its own natural end. `duration: undefined` makes smplr
+          // skip scheduling any stop() at all (see localInstruments.js's Smplr wiring / #889's
+          // playNote_fn investigation) — same "no early cutoff" outcome as the interruptGroup=60s
+          // sentinel below, but with no synthetic ceiling at all (these samples are already short).
+          const letRing = LET_RING_INSTRUMENTS.has(noteInstrument.instrumentSlug);
 
           const fermataShift = fermataEvents.length > 0 ? shiftForOffset(timestamp) : 0;
           const fermataHold = fermataEvents.length > 0 ? holdAtOffset(timestamp) : 0;
@@ -133,7 +142,7 @@ const playMelodies = (
             time: adjustedStart + (relativeTick + fermataShift) * timeFactor + stagger,
             // Percussion samples play to their natural end; use a large duration so smplr
             // never forces an early cutoff. Choke happens via stopId (see playback loop).
-            duration: interruptGroup ? 60 : (durations[i] + fermataHold) * timeFactor,
+            duration: letRing ? undefined : (interruptGroup ? 60 : (durations[i] + fermataHold) * timeFactor),
             gain,
             interruptGroup,
           });
@@ -181,8 +190,10 @@ const playMelodies = (
   let maxEndTime = adjustedStart;
   for (const item of queue) {
     // Skip percussion items — their 60 s duration is a synthetic "play to end" sentinel,
-    // not a real note length. The Sequencer timing should only reflect melodic notes.
-    if (item.interruptGroup) continue;
+    // not a real note length. Skip let-ring items too — they have no duration at all (#889
+    // follow-up, they play to their own natural end). The Sequencer timing should only reflect
+    // melodic notes with a real, known length.
+    if (item.interruptGroup || item.duration == null) continue;
     if (item.time + item.duration > maxEndTime) {
       maxEndTime = item.time + item.duration;
     }

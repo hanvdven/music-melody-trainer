@@ -9,9 +9,17 @@ import {
     generateWorldAmbientBlock, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_NUM_MEASURES,
 } from '../generation/generateWorldAmbientBlock';
 import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
+import { WATER_SOUND_LAYERS } from '../model/waterSoundsManifest.generated';
 
-const WATER_NOTE = 'C2';   // #925: "de water cello is gewoon een hele lange noot, dus zonder release"
-const WATER_GAIN = 0.5 * MF_VOLUME;
+// #925 round 2 (Han 2026-08-17, "maak een json die je bijwerkt om dit soort info up to date te houden"):
+// src/model/envAudioRegistry.json tracks which instrument/MIDI-source belongs to which env-audio entity
+// (bird, water_hum, water_glockenspiel, water_percussion) — update it whenever a choice below changes.
+// #1025 round 3 (Han: real "water sounds.mid" export, viola track "hold ad infinitum"): the hum's own
+// pitch/velocity now come straight from the generated manifest (scripts/generate-water-sounds.mjs)
+// instead of a hand-picked placeholder — one real note, held indefinitely same as before.
+const WATER_HUM_LAYER = WATER_SOUND_LAYERS.waterHum;
+const WATER_HUM_NOTE = WATER_HUM_LAYER.notes[0];
+const WATER_GAIN = WATER_HUM_LAYER.volumes[0] * MF_VOLUME;
 const WATER_RECONCILE_MS = 200;   // pan/gain update cadence — smooth enough for a slow-moving camera, cheap
 const BIRD_RECONCILE_MS = 500;    // visibility check cadence — birds don't need frame-perfect pan updates
 // #925 round 2 (Han: "ik vind gewoon dichtbij de wissel links rechts heeeel abrupt"): setting an
@@ -49,15 +57,19 @@ const BIRD_MAX_SILENCE_SEC = 30;
 const BIRD_VOLUME_MULTIPLIER = 0.8 * 0.7;
 
 // #925 round 2 (Han 2026-08-17, "ik hoor water: wel de cello, maar niet de belletjes. Water heeft 3
-// lagen. cello, belletjes, en percussie"): water's SECOND layer — intermittent chime notes (tubular
-// bells, per Han's own interview answer: "al gebruikt voor town crier/blacksmith", CLAUDE.md §6c reuse of
-// an instrument already established for bell-like effects), triggered randomly while water is within
-// audible range — unlike the cello's one continuous held note, bells are a sparse, periodic sparkle.
+// lagen. cello, belletjes, en percussie"): water's SECOND layer — an intermittent chime, triggered
+// periodically while water is within audible range — unlike the hum's one continuous held note, the
+// glockenspiel is a sparse, periodic sparkle.
+// #1025 round 3 (Han: real "water sounds.mid" export, "water (glockenspiel)" track): the ORIGINAL
+// design here was a random note picked from a hand-picked pool on a real 'tubular_bells' instrument
+// (never actually extracted locally — see envAudioRegistry.json history). Now plays the REAL composed
+// 18-note phrase from the manifest (scripts/generate-water-sounds.mjs) via playMelodies(), on a real
+// locally-extracted 'glockenspiel' instrument (src/constants/instruments.jsx) — same "use the real
+// MIDI content" treatment birds already get, not an invented effect.
 // Percussion (water's third layer) is deferred to #1037 (no GM kit available).
-const WATER_BELLS_NOTE_POOL = ['C6', 'E6', 'G6', 'C7'];
-const WATER_BELLS_MIN_SILENCE_SEC = 3;
-const WATER_BELLS_MAX_SILENCE_SEC = 12;
-const WATER_BELLS_GAIN = 0.35 * MF_VOLUME;
+const WATER_GLOCKENSPIEL_LAYER = WATER_SOUND_LAYERS.waterGlockenspiel;
+const WATER_GLOCKENSPIEL_MIN_SILENCE_SEC = 3;
+const WATER_GLOCKENSPIEL_MAX_SILENCE_SEC = 12;
 
 // Plain StereoPannerNode + GainNode per voice (Han: "doe dan maar gewone stereo pan + volume, als dat
 // simpeler is" — simpler than round 2's first draft, which used independent left/right GainNodes to let
@@ -130,7 +142,13 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             };
             scheduleNextBlock();
         });
-        return () => { cancelled = true; clearTimeout(timeoutId); };
+        // #1038 (Han: "bij level sluiten; unload/stop alle geluid"): clearing the timeout only stops the
+        // NEXT scheduled block from firing — any notes already scheduled/sounding from the LAST block keep
+        // playing to their own natural end otherwise. smplr's `stop()` (no args) stops every active voice
+        // immediately. `treblePiano` is `instrumentsRef`-cached (reused across effect re-runs, unlike the
+        // bird/water effects below which build a fresh instrument every mount) — `stop()`, not
+        // `disconnect()`, so the cached instance stays usable if this effect re-mounts later.
+        return () => { cancelled = true; clearTimeout(timeoutId); treblePiano.stop(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 
@@ -224,6 +242,12 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             cancelled = true;
             clearInterval(reconcileId);
             clearInterval(panId);
+            // #1038 (Han: "bij level sluiten; unload/stop alle geluid"): clearing the intervals only stops
+            // scheduling NEW triggers — any bird phrase already sounding plays out to its own end
+            // otherwise, and each voice's Smplr instance/bus stays allocated. `disconnect()` (not `stop()`)
+            // is safe here — every voice is a BRAND NEW instrument created fresh on this effect's mount
+            // (`ensureVoice`), never reused across mounts, so there's no cached instance to preserve.
+            voices.forEach((voice) => voice.instrument.disconnect());
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
@@ -231,24 +255,25 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
     // #925 (Han 2026-08-16, "water is speciaal: waar de birds 'random' instarten, moet water steeds
     // actief zijn... de water cello is gewoon een hele lange noot, dus zonder release") + round 2 (Han
     // 2026-08-17, chunk-based pan/volume + "ik hoor wel de cello, maar niet de belletjes. Water heeft 3
-    // lagen: cello, belletjes, en percussie"): TWO water voices — the cello holds ONE continuous note
-    // indefinitely (relying on the sample's own real loop points already extracted by
-    // `createMelodicInstrument`/`buildLocalSmplrJson` for sustain — CLAUDE.md §6c, no new looping
-    // mechanism invented); tubular bells trigger a sparse, periodic chime while water is in range (an
-    // independent voice/bus, not mixed into the cello's). Percussion (water's third layer) is deferred to
-    // #1037 (no GM kit available). Both panned/faded by the SAME chunk model the birds use, toward
-    // whichever water tile is nearest the listener; the cello note is genuinely stopped ("unloaded") once
-    // nothing is within `AUDIBLE_CHUNKS`.
+    // lagen: cello, belletjes, en percussie") + round 3 (Han: real "water sounds.mid" export — viola
+    // "hum" + real glockenspiel, replacing the earlier cello/tubular_bells placeholders): TWO water
+    // voices — the hum (viola) holds ONE continuous note indefinitely (relying on the sample's own real
+    // loop points already extracted by `createMelodicInstrument`/`buildLocalSmplrJson` for sustain —
+    // CLAUDE.md §6c, no new looping mechanism invented); the glockenspiel plays the real composed phrase
+    // periodically while water is in range (an independent voice/bus, not mixed into the hum's).
+    // Percussion (water's third layer) is deferred to #1037 (no GM kit available). Both panned/faded by
+    // the SAME chunk model the birds use, toward whichever water tile is nearest the listener; the hum
+    // note is genuinely stopped ("unloaded") once nothing is within `AUDIBLE_CHUNKS`.
     useEffect(() => {
         if (!active || !context) return undefined;
         let cancelled = false;
         let intervalId;
-        const celloBus = createSpatialBus(context);
-        const cello = createMelodicInstrument(context, 'cello', { destination: celloBus.input });
-        let celloStopFn = null;
-        const bellsBus = createSpatialBus(context);
-        const bells = createMelodicInstrument(context, 'tubular_bells', { destination: bellsBus.input });
-        let bellsScheduling = false;
+        const humBus = createSpatialBus(context);
+        const humInstrument = createMelodicInstrument(context, 'viola', { destination: humBus.input });
+        let humStopFn = null;
+        const glockenspielBus = createSpatialBus(context);
+        const glockenspiel = createMelodicInstrument(context, 'glockenspiel', { destination: glockenspielBus.input });
+        let glockenspielScheduling = false;
 
         const nearestWaterX = (env) => {
             const tiles = env?.waterTiles;
@@ -266,56 +291,60 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             return best;
         };
 
-        const scheduleBells = () => {
-            if (bellsScheduling) return;
-            bellsScheduling = true;
+        // #1025 round 3: plays the REAL composed 18-note glockenspiel phrase (WATER_GLOCKENSPIEL_LAYER)
+        // through playMelodies() — same mechanism the bird layers and ambient piano use — instead of a
+        // single random note. `volumes[i]` already carries the source MIDI's own velocities.
+        const scheduleGlockenspiel = () => {
+            if (glockenspielScheduling) return;
+            glockenspielScheduling = true;
             const triggerOnce = () => {
                 if (cancelled) return;
                 const env = envAudioRef?.current;
                 const waterX = env ? nearestWaterX(env) : null;
                 if (waterX == null || Math.abs(waterX - env.listenerX) / CHUNK_PX >= AUDIBLE_CHUNKS) {
-                    bellsScheduling = false;
+                    glockenspielScheduling = false;
                     return;   // the main reconcile interval below restarts this once water is back in range
                 }
-                const note = WATER_BELLS_NOTE_POOL[Math.floor(Math.random() * WATER_BELLS_NOTE_POOL.length)];
+                const layer = { ...WATER_GLOCKENSPIEL_LAYER, volumes: WATER_GLOCKENSPIEL_LAYER.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current) };
+                const lastNoteEnd = layer.offsets.length
+                    ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
+                    : 0;
+                const phraseDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                bells.start({
-                    note, time: startTime,
-                    gain: WATER_BELLS_GAIN * musicVolumeMultiplierRef.current,
-                });
-                const silenceSec = WATER_BELLS_MIN_SILENCE_SEC + Math.random() * (WATER_BELLS_MAX_SILENCE_SEC - WATER_BELLS_MIN_SILENCE_SEC);
-                const waitSec = (startTime - context.currentTime) + silenceSec;
+                playMelodies([layer], [glockenspiel], context, WORLD_AMBIENT_BPM, startTime);
+                const silenceSec = WATER_GLOCKENSPIEL_MIN_SILENCE_SEC + Math.random() * (WATER_GLOCKENSPIEL_MAX_SILENCE_SEC - WATER_GLOCKENSPIEL_MIN_SILENCE_SEC);
+                const waitSec = (startTime - context.currentTime) + phraseDurationSec + silenceSec;
                 setTimeout(triggerOnce, waitSec * 1000);
             };
             triggerOnce();
         };
 
-        Promise.all([cello.load, bells.load]).then(() => {
+        Promise.all([humInstrument.load, glockenspiel.load]).then(() => {
             if (cancelled) return;
             intervalId = setInterval(() => {
                 const env = envAudioRef?.current;
                 const waterX = env ? nearestWaterX(env) : null;
                 if (waterX == null) {
-                    if (celloStopFn) { celloStopFn(); celloStopFn = null; }
-                    rampParam(celloBus.gain.gain, 0, context);
-                    rampParam(bellsBus.gain.gain, 0, context);
+                    if (humStopFn) { humStopFn(); humStopFn = null; }
+                    rampParam(humBus.gain.gain, 0, context);
+                    rampParam(glockenspielBus.gain.gain, 0, context);
                     return;
                 }
                 const { pan, gain } = computeSpatialPanVolume(waterX, env.listenerX);
-                rampParam(celloBus.panner.pan, pan, context);
-                rampParam(celloBus.gain.gain, gain * WATER_GAIN, context);
-                rampParam(bellsBus.panner.pan, pan, context);
-                rampParam(bellsBus.gain.gain, gain, context);
+                rampParam(humBus.panner.pan, pan, context);
+                rampParam(humBus.gain.gain, gain * WATER_GAIN, context);
+                rampParam(glockenspielBus.panner.pan, pan, context);
+                rampParam(glockenspielBus.gain.gain, gain, context);
                 if (gain <= 0) {
-                    if (celloStopFn) { celloStopFn(); celloStopFn = null; }
-                } else if (!celloStopFn) {
+                    if (humStopFn) { humStopFn(); humStopFn = null; }
+                } else if (!humStopFn) {
                     // #925: "een hele lange noot, dus zonder release" — a large fixed duration, not the
                     // sample's own natural (finite) length; relies on the instrument's real loop points to
                     // sustain smoothly rather than audibly restarting/clicking every few seconds.
-                    celloStopFn = cello.start({ note: WATER_NOTE, time: context.currentTime, duration: 3600 });
-                    scheduleBells();
+                    humStopFn = humInstrument.start({ note: WATER_HUM_NOTE, time: context.currentTime, duration: 3600 });
+                    scheduleGlockenspiel();
                 } else {
-                    scheduleBells();
+                    scheduleGlockenspiel();
                 }
             }, WATER_RECONCILE_MS);
         });
@@ -323,7 +352,13 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
         return () => {
             cancelled = true;
             clearInterval(intervalId);
-            if (celloStopFn) celloStopFn();
+            if (humStopFn) humStopFn();
+            // #1038 (Han: "bij level sluiten; unload/stop alle geluid"): `humStopFn()` above only stops
+            // the held drone note — it doesn't touch a currently-sounding glockenspiel phrase, and neither
+            // instrument's bus/AudioNodes were ever released. Both are brand-new instances created fresh
+            // on this effect's mount, never reused across mounts, so `disconnect()` is safe.
+            humInstrument.disconnect();
+            glockenspiel.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);

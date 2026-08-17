@@ -15849,3 +15849,379 @@ fade gain (birds don't currently use the gain axis, only the visibility gate; wa
 `src/components/character/RpgLevelPanel.jsx` (`birdPositionsRef`, `envAudioRef`, hook call moved in here),
 `src/components/character/RpgLevelPanel.jsx`'s `WorldWanderer` (position-registry write), `src/App.jsx`
 (hook call removed, `rpgMusicVolumeMultiplier` passed down as a prop instead).
+
+**Round 2 update (Han 2026-08-17, "definieer de audio thans in chunks, niet in beeldlengtes"):** the
+screenX/viewport pan model above was replaced with a WORLD-DISTANCE chunk model that doesn't care about
+the current viewport at all. `src/audio/spatialPan.js`'s `computeSpatialPanVolume(sourceX, listenerX)`
+now returns plain `{pan, gain}` (pan −1..1, gain 0..1, both linear in `CHUNK_PX=256`-sized chunks, silent/
+full-pan beyond `AUDIBLE_CHUNKS=3`) — a standard `StereoPannerNode` + `GainNode` pair per voice, not the
+independent-L/R dual-gain model round 1 used. `listenerX` is the hero's own absolute world X (`playerX`);
+every voice (bird or water) computes its distance from that, not screen position, so birds/water now stay
+audible correctly panned even fully off-screen. All pan/gain updates go through `setTargetAtTime`
+(`rampParam` helper, `PARAM_SMOOTH_TIME_CONSTANT=0.15`) instead of an instant `.value=` — Han: "ik vind
+gewoon dichtbij de wissel links rechts heeeel abrubt" (a raw `.value=` jump is audible "zipper noise").
+Water's own nearest-tile search (`nearestWaterX`) converts water tiles' canvas-local `worldX` (see
+`ldtkWorld.js`'s `tileFromLdtkEntry`, `offsetX = lvl.worldX - LEVEL_MIN_X`) back to the SAME absolute
+space `playerX` is in by adding `LEVEL_MIN_X` — explicitly guarding against the exact coordinate-space
+bug §1024's point lights had (and #1039's duck wander-box, below, actually had — this water-audio call
+site got the fix in round 2, `waterSpanNear` in RpgLevelPanel.jsx did not, until #1039).
+
+**Round 3 update (Han 2026-08-17, real `water sounds.mid`/`bird sounds.rpp` export via `ASSET DROP`):**
+water is a real 3-track composition (`src/assets/ASSET DROP/bird sounds.rpp`, Reaper project — its own
+track names carry the intended instrument in parens, e.g. `water hum (viola - hold ad infinitum)`), not
+an invented sound-design placeholder. `scripts/generate-water-sounds.mjs` parses the exported
+`src/songs/world_midis/water sounds.mid` (same MIDI→app-tick conversion as `generate-bird-sounds.mjs`,
+§6c) into `src/model/waterSoundsManifest.generated.js`'s `WATER_SOUND_LAYERS`, matching each of the 3
+Reaper tracks by name (`waterHum`/`waterGlockenspiel`/`waterPercussion`). `useWorldAmbientMusic.js`
+now plays: **hum** — the real single held note (`C2`, real velocity) on a real `viola` instrument
+instead of the round-1 hardcoded `WATER_NOTE` placeholder on `cello`; **glockenspiel** — the REAL
+18-note composed phrase via `playMelodies()` periodically while in range, instead of a random note from
+a hand-picked pool on `tubular_bells` (which was never even locally extracted — silently CDN-dependent).
+`piccolo`/`bassoon`/`viola`/`glockenspiel` are now in the app's local instrument roster
+(`src/constants/instruments.jsx`, `scripts/extract-soundfont-samples.mjs`'s `GM_PROGRAM` table) and
+locally extracted from Han's `FluidR3_GM.sf2` — no CDN dependency introduced. Water percussion's real
+2-measure GM drum pattern is in the manifest too but still has no instrument wired in — blocked on ticket
+#1037 (no GM percussion kit / FreePats source yet). Birds' own per-species instrument fidelity (the
+`.rpp`'s piccolo/bassoon track names) is NOT yet applied — the bird MIDI itself hasn't been re-exported
+with those tracks; see `src/model/envAudioRegistry.json`'s `bird` entry.
+
+**Files (round 2/3 additions):** `src/audio/spatialPan.js` (rewritten), `src/audio/__tests__/spatialPan.test.js`
+(rewritten), `src/hooks/useWorldAmbientMusic.js` (chunk-based pan/gain, real water MIDI content),
+`src/components/character/RpgLevelPanel.jsx` (`ldtkLights`/`waterSpanNear` LEVEL_MIN_X fixes — see the
+duck bug below, ticket #1039), `scripts/generate-water-sounds.mjs` (new),
+`src/model/waterSoundsManifest.generated.js` (new, auto-generated), `src/songs/world_midis/water sounds.mid`
+(new), `src/model/envAudioRegistry.json`, `src/constants/instruments.jsx` +
+`scripts/extract-soundfont-samples.mjs` (4 new instruments: piccolo, bassoon, viola, glockenspiel).
+
+### Bug: duck/swimmer wander box off the water (ticket #1039, Han 2026-08-17)
+
+**Symptom:** a duck (an `X_on_water` swim critter) appeared far to the right of the level, not on any
+water tile.
+**Root cause:** `waterSpanNear()` (`RpgLevelPanel.jsx`) computed its swim-bounds by comparing water
+tiles' CANVAS-LOCAL `worldX` directly against the marker's ABSOLUTE `spawnX` (`__worldX`) — the exact
+same `LEVEL_MIN_X` coordinate-space bug documented above for point lights (§1024) and this section's own
+`nearestWaterX` (round 2) — but this call site predates both fixes and was missed by that pass.
+**Fix:** add `LEVEL_MIN_X` to the tile-worldX side of the comparison, same pattern as `nearestWaterX`.
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`waterSpanNear`).
+
+### Bug: duck swims past its pond into open-ended territory (ticket #1042, Han 2026-08-17)
+
+**Symptom:** even after the #1039 coordinate fix, a duck kept swimming endlessly to the right.
+**Root cause:** the water tileset (`GandalfHardcore Animated Water Tiles.png`) has 3 visually distinct
+16px row-bands, each its own 2-frame animation pair — `withAnimMeta`'s `logicalRow`
+(`Math.floor(src[1] / 32)`, `ldtkWorld.js`) is 0/1/2 for those bands. `waterSpanNear` originally counted
+EVERY `kind: 'water'` tile regardless of band, including shoreline/edge/waterfall-accent decoration far
+outside the actual pond — so the computed swim bounds spanned much wider than the real body of water.
+**Fix:** filter to `logicalRow === 2` only. Confirmed against the actual placed level data (not a guess):
+in `Level_1` (where both duck markers sit, absolute X 208/320), `logicalRow 2` is a coherent 20-tile pond
+spanning absolute X 192–352 — exactly bracketing both ducks — while `logicalRow` 0 and 1 there are only
+4-tile decorative accents (a small waterfall/splash feature) far outside that range. An earlier interview
+round picked `logicalRow 1` based on a verbal tileset description that didn't match the real per-level
+data; corrected once the actual placed tiles were inspected.
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`waterSpanNear`, `OPEN_WATER_LOGICAL_ROW`).
+
+### Bug: env audio not fully stopped on RPG level close (ticket #1038, Han 2026-08-17)
+
+**Symptom:** Han: "bij level sluiten; unload/stop alle geluid" — audio kept sounding briefly (or its
+AudioNodes stayed allocated) after leaving the RPG-level tab.
+**Root cause:** `useWorldAmbientMusic.js`'s 3 effects (ambient piano, birds, water) each cleared their own
+`setTimeout`/`setInterval` scheduling on unmount, but never told the actual smplr instrument instances to
+stop — clearing a timer only prevents the NEXT trigger; any note already scheduled/sounding from the LAST
+trigger played out to its own natural end regardless, and every voice's `GainNode`/`StereoPannerNode`
+graph stayed connected with nothing releasing it.
+**Fix:** smplr's `Sampler`/`Smplr` class exposes `stop()` (stop all active voices, instance stays usable)
+and `disconnect()` (stop all voices + disconnect the output channel + stop the internal scheduler —
+"the instance should not be used after this call"). Cleanup now calls the right one per instrument
+lifetime: `treblePiano` is cached in `instrumentsRef` and reused across this effect's re-runs, so it gets
+`stop()` (stays usable); every bird voice and both water instruments (`humInstrument`, `glockenspiel`) are
+brand-new instances created fresh on each mount, never reused, so they get `disconnect()`.
+**Files:** `src/hooks/useWorldAmbientMusic.js` (all 3 effects' cleanup functions),
+`src/hooks/__tests__/useWorldAmbientMusic.test.js` (mock `createMelodicInstrument` now stubs `stop`/
+`disconnect` too).
+
+### §240. Collision_mask layer — variable ground height (#1040, Han 2026-08-17)
+
+**Purpose:** Han placed a new `Collision_mask` LDtk layer (a plain Tiles layer, invisible — never added
+to `STATIC_TILE_LAYERS`) to author sloped/stepped ground, e.g. diagonal areas the character must walk
+over at the tree trunk's roots. Rule (Han's own words): "tenzij anders vermeld, moet karakter 'op de
+collision map' wandelen... geen collision map: gewoon op 32px wandelen. wel collision map: hoogte wordt
+bepaald door collision map" — every ground-anchored entity's Y now depends on whether a `Collision_mask`
+tile covers its current X, not a single flat `STAND_HEIGHT_PX` constant.
+
+**How it works:** the `Collision_mask` layer's own tileset (`collsion-mask.png`, 64×80px = 20 tiles) is a
+hand-drawn HEIGHTMAP — each tile's pixel silhouette encodes a ground-height profile: per 16px-wide tile,
+per pixel-column, the topmost OPAQUE pixel row (0–15) is the local surface height (row 0 = flush with the
+tile's own top edge = highest ground; a fully-transparent column = no override at that exact pixel).
+`scripts/generate-collision-heights.mjs` decodes this once into `src/model/collisionMaskHeights.generated.js`
+(`COLLISION_TILE_HEIGHTS[tileId][column]`) — the same "derive from the real asset instead of hand-typing
+a table" approach as the soundfont sample extraction / normal-map generation (CLAUDE.md §6c). `tileId` is
+recovered from a placed tile's own `src` (`(src[1]/16) * COLLISION_TILE_COLS + (src[0]/16)`).
+
+`ldtkWorld.js`'s `groundHeightAt(canvasLocalX)` finds whichever `Collision_mask` tile covers that X (the
+layer is authored as a single non-overlapping strip), converts its local heightmap column to the app's
+"native px up from the level's own bottom edge" unit (`LEVEL_PX_HEIGHT - (tile.worldY + columnHeight)`,
+directly comparable to `STAND_HEIGHT_PX`) — respecting `flipX` — and falls back to the flat
+`STAND_HEIGHT_PX` when no tile covers that X, or when the covered column has no opaque pixel (both
+confirmed with Han during the #1040 interview, not guessed).
+
+`RpgLevelPanel.jsx`'s single shared `standAnchor` constant became `standAnchorFor(absoluteWorldX)` — each
+ground-anchored entity (hero, pet, NPC, Slime) now asks for ITS OWN X, since different entities standing
+at different points on a slope need different heights; a shared constant can't represent that.
+`WorldWanderer`'s ground-type critters (`X_critter_ground`, tag `onGround: true` in `HABITAT_CONFIG`)
+follow the same `groundHeightAt` lookup as they wander horizontally, replacing their previous flat
+spawnY-based Y. Flying critters (`X_bird_flying`/`X_critter_flying`) are UNCHANGED — still spawnY ±
+oscillate, no collision-map involvement (confirmed explicitly excluded).
+
+**Swim critters get their own fixed anchor, not the collision map:** `X_on_water` critters (`onGround:
+false`) use a NEW `WATER_STAND_HEIGHT_PX = 16` constant (`ldtkWorld.js`, parallel to `STAND_HEIGHT_PX`
+but its own lower value) instead of either the collision map or their marker's raw authored Y — a duck
+now floats at a consistent height regardless of exactly where the level author dropped its spawn marker.
+
+**Invariants:**
+- `groundHeightAt` takes a CANVAS-LOCAL X (`absoluteWorldX - LEVEL_MIN_X`, the same conversion every
+  other LDtk tile consumer in this file already uses) — never pass an absolute world X directly.
+- Flying and on-water entities are explicitly OUT of scope for the collision map (Han's own confirmed
+  answer) — never wire `groundHeightAt` into their position logic.
+- `COLLISION_MASK_TILES`/`COLLISION_MASK_GRID_SIZE` are computed once at module load (Collision_mask
+  doesn't vary by season/city/tavern/bridge tier, unlike `buildWorld()`'s other per-call layers).
+
+**Files:** `scripts/generate-collision-heights.mjs` (new), `src/model/collisionMaskHeights.generated.js`
+(new, auto-generated), `src/levels/ldtk/ldtkWorld.js` (`WATER_STAND_HEIGHT_PX`, `groundHeightAt`,
+`COLLISION_MASK_TILES`), `src/components/character/RpgLevelPanel.jsx` (`standAnchorFor`, `HABITAT_CONFIG`
+`onGround` flag, `WorldWanderer`'s ground/swim Y computation).
+
+### Bug: WorldWanderer critters not bottom-bottom anchored (ticket #1041, Han 2026-08-17)
+
+**Symptom:** ducks (and other `WorldWanderer` critters) weren't anchored consistently with every other
+standing entity.
+**Root cause:** #989 had deliberately set `WorldWanderer`'s anchor to CENTER-CENTER
+(`transform: translate(-50%, 50%)`) to match LDtk's own entity-marker anchor convention. Han now wants
+bottom-bottom instead, consistent with how hero/pet/NPC/Slime already anchor (`bottom` with no
+`translateY` offset) — an explicit reversal of #989, not a bug in the original implementation.
+**Fix:** `transform: translateX(-50%)` (drop the `translateY(50%)` center-compensation entirely).
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`WorldWanderer`).
+
+### §241. Water reflection (#1032, Han 2026-08-17)
+
+**Purpose:** Han: "tree, decor, entities (hero, pets, dieren) allemaal wel, inc hun animatie. Maar voor
+bomen mag je de ruwe laag pakken, dus shimmer negeren. parallax hoeft niet, en terrain ook niet (want
+water is nooit ónder terrain). door volgorde animatie-reflectie-shimmer zou het water ook shimmer moeten
+geven." — ponds mirror the trees/decor scenery and the entities that stand near them, so water reads as
+an actual reflective surface rather than a flat colored texture. Confirmed via interview: cheap
+CSS-mirror technique (not a real second render pass — FPS is already tight, see #1036), no terrain/
+parallax in the reflection, and trees skip the WebGL shimmer/lighting pipeline entirely ("raw layer").
+
+**Two independent mechanisms, one shared trick:**
+
+1. **Decor/tree reflection — `WaterReflectionLayer.jsx` (new):** ponds are found by flood-fill over ALL
+   `kind: 'water'` tiles (any visual band — unlike `waterSpanNear`'s swim-only `logicalRow===2` filter, a
+   pond's visual EXTENT includes its shoreline tiles too), grouping adjacent tiles (`RpgLevelPanel.jsx`'s
+   `waterPonds`, `dx/dy <= gridSize`) into `{minX, maxX, surfaceY}` entries. `REFLECTABLE_TILES`
+   (`ldtkWorld.js`) is `STATIC_TILE_LAYERS + FOLIAGE_LAYERS` ONLY — deliberately excludes
+   `Terrain_Tiles`/`Pavement`/tavern/bridge tiers (real terrain, never visible under water) and
+   `BACKGROUND_LAYERS` (parallax). The SAME `loadTileImages`/`drawTilesToCanvas` helpers `LdtkScenery.jsx`
+   uses (§6d — no new tile-drawing logic) composite this once into an offscreen canvas → `dataUrl`; each
+   pond gets its own clipped, opacity-reduced `<div>` containing a full copy of that image, mirrored via
+   `transform: scaleY(-1)` with `transformOrigin` set to the pond's own `surfaceY` (measured in px from
+   the copy's own top edge — exactly `surfaceY * zoom` since the canvas is drawn top-down like LDtk
+   itself). Because this is a plain DOM `background-image`, never routed through
+   `ForegroundFoliageLayer`'s WebGL shimmer shader, trees automatically get the "raw layer, ignore
+   shimmer" treatment Han asked for — no separate code path needed.
+2. **Entity reflection, two different axes depending on habitat, `RpgLevelPanel.jsx`:** ducks/swim
+   critters (`WorldWanderer`, `swim` prop) mirror around THEIR OWN current position — a nested child
+   inside the SAME positioned wrapper as the real sprite (`position: absolute, inset: 0, transform:
+   scaleY(-1), transformOrigin: 'bottom'`), inheriting the parent's live `left`/`bottom`/`transform` and
+   animation frame for free. Han: "de weerspiegeling moet aan de ducks plakken, want zij zitten direct op
+   het water" — correct for a duck specifically, since it's always exactly at the water surface by
+   construction. Hero/pet/NPC/Slime are NOT always at the water's own height (collision-mask terrain, a
+   raised bank, ...) — an early version reused the same self-mirror trick for them too and Han caught it
+   immediately in testing ("die plakt vast aan de hero base"): reflecting around an entity's OWN foot
+   anchor is wrong when that anchor isn't the water line. Fixed with a STANDALONE sibling
+   (`EntityReflection` helper) positioned directly at the CONTAINING POND's own `surfaceY` — the exact same
+   axis `WaterReflectionLayer` uses for decor, so entities and scenery reflect at one consistent line — and
+   gated on actually being found within a pond's `[minX,maxX]` (`waterPonds.find(...)`, returns `null`
+   outside any pond) so they don't float a reflection over dry land everywhere. `extraTransform` carries
+   the hero's CSS-level `scaleX(facing)` (pet/NPC/Slime handle facing internally via their own `facing`
+   prop instead). **Must be a SIBLING, never nested inside the entity's own `transform`-ed wrapper** — CSS
+   makes a transformed element a new containing block for `position:absolute` descendants, which silently
+   breaks `left`/`bottom` math computed as if relative to the page (this is why the self-mirror trick,
+   which uses `inset:0` instead of explicit `left`/`bottom`, doesn't have this problem — it's relative to
+   whatever containing block it ends up in either way).
+
+**Z-order (the "animatie-reflectie-shimmer" ordering):** `WaterReflectionLayer` mounts AFTER the flat
+ground/decor/lit-ground/campfire layers but BEFORE the water shimmer `ForegroundFoliageLayer` instances —
+the water's own semi-transparent ripple therefore composites ON TOP of the reflection automatically via
+normal DOM z-order, without needing to distort the reflected pixels ourselves.
+
+**Scope note:** ground-type `WorldWanderer` critters (`X_critter_ground`) do NOT yet get a reflection —
+unlike hero/pet/NPC (React state, re-renders every position change), they move via an imperative rAF ref
+loop with no per-frame re-render to gate a conditional pond-membership check against; adding this would
+need the same imperative style-toggling `groundHeightAt`/`WATER_STAND_HEIGHT_PX` already use, deferred as
+a follow-up since ground critters rarely wander near ponds by design.
+
+**Files:** `src/components/character/WaterReflectionLayer.jsx` (new), `src/levels/ldtk/ldtkWorld.js`
+(`REFLECTABLE_TILES`), `src/components/character/RpgLevelPanel.jsx` (`waterPonds`, `EntityReflection`,
+`WorldWanderer`'s duck self-reflection, hero/pet/NPC/Slime reflection wiring).
+
+### Bug: debug reference line used a guessed constant instead of the real pond surface height (Han 2026-08-17)
+
+**Symptom:** Han compared reflected feet positions against `DebugGrid`'s red reference line and found
+them "above" it, questioning the reflection axis.
+**Root cause:** the line was drawn at a hand-guessed fixed height (24, from an earlier conversational
+"you only need to check 24px" comment) instead of each pond's own REAL derived `surfaceY`. Measured for
+this level: the actual water surface sits at native height 32 (exactly `STAND_HEIGHT_PX` — flush with the
+normal ground line), not 24 — the debug reference itself was wrong, not necessarily the reflection math.
+**Fix:** `DebugGrid` now draws one line per pond at its own true `surfaceY`-derived height.
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`DebugGrid`).
+
+### Bug: reflections looked "lit from below" — day/night brightness never applied (Han 2026-08-17)
+
+**Symptom:** near a pond, the tree trunk's base looked like it was glowing/lit from underneath at
+night/dusk.
+**Root cause:** confirmed via investigation — `WaterReflectionLayer`/`EntityReflection`/the duck
+self-reflection ALL deliberately skip the WebGL lighting pass (Han's own "raw layer, ignore shimmer" spec
+for trees), so they stayed full-brightness regardless of time of day, while the REAL trunk/entities above
+them go through `LdtkLitGround`'s/`ForegroundFoliageLayer`'s ambient-darkening. At night this made every
+reflection a locally BRIGHTER patch sitting directly under darker real content — reads as "glowing from
+below".
+**Fix:** a cheap CSS `filter: brightness(globalIllumination)` on each reflection element, using the SAME
+`foliageParams.globalIllumination` value the real lighting pass reads — dims reflections at night/dusk to
+match, without adding a real per-pixel lighting/normal-map pass (still "raw": no shimmer, no point-light
+response, just an overall day/night brightness match).
+**Files:** `src/components/character/WaterReflectionLayer.jsx`, `src/components/character/RpgLevelPanel.jsx`
+(`EntityReflection`, `WorldWanderer`'s duck reflection).
+
+### Bug: hero light-source height stayed hardcoded at 32 after the Collision_mask feature (Han 2026-08-17)
+
+**Symptom:** "de normal map behaviour response op de light is flipped... het karakter kan een hoge
+y-positie hebben" — near sloped Collision_mask terrain (e.g. by the tree trunk), the ground/trunk
+lighting looked wrong — direction/response mismatched relative to where the hero visually stood.
+**Root cause:** `ldtkLights`'s hero entry (§1024) hardcoded `worldHeight: 32` — correct back when every
+entity stood at the one flat `STAND_HEIGHT_PX`, but §1040's Collision_mask feature means the hero's REAL
+standing height (`standAnchorFor`/`groundHeightAt`) now varies with terrain and can be well above 32. The
+lighting shader kept treating the hero-light as sitting at the OLD flat height while the sprite itself
+rendered higher on a slope — a vertical mismatch between where the light supposedly was and where the
+hero (and the light it's meant to represent) actually stood.
+**Fix:** `ldtkLights`'s hero entry now calls the SAME `groundHeightAt(playerX - LEVEL_MIN_X)` lookup
+`standAnchorFor` uses (native px, no `* zoom` — this array is world-space, matching the pre-existing
+`0`/`32` literals), so the light height tracks the hero's real current terrain height.
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`ldtkLights`).
+
+### §242. Water-specific shimmer tuning — pixel switch, white caps, blend modes (#1032, Han 2026-08-17)
+
+**Purpose:** Han: "ik wil een aparte slider voor pixel switch op het water, ik denk dat de switch wat
+aggressiever mag" (round 6 extended this to white caps: "de witte koppen zijn onzichtbaar. maak in de
+debug aparte sliders voor watereffecten (shimmer + witte koppen, en de blend modes)"). `uWaveSteps`/
+`uDitherAmount`/`uWhiteCapThreshold`/`uWhiteCapStrength`/`uWaveBlendMode`/`uWaveBlendMode2` (§925/§1023)
+were all GLOBAL uniforms shared by every waving instance (water, tent fabric, grass canopy) — Han wants
+water's own full shimmer preset tunable independently of that shared one.
+**How it works:** water instances now carry an `isWater: true` flag (`useLdtkWaterInstances.js`, passed
+through `foliageInstanceProps` in `RpgLevelPanel.jsx` — that function explicitly whitelists fields, so a
+new flag needs listing there too). `ForegroundFoliageLayer.jsx`'s per-instance draw loop (already one
+`gl.drawArrays` call per instance, §6d reuse of the existing architecture) swaps in `waterWaveSteps`/
+`waterDitherAmount`/`waterWhiteCapThreshold`/`waterWhiteCapStrength`/`waterWaveBlendMode`/
+`waterWaveBlendMode2` when `inst.isWater`, else the existing shared params — a plain per-draw-call uniform
+swap, no new shader attribute/varying needed. New water defaults are coarser/more visible than the shared
+preset (`waterWaveSteps: 3` vs shared `5`; `waterWhiteCapThreshold: 0.7`/`waterWhiteCapStrength: 0.8` vs
+shared `0.85`/`0.6`) per Han's "aggressiever"/"onzichtbaar" feedback; blend modes start matching the
+shared preset (6/1) so nothing shifts until Han tunes them independently. 6 new sliders/selects in
+`FoliageParamsPanel` ("Water pixel switch: steps/dither amount", "Water white cap: threshold/strength",
+"Water wave: blend mode/blend mode 2") — note the panel itself starts COLLAPSED by default (an earlier
+explicit Han preference), so these aren't visible until expanded — likely why Han initially thought the
+existing (correctly-wired) global controls weren't doing anything.
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`water*` param defaults + per-instance
+uniform swaps), `src/components/character/useLdtkWaterInstances.js` (`isWater` flag),
+`src/components/character/RpgLevelPanel.jsx` (`foliageInstanceProps`, `FoliageParamsPanel` sliders).
+
+### Bug: reflection mirror axis used pond tile data instead of Han's own fixed constant (ticket #1032 round 6, Han 2026-08-17)
+
+**Symptom:** hero/dog reflections still looked too high; Han's own worked example: hero standing on a
+Collision_mask ramp at height 48 should reflect to height 16, but the reflection was appearing at height
+32 (going downward from there).
+**Root cause:** round 4/5 derived the mirror axis from each pond's own tile data (`pond.surfaceY`, which
+happened to equal 32 for this level's water tiles) — but Han's actual intent was a SEPARATE, hand-tuned
+constant (first 24, revised to 28), completely independent of any tile data, matching the SAME
+"deliberately fixed, not derived" pattern as `STAND_HEIGHT_PX`/`WATER_STAND_HEIGHT_PX`. Mirroring around
+the pond's tile-derived height (or the entity's own current, possibly Collision_mask-elevated position)
+was never what Han wanted — the water's own reflective surface doesn't rise and fall with either.
+**Fix:** new `WATER_REFLECTION_AXIS_PX = 28` constant (`ldtkWorld.js`, same file/pattern as the other two
+fixed-height constants). `EntityReflection`, `WaterReflectionLayer`, `WorldWanderer`'s duck self-reflection
+(unchanged — already mirrors around its OWN position per an earlier round, which was correct), and
+`DebugGrid`'s reference line all use this ONE fixed value now; `waterPonds`' now-unused `surfaceY` field
+was removed (only `[minX,maxX]` — WHERE to horizontally clip — is still needed).
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`WATER_REFLECTION_AXIS_PX`), `src/components/character/RpgLevelPanel.jsx`
+(`EntityReflection`, `DebugGrid`, `waterPonds`), `src/components/character/WaterReflectionLayer.jsx`.
+
+### Bug: entity reflection baseline stayed glued to the mirror axis regardless of entity height (ticket #1032 round 7, Han 2026-08-17)
+
+**Symptom:** Han: "de baseline van de reflectie van de hero plakt nog altijd aan de reflectielijn; dit is
+wiskundig onjuist. De baseline van de reflectie moet dezelfde afstand van de spiegellijn hebben als de
+afstand van de hero."
+**Root cause:** `EntityReflection`'s wrapper `bottom` was set directly to the fixed axis
+(`WATER_REFLECTION_AXIS_PX * zoom`), then `scaleY(-1)` applied around `transformOrigin: 'bottom'` — since
+that transform mirrors content around the ELEMENT'S OWN bottom edge, and the wrapper's bottom edge WAS
+the axis, the reflection's feet stayed pinned to the axis line no matter how high the entity actually
+stood (e.g. on Collision_mask terrain). Correct mirror symmetry: a point `d` px above the axis reflects to
+`d` px below it — the wrapper's `bottom` needed to be `2*axis - entityHeight`, not `axis`.
+**Fix:** `EntityReflection` now computes `entityHeightPx` via the same `standAnchorFor(worldX)` the real
+sprite uses, and positions the wrapper at `2 * axisPx - entityHeightPx`. Confirmed against Han's own
+worked example (entity height 48, axis 32 → reflected bottom 2×32−48=16).
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`EntityReflection`).
+
+### §243. White caps redesigned around the wave band, not the source sprite (#1032 round 7, Han 2026-08-17)
+
+**Purpose:** Han: "ik zie wat white cap strength doet: het maakt wat wit is in de water sprite nog witter.
+Wat ik EIGENLIJK wou, is wat wit is in de wave band duidelijk maken op het water." The original design
+(§925 follow-up) checked the raw diffuse texture's own luminance — a near-white pixel PAINTED INTO the
+source art got pulled whiter. Han's actual intent: a crest should appear wherever the ANIMATED WAVE
+HIGHLIGHT ITSELF (`waveQuant`, the shimmer's own quantized banding value) is bright, independent of
+whatever the underlying art's base color happens to be.
+**How it works:** the white-cap check moved from AFTER the `uHasWave` branch to INSIDE it (immediately
+after `blendHighlightDual` computes `trueColor`), since it now reads `waveQuant` — a variable only in
+scope within that branch — instead of the source diffuse's luminance. Same threshold/strength uniform
+pair as before, just a different input signal.
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (fragment shader, the `uHasWave` branch).
+
+### §242 update — shimmer simplified: only white caps stay water-exclusive (round 8, Han 2026-08-17)
+
+Han reconsidered §242's scope: "wave en water mogen dezelfde steps, speed, noise, dither, blend mode
+hebben... dus enkel white caps op water, alle andere shimmer settings hetzelfde op bomen en water (dus
+hopelijk lichtere berekening). bomen enzo moeten geen white caps hebben; white cap enkel op water." The
+`water*` overrides for steps/dither/blend-mode (round 6) were removed entirely — every waving instance
+(water included) now reads the ONE shared `waveSteps`/`ditherAmount`/`waveBlendMode`/`waveBlendMode2`
+again, restoring the original single-branch simplicity Han asked for ("lichtere berekening"). White caps
+are the one deliberate exception, and now WATER-EXCLUSIVE rather than just water-tuned: the OLD shared
+`whiteCapThreshold`/`whiteCapStrength` params were deleted outright (no "shared white cap" concept exists
+anymore); the per-instance draw loop passes `waterWhiteCapThreshold`/`waterWhiteCapStrength` for water,
+and `threshold=1.0, strength=0.0` (a genuine no-op — `capMix` collapses to 0) for every other waving
+instance, so trees/tent/grass can never show a cap regardless of param values. New defaults: threshold
+0.7, strength 0.85 (Han's own tuned numbers).
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS`, draw loop),
+`src/components/character/RpgLevelPanel.jsx` (`FoliageParamsPanel` sliders).
+
+### Bug: bridge tiers never reflected in water (ticket #1032 round 8, Han 2026-08-17)
+
+**Symptom:** Han: "reflectie, ik kan de brug niet zien op het water."
+**Root cause:** `REFLECTABLE_TILES` (§241) was a fixed module-level constant built ONLY from
+`STATIC_TILE_LAYERS`/`FOLIAGE_LAYERS` — but bridge (and tavern) structures are NOT fixed layers, they're
+chosen dynamically per `buildWorld({tavernTier, bridgeTier})` call
+(`BRIDGE_TIER_LAYERS[bridgeTier]`/`TAVERN_TIER_LAYERS[tavernTier]`). A once-computed constant could never
+have included whichever tier is actually active.
+**Fix:** `REFLECTABLE_TILES` became `reflectableTilesFor({tavernTier, bridgeTier})` — a function taking
+the SAME params `buildWorld()` itself does, reusing its own tier-lookup tables. `RpgLevelPanel.jsx` now
+memoizes it with `[tavernTier, bridgeTier]` deps, same pattern as `world` itself.
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`reflectableTilesFor`), `src/components/character/RpgLevelPanel.jsx`
+(`reflectableTiles` memo).
+
+### §244. Campfire point light (#993/#1032 round 8, Han 2026-08-17)
+
+**Purpose:** the campfire had no light source at all in `ldtkLights` (only Wisp NPC and hero did) — Han:
+"het kampvuur heeft nog geen lichtbron. Zet de lichtbron altijd in het midden van de sprite."
+**How it works:** unlike the Wisp (fixed ground level, `worldHeight: 0`) or the hero (its own current
+stand anchor), the campfire's light sits at the sprite's own geometric CENTROID — the average center
+point of every `kind: 'campfire'` tile (`world.animatedTilesBack/Front`, already canvas-local). Computed
+in a separate `campfireLight` memo (deps: `[world]`) and appended to `ldtkLights` when present. Assumes
+one campfire per level (averages across ALL campfire tiles) — would need per-cluster grouping (the same
+flood-fill approach `waterPonds` uses) if a future level places more than one.
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`CAMPFIRE_LIGHT_COLOR01`, `campfireLight`,
+`ldtkLights`).

@@ -86,6 +86,10 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
                         localBottomFromLevelBottom: LEVEL_PX_HEIGHT - tile.worldY - gridSize,
                         gridSize,
                         wave: true, skew: false,
+                        // #1032 (Han: "aparte slider voor pixel switch op het water"): lets
+                        // ForegroundFoliageLayer's draw loop swap in water's own waveSteps/ditherAmount
+                        // uniform values instead of the shared foliage preset for this instance.
+                        isWater: true,
                     });
                 });
                 setInstances(out);

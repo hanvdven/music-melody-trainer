@@ -69,7 +69,15 @@ const tagPillStyle = (tag) => (TAG_COLOR[tag] ? { ...PILL_STYLE, backgroundColor
 // use of that work when placing assets into the world"): exported so world-placement callers (e.g.
 // RpgLevelPanel's pet/NPC sprites) reuse this SAME canonical renderer (§6d) instead of hand-rolling their
 // own crop/animation-cell math — previously only used inside this file's own bestiary top/bottom panels.
-export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], framed = true }) {
+// #989 (Han 2026-08-14, "bestiary pass": "laat alle wezens uit de bestiary naar rechts kijken, zodat ik
+// meteen kan zien of ze correct georiënteerd zijn"): `mirror` — opt-in, defaults false — flips the WHOLE
+// rendered box horizontally around its own center. Deliberately a prop the CALLER passes, not baked into
+// this canonical renderer itself: CreatureSprite is also used by movement-direction-aware placements
+// (RpgLevelPanel's WorldCreature, which already computes its own facing flip from actual walk direction ×
+// the sprite's native orientation) where forcing "always right" would fight that logic. Only the Bestiary's
+// own top/bottom preview call sites (below) pass `mirror={variant.facing !== 'right'}` — every OTHER
+// consumer (persona preview, character doll, world placements) is unaffected, same prop, default off.
+export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], framed = true, mirror = false }) {
     const { frame: f, crop, url } = variant;
     // #687 (Han 2026-08-04, knight "green knight + green knight run als één set animaties"): an animation
     // may be sourced from a DIFFERENT file than the variant's own (`anim.url`, resolved in
@@ -122,7 +130,9 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
     }
     return (
         <div className={framed ? 'cc-sprite-frame' : undefined}
-            style={framed ? { width: box, height: box } : { position: 'relative', width: '100%', height: '100%' }}>
+            style={framed
+                ? { width: box, height: box, transform: mirror ? 'scaleX(-1)' : undefined }
+                : { position: 'relative', width: '100%', height: '100%', transform: mirror ? 'scaleX(-1)' : undefined }}>
             {framed && <Frame64Overlay box={box} />}
             <div style={{ position: 'absolute', left: `calc(50% - ${cropW / 2}px)`, ...vPos, width: cropW, height: cropH, overflow: 'hidden', transform: flyTransform }}>
                 <div style={{ position: 'absolute', left: -crop.x * effectiveScale, top: -crop.y * effectiveScale, width: f.w, height: f.h, transform: `scale(${effectiveScale})`, transformOrigin: 'top left' }}>
@@ -349,7 +359,7 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
             }}>
                 {tagsColumn}
                 <div className="cc-enemy-stage" style={{ gap: '16px' }}>
-                    <CreatureSprite variant={variant} anim={anim} frame={frame} scale={PREVIEW_SCALE} overlayUrls={overlayUrls} />
+                    <CreatureSprite variant={variant} anim={anim} frame={frame} scale={PREVIEW_SCALE} overlayUrls={overlayUrls} mirror={variant.facing !== 'right'} />
                     {variant.portraitUrl && (
                         <PortraitImage url={variant.portraitUrl} cell={variant.portraitCell} frame={variant.portraitFrame}
                             size={64 * PREVIEW_SCALE} animCols={variant.portraitAnimCols || 1} tick={frame}
@@ -492,7 +502,7 @@ export function BestiaryBottomPanel({ editor }) {
                         <button key={c.id} title={c.name}
                             className={`cc-thumb cc-enemy-thumb${c.id === selId ? ' active' : ''}`}
                             onClick={() => selectCreature(c.id)}>
-                            <CreatureSprite variant={rep} anim={idle} frame={0} scale={THUMB_SCALE} framed={false} />
+                            <CreatureSprite variant={rep} anim={idle} frame={0} scale={THUMB_SCALE} framed={false} mirror={rep.facing !== 'right'} />
                         </button>
                     );
                 })}

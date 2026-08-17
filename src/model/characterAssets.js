@@ -23,9 +23,24 @@
 //     folder (no subfolder) — categorised by a NAME keyword instead of a folder keyword.
 //   - a couple of non-item files (a "DONT FORGET TO RATE" attribution image, pet accessory extras the
 //     renderer doesn't understand yet) are explicitly excluded so they can never appear as pickable items.
-const CHAR_FILES = import.meta.glob('../assets/ASSORTED/characters/char_hero/**/*.png', { eager: true, query: '?url', import: 'default' });
-const EFFECT_FILES = import.meta.glob('../assets/ASSORTED/fx/character effects/*.png', { eager: true, query: '?url', import: 'default' });
-const PET_FILES = import.meta.glob('../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/*.png', { eager: true, query: '?url', import: 'default' });
+// #955 (boot-slowness initiative, Han 2026-08-13): these three were eager `import.meta.glob`
+// calls — together with bestiaryAssets.js's own glob of the same characters/+fx/ trees, the
+// single largest contributor to a measured ~1100-of-1606-request app-boot cost (every glob-
+// matched file is a synchronous ES module import, which must round-trip the dev server before
+// React can render anything). The PNGs now live in public/ (flat static files, outside Vite's
+// module graph — zero request cost until a sprite is actually rendered); ASSORTED_FILES (see
+// assortedFileList.generated.js) replaces the glob's file-discovery role. Each map below is built
+// to have the EXACT SAME {relPath: url} shape and key format the corresponding glob used to
+// produce, so every consumer below (categorizeCharFile's regex extraction, the EFFECT_FILES/
+// PET_FILES name-matching loops) needed zero changes.
+import { ASSORTED_FILES } from './assortedFileList.generated.js';
+const assortedUrlMap = (prefix) => Object.fromEntries(
+    ASSORTED_FILES.filter((p) => p.startsWith(prefix))
+        .map((relPath) => [`../assets/ASSORTED/${relPath}`, `/ASSORTED/${relPath}`]),
+);
+const CHAR_FILES = assortedUrlMap('characters/char_hero/');
+const EFFECT_FILES = assortedUrlMap('fx/character effects/');
+const PET_FILES = assortedUrlMap('characters/animals/pets/GandalfHardcore Pet companion/');
 
 // #648 CR (Han): purpose-built 16×16 item icons (from src/assets/rpg/16x16, curated + renamed per category)
 // used as the equipment slot's TYPE glyph behind the equipped sprite — they fit the square slots far better
