@@ -16987,18 +16987,27 @@ via a 3-letter-abbreviation table. Arirang's `K:F pentatonic major` threw outrig
 silently mis-resolved — `sakura.json`'s cached `generator` metadata said `scaleFamily:"Diatonic",
 scaleMode:"Minor"`, unrelated to its own source's actual Pentatonic "In" mode.
 
-**Fix:** `parseKeyField` now matches a full mode PHRASE (not just one word) against every non-Diatonic
-family in `scaleHandler.js`'s own `scaleDefinitions` (imported directly, §6c — no second hand-copied
-scale-name table). A pentatonic mode has no key signature of its own, so its `diatonic` reference field
-(already present on every `scaleHandler.js` mode, e.g. `'In' -> 'Lydian'`) is mapped through the existing
-`MODE_FIFTHS` table to compute the correct notation accidentals. `sakura.json` regenerated (source
-unchanged) — now correctly `Pentatonic`/`In`. Arirang NOT regenerated: the Han-edited
-`src/assets/ASSET DROP/abc/arirang.abc` (moved out of `src/songs/abc/` mid-session — the build script
-still only ever reads whatever `.abc` PATH it's given, so this is a location change, not a functional
-one) has real bar-length mismatches unrelated to this parser fix, flagged separately rather than silently
-generated from bad data.
+**Fix — name resolution:** `parseKeyField` now matches a full mode PHRASE (not just one word) against
+every non-Diatonic family in `scaleHandler.js`'s own `scaleDefinitions` (imported directly, §6c — no
+second hand-copied scale-name table).
 
-**Files:** `src/utils/timpaniPattern.js` (+ test), `scripts/abc-to-song.mjs`, `src/songs/data/sakura.json`.
+**Fix — key signature (three rounds, see §255 for the full derivation this settled on):** the FIRST
+attempt mapped a mode's `diatonic` reference field (e.g. `'In' -> 'Lydian'`) straight through
+`MODE_FIFTHS`, wrongly assuming that reference scale shares the pentatonic's own tonic — it corrupted 13
+real notes in sakura's tune body (§255 has the full story). A SECOND attempt hardcoded "no key signature
+for any non-Diatonic mode" — simpler, but itself a wrong special case (Han: "wat ben je nu allemaal aan
+het hardcoden??? In heeft een heptatonic equivalent, de voortekens worden automatisch gegeven"). The
+actual fix — `scaleHandler.js`'s `generateNumAccidentals`, reused here via direct import rather than
+re-derived a third time — is documented in full in §255. This script has ZERO independent key-signature
+math left; `LETTER_FIFTHS`/`MODE_FIFTHS` were deleted.
+
+`sakura.json` regenerated (source unchanged) — correctly `Pentatonic`/`In`, zero forced accidentals
+(genuinely correct for E In, not a hardcoded default). Arirang was ALSO fully re-transcribed later the
+same session, from a LilyPond source Han provided directly (see the arirang-specific commit; its own
+`.abc` had unrelated bar-length corruption from a hand-edit, nothing to do with this key-signature fix).
+
+**Files:** `src/utils/timpaniPattern.js` (+ test), `scripts/abc-to-song.mjs`, `src/songs/data/sakura.json`,
+`src/songs/data/arirang.json`.
 
 ### §253. Force courtesy accidentals on for every level (#1046, Han 2026-08-17)
 
@@ -17051,3 +17060,59 @@ existing filter/gradient logic it combines, rather than a parallel implementatio
 **Files:** `src/theory/noteUtils.js` (`melodicNoteColor`), `src/components/sheet-music/overlays/
 NoteColoringStaffOverlay.jsx` (`SCHEMES` entry), `src/levels/levels.js` (`DEFAULT_LEVEL_COLOR_MODE`
 changed from `'subtle-chroma'` to `'scale-subtle-chroma'`, §249).
+
+### §255. Non-Diatonic key signatures derived generically from `heptaRefIntervals` (Han 2026-08-17)
+
+**Symptom:** live UAT, Sakura ("E In", Pentatonic) showed 5 sharps. Root cause: `scaleHandler.js`'s
+`generateNumAccidentals` (the function that computes the key signature the RUNNING APP actually renders
+during gameplay — a separate function from `scripts/abc-to-song.mjs`'s own copy, §252) combined the
+GIVEN tonic's circle-of-fifths position with the mode's `diatonic` reference field's `modeAdjustments`
+value, correct only when that reference scale shares the given tonic (true for real Diatonic modes: E
+Phrygian's reference genuinely is Phrygian-on-E). It is NOT true for non-Diatonic modes: "In" on E is a
+subset of F LYDIAN — a DIFFERENT tonic — not E Lydian. E's own position (4) + Lydian's adjustment (+1) =
+5, exactly the bogus sharp count Han heard live.
+
+**First fix, REJECTED by Han:** returning 0 for every non-Diatonic mode unconditionally. Simple, and
+accidentally correct for E In and F Pentatonic Major (both happen to need zero), but WRONG in general —
+Han caught it immediately: "wat ben je nu allemaal aan het hardcoden??? In heeft een heptatonic
+equivalent, de voortekens worden automatisch gegeven." He's right: `A In` genuinely needs a flat (its
+notes are A-A♯-D-E-F, which respells as A-B♭-D-E-F under a 1-flat signature, not zero), and `F Pentatonic
+Major` genuinely inherits F major's own 1-flat signature (harmless only because B never appears in that
+piece — not because the true answer is zero).
+
+**Real fix:** every non-Diatonic scale definition in `scaleDefinitions` already carries
+`heptaRefIntervals` — the interval pattern of its `diatonic`-named reference scale — sitting unused. New
+`deriveReferenceTonicOffset(intervals, heptaRefIntervals)` derives the semitone offset `d` from a scale's
+own tonic to that reference scale's TRUE tonic: brute-force search over `d = 0..11`, testing whether the
+scale's own pitch-class SET (cumulative sum of `intervals`) is fully contained within the reference
+scale's pitch-class set (cumulative sum of `heptaRefIntervals`) once shifted up by `d` semitones. No
+lookup table, no per-mode special case (§6c) — the offset falls out of the interval data that was already
+there. `generateNumAccidentals` then computes `refFifths = circleOfFifths[tonic] + 7·d` (each semitone of
+shift is +7 on the unbounded fifths axis, reduced back into the real ±7 range every key signature lives
+in), plus the reference mode's own `modeAdjustments` value.
+
+For a genuine Diatonic mode, there is no separate `heptaRefIntervals` — the fallback `found.intervals`
+compared against itself trivially resolves `d = 0` (a scale's pitch-class set is always a subset of
+itself), so the SAME single formula reproduces the previously-correct Diatonic-only behavior as a special
+case of the general one, rather than needing two code paths that could drift apart.
+
+**Verified** (hand-derived from the actual pitch-class sets, then checked against the code): `E In = 0`,
+`A In = -1`, `F Pentatonic Major = -1`, `C Pentatonic Major = 0`, `A Pentatonic Minor = 0`; every existing
+Diatonic case unchanged (`D Major = 2`, `E Phrygian = 0`, `G Dorian = -1`, etc.). Regenerating
+`sakura.json`/`arirang.json` under the new derivation produces ZERO note differences from the (already
+correct, coincidentally-zero-signature) versions §252 shipped — confirming both real songs' key
+signatures were right for the right reason all along, not just by the hardcoded-0 coincidence.
+
+`scripts/abc-to-song.mjs` no longer has ANY independent key-signature math — `LETTER_FIFTHS`/
+`MODE_FIFTHS` deleted, `parseKeyField` imports and calls `generateNumAccidentals` directly for BOTH
+Diatonic and non-Diatonic modes. One formula, one implementation, both consumers (§6c).
+
+**Invariant:** never special-case "family X gets no key signature" as a shortcut for "I don't know how to
+derive family X's key signature" — if a scale family's definitions carry enough structural data to derive
+the answer (as `heptaRefIntervals` does here), derive it. A hardcoded fallback is only acceptable when the
+data genuinely doesn't exist.
+
+**Files:** `src/theory/scaleHandler.js` (`generateNumAccidentals`, new `deriveReferenceTonicOffset`/
+`cumulativeOffsets`, + test), `scripts/abc-to-song.mjs` (`parseKeyField` now calls the shared function;
+`LETTER_FIFTHS`/`MODE_FIFTHS` removed), `src/songs/data/sakura.json`, `src/songs/data/arirang.json`
+(regenerated, zero note diffs).
