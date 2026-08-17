@@ -559,27 +559,46 @@ const generateNumAccidentals = (anyTonic, modeName) => {
         'F♭': -8,
     };
 
-    let accidentals = circleOfFifths[tonicNote] !== undefined ? circleOfFifths[tonicNote] : 0;
-
     const cleanName = modeName.split('.').pop().trim().split('(')[0].trim();
 
+    // Returns which SCALE FAMILY (Diatonic/Pentatonic/Hexatonic/...) a mode name actually belongs to,
+    // plus its `diatonic` reference field.
     const findDiatonicForMode = (name) => {
-        for (const [, modeDefs] of Object.entries(scaleDefinitions)) {
+        for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
             if (!Array.isArray(modeDefs)) continue;
             for (const modeDef of modeDefs) {
                 const legacyKey = modeDef.index
                     ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}`
                     : modeDef.wheelName || modeDef.name;
                 if (legacyKey === name || modeDef.name === name || modeDef.wheelName === name) {
-                    return modeDef.diatonic || null;
+                    return { family, diatonic: modeDef.diatonic || null };
                 }
             }
         }
         return null;
     };
 
-    const modeType = findDiatonicForMode(modeName) || findDiatonicForMode(cleanName);
+    const found = findDiatonicForMode(modeName) || findDiatonicForMode(cleanName);
 
+    // Bug fix (Han 2026-08-17, live UAT: Sakura ("E In", Pentatonic) showed 5 sharps): this used to
+    // ALWAYS start from `circleOfFifths[tonicNote]` (the GIVEN tonic's own circle-of-fifths position)
+    // and add `modeAdjustments[modeDef.diatonic]` — correct for an actual DIATONIC mode (its `diatonic`
+    // reference genuinely IS itself, same tonic: e.g. E Phrygian's reference is Phrygian-on-E). But for
+    // a non-Diatonic mode (Pentatonic etc.), `diatonic` names a DIFFERENT scale built on a DIFFERENT
+    // tonic that merely CONTAINS the pentatonic notes as a subset — "In" on E is a subset of F LYDIAN,
+    // not E Lydian. Blindly combining the GIVEN tonic (E, circleOfFifths=4) with the reference mode's
+    // adjustment (Lydian=+1) produced a bogus 5-sharp signature, silently forcing sharps onto notes that
+    // are actually natural (E-F-A-B-C). Deriving the TRUE reference tonic generically is real complexity
+    // for a problem with no universally-agreed answer anyway — unlike the 7 diatonic church modes,
+    // exotic/pentatonic scales have no standard circle-of-fifths key-signature convention. Non-Diatonic
+    // modes therefore get NO forced accidentals (0) — same fix, same reasoning, as
+    // scripts/abc-to-song.mjs's parseKeyField (§252/§1044).
+    if (found && found.family !== 'Diatonic') {
+        return 0;
+    }
+
+    let accidentals = circleOfFifths[tonicNote] !== undefined ? circleOfFifths[tonicNote] : 0;
+    const modeType = found?.diatonic;
     if (modeType && modeAdjustments[modeType] !== undefined) {
         accidentals += modeAdjustments[modeType];
     }
