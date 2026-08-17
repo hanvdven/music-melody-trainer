@@ -1246,7 +1246,10 @@ const App = () => {
     // persistent fader than the rest of the backing (percussion/timpani stay at LEVEL_BACKING_VOLUME,
     // mezzo-piano) — a dedicated constant rather than reusing LEVEL_BASS_VOLUME so the two can diverge
     // independently later without one accidentally dragging the other along.
-    const LEVEL_METRONOME_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo forte').value;
+    // #1051 (Han 2026-08-17, "metronoom moet op ff, is niet goed hoorbaar"): bumped again, from
+    // mezzo-forte to 'forte' — the loudest step VOL_STEPS has (there is no 'ff'/fortissimo tier in
+    // this app's volume vocabulary; 1.0 is the ceiling this fader mechanism supports).
+    const LEVEL_METRONOME_VOLUME = VOL_STEPS.find((s) => s.label === 'forte').value;
     // Han (2026-08-03, "zet de cello op mf, om te testen"): the cello alone gets a louder persistent
     // fader than the rest of the backing (timpani/metronome stay at mezzo-piano) — a deliberate imbalance
     // to test whether it's simply drowned out next to the punchy timpani (§104's inaudible-cello finding
