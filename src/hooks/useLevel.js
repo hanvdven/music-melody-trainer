@@ -105,7 +105,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // tonic-relative range sync only fires for a RELATIVE rangeMode, but ordering it first keeps this
         // correct regardless. `restore()` reverts tonic/mode from the level's own start-of-session
         // snapshot (see App.jsx's `levelSnapshot`), exactly like every other level-applied field.
-        setters.setSelectedMode?.(lvl.key?.mode ?? DEFAULT_SCALE_MODE);
+        // `lvl.key?.family` (Han 2026-08-17 bug fix): undefined for procedural levels (their `mode` is
+        // always a Diatonic name already, so the setSelectedMode default of `prev.family` is a no-op),
+        // but song-levels now carry their own family (levels.js `songLevelDefaults`) — without it, a
+        // Pentatonic song-level's key silently failed to switch out of whatever family was last active.
+        setters.setSelectedMode?.(lvl.key?.mode ?? DEFAULT_SCALE_MODE, lvl.key?.family ?? null);
         setters.setTonic?.(lvl.key?.tonic ?? DEFAULT_SCALE_TONIC, true);   // true = manual override, no auto-respell
         // Level editor (Han 2026-08-06, "theme = app kleurenschema"): forces the app's global colour
         // theme for the level's duration, reverted on close (same pattern as `key` above).
@@ -348,8 +352,10 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         setters.setAnimationMode?.(s.animationMode);   // restore the user's animation mode (see applyConfig)
         // Level editor (Han 2026-08-06): revert a level's `key` override (if any) — mode first, then tonic
         // with the manual-override flag so it lands on the EXACT pre-level tonic, not a minimize-accidentals
-        // respelling of it.
-        setters.setSelectedMode?.(s.selectedMode);
+        // respelling of it. `s.selectedFamily` (Han 2026-08-17 bug fix) so a level that switched scale
+        // FAMILY (e.g. a Pentatonic song-level) restores the pre-level family too, not just the mode name
+        // inside whatever family the level itself left active.
+        setters.setSelectedMode?.(s.selectedMode, s.selectedFamily ?? null);
         setters.setTonic?.(s.tonic, true);
         // Level editor (Han 2026-08-06): revert a level's `theme` override (if any) to whatever the
         // user had selected before the level started.

@@ -244,3 +244,35 @@ describe('useScaleManagement.setSelectedMode (#871 bug fix)', () => {
         expect(updateFn(null)).toBe(null);
     });
 });
+
+// Bug fix (Han 2026-08-17: "als ik een andere toonladder selecteer in de scale selector en dan een
+// nummer start, wordt de toonladder niet op de toonladder van het nummer gezet"): `setSelectedMode`
+// always reused `prev.family`, so loading a song/level whose mode lives in a DIFFERENT family (e.g.
+// Sakura's Pentatonic "In" while the app was last on a Diatonic mode) silently tried to find "In"
+// inside "Diatonic" and never actually switched. Fixed by adding an optional second `newFamily` param.
+describe('useScaleManagement.setSelectedMode family switching (2026-08-17 bug fix)', () => {
+    it('switches to an explicitly-passed family instead of keeping prev.family', () => {
+        const _setScale = vi.fn();
+        const deps = makeDeps({ scale: makeScale('A4'), _setScale });
+        const { result } = renderHook(() => useScaleManagement(deps));
+
+        act(() => result.current.setSelectedMode('In', 'Pentatonic'));
+
+        const updateFn = _setScale.mock.calls[0][0];
+        const next = updateFn(makeScale('A4')); // prev.family = 'Diatonic'
+        expect(next.family).toBe('Pentatonic');
+        expect(next.name).toBe('In');
+    });
+
+    it('keeps prev.family when no family argument is passed (backward-compatible default)', () => {
+        const _setScale = vi.fn();
+        const deps = makeDeps({ scale: makeScale('A4'), _setScale });
+        const { result } = renderHook(() => useScaleManagement(deps));
+
+        act(() => result.current.setSelectedMode('Minor'));
+
+        const updateFn = _setScale.mock.calls[0][0];
+        const next = updateFn(makeScale('A4')); // prev.family = 'Diatonic'
+        expect(next.family).toBe('Diatonic');
+    });
+});

@@ -629,9 +629,14 @@ const App = () => {
         if (tonicToSet) setTonic(tonicToSet);
 
         // Apply scale mode (e.g. 'Major' / 'Dorian') so the key signature, scale
-        // wheel, and harmony all reflect the song's intended mode.
+        // wheel, and harmony all reflect the song's intended mode. Also pass the song's
+        // OWN scale family (Han 2026-08-17 bug: loading a song didn't switch family, only
+        // mode — silently failing whenever the song's mode lives in a different family,
+        // e.g. Sakura's Pentatonic "In" while the user was last on a Diatonic mode) so
+        // the scale actually resolves inside the RIGHT family instead of whichever one
+        // happened to already be selected.
         if (loaded.scaleMode) {
-            setSelectedMode(loaded.scaleMode);
+            setSelectedMode(loaded.scaleMode, loaded.scaleFamily);
         }
 
         // Apply per-instrument settings overrides from the song's generator block.
@@ -1117,10 +1122,14 @@ const App = () => {
     // schema reference): `setTonic`/`setSelectedMode` are included so a level can force its own key
     // (e.g. a vocal-range level pinned to a comfortable key) — added to BOTH setters and snapshot so
     // `restore()` reverts the user's own key exactly, the same way every other level-applied field does.
+    // `selectedFamily: scale.family` (Han 2026-08-17 bug fix): a level that switches scale FAMILY (e.g.
+    // a Pentatonic song-level) previously restored only the pre-level MODE on exit, defaulting
+    // setSelectedMode's family param to whatever family the level itself left active — silently
+    // stranding the user in the wrong family instead of back where they started.
     const levelSnapshot = useCallback(() => ({
         numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
-        tonic: scale.tonic, selectedMode, theme, timeSignature,
-    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode, scale.tonic, selectedMode, theme, timeSignature]);
+        tonic: scale.tonic, selectedMode, selectedFamily: scale.family, theme, timeSignature,
+    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode, scale.tonic, selectedMode, scale.family, theme, timeSignature]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.

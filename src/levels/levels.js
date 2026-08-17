@@ -387,7 +387,11 @@ const songLevelDefaults = (songDef) => {
         numMeasures: songDef.numMeasures,
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
         range: { min, max },
-        key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
+        // `family` added (Han 2026-08-17 bug fix): a song-level's key was silently applied inside
+        // whichever scale family the app happened to already have selected — harmless for a Diatonic
+        // song, but broken for e.g. Sakura's Pentatonic "In" (see useLevel.js's applyConfig, which now
+        // passes this through to setSelectedMode's newFamily param).
+        key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode, family: songDef.generator.scaleFamily },
         // #994: `beatsOnScreen` is deliberately NOT set here any more (it was, under #889). The span
         // now depends on TEMPO as well as meter, and normalizeLevel derives the whole bundle from the
         // MERGED bpm/timeSignature below — deriving it here too would (a) duplicate the formula and

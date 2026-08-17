@@ -79,7 +79,15 @@ export default function useScaleManagement({
         });
     }, [minimizeAccidentals, selectedMode, syncRangesForTonic, _setScale]);
 
-    const setSelectedMode = useCallback((newMode) => {
+    // `newFamily` (optional, Han 2026-08-17 bug: "als ik een andere toonladder selecteer... en dan een
+    // nummer start, wordt de toonladder niet op de toonladder van het nummer gezet"): defaults to
+    // `prev.family` (unchanged) so every existing caller that only ever changes mode WITHIN the
+    // currently-selected family — ScaleSelector.jsx's wheel click, useLevel's procedural (non-song)
+    // levels — is byte-identical. App.jsx's handleLoadSong and useLevel's song-level path now pass the
+    // SONG's own family explicitly, so loading e.g. Sakura (Pentatonic/In) while the user was last on
+    // some Diatonic mode actually switches family, instead of silently trying (and failing) to find
+    // 'In' inside whatever family happened to already be selected.
+    const setSelectedMode = useCallback((newMode, newFamily = null) => {
         _setSelectedMode(newMode);
 
         // Bug fix (Han 2026-08-11, #871 UAT: "voortekens komen niet overeen met de key... key is
@@ -93,7 +101,7 @@ export default function useScaleManagement({
         // Folding the recompute in HERE fixes it for every caller at once (§6c: one mechanism).
         _setScale((prev) => {
             if (!prev) return prev;
-            return updateScaleWithMode({ currentScale: prev, newFamily: prev.family, newMode });
+            return updateScaleWithMode({ currentScale: prev, newFamily: newFamily ?? prev.family, newMode });
         });
 
         // When mode changes, if minimize is on, we might need a better tonic for THIS mode

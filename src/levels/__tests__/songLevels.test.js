@@ -41,7 +41,7 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
             expect(lvl.timeSignature).toEqual(songDef.timeSignature);
             expect(lvl.numMeasures).toBe(songDef.numMeasures);
             expect(lvl.notesPerMeasure).toBe(songDef.generator.trebleSettings.notesPerMeasure);
-            expect(lvl.key).toEqual({ tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode });
+            expect(lvl.key).toEqual({ tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode, family: songDef.generator.scaleFamily });
             expect(lvl.range.min).toEqual(expect.any(String));
             expect(lvl.range.max).toEqual(expect.any(String));
         });
