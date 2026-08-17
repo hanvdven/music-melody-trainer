@@ -23,10 +23,10 @@ export const ticksPerSecond = (bpm) => bpm / (240 / TICKS_PER_WHOLE);
 // Seconds per beat (quarter note). Equals 60 / bpm.
 export const secondsPerBeat = (bpm) => 60 / bpm;
 
-// A side-scroll level's audible/visual lead-in span, in measures (Han 2026-08-02, "-1, 0").
-// ALSO used as the JIT chunk size for level backing generation (Han 2026-08-03: "een soort
-// JIT-mechanisme... 2+2 maten op voorhand") — the two are intentionally the same number: a
-// level's bass/metronome is generated LEVEL_LEAD_IN_BARS measures at a time, so the first
-// chunk (measures -1..0) fills exactly the lead-in, and every following chunk generates one
-// chunk-duration ahead of when it's due (see generateLevelBackingChunk.js / useLevelBackingStream.js).
-export const LEVEL_LEAD_IN_BARS = 2;
+// #994 (Han 2026-08-17): `LEVEL_LEAD_IN_BARS = 2` used to live here. It could not survive becoming
+// per-level, because a single global constant was doing THREE unrelated jobs at once — the audible
+// count-in length, the JIT backing-generation chunk size, and the visual/notation lead-in span — and
+// #994 makes the span depend on each level's own tempo and meter. It is replaced by
+// `deriveLevelSpan()` in src/levels/levels.js, which returns all three as separate per-level values
+// (leadInBars / countInBars / metronomeBars / visibleMeasures / beatsOnScreen) threaded to consumers
+// from the normalized level object. See §248 in docs/architecture.md.

@@ -50,14 +50,47 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
     // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
     // moet zijn na 2 maten (6 kwarttellen)"): `beatsOnScreen` is always counted in QUARTER-note beats
     // (SheetRpgLayer's beatMs=60000/bpm), not the time signature's own numerator — a literal "8" copied
-    // from the 4/4-only levels 1-9 silently broke for the 3/4 songs (arirang, scarborough-fair). Now
-    // derived per-song from LEVEL_LEAD_IN_BARS measures' worth of quarter-beats.
-    it('beatsOnScreen is derived as 2 measures worth of QUARTER-note beats for the song\'s own time signature', () => {
-        const expected = { arirang: 6, 'frere-jacques': 8, kalinka: 4, 'kangding-qingge': 4, 'la-bamba': 8, sakura: 8, 'scarborough-fair': 6 };
+    // from the 4/4-only levels 1-9 silently broke for the 3/4 songs (arirang, scarborough-fair). Was
+    // derived per-song from LEVEL_LEAD_IN_BARS (a fixed 2) measures' worth of quarter-beats.
+    //
+    // #994 (Han 2026-08-14/17, "flexible on screen notes"): the span is no longer a fixed 2 measures —
+    // it is derived from each song's TEMPO as well as its meter, targeting ~6s of on-screen time, so a
+    // short 2/4 bar no longer scrolls three times faster than a 4/4 one. Kalinka was the motivating
+    // case: 4 measures on screen (2 bars' worth of quarter-beats is the same 8, but spread over 4 short
+    // bars instead of 2). See levelSpan.test.js for the formula itself; this only pins the 7 songs'
+    // resulting values so a song's tempo/meter metadata changing can't silently shift its scroll speed.
+    it('beatsOnScreen + visible span are derived per song from its own tempo AND meter (#994)', () => {
+        const expected = {
+            arirang: { bpm: 90, ts: [3, 4], visible: 3, beatsOnScreen: 9 },
+            'frere-jacques': { bpm: 90, ts: [4, 4], visible: 2, beatsOnScreen: 8 },
+            kalinka: { bpm: 90, ts: [2, 4], visible: 4, beatsOnScreen: 8 },
+            'kangding-qingge': { bpm: 90, ts: [2, 4], visible: 4, beatsOnScreen: 8 },
+            'la-bamba': { bpm: 150, ts: [4, 4], visible: 4, beatsOnScreen: 16 },
+            sakura: { bpm: 72, ts: [4, 4], visible: 2, beatsOnScreen: 8 },
+            'scarborough-fair': { bpm: 90, ts: [3, 4], visible: 3, beatsOnScreen: 9 },
+        };
         SONG_LEVEL_IDS.forEach((id) => {
             const lvl = LEVELS[id];
-            expect(lvl.beatsOnScreen).toBe(expected[lvl.songId]);
+            const exp = expected[lvl.songId];
+            expect(lvl.bpm, `${lvl.songId} bpm`).toBe(exp.bpm);
+            expect(lvl.timeSignature, `${lvl.songId} ts`).toEqual(exp.ts);
+            expect(lvl.beatsOnScreen, `${lvl.songId} beatsOnScreen`).toBe(exp.beatsOnScreen);
+            expect(lvl.visibleMeasures, `${lvl.songId} visibleMeasures`).toBe(exp.visible);
+            expect(lvl.leadInBars, `${lvl.songId} leadInBars`).toBe(exp.visible);
         });
+    });
+
+    // #994: Kalinka is the ticket's motivating example, so its full lead-in split is pinned explicitly —
+    // "4 measures on screen (start at measure -3) and a 2 measures count-in", i.e. measures -3/-2 are
+    // visible but SILENT, -1 is cello+timpani only, and 0 adds the metronome.
+    it('Kalinka (2/4) shows 4 measures with a 2-measure count-in: 2 silent, then cello, then + metronome', () => {
+        const kalinka = LEVELS[202];
+        expect(kalinka.songId).toBe('kalinka');
+        expect(kalinka.visibleMeasures).toBe(4);
+        expect(kalinka.countInBars).toBe(2);
+        expect(kalinka.silentLeadInBars).toBe(2);
+        expect(kalinka.celloOnlyBars).toBe(1);
+        expect(kalinka.metronomeBars).toBe(1);
     });
 
     it('each fixed-song level clears in exactly 1 wave (the whole song, no mid-level regeneration)', () => {

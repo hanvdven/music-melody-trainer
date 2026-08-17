@@ -75,7 +75,7 @@ import useRubato from './hooks/useRubato';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
-import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat, LEVEL_LEAD_IN_BARS } from './constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
@@ -1257,6 +1257,25 @@ const App = () => {
         const step = glyph ? VOL_STEPS.find((s) => s.glyph === glyph) : null;
         return step ? step.value : fallback;
     };
+    // #994 (Han 2026-08-14/17, "flexible on screen notes"): a side-scroll level's on-screen span is
+    // derived per level from its own tempo + meter (levels.js `deriveLevelSpan`), replacing the former
+    // global `LEVEL_LEAD_IN_BARS = 2`. Bundled into ONE object for the render path — see the
+    // `levelSpan={…}` prop below for why a single object rather than four sibling props. The AUDIO
+    // consumers (useLevelBackingStream/useLevelTrebleStream/useLevelMixedStream/
+    // useLevelKeyModulationStream) read these same fields straight off `level.current` instead, since
+    // they already receive the whole normalized level object as `lvl`.
+    const levelSpan = useMemo(() => {
+        const lvl = level.current;
+        if (!level.active || !lvl?.sideScroll) return null;
+        return {
+            beatsOnScreen: lvl.beatsOnScreen,
+            leadInBars: lvl.leadInBars,
+            countInBars: lvl.countInBars,
+            silentLeadInBars: lvl.silentLeadInBars,
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [level.active, level.current?.id, level.current?.beatsOnScreen, level.current?.leadInBars,
+        level.current?.countInBars, level.current?.silentLeadInBars]);
     // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
     // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
     // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
@@ -1276,10 +1295,20 @@ const App = () => {
     // `invisibleMelody1` (constants/melodyInstances.js) — the first concrete instance of the new
     // generalized audio-only-instance mechanism. Depends on primitive fields (not `level.current`
     // itself) so it doesn't recompute on every unrelated App.jsx render.
+    // #994: the lead-in is now per-level (`level.current.leadInBars`, derived in levels.js), and its
+    // EARLIEST `silentLeadInBars` measures must be genuinely silent — so the timpani pattern itself
+    // carries leading rests rather than being gated at the scheduling site. That keeps §108's
+    // invariant intact: SheetMusic.jsx builds the percussion NOTATION from the same call with the same
+    // arguments (both read these fields off the same normalized level object), so the moving staff can
+    // never show timpani hits during measures that are actually silent.
     const timpaniMelody = useMemo(() => {
         if (!percussionSettings?.melodic || !level.current?.numMeasures) return null;
-        return buildTimpaniPattern(LEVEL_LEAD_IN_BARS + level.current.numMeasures, timeSignature);
-    }, [percussionSettings?.melodic, level.current?.numMeasures, level.current?.id, timeSignature]);
+        const leadInBars = level.current.leadInBars ?? 2;
+        return buildTimpaniPattern(
+            leadInBars + level.current.numMeasures, timeSignature, level.current.silentLeadInBars ?? 0,
+        );
+    }, [percussionSettings?.melodic, level.current?.numMeasures, level.current?.id,
+        level.current?.leadInBars, level.current?.silentLeadInBars, timeSignature]);
     // #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
     // melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle levels."):
     // the level's cello backing now plays through its OWN dedicated Soundfont — exactly the same pattern
@@ -1527,7 +1556,8 @@ const App = () => {
         levelAudioStart,
     });
 
-    // #663: bass (cello) + metronome are generated + scheduled incrementally, LEVEL_LEAD_IN_BARS
+    // #663: bass (cello) + metronome are generated + scheduled incrementally, `leadInBars` (#994: the
+    // level's own derived span; formerly the fixed LEVEL_LEAD_IN_BARS constant)
     // ("one chunk") at a time — see useLevelBackingStream.js for the full rationale. `bass`/`metronome`
     // here are the level's GROWING melodies, threaded into MelodyProvider below in place of
     // `melodies.bass`/`melodies.metronome` while a side-scroll level is active.
@@ -1562,7 +1592,8 @@ const App = () => {
         }
         const barBeats = timeSignature[0] || 4;
         const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
-        const contentStartTick = LEVEL_LEAD_IN_BARS * measureLengthTicks;
+        // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
+        const contentStartTick = (level.current.leadInBars ?? 2) * measureLengthTicks;
         const { notes, offsets, durations, displayNotes, volumes, ties } = levelBackingStream.bass;
         let startIndex = 0;
         while (startIndex < offsets.length && (offsets[startIndex] == null || offsets[startIndex] < contentStartTick)) startIndex++;
@@ -1648,6 +1679,9 @@ const App = () => {
         bpm,
         timeSignature,
         bassMelody: levelBackingStream.bass,
+        // #994: per-level lead-in — this hook locates content measure `m`'s expected root by absolute
+        // tick, so it must offset by the SAME lead-in the backing stream generated against.
+        leadInBars: level.current?.leadInBars ?? 2,
         onHit: level.onHit,
         onMiss: level.onMiss,
     });
@@ -1710,7 +1744,9 @@ const App = () => {
         // beats×denominator-agnostic quarter-seconds.
         const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
         const barSec = measureLengthTicks * secondsPerTick(lvl.bpm || 80);
-        const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+        // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
+        const leadInBars = lvl.leadInBars ?? 2;
+        const contentStartTime = levelAudioStart + leadInBars * barSec;
         // The measure the player was IN at the moment of pause (0-based, clamped so a pause during
         // the lead-in rewinds to measure 1, not a negative index).
         const elapsedContent = Math.max(0, context.currentTime - contentStartTime);
@@ -1730,7 +1766,9 @@ const App = () => {
         // generated from the resume point rather than replaying byte-identical old content (a full
         // non-destructive resume would need the JIT streams to persist already-generated blocks
         // across a re-anchor — noted as a follow-up, not attempted here).
-        setLevelAudioStart(context.currentTime + barSec - LEVEL_LEAD_IN_BARS * barSec - measureStartOffsetSec);
+        // The `+ barSec` here is the pause/resume count-in (deliberately ONE measure of metronome,
+        // a UX choice independent of the level's own lead-in) — only the lead-in term is per-level now.
+        setLevelAudioStart(context.currentTime + barSec - leadInBars * barSec - measureStartOffsetSec);
     }, [context, levelAudioStart, level, timeSignature, stopAllBackingAudio, handleStopAllPlayback]);
     // Bug fix (Han 2026-08-10, #824 "de opnieuwknop lijkt het level/audio twee keer te starten"):
     // `level.replay()` alone only resets stats/wave/done and regenerates the practice-mode melody
@@ -2780,10 +2818,15 @@ const App = () => {
                             // actually threaded through to SheetRpgLayer — the component silently fell
                             // back to its own internal `= 8` default (4/4-only) regardless of what
                             // levels.js computed, so the #889 fix had zero effect on the actual note/
-                            // slime flight timing. `?? 8` only matters for LEVEL1 (not side-scroll,
-                            // beatsOnScreen never derived) and other non-side-scroll levels, where the
-                            // value is unused anyway.
-                            beatsOnScreen={level.active ? (level.current.beatsOnScreen ?? 8) : 8}
+                            // slime flight timing.
+                            // #994: the four span values (beatsOnScreen + leadInBars + countInBars +
+                            // silentLeadInBars) are passed as ONE object rather than four sibling props,
+                            // deliberately: the #889 bug above was a HALF-WIRED prop whose plausible
+                            // independent default (`= 8`) hid the omission for weeks. A single object
+                            // cannot be half-wired — either the span is here or it obviously isn't.
+                            // (Note: unrelated to the `visibleMeasures` prop below, which is the
+                            // practice-mode layout count, not the level's on-screen span.)
+                            levelSpan={levelSpan}
                             levelActive={level.active}                                // #662 no slimes outside a level
                             levelMelodyReady={levelMelodyReady}                       // Bug fix 2026-08-06: withhold stale pre-regen melody
                             // Level 10 (Han 2026-08-06, Mixed): SheetRpgLayer now understands 'Mixed'

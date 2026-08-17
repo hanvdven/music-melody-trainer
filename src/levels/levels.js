@@ -273,7 +273,7 @@ import levelsData from './levels.json';
 import InstrumentSettings from '../model/InstrumentSettings';
 import SONGS from '../songs/songIndex.js';
 import { noteToMidi } from '../theory/noteUtils';
-import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, TICKS_PER_BEAT } from '../constants/timing';
+import { TICKS_PER_WHOLE, TICKS_PER_BEAT } from '../constants/timing';
 import { DEFAULT_TIME_SIG } from '../constants/generatorDefaults';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
@@ -288,9 +288,93 @@ const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 // numerator-units), 7/8 -> 7, 5/4 -> 10. Derived from ticks so it's correct for every time signature,
 // compound or simple (§6c) — used as the ALWAYS-derived default for every level (song-backed or
 // procedural); no level should hand-write this literal.
-const deriveBeatsOnScreen = (timeSignature) => Math.round(
-    LEVEL_LEAD_IN_BARS * TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]) / TICKS_PER_BEAT
-);
+//
+// A measure's length in QUARTER-note beats. Extracted from the old `deriveBeatsOnScreen` (#889) so
+// the whole span derivation below shares one meter→beats conversion (§6c).
+const beatsPerMeasure = (timeSignature) =>
+    TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]) / TICKS_PER_BEAT;
+
+// #994 (Han 2026-08-14/17, "kalinka is 2/4, so a measure is really short... I would like to have 4
+// measures headstart and 4 measures on screen, and a 2 measures count-in. This should be made
+// flexible"): the on-screen span is no longer a FIXED 2 measures (the old `LEVEL_LEAD_IN_BARS`
+// constant) — it's derived per level from that level's own tempo and meter, targeting a roughly
+// CONSTANT on-screen TIME (~6 seconds) rather than a constant measure count. A 2/4 bar at 90bpm
+// lasts a third as long as a 4/4 bar at 60bpm; showing 2 of either is what made Kalinka feel frantic.
+//
+// `roundHalfDown` (NOT Math.round): the quotient lands on an exact .5 for Kalinka (2/4 @90bpm ->
+// round(90/10)=9 targetBeats, 9/2 = 4.5), and the tie-break decides whether Han's own worked examples
+// hold. Math.round (half-UP) gives Kalinka 5 measures / 3 count-in, contradicting his "4 measures on
+// screen, 2 measures count-in"; Math.floor gives Kalinka 4 but then gives 3/4 @84bpm only 2 measures,
+// contradicting his "3/4 should have 3 measures on screen". Half-DOWN is the only tie-break that
+// satisfies both. Confirmed by Han 2026-08-17 (decision A). Only exact-.5 cases differ from Math.round.
+const roundHalfDown = (x) => Math.ceil(x - 0.5);
+
+// The audible count-in, and how it splits (Han 2026-08-17, decision B). Han's rule is an ORDERING,
+// not merely a length: the count-in must ALWAYS give at least one measure of cello+timpani ALONE,
+// then at least one measure with the metronome added ("cello + timpanen vanaf maat -1, metronoom
+// vanaf maat 0", #663, generalized). That's why `countInBars` carries its own `max(2, …)` floor —
+// widening the audible portion past ceil(visibleMeasures/2) on short levels — instead of the
+// metronome carrying a floor: a floor on the metronome would have silently collapsed the two roles
+// into one measure. Clamped by `visibleMeasures` so the count-in can never exceed the lead-in itself.
+//
+// Degenerate case `visibleMeasures === 1` (extreme fast tempo / long meter): countInBars is forced to
+// 1, so cello+timpani+metronome unavoidably share that single measure — no cello-only measure fits.
+// That's the ONLY case where `celloOnlyBars` is 0, and the only reason `metronomeBars` keeps a max(1,…).
+const deriveCountIn = (visibleMeasures) =>
+    Math.min(visibleMeasures, Math.max(2, Math.ceil(visibleMeasures / 2)));
+
+// The single source of truth for a side-scroll level's span. Returns every value the rest of the app
+// used to read off the global `LEVEL_LEAD_IN_BARS` constant, which could not survive becoming
+// per-level (it did three unrelated jobs at once: audible count-in length, JIT generation chunk size,
+// and the visual/notation lead-in span — see §248 in docs/architecture.md).
+//
+// INVARIANT (§108): `beatsOnScreen * TICKS_PER_BEAT === leadInBars * measureLengthTicks`, exactly.
+// SheetRpgLayer positions the barline row at `viewRight - leadInTicks·scrollPPT` where
+// `scrollPPT = dist / (beatsOnScreen·TICKS_PER_BEAT)`; measure "-1" only lands on the hero at level
+// start if those two agree. So `beatsOnScreen` must NOT be rounded — for 7/8 at 3 visible measures
+// the exact value is 10.5, and rounding it to 10 or 11 would drift barlines about half a beat away
+// from their own notes (levels 109/120). #889's outer Math.round was a no-op for every meter shipped
+// at the time (2 × 3.5 = 7) and is deliberately gone. `beatsOnScreen` is only ever consumed in float
+// arithmetic (dist/(bos·TICKS_PER_BEAT), bos·beatMs, dist/bos), so a fractional value is correct.
+export const deriveLevelSpan = ({ bpm, timeSignature }) => {
+    const bpMeasure = beatsPerMeasure(timeSignature);
+    // ~6 seconds of on-screen time: at 60bpm a quarter-beat is 1s, so bpm/10 quarter-beats is
+    // 6·(60/bpm)·(bpm/10) = 6 seconds at ANY tempo — the "constant on-screen time" Han asked for
+    // ("around 8-12 beats on screen ... for 80-120 bpm").
+    const targetBeats = Math.round((bpm || 80) / 10);
+    const visibleMeasures = Math.max(1, roundHalfDown(targetBeats / bpMeasure));
+    const countInBars = deriveCountIn(visibleMeasures);
+    // The metronome joins one measure into the count-in (see deriveCountIn's comment). max(1,…) is
+    // only the visibleMeasures===1 degenerate guard, never the ordering mechanism.
+    const metronomeBars = Math.max(1, countInBars - 1);
+    return {
+        visibleMeasures,
+        leadInBars: visibleMeasures,          // the visual/notation lead-in IS the visible span
+        countInBars,
+        metronomeBars,
+        celloOnlyBars: countInBars - metronomeBars,
+        silentLeadInBars: visibleMeasures - countInBars,
+        beatsOnScreen: visibleMeasures * bpMeasure,
+    };
+};
+
+// A level that hand-writes an explicit `beatsOnScreen` must still satisfy the §108 invariant above,
+// so its lead-in bar count is derived BACK from that literal rather than from the formula — the two
+// can never disagree. (No level ships one today; #994 deleted every literal from levels.json.)
+const spanForExplicitBeatsOnScreen = (beatsOnScreen, timeSignature) => {
+    const visibleMeasures = Math.max(1, Math.round(beatsOnScreen / beatsPerMeasure(timeSignature)));
+    const countInBars = deriveCountIn(visibleMeasures);
+    const metronomeBars = Math.max(1, countInBars - 1);
+    return {
+        visibleMeasures,
+        leadInBars: visibleMeasures,
+        countInBars,
+        metronomeBars,
+        celloOnlyBars: countInBars - metronomeBars,
+        silentLeadInBars: visibleMeasures - countInBars,
+        beatsOnScreen,
+    };
+};
 
 // #871 (Han 2026-08-11, "abc music en level namen"): a level with `songId` plays a FIXED song (see
 // songs/loadSong.js) instead of procedural generation. bpm/timeSignature/numMeasures/notesPerMeasure/
@@ -312,7 +396,11 @@ const songLevelDefaults = (songDef) => {
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
         range: { min, max },
         key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
-        beatsOnScreen: deriveBeatsOnScreen(songDef.timeSignature),
+        // #994: `beatsOnScreen` is deliberately NOT set here any more (it was, under #889). The span
+        // now depends on TEMPO as well as meter, and normalizeLevel derives the whole bundle from the
+        // MERGED bpm/timeSignature below — deriving it here too would (a) duplicate the formula and
+        // (b) make a derived value indistinguishable from an author-written explicit override. This
+        // function's job is just to supply bpm/timeSignature; the span follows from them.
         // Bug fix (Han 2026-08-11, #871 UAT: "percussie en bas zijn zichtbaar, terwijl er geen muziek
         // is meegegeven in het lied" / "laat die dan leeg"): these 7 abc songs ship `bass: null,
         // percussion: null` (only a fixed treble line + chords). Read by useLevel's applyConfig to skip
@@ -344,11 +432,21 @@ const normalizeLevel = (lvl) => {
     const totalMeasures = merged.totalMeasures ?? (merged.numBlocks != null ? merged.numMeasures * numRepeats * merged.numBlocks : merged.numMeasures);
     // #889: procedural (non-song) levels had no beatsOnScreen derivation at all — every entry had to
     // hand-write the literal, and several non-4/4 levels (6/8, 3/4, 7/8, 5/4) carried the wrong
-    // 4/4-derived "8" (see deriveBeatsOnScreen above). Song levels already get a correct derived value
-    // via songLevelDefaults; this covers the procedural side too, same formula, same fallback-only-if-
-    // omitted convention as numRepeats/totalMeasures above.
-    const beatsOnScreen = merged.beatsOnScreen ?? (merged.sideScroll ? deriveBeatsOnScreen(merged.timeSignature ?? DEFAULT_TIME_SIG) : undefined);
-    return { ...merged, numRepeats, totalMeasures, ...(beatsOnScreen !== undefined ? { beatsOnScreen } : {}) };
+    // 4/4-derived "8". Song levels already get a correct derived value via songLevelDefaults; this
+    // covers the procedural side too, same formula, same fallback-only-if-omitted convention as
+    // numRepeats/totalMeasures above.
+    // #994: this now produces the WHOLE span bundle (visibleMeasures/leadInBars/countInBars/
+    // metronomeBars/celloOnlyBars/silentLeadInBars/beatsOnScreen), derived from bpm + meter, and it is
+    // derived from `merged` — i.e. AFTER a song level's defaults and the level's own explicit
+    // bpm/timeSignature have been resolved — so an explicit `bpm` override always gets a matching span.
+    // Explicit `beatsOnScreen` still wins (the established convention), but its lead-in bar count is
+    // derived back from it so the §108 invariant can't be broken by a hand-written value.
+    const span = merged.sideScroll
+        ? (merged.beatsOnScreen != null
+            ? spanForExplicitBeatsOnScreen(merged.beatsOnScreen, merged.timeSignature ?? DEFAULT_TIME_SIG)
+            : deriveLevelSpan({ bpm: merged.bpm, timeSignature: merged.timeSignature ?? DEFAULT_TIME_SIG }))
+        : null;
+    return { ...merged, numRepeats, totalMeasures, ...(span || {}) };
 };
 
 const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));

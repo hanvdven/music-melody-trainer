@@ -19,14 +19,24 @@ import { TICKS_PER_WHOLE } from '../constants/timing';
 const PATTERN = ['C2', 'C2', 'C3', null];
 const QUARTER = TICKS_PER_WHOLE / 4;   // 12 ticks
 
-export default function buildTimpaniPattern(numMeasures, timeSignature = [4, 4]) {
+// #994 (Han 2026-08-14/17, "flexible on screen notes"): `silentLeadMeasures` makes the FIRST N measures
+// all rests. A side-scroll level's lead-in is now as long as its on-screen span (up to 4 measures for
+// Kalinka's 2/4), but only its LAST `countInBars` measures are an audible count-in — the earlier ones are
+// scenery: visible notation and barlines, no sound. The silence is baked into the pattern itself rather
+// than gated at the scheduling call site, because §108 requires the moving percussion STAFF to be built
+// from the exact same pattern the AUDIO is scheduled from (App.jsx's timpaniMelody and SheetMusic.jsx's
+// scrollPercussionMelody both call this with the same args) — gating only the audio would show the staff
+// playing timpani through measures that are actually silent. Offsets/durations stay fully dense so the
+// pattern's tick timeline is unchanged; only the pitches become 'r'.
+export default function buildTimpaniPattern(numMeasures, timeSignature = [4, 4], silentLeadMeasures = 0) {
     const measureTicks = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
     const quartersPerMeasure = Math.max(1, Math.round(measureTicks / QUARTER));
     const totalQuarters = quartersPerMeasure * Math.max(1, numMeasures);
     const notes = [], offsets = [], durations = [];
     for (let i = 0; i < totalQuarters; i++) {
         const beatInMeasure = i % quartersPerMeasure;
-        notes.push(PATTERN[beatInMeasure % PATTERN.length] ?? 'r');
+        const inSilentLeadIn = Math.floor(i / quartersPerMeasure) < silentLeadMeasures;
+        notes.push(inSilentLeadIn ? 'r' : (PATTERN[beatInMeasure % PATTERN.length] ?? 'r'));
         offsets.push(i * QUARTER);
         durations.push(QUARTER);
     }

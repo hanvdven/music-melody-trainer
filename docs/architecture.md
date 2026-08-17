@@ -7176,6 +7176,16 @@ AUDIO is scheduled from, AND any content whose own tick 0 represents measure -1 
 rendered from the `viewRight − leadInTicks·scrollPPT` origin, never plain `viewRight` — mixing the two
 origins is what caused both the invisible lead-in and the barline/note misalignment.
 
+**UPDATED by #994 (see §248):** `LEVEL_LEAD_IN_BARS` no longer exists — the lead-in is per-level
+(`leadInBars`, derived from the level's own tempo and meter). The algebra above still holds unchanged, but
+the parenthetical "since `beatsOnScreen` already equals the lead-in span for today's levels" is no longer a
+coincidence to rely on: §248 derives `beatsOnScreen` and `leadInBars` from a single `visibleMeasures`, so
+`leadInTicks === beatsOnScreen · TICKS_PER_BEAT` is guaranteed structurally. That is also why `beatsOnScreen`
+must never be rounded (7/8 at 3 visible measures is legitimately 10.5). Additionally, the earliest
+lead-in measures may now be deliberately SILENT while still visible — the "notation matches audible
+content" invariant above is preserved by generating the silence into the content itself, not by gating
+the audio.
+
 **Files:** `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`scrollPercussionMelody`,
 `leadInTicks`, `spansLeadIn` fields), `src/components/sheet-music/SheetRpgLayer.jsx` (`barlineStartX`/
 `bassStartX`/`percussionStartX`).
@@ -7278,6 +7288,13 @@ Bass and metronome are no longer generated once for the whole level. They grow i
   `setTimeout` computed from `levelAudioStart`), never earlier — the buffer never grows or shrinks.
 - **Timpani is UNCHANGED** — still `buildTimpaniPattern`, still scheduled once, upfront, for the whole
   piece, in `App.jsx`'s scheduling effect (Han: "hard code de timpani voor nu"). Only bass/metronome moved.
+
+**UPDATED by #994 (see §248):** `chunkMeasures` is no longer `LEVEL_LEAD_IN_BARS` (a fixed 2) but the
+level's own derived `leadInBars`, so the "generated exactly one chunk = one screenful ahead" relationship
+described here holds at any span rather than only at 2 measures. Chunk 0 now generates only the AUDIBLE
+tail of the lead-in (`countInBars` measures for bass, `metronomeBars` for the metronome) — the "metronome's
+chunk 0 is trimmed by one measure" trick described above is exactly what #994 generalized to produce the
+silent lead-in. Timpani is still `buildTimpaniPattern`, but now takes a `silentLeadMeasures` argument.
 
 **React 18 StrictMode remount safety (found via this ticket's own test suite):** `main.jsx` wraps the app in
 `<React.StrictMode>`, which double-invokes every effect in development (mount → cleanup → mount again) to
@@ -15276,6 +15293,17 @@ through: `App.jsx`'s `<SheetMusic>` call now passes `beatsOnScreen={level.active
 forwards it to `<SheetRpgLayer beatsOnScreen={beatsOnScreen} ...>` instead of relying on that
 component's own internal default.
 
+**SUPERSEDED by #994 (see §248).** `deriveBeatsOnScreen(timeSignature)` is replaced by
+`deriveLevelSpan({ bpm, timeSignature })`, which derives the span from TEMPO as well as meter (a 2/4 bar
+and a 4/4 bar are not equally long, so "2 measures" was never the right constant either) and returns the
+whole bundle — `visibleMeasures` / `leadInBars` / `countInBars` / `metronomeBars` / `silentLeadInBars` /
+`beatsOnScreen`. Two specific carry-overs from point 1 above are now WRONG: (a) the outer `Math.round` is
+gone — it was a no-op for the meters shipped at the time but would break §108's tick/beat equality for 7/8
+at 3 visible measures (10.5); (b) "no level should hand-write this literal" is now enforced rather than
+advised — #994 deleted all 27 `beatsOnScreen` literals from `levels.json`, and `levelSpan.test.js` asserts
+that every side-scroll level's value matches the derivation. The half-wired-prop lesson from this
+follow-up is why #994 passes a single `levelSpan` object instead of sibling props.
+
 **Files:** `src/levels/levels.js`, `src/levels/levels.json`, `src/generation/convertRankedArrayToMelody.js`,
 `src/audio/drumKits.js`, `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`.
 
@@ -16225,3 +16253,620 @@ one campfire per level (averages across ALL campfire tiles) — would need per-c
 flood-fill approach `waterPonds` uses) if a future level places more than one.
 **Files:** `src/components/character/RpgLevelPanel.jsx` (`CAMPFIRE_LIGHT_COLOR01`, `campfireLight`,
 `ldtkLights`).
+
+### §245. Bestiary clean up — metadata JSON, debug-mode tag editor, per-frame movement editor, avatar entries, centered layout (#1028, Han 2026-08-17)
+
+**Purpose:** ticket #1028 had 5 parts, all landed in one pass (Han: scope "alles in één keer", no
+sub-ticket split): (1) hand/UI-editable bestiary metadata as JSON instead of only hardcoded generator
+rules, (2) a debug-mode tag editor (add/remove/rename), (3) a per-frame movement/speed editor plus the
+hero as two bestiary entries, (4) a truly centered portrait with vertically-stacked colour swatches, (5)
+trimming the generator's accumulated per-ticket comment narration.
+
+**How it works:**
+- **Metadata JSON (part 1):** `src/model/bestiaryMetadata.json` (empty `{}` seed) holds
+  `{ [creatureBase]: { tagsAdd: [], tagsRemove: [], movement: { pxPerFrame, frameWeights } } }`, keyed by
+  the SAME `entry.base` the generator already uses. Deliberately additive/overlay, not a replacement for
+  `generate-bestiary-manifest.mjs`'s existing ~200 lines of regex/name-list tag derivation — migrating
+  that wholesale was judged too large/risky for one pass (§6c judgment call, confirmed with Han in
+  interview). New tag corrections go in the JSON from now on; the generator merges
+  `bestiaryMetadata[entry.base].tagsAdd/tagsRemove` on top of its derived tags as the LAST step before
+  `entry.tags` is finalized.
+- **Dev-only write endpoint:** `vite.config.js`'s `bestiaryMetadataPlugin()` (`apply: 'serve'`, so it
+  never ships in a production build) adds a `PUT /api/bestiary-metadata` middleware that writes the full
+  JSON body to `bestiaryMetadata.json`, then synchronously re-runs
+  `node scripts/generate-bestiary-manifest.mjs` so `bestiaryManifest.generated.js` (what the running app
+  actually renders tags from) picks up the edit immediately — Vite's own file watcher reloads the app off
+  the regenerated file, same as a manual re-run.
+- **Tag editor (part 2):** `useBestiaryEditor.js` keeps a client-side `metadataOverrides` mirror of the
+  JSON (loaded via a plain Vite JSON import) for instant optimistic UI, exposing `displayTags`
+  (derived tags + overlay), `addTag`/`removeTag`/`editTag` (rename = remove-old + add-new in one state
+  update). `BestiaryPanels.jsx` renders `displayTags` as read-only pills normally; in `debugMode`, each
+  becomes an `EditableTagChip` (click text to rename, × to remove) plus an `AddTagControl` (free text,
+  `<datalist>` of every tag already used elsewhere as a suggestion — hidden tags like "flip l/r" are
+  still just strings, never restricted to a fixed vocabulary).
+- **Per-frame movement editor (part 3):** same `metadataOverrides` mechanism, a `movement` sub-key per
+  creature: `{ pxPerFrame, frameWeights }` — `frameWeights: null` means "constant" (every frame advances
+  `pxPerFrame`); a per-frame array means "hop" (each frame's own weight, 0 = stand still that frame) —
+  the SAME shape as the level's slime hop already has hardcoded in `SheetRpgLayer.jsx`
+  (`movingFramesBefore`/`movingProgress`, an 8-frame cycle pausing on frames 0/1/7). `MovementDebugBlock`
+  (`BestiaryPanels.jsx`, debug-mode only) exposes a mode toggle, a px/frame number input (constant mode) or
+  one number input per animation frame (per-frame mode), and a small animated square that visibly slides
+  at the configured speed using the SAME 150ms `frame` tick that drives the sprite preview.
+  **Deliberately NOT wired to gameplay yet** — `SheetRpgLayer.jsx`'s slime-hop formula still reads its own
+  hardcoded constants, untouched. Migrating it to read from this bestiary data is an explicit, separate,
+  future step (Han: "gefaseerd" — build+validate the editor first, touch the shared gameplay code used by
+  every level with slimes only once that's proven out).
+- **Avatar entries (part 3):** `avatarCreature(gender)` (`useBestiaryEditor.js`) adds two synthetic
+  entries, "Avatar Male"/"Avatar Female" (`isAvatar: true`, `avatarGender`), NOT sourced from the
+  generator/manifest at all. `variants` = the hero's own skin bases (`basesFor('skin', gender)`) — reuses
+  the EXISTING colour-swatch toggler mechanism with zero new plumbing. `accessories: [{key:'ears', ...}]`
+  reuses the existing generic accessory-toggle mechanism (same one Doggy's hat/backpack use) for the ears
+  on/off — resolved to the skin-matched ear (`earForSkin`) in `avatarChar`, never a free ear choice.
+  Equipment/clothing/weapon/pet are intentionally never exposed here (Han: "equipment/pet niet aan te
+  passen") — `avatarChar`'s `layers` only ever contains `skin` (+ `ears` when toggled on).
+  `BestiaryTopPanel` branches `creature.isAvatar ? <CharacterDoll> : <CreatureSprite>` — CharacterDoll is
+  the SAME renderer the character creator and the hero-on-staff use (§6d), never a second hand-rolled
+  doll. This makes `CharacterDoll.jsx` and `BestiaryPanels.jsx` mutually import each other (CharacterDoll
+  already imported `CreatureSprite` from BestiaryPanels for its pet layer) — safe because both are hoisted
+  function declarations only ever called from inside a render, never referenced at module-top-level.
+- **Centered layout (part 4):** the tags/stage/options row (`BestiaryTopPanel`) changed from a flex row
+  (`justify-content: center`, which only centers the STAGE relative to leftover space — visibly off-center
+  when the tag/option columns differ in width, exactly what Han flagged) to a CSS grid
+  `1fr auto 1fr` — the two side columns are forced equal width regardless of their own content, so the
+  middle column is always the row's true horizontal center. Colour swatches (`.cc-variants`, scoped via
+  inline style — the shared CSS class is also used by the unrelated `CharacterOptionsPanel`) now stack
+  vertically (`flex-direction: column`); more than 6 swatches caps `maxHeight` at `ceil(n/2)` rows so a
+  long list splits into two EVEN columns instead of one tall one.
+- **Comment cleanup (part 5):** the generator's tag-derivation block (`generate-bestiary-manifest.mjs`,
+  ~200 lines) had accumulated one `// Han (date): "<verbatim Dutch quote>"` comment per historical
+  ticket/round — trimmed to keep only the substantive WHY (why a roster instead of a formula, what a rule
+  deliberately does NOT cover, cross-references to other rules) and drop the redundant narration. Verified
+  byte-identical `bestiaryManifest.generated.js` output before/after (comments-only + one no-op regex
+  merge). Scoped to the tag-derivation block only (the section most actively touched by this ticket and
+  by #870/#924/#989 before it) — the rest of the 2600-line file (frame-size overrides, category rules,
+  etc.) is untouched; a further pass there is a separate future ask if Han wants it.
+
+**Invariants:** melody/animation pipeline invariants (§6b) don't apply here (this is bestiary tooling, not
+generation). The one new invariant: `bestiaryMetadata.json` is the SSOT for hand/UI tag+movement
+overrides — never hand-edit `bestiaryManifest.generated.js`'s `tags` field directly, it will be
+overwritten by the next `node scripts/generate-bestiary-manifest.mjs` run (or dev-server-triggered
+regenerate).
+
+**Files:** `src/model/bestiaryMetadata.json` (new), `vite.config.js` (`bestiaryMetadataPlugin`),
+`scripts/generate-bestiary-manifest.mjs` (metadata overlay + comment cleanup),
+`src/components/character/useBestiaryEditor.js` (avatar entries, tag/movement editing state),
+`src/components/character/BestiaryPanels.jsx` (`EditableTagChip`, `AddTagControl`, `MovementDebugBlock`,
+avatar render branch, grid layout, vertical swatch stacking).
+
+**Follow-up (same day): creator/artist attribution field.** Han: "ik wil ook een 'creator/artist tag' enkel
+zichtbaar in debug mode" — a free-text attribution field, deliberately SEPARATE from the tags/filter system
+(never shown outside `debugMode`, never filterable). `entry.artist` derived in the generator via an ordered
+folder/name-roster fallback (same §6c convention as `being`/tags): `/SSW/` → "Szadi Art"; `Duck`/`Goose` →
+"Estrella the Mustang" (checked before the critters-folder rule, since they physically live under
+`animals/critters/`); `animals/critters/basic (vermin|magical|animal) animations/` → "DeepDiveGameStudios"
+(checked before the next rule for the same reason); any other individual (non-packed-sheet) file under
+`animals/critters/` → "Elthen's Pixel Art Shop"; everything else → "GandalfHardcore". Threaded through
+`bestiaryAssets.js` (`variant.artist`) exactly like `tags`/`being`; curated `ENEMIES` and the new avatar
+entries (`useBestiaryEditor.js`) are hand-stamped `'GandalfHardcore'` (the catch-all bucket, per Han's own
+"alle rest"). Rendered in `BestiaryPanels.jsx`'s existing debug-mode width×height text block (as `— art: …`).
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `src/model/bestiaryAssets.js`,
+`src/components/character/useBestiaryEditor.js`, `src/components/character/BestiaryPanels.jsx`.
+
+### §246. Flying-creature anchor jitter, ground-critter anchor, random spawn variants (#995, Han 2026-08-17)
+
+**Symptom:** Han: "jitter is vooral in overgang tussen rest en fly... dat komt waarschijnlijk door het
+verschillende anker van de sprite." Also: "ik zie ook ground critters rondvliegen op 16px" and "kies ook
+random varianten van dieren in het level... ik zie telkens alleen maar de eerste variant."
+
+**Root causes / fixes (three independent issues under one ticket):**
+
+1. **Rest→fly jitter (confirmed, fixed).** `WorldCreature` (`RpgLevelPanel.jsx`) applied the flying hover
+   offset (`hoverPx = TILE * zoom`) in the SAME `transform` string as the facing-flip `scale`, snapping the
+   sprite up/down by a full tile the instant `isFlyingAnim` toggled between the idle (ground-anchored) and
+   move (hover-anchored) animation — no in-between frame, so it read as a hard pop. Fixed by splitting into
+   two nested transforms: an outer div keeps the facing-flip `scale` instant (a direction change should
+   still snap, not animate through a squash), an inner div carries only the vertical hover offset with its
+   own `transition: transform 200ms ease` — exactly the rest↔fly jump becomes a smooth glide.
+2. **Ground critter "flying" at 16px.** Investigated and found ALREADY FIXED by #1040/#1041 (same-day
+   collision-mask work, see §240/§245's own log) — `WorldWanderer`'s positioning effect applies one
+   consistent `bottom` + `translateX(-50%)` anchor to every habitat (ground/water/flying) unconditionally;
+   no remaining `translate(-50%, 50%)` (center-center) anchor exists anywhere in `RpgLevelPanel.jsx`. No
+   code change needed for this part — the symptom Han saw predates the #1040/#1041 fixes landing.
+3. **Always the same colour variant.** `findCreaturesByTags` (`bestiaryAssets.js`) used to collapse every
+   matching creature down to ONE representative variant (`'Plain'`-or-first) before returning its pool —
+   the caller's random pick over that pool could land on a random SPECIES but never a random COLOUR within
+   it (every spawned duck was always `duck_1`). Fixed: `findCreaturesByTags` now returns the whole matching
+   creature (with its full `.variants` list), and `randomTaggedVariant` (`RpgLevelPanel.jsx`) does a
+   two-stage pick — a random species from the pool (uniform per species, unaffected by how many colours
+   each has), then a random colour variant within that species.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`WorldCreature`, `randomTaggedVariant`),
+`src/model/bestiaryAssets.js` (`findCreaturesByTags`).
+
+**Follow-up (same day): flying creatures used their ground animation while airborne.** Han, after the
+anchor-jitter fix above: "bird, bijvoorbeeld pigeon (rock dove) gebruikt geen fly animatie als die vliegt."
+**Root cause:** `findMoveAnim`'s `MOVE_ANIM_KEYS` priority list checked `['walk', 'run', 'move', 'fly',
+'float']` — `move` before `fly`. Every dual-locomotion creature in the manifest (Angel, Succubus, Pigeon
+(Rock Dove), Imp, Scarab beetle — each has BOTH a ground `walk`/`run`/`move` AND an airborne `fly`/`float`
+animation) is also tagged `flying`, and the only callers that matter for this priority (`WorldWanderer`'s
+flying-habitat spawns, `SheetRpgLayer`'s scrolling `Critter`) are always airborne while "moving" for exactly
+these creatures — so the ground-pose key was winning every time one existed, even mid-flight.
+**Fix:** reordered to `['fly', 'float', 'walk', 'run', 'move']` — verified against the full manifest that no
+creature has both families without also being `flying`-tagged, so this has no effect on any creature that
+only ever had ONE locomotion family (the overwhelming majority).
+**Files:** `src/model/bestiaryAssets.js` (`MOVE_ANIM_KEYS`).
+
+### §247. Asset filename clean up — "GandalfHardcore" brand-strip migration (#869, Han 2026-08-17)
+
+**Purpose:** Han: "organiseer de files in de repo passend bij de datastructuur... hernoem bestandnamen als
+dat beter is; haal bijvoorbeeld lange namen weg (gandalfhardcore uit bestandnaam etc)." Interview scoped
+this precisely: folder STRUCTURE stays as-is (already logical — passed on Han's own review), only the
+literal "GandalfHardcore" brand token gets stripped from file/folder names (205 paths affected); casing/
+spacing convention of the rest of each name is deliberately left UNCHANGED (kebab-casing was considered and
+explicitly rejected — nearly every filename-matching regex in `generate-bestiary-manifest.mjs` matches
+literal SPACES, so space→hyphen conversion would have meant auditing all ~101 hand-written regex/string
+references for correctness, judged too large/risky for the value versus the brand-strip alone, which already
+resolves Han's original complaint).
+
+**How it works:**
+- **Migration script:** `scripts/rename-gandalfhardcore-assets.mjs` (permanent, re-runnable, no-op once
+  clean — kept in case a future asset drop reintroduces the brand token) walks `public/` and `src/assets/`,
+  `git mv`s every file/folder whose OWN basename contains "gandalfhardcore" (case-insensitive) to the same
+  name with the token + surrounding whitespace stripped. Processes matches DEEPEST-PATH-FIRST so a directory
+  rename never invalidates an already-recorded descendant path (each git-mv only ever touches the LAST path
+  segment, in place).
+- **ACL workaround:** several pre-existing directories (inherited from however the original asset packs were
+  extracted, long before this session) carry a Windows ACL that denies rename/delete on the DIRECTORY object
+  itself to this environment's account — even though renaming the FILES inside it, or creating/removing a
+  FRESH directory, both work fine. `moveDirWorkaround()` detects this (the plain `git mv` throws) and falls
+  back to: `mkdir` the new-named directory, `git mv` each immediate child into it (recursing into the same
+  workaround if a child subdirectory carries the same restrictive ACL), then remove the now-empty old
+  directory. Affected 8 of the 205 renamed paths.
+- **Reference updates:** the two GENERATED manifests (`bestiaryManifest.generated.js`,
+  `assortedFileList.generated.js`, ~1844 combined literal references) re-derive automatically — never
+  hand-edited, just re-run `scripts/generate-assorted-file-list.mjs` then `scripts/generate-bestiary-
+  manifest.mjs` after any rename. The ~101 HAND-WRITTEN references (79 in `generate-bestiary-manifest.mjs`'s
+  own `FRAME_OVERRIDES`/`BASE_OVERRIDES`/category-override regex literals, ~22 across `RpgLevelPanel.jsx`,
+  `RpgLevelBottomPanel.jsx`, `BestiaryPanels.jsx`, `useBestiaryEditor.js`, `characterAssets.js`, a test file)
+  were fixed by stripping the literal "GandalfHardcore" token from CODE lines only — comment lines (8 of
+  them, verbatim historical quotes of Han's own words) were deliberately left untouched (§4: never silently
+  edit a comment).
+- **Verification:** manifest entry count returned to the exact pre-migration baseline (648) with zero
+  generator warnings after the fix pass (an intermediate broken state — before the hand-written regexes were
+  fixed — produced 666 mis-grouped entries and "no sheet1 primary" merge warnings, a useful signal that
+  something was still broken). `npm run test:run`/`build`/`lint` all green after a `node_modules/.vite` cache
+  clear (a stale Vite glob cache from the mid-session bulk renames caused one transient, non-reproducing test
+  failure — confirmed by re-running clean).
+
+**Two-string-literal pitfalls hit and fixed during this migration (for the next person doing a similar
+brand-strip pass):**
+1. A blind "strip this literal word from every code line" pass also matched SEMANTIC string values that
+   happen to equal the brand name (not filename references) — `entry.artist = ... : 'GandalfHardcore'`
+   (§245's catch-all attribution bucket) and the curated/avatar creatures' hand-stamped `artist:
+   'GandalfHardcore'` fields (5 spots) were accidentally emptied to `''` and had to be restored.
+2. A PRE-EXISTING `stripBrand()` helper (§682, `generate-bestiary-manifest.mjs`) whose own JOB is stripping
+   "GandalfHardcore" from display names had its DEFINING regex corrupted the same way —
+   `/gandalfhardcore\s*/gi` became `/\s*/gi` (matches any whitespace, globally) — restored. A leftover empty
+   regex group (`(GandalfHardcore )?` → `()?`) in `DOGGY_BODY` was also cleaned up (harmless functionally,
+   just confusing to read).
+3. A test assertion (`SheetRpgLayer.test.jsx`) checking `href.includes('gandalfhardcore')` as a weak "is this
+   a real, non-empty asset path" sanity check became a vacuous `.includes('')` (always true) — replaced with
+   a check for the actual static-asset URL prefix (`/assorted/`) instead, which is robust to any FUTURE
+   rename rather than tied to one specific pack's brand name.
+
+**Files:** `scripts/rename-gandalfhardcore-assets.mjs` (new), `scripts/generate-bestiary-manifest.mjs`
+(`stripBrand`, `DOGGY_BODY`, ~79 filename-regex literals), `src/components/character/RpgLevelPanel.jsx`,
+`src/components/character/RpgLevelBottomPanel.jsx`, `src/components/character/BestiaryPanels.jsx`,
+`src/components/character/useBestiaryEditor.js`, `src/model/characterAssets.js`,
+`src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`, plus the 205 renamed asset paths themselves.
+
+**Follow-up (same day): bestiary preview UI polish.** Han, testing #1028 live: "tags en kleuren zijn goed,
+maar mogen ipv aligned tegen de schermrand, strak tegen portret" (swap which edge each side-column hugs —
+tags now right-align within their column, options now left-align within theirs, so both tuck against the
+portrait instead of the panel's outer edges) + "font size van debug tekst is echt klein... alle tekst mag
+wel 1,5x zo groot" (every small debug-text element in `BestiaryPanels.jsx` — tag pills, the width×height
+line, `MovementDebugBlock` — 11px→16.5px, 9px→13.5px) + "tags en filters graag zelfde stijl: sans serif,
+ronde hoeken" (the filter-bar's tag-row chips, previously the shared square-cornered `.cc-toggle` chrome,
+now get a scoped inline-style override — `TAG_ROW_BUTTON_STYLE` — matching the preview pills' rounded
+corners/sans-serif/16.5px; NOT applied to the shared `.cc-toggle` CSS class itself, which
+`CharacterOptionsPanel`'s unrelated outfit-picker toggles also use).
+**Files:** `src/components/character/BestiaryPanels.jsx` (`PILL_STYLE`, `TAG_ROW_BUTTON_STYLE`, `TagRow`,
+`MovementDebugBlock`, tags/options column wrappers).
+
+**Follow-up 2 (same day): debug reference grid, facing toggle, name editing.** More #1028 UAT feedback:
+- **Debug checkerboard behind the sprite.** Han: "ik wil graag een grid, zoals in debug achter de hero, van
+  4x4 grijs/wit blokken, achter de sprite" — reuses the EXACT canonical `.cc-checker` pattern (§6d,
+  `CharacterCreator.css`) the character creator's avatar/equipment slots already show in debug mode, not a
+  second hand-rolled grid. A first attempt landed the checker class on `PortraitImage`'s white backing div
+  instead of `CreatureSprite`'s (a same-file, different-function mixup — `PortraitImage` has no `debugMode`
+  prop at all, caught immediately by `npm run lint`'s `no-undef`) — corrected to a `.cc-checker` div layered
+  behind everything else inside `CreatureSprite`'s own frame, gated on a new `debugMode` prop threaded from
+  `BestiaryTopPanel` (top preview only — the bottom thumbnail grid does not get it).
+- **Facing/mirror toggle.** Han: "ik kan de kijkrichting niet aanpassen" → "een simpele links/rechts-mirror
+  toggle per creature" — a new `facing` field in the SAME per-creature metadata overlay tags/movement
+  already use (`useBestiaryEditor.js`'s `currentFacing`/`toggleFacing`), overriding the generator-derived
+  `variant.facing`. A debug-only toggle button; `CreatureSprite`'s `mirror` prop now reads `currentFacing`
+  instead of `variant.facing` directly.
+- **Creature name editing.** Han: "ik kan de naam niet aanpassen" (the creature's own display name, not a
+  tag) — `displayName`/`setDisplayName`, same metadata-overlay mechanism, click-to-rename title
+  (`EditableNameTitle`, debug mode only). Deliberately DISPLAY-ONLY — never written back into
+  `entry.base`/filenames/the generator's regex system (that would reopen the exact ~101-reference blast
+  radius #869 just finished untangling).
+
+**Files:** `src/components/character/BestiaryPanels.jsx` (`CreatureSprite`'s `debugMode` prop + checker div,
+`EditableNameTitle`, facing-toggle button), `src/components/character/useBestiaryEditor.js`
+(`currentFacing`/`toggleFacing`, `displayName`/`setDisplayName`).
+
+**Follow-up 3 (same day): filter groups didn't respect edited/real tags.** Two bugs surfaced by Han actually
+using the new tag editor:
+1. **Mature filter ignored the 'mature' TAG.** Han: "toegekende tags zijn na rebuild zichtbaar, maar worden
+   niet meegenomen in filter-groepen. cheeky devil kreeg mature tag, maar zichtbaar zelfs al mature uit
+   staat." `passesNonTagFilters`'s Mature check only ever read `c.category === 'mature'` (a separate,
+   hand-set field) — adding the tag via the editor had zero effect on it. Now `isMature(c) = c.category ===
+   'mature' || c.variants.some(v => v.tags?.includes('mature'))`, checked by both the "off" and "only"
+   branches.
+2. **Hostile/nature were a STALE residual computation, not the real tags.** Han: "ik selecteer hostile tag,
+   maar ik zie entiteiten die niet hostile zijn (avatar male, wisp, scarab beetle), en ik zie dieren die wel
+   hostile zijn niet (Giant Bat)." `isHostile`/`isNature` (added #870, before the generator computed real
+   `hostile`/`nature` tags) defined hostile as "not townsfolk and not nature" and nature as "animal-being or
+   has 'critter' tag" — a complement/heuristic, NOT the literal `hostile`/`nature` tags `generate-bestiary-
+   manifest.mjs` has independently computed since #924/#989 (`HOSTILE_NAMES`/`NATURE_NAMES` explicit
+   rosters). Confirmed via manifest data: Scarab Beetle (`being: 'human'`, no townsfolk/critter signal) fell
+   into "hostile" purely by elimination despite nothing marking it hostile. Fixed: `creatureHasTag` now does
+   a plain tag lookup for `hostile`/`nature` too, exactly like `townsfolk` already did — and since these are
+   real, tag-editor-editable tags, any individual misclassification (a roster gap like Giant Bat) is now
+   self-serviceable by Han directly in debug mode instead of needing a code fix.
+3. **`npm run build` never regenerated the bestiary manifest.** Han: "moet er bij build van de app een 'tag
+   update' script draaien om mijn aanpassingen correct weg te schrijven?" — during `npm run dev` the
+   metadata write endpoint already regenerates automatically (§245 part A), but a production build
+   (`vite build` alone) just bundled whatever `bestiaryManifest.generated.js` happened to be on disk — fine
+   if the dev server was running for every edit, silently stale otherwise (e.g. a hand-edited
+   `bestiaryMetadata.json`, or one merged in from git without the dev server having run since). `"build"`
+   is now `"node scripts/generate-bestiary-manifest.mjs && vite build"` — a build can never ship a manifest
+   that disagrees with the current `bestiaryMetadata.json`/asset files.
+
+**Files:** `src/components/character/useBestiaryEditor.js` (`isMature`, `creatureHasTag`), `package.json`
+(`build` script).
+
+**Follow-up 4 (same day): filter row reorganization, tag label formatting, being corrections.** Han (not in
+the original ticket text — a natural extension of the tag editor, confirmed by checking): "maak een nieuwe
+rij met: flying (verplaats), water, ground, on water (haal de underscore overal weg). voeg bird toe aan de
+rij pet, critter. voeg night toe aan de rij magical, hellish. verplaats range naar portrait, move, attack.
+geef de nieuwe tags een kleurtje." Plus two data corrections: "adept necromancer -> humanoid (geen animal).
+baby -> human (geen animal)." Plus "kijk eens goed naar hoe de labels eruit zien, maak consistent."
+- **`BESTIARY_FILTER_TAG_ROWS`** reorganized: new habitat row `['flying', 'water', 'ground', 'on_water']`
+  (flying moved out of the combat-trait row); `night` added to `['magical', 'hellish', 'undead']`; `ranged`
+  moved from the combat-trait row into `['portrait', 'move', 'attack']`; `bird` added to `['pet',
+  'critter']`. New `TAG_COLOR` entries: `water`/`ground`/`on_water`/`night`/`bird`.
+- **Underscore removed from tag display** (`on_water` rendered as "On_water" before — ugly and, per Han,
+  inconsistent with every other label). `formatTagLabel()` (`tag.replace('_',' ')` + capitalize) — DISPLAY
+  only, the underlying tag STRING stays `on_water` everywhere else (RpgLevelPanel.jsx's habitat matching,
+  the generator's `ON_WATER_NAMES`, etc. all key off the literal value; renaming it would mean auditing
+  every call site for zero functional benefit). Applied to every read-only tag label in the file.
+- **Label consistency pass**: the being row (Human/Humanoid/Animal/Other) and the Mature-mode button were
+  still the plain `.cc-toggle` chrome (square corners, smaller/serif-inherited text) while every tag-row
+  chip already had the rounded/sans-serif/16.5px `TAG_ROW_BUTTON_STYLE` (Follow-up 1) — now applied there
+  too, plus the search box (was Georgia serif 13px/6px-radius, now matches everything else). The whole
+  filter bar reads as one cohesive control now, not two different button styles side by side.
+- **Being corrections**: `generate-bestiary-manifest.mjs`'s `BEING_OVERRIDE` — "Adept Necromancer" added to
+  the `humanoid` set, a new `human` set added with "Human Baby" (both were caught by the blanket "anything
+  under animals/critters/ defaults to `being: 'animal'`" rule, wrongly, since they're humanoid/human sprites
+  that merely happen to be filed in that folder).
+
+**Files:** `src/components/character/useBestiaryEditor.js` (`BESTIARY_FILTER_TAG_ROWS`),
+`src/components/character/BestiaryPanels.jsx` (`TAG_COLOR`, `formatTagLabel`, being-row/Mature/search
+styling), `scripts/generate-bestiary-manifest.mjs` (`BEING_OVERRIDE`).
+
+### Bug: infinite HMR update loop, "Could not Fast Refresh ('CROP' export is incompatible)" (#1028 follow-up, Han 2026-08-17)
+
+**Symptom:** Han's `npm run dev` terminal spammed `[vite] hmr update .../, hmr invalidate
+CharacterDoll.jsx Could not Fast Refresh ("CROP" export is incompatible)` continuously, on every file
+change anywhere in the character-panel chain — likely also why his flying-animation fix (§246 follow-up)
+never visibly took effect: the browser may never have settled on the new code.
+**Root cause:** §245 part 3 (avatar-as-bestiary-entry) made `BestiaryPanels.jsx` import `CharacterDoll` —
+but `CharacterDoll.jsx` already imported `CreatureSprite` FROM `BestiaryPanels.jsx` (for its pet layer),
+creating an ES module CYCLE. This "worked" for `npm run build`/`vitest` (both are hoisted function
+declarations, only ever called from inside a render — the justification written into the code at the time)
+but broke Vite's React Fast Refresh: mixing a cyclic import with `CharacterDoll.jsx`'s non-component named
+exports (`CROP`, `PET_CROP`, `layerStyle`) left Fast Refresh unable to hot-swap either file, invalidating
+and re-evaluating the whole chain on every edit anywhere in it.
+**Fix:** extracted `CreatureSprite`/`Frame64Overlay`/`FRAME_SIZE` into a new, dependency-free file,
+`src/components/character/CreatureSprite.jsx` — `BestiaryPanels.jsx` and `CharacterDoll.jsx` both import
+FROM it, neither imports the other, breaking the cycle for real instead of relying on evaluation-order
+luck. Also fixed 4 OTHER files (`CharacterAvatarPanel.jsx`, `CharacterOptionsPanel.jsx`, `DialogueBox.jsx`,
+`RpgLevelPanel.jsx`) and a test file that all previously imported `CreatureSprite`/`Frame64Overlay` FROM
+`BestiaryPanels.jsx` (which used to re-export them by simply defining them there) — all now import from
+`CreatureSprite.jsx` directly.
+**Invariant going forward:** `CreatureSprite.jsx` must stay leaf-level — it may import from `model/`/`utils/`
+but never from another `components/character/*.jsx` file, or this exact cycle can reappear.
+**Files:** `src/components/character/CreatureSprite.jsx` (new), `BestiaryPanels.jsx`, `CharacterDoll.jsx`,
+`CharacterAvatarPanel.jsx`, `CharacterOptionsPanel.jsx`, `DialogueBox.jsx`, `RpgLevelPanel.jsx`,
+`__tests__/BestiaryPanels.test.jsx`.
+
+**Follow-up 5 (same day): per-animation key/flying editor.** Han: "ik zie nu dat de porcupine-animaties
+mislabeld zijn; ik wou die graag kunnen aanpassen via de bestiary, of bijvoorbeeld chicken heeft alle
+animaties onder 'idle'; geef me een manier, als is het via typen, de animatie labels aan te passen via de
+bestiary. Ik wil ook specifieke animaties het label 'flying' kunnen geven." A NEW feature (not in the
+original ticket text) — interviewed first: editing happens by clicking the EXISTING animation-select button
+itself (debug mode only, a ✎ affordance next to the label so click-to-select and click-to-rename stay
+separate targets), and flying is a per-animation on/off toggle (✈) independent of the rename.
+**Key design decision — keyed by sprite-sheet ROW, not by the current (possibly wrong) key.** Han's own bug
+report is the reason: Chicken has SEVERAL animations all currently misclassified as `'idle'` — keying the
+override by key text would let a rename target only "whichever one" ambiguously; keying by
+`a.cells[0].row` (the animation's own row in the sheet, stable regardless of what key it's wrongly labelled)
+lets each row be corrected independently. Schema: `bestiaryMetadata.json[creatureName].animOverrides[row] =
+{ newKey?, flying? }` (flying is tri-state: `true` forces the tag on, `false` forces it off, absent leaves
+the generator's own derivation alone).
+**Two-layer application, same pattern as tags/movement/facing/name:**
+1. `generate-bestiary-manifest.mjs` applies `animOverrides` to `entry.animations` (renaming `a.key`/`a.label`,
+   adding/removing the `flying` tag) BEFORE the tag-derivation block that reads `entry.animations` for
+   `move`/`attack` tags — so a corrected key actually participates in classification (`findMoveAnim`/
+   `findIdleAnim`/`isFlyingAnim`, used by `WorldCreature`/`SheetRpgLayer`'s `Critter`), not just cosmetic
+   bestiary display. This is what makes the fix apply to actual RPG-level behaviour, not only the editor
+   preview.
+2. `useBestiaryEditor.js` applies the SAME overlay client-side to `variant.animations`, for instant
+   optimistic UI feedback — required `metadataOverrides`/`currentOverride` to move EARLIER in the hook
+   (declared right after `creature`, before `variant`/`hasSwordAnims`) since the override must apply before
+   anything reads `variant.animations`, the same ordering constraint as the generator's own copy.
+**UI:** `EditableAnimButton` (`BestiaryPanels.jsx`) replaces the plain `.cc-anim` button in debug mode —
+label click still selects the animation for preview (unchanged behaviour), ✎ opens a rename input
+(commit on Enter/blur, Escape cancels), ✈ toggles the flying tag. The existing dark-blue flying tint
+(`#790`, "tag alle flying animation, maak het vakje daarvan donkerblauw") already reacts to the tag
+automatically — no separate visual feedback needed to build.
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`animOverride` application), `src/components/character/
+useBestiaryEditor.js` (`variant`'s override-applying `useMemo`, `setAnimKeyOverride`, `toggleAnimFlying`),
+`src/components/character/BestiaryPanels.jsx` (`EditableAnimButton`).
+
+**Follow-up 6 (same day): missing Elthen bat + typed frame/cell editing + add/remove animations.**
+- **Missing creature bugfix.** Han: "ik mis een dier van elthen (animals/critters): bat." Root cause: the
+  SAME class of bug §687 already fixed once for "Rat thief" — `isCurated()`'s `CURATED_KEYWORDS` includes
+  `'bat'` (to skip re-scanning the hand-curated combat Bat, `enemyAssets.js`), and `Bat_Sprite_Sheet.png`
+  normalizes to "Bat Sprite Sheet", which matches the word "bat" and got silently dropped as a supposed
+  duplicate — but it's a genuinely different creature (Elthen's Pixel Art Shop art, not GandalfHardcore).
+  Carved out via the same `CURATED_KEYWORD_EXCEPTIONS` convention "Rat thief" already used. Manifest entry
+  count: 648 → 649.
+- **Typed frame/cell editing + add/remove animations.** Han: "ik kan niet de frames kiezen bij een
+  animatie; of een animatie toevoegen/verwijderen... ik vind het prima om de frames/cells comma seperated
+  in te voeren in een soort terminal." Extends the SAME per-row `animOverrides` (Follow-up 5) with `cells`
+  (a typed `row:col,row:col,...` replacement for the auto-scanned cell list — useful when the pixel-scanner
+  guesses wrong, e.g. the newly-added Bat's single-frame guess) and `removed` (drops that row; refuses to
+  remove a creature's LAST animation). A separate `addedAnimations` array (not row-keyed — a brand new
+  animation has no pre-existing row) holds whole new `{key, cells}` entries. Same two-layer application as
+  every other override (generator bakes it into the real manifest so world-placement code sees it too;
+  `useBestiaryEditor.js` mirrors the same logic client-side for instant feedback — kept byte-for-byte
+  parallel between the two files deliberately, so they can't silently drift).
+- **UI**: `EditableAnimButton` gained a ▦ (edit cells) affordance and a × (remove) button alongside the
+  existing ✎ (rename) and ✈ (flying); `AddAnimationControl` (new key + new cells, both typed) appends after
+  the animation row, debug mode only — mirrors `AddTagControl`'s shape.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`isCurated`/`CURATED_KEYWORD_EXCEPTIONS`, `animOverride`
+cells/removed/addedAnimations), `src/components/character/useBestiaryEditor.js` (`parseCellsInput`/
+`formatCellsInput`, `setAnimCells`, `removeAnimation`, `addAnimation`), `src/components/character/
+BestiaryPanels.jsx` (`EditableAnimButton`, `AddAnimationControl`).
+
+**Follow-up 7 (same day): animation-box readability, moving checkerboard, editable frame size.**
+- **Debug-mode animation box readability.** Han: "maak ook de animatienamen sans serif, en maak alle info
+  in de animatievakjes 2x zo groot." `EditableAnimButton`/`AddAnimationControl` (debug-mode ONLY — the
+  plain non-debug `.cc-anim` buttons are untouched) now render at `Arial, sans-serif` / 22px (was inheriting
+  `.cc-anim`'s ambient font at 11px) — including the rename/cells `<input>` elements, which don't inherit
+  font styling from an ancestor by default in any browser and needed the size set explicitly too.
+- **Moving checkerboard during move animations.** Han: "bij move animaties, verwacht ik nog steeds dat de
+  achtergrond beweegt (checkerboard)." Re-reads the ORIGINAL ticket ask ("bij run/walk in edit mode bewegen
+  de debug-blokken opzij met constante snelheid") — `MovementDebugBlock`'s small separate track (Follow-up
+  1) satisfied it literally but not what Han actually pictured: the BIG reference checkerboard behind the
+  sprite (added Follow-up 2) should itself scroll during a move-type animation (`MOVE_ANIM_KEYS` — fly/
+  float/walk/run/move, the same canonical list `findMoveAnim` uses), using the SAME speed/frame-weights
+  profile, so the creature visibly "walks across" it. `computeMovementOffsetPx` factored out of
+  `MovementDebugBlock` so `BestiaryTopPanel` can feed the identical weight-accumulated offset into
+  `CreatureSprite`'s new `checkerScrollPx` prop, which shifts all 4 of `.cc-checker`'s gradient-layer
+  `background-position` values by that X amount — a pure background-position scroll, never spills past the
+  box (no element movement/clipping needed). Idle/attack/death animations keep a static grid.
+- **Editable frame size.** Han: "maak p x q frame ook aanpasbaar. bijvoorbeeld voor giant bat staat er
+  72x72, moet zijn 16x24 - ik wil dat ook in de bestiary kunnen aanpassen" (asked mid-turn, "als we toch
+  bezig zijn"). Same per-creature metadata overlay (`frame: {w,h}`), same two-layer application (generator
+  + client mirror) as every other override this ticket added. `crop` resets to the full new frame rather
+  than re-running the pixel scanner against a hand-typed size — Han already sees the visual result and can
+  trim further with the per-animation `cells` editor (Follow-up 6) if the frame itself still has dead
+  space. `FrameSizeText` (click-to-edit, accepts "WxH" or "W,H") replaces the plain `{w}×{h} frame` debug
+  text in debug mode.
+
+**Files:** `src/components/character/BestiaryPanels.jsx` (`EditableAnimButton`/`AddAnimationControl` sizing,
+`computeMovementOffsetPx`/`movementWeights`, `checkerScrollPx` computation, `FrameSizeText`),
+`src/components/character/CreatureSprite.jsx` (`checkerScrollPx` prop), `src/components/character/
+useBestiaryEditor.js` (`setFrameSize`, `variant`'s frame/crop override), `scripts/generate-bestiary-
+manifest.mjs` (`creatureMeta.frame` application).
+
+---
+
+### §248. Flexible on-screen span — per-level `deriveLevelSpan` replaces the global `LEVEL_LEAD_IN_BARS`; silent vs audible lead-in (#994, Han 2026-08-14/17)
+
+**Purpose (Han):** *"kalinka is 2/4, so a measure is really short. I would like to have 4 measures
+headstart (so start at measure -3) and have 4 measures on screen, and a 2 measures count-in. This should
+be made flexible, so that very wide screens can have many measures look-ahead... I guess it should depend
+on screen width, and notes per measure, tempo (so that the scroll speed is not too fast) so that it is all
+nice and balanced. Intuitively, I would like to have around 8-12 beats on screen."*
+
+A side-scroll level used to show a FIXED 2 measures of lead-in regardless of meter or tempo. A 2/4 bar at
+90bpm lasts a third as long as a 4/4 bar at 60bpm, so "2 measures" meant Kalinka's notes crossed the whole
+screen in ~2.7 seconds while a slow 4/4 level got ~8 — the same nominal setting producing wildly different
+playability. The span is now derived per level, targeting a roughly constant on-screen TIME.
+
+#### The formula (`deriveLevelSpan`, `src/levels/levels.js` — the single source of truth)
+
+```text
+beatsPerMeasure  = TICKS_PER_WHOLE * (num/den) / TICKS_PER_BEAT      // quarter-beats, as in §231
+targetBeats      = round(bpm / 10)                                   // ~6 s at ANY tempo
+visibleMeasures  = max(1, roundHalfDown(targetBeats / beatsPerMeasure))
+leadInBars       = visibleMeasures                                   // the visual lead-in IS the span
+countInBars      = min(visibleMeasures, max(2, ceil(visibleMeasures / 2)))
+metronomeBars    = max(1, countInBars - 1)
+celloOnlyBars    = countInBars - metronomeBars
+silentLeadInBars = visibleMeasures - countInBars
+beatsOnScreen    = visibleMeasures * beatsPerMeasure                 // NOT rounded — see the invariant
+```
+
+`targetBeats = round(bpm/10)` is ~6 seconds at any tempo: a quarter-beat lasts `60/bpm` s, so
+`(bpm/10)·(60/bpm) = 6`. Han's "8-12 beats at 80-120bpm" is exactly this line.
+
+**`roundHalfDown` (= `ceil(x - 0.5)`), not `Math.round` — load-bearing.** The quotient lands on an exact
+`.5` for Kalinka (2/4 @90 → `targetBeats 9`, `9/2 = 4.5`), and the tie-break decides whether Han's own
+worked examples hold. Half-UP gives Kalinka 5 measures / 3 count-in, contradicting his "4 measures, 2
+count-in"; `Math.floor` fixes Kalinka but gives 3/4 @84 only 2 measures, contradicting his "3/4 should
+have 3 measures on screen". Half-DOWN is the only tie-break satisfying both (Han decision A, 2026-08-17).
+Only exact-`.5` quotients differ from `Math.round`.
+
+**Why `countInBars` carries the `max(2, …)` floor (Han decision B, 2026-08-17).** Han's count-in rule is
+an ORDERING, not just a length: always at least one measure of cello+timpani ALONE, then at least one
+measure with the metronome added (§110's "cello + timpanen vanaf maat -1, metronoom vanaf maat 0",
+generalized). An earlier draft put a `max(1, …)` floor on the metronome instead; Han rejected that,
+because on a short level it collapses both roles into one measure. Putting the floor on `countInBars`
+(clamped by `visibleMeasures`) widens the audible portion instead, preserving the ordering. The
+`max(1, …)` on `metronomeBars` remains ONLY as the `visibleMeasures === 1` degenerate guard (extreme fast
+tempo / long meter), where all three tracks unavoidably share the single available measure.
+
+Net effect on the catalogue: **20 of 36 side-scroll levels are byte-identical to before** — every 4/4
+level in the 72–100 bpm band derives `visible 2 / countIn 2 / silent 0 / beatsOnScreen 8`, exactly its
+pre-#994 behaviour. The levels that change are the two 2/4 songs (Kalinka, Kangding Qingge → 4 measures),
+the two 3/4 songs (→ 3), la-bamba (150bpm → 4 measures / 16 beats), and the non-4/4 or fast procedural
+levels (0, 102, 103, 104, 109, 113, 117, 120). Levels 104/114 lose hand-written `beatsOnScreen: 10`
+literals (→ 12 / 8). Han on those side-effects: *"Yes, let the formula win"* (decision C).
+
+#### `LEVEL_LEAD_IN_BARS` is deleted — it did three unrelated jobs
+
+The old constant in `src/constants/timing.js` was simultaneously (a) the audible count-in length, (b) the
+JIT backing-generation chunk size, and (c) the visual/notation lead-in span. A single global could not
+survive becoming per-level, so the three roles are now separate fields on the normalized level object,
+derived once in `normalizeLevel()` and threaded to consumers:
+
+| Consumer | What it needs | How it gets it |
+|---|---|---|
+| `App.jsx` | `leadInBars`, `silentLeadInBars` | reads `level.current`; bundles a `levelSpan` object for the render path |
+| `SheetMusic.jsx` | `beatsOnScreen`, `leadInBars`, `silentLeadInBars` | ONE `levelSpan` object prop (see below) |
+| `SheetRpgLayer.jsx` | `leadInBars` | **derived** from `scrollBarlines.leadInTicks / measureLengthSlots` |
+| `useLevelBackingStream.js` | all of them + chunk size | reads `lvl` (already receives the level object) |
+| `useLevelTrebleStream` / `MixedStream` / `KeyModulationStream` | `leadInBars`, `visibleMeasures` | reads `lvl` |
+| `useTwoHandedBass.js` | `leadInBars` | new prop (it receives no `lvl`) |
+
+**Why `levelSpan` is ONE object prop, not four siblings.** §231's own follow-up bug was a HALF-WIRED prop:
+`SheetRpgLayer` had its own independent `beatsOnScreen = 8` default, so when `App.jsx` never passed the
+derived value, the component silently used `8` for every meter and the #889 fix had zero effect for weeks.
+A single object cannot be half-wired — either the span is there or it obviously is not. For the same
+reason `SheetRpgLayer` derives `leadInBars` from the `leadInTicks` its positioning math already uses,
+rather than taking a parallel prop that could disagree with it.
+
+#### The §108 invariant, re-derived for a variable lead-in
+
+§108 positions the barline row at `barlineStartX = viewRight − leadInTicks·scrollPPT`, where
+`scrollPPT = dist / (beatsOnScreen·TICKS_PER_BEAT)` and `dist = viewRight − startX`. That
+`barlineStartX + leadInTicks·scrollPPT = viewRight` identity holds for ANY `leadInTicks`, so the
+barline-before-real-content still lands on treble's own tick-0 note automatically. What is NOT automatic
+is §108's other property — at `scrollPx = 0`, measure "-1" must sit exactly at `startX` (the hero). That
+requires `leadInPx == dist`, i.e.:
+
+```text
+leadInTicks = beatsOnScreen · TICKS_PER_BEAT
+⟺ leadInBars · measureLengthTicks = beatsOnScreen · TICKS_PER_BEAT
+```
+
+This is now satisfied **structurally**, because `leadInBars` and `beatsOnScreen` are both derived from one
+`visibleMeasures` — not, as before, because 2 bars of 4/4 coincidentally equals 8 quarter-beats. §108's
+parenthetical "(= `dist`, since beatsOnScreen already equals the lead-in span for today's levels)" is no
+longer a coincidence to be careful of.
+
+**Consequence — the outer `Math.round` on `beatsOnScreen` is GONE (latent bug fix).** §231's
+`deriveBeatsOnScreen` wrapped the result in `Math.round`, a no-op for every meter shipped at the time
+(2 × 3.5 = 7 for 7/8). At 3 visible measures in 7/8 the exact value is **10.5**; rounding to 10 or 11
+would break the equality above and drift barlines ~half a beat from their own notes on levels 109/120.
+`beatsOnScreen` is only ever consumed in float arithmetic (`dist/(bos·TICKS_PER_BEAT)`, `bos·beatMs`,
+`dist/bos`), so a fractional value is both safe and required. `levelSpan.test.js` asserts the equality
+across 9 meters × 11 tempos.
+
+#### Silent vs audible lead-in (new behaviour)
+
+Only the LAST `countInBars` measures of the lead-in sound. The earlier `silentLeadInBars` are scenery:
+barlines, measure numbers and notation scroll normally, with no metronome, no cello and no timpani.
+
+The silence is baked into the CONTENT, never gated at the scheduling site — §108 requires the moving
+bass/percussion staves to be built from the exact same pattern the audio is scheduled from, so gating
+only the audio would show timpani hits during measures that are actually silent. Two mechanisms, both
+reusing prior art rather than adding a new one (§6c):
+
+- **Cello + metronome** (`useLevelBackingStream.js`): chunk 0 generates only its audible tail —
+  `length = countInBars` for bass, `metronomeBars` for the metronome — with `baseTicks` /
+  `audibleStartTime` / `metronomeStartTime` shifted forward to land on the correct lead-in measures. This
+  is a direct generalization of §110's existing one-measure metronome trim
+  (`metronomeLength = chunkMeasures - 1`), which already did exactly this for a 2-bar lead-in.
+- **Timpani** (`src/utils/timpaniPattern.js`): a third `silentLeadMeasures = 0` parameter emits `'r'` for
+  the first N measures while keeping offsets/durations dense, so the tick timeline is unchanged. Default
+  `0` keeps `useMelodyState.js`'s non-level call byte-identical. `App.jsx`'s audio call and
+  `SheetMusic.jsx`'s notation call pass the same value from the same level object.
+
+`levelAudioStart` still anchors the FIRST lead-in measure (the visual clock's zero), so the silent bars
+are real elapsed time, not skipped time — that is what keeps the scroll geometry in step with the audio.
+
+Note (pre-existing, newly visible): in 2/4 there are only 2 quarter-beats per measure, so
+`buildTimpaniPattern`'s per-measure re-indexing (§231 point 4 / the #871 fix) only ever reaches
+`PATTERN[0]` and `PATTERN[1]` — both `C2`. Kalinka's timpani is therefore a flat `C2` pulse rather than
+the `C2 C2 C3 rest` figure. That is §871 behaviour, not something #994 changed, but a 2/4 level now shows
+4 lead-in measures of it, so it is far more noticeable.
+
+#### JIT chunk size and the wizard lookahead (Han decision D)
+
+`chunkMeasures = leadInBars` in `useLevelBackingStream.js`. This is deliberate: it preserves §110's proven
+relationship at any span. A chunk's notes enter the right edge exactly `visibleMeasures` measures before
+they sound (because the visible span IS `leadInBars`), and chunk *k+1* is generated when chunk *k* begins
+— i.e. still "generated exactly one screenful ahead", the same guarantee as the original "2+2 maten op
+voorhand". Any other chunk size would silently change that relationship.
+
+The three wizard/treble streams had the SAME conflation as `LEVEL_LEAD_IN_BARS`: their literal `2` was
+both the musical block length and the JIT lookahead. `useLevelMixedStream.js` documents the block length
+as Han's fixed spec (*"2 measures per block, always (not a tunable)"* — and
+`generateLevelMixedBlock`/`generateLevel9CallResponseBlock` only support 2), while the same file's
+generation-trigger comment says the trigger was set to *"a constant, full `blockMeasures` (2-measure)
+lookahead buffer … what slimes/notes need to already be visible (`beatsOnScreen`)"*. So the lookahead's
+intent was always "one screenful"; it was written as `blockMeasures` only because the span happened to be
+2 measures. Han (decision D): rework now, don't defer. The two roles are now split:
+
+- Block/period length stays **2** in all three files.
+- `lookaheadMeasures = max(blockMeasures, lvl.visibleMeasures)`, and the trigger moved from "when THIS
+  block starts" to "`lookaheadMeasures` before the NEXT block starts". At `visibleMeasures === 2` this is
+  arithmetically identical, so levels 10 and 11 are unchanged today.
+- **Level 9** (`useLevelTrebleStream.js`) keeps its cast-audio deadline, which has real bug history
+  (§693 *"vanaf maat 4 komt de muziek van de wizard te laat"*). Rather than replacing it, generation now
+  fires at `Math.min(visibilityDeadline, castDeadline)` — a `min()` can only move generation EARLIER, so
+  that bug cannot regress by construction. Side effect: this also closes a pre-existing ~half-measure
+  visual pop-in, since Level 9's cast deadline is `blockStart − 1.5·barSec` while its notes become visible
+  at `blockStart − 2·barSec`.
+
+#### Narrow screens — no code needed
+
+`dist = viewRight − startX` is pure screen geometry and `scrollPPT = dist / (beatsOnScreen·TICKS_PER_BEAT)`.
+A larger `beatsOnScreen` therefore only reduces pixels-per-tick: measures get DENSER, and nothing anywhere
+clamps `beatsOnScreen` by width. Notehead/glyph sizes come from the canonical renderers (§6d) and are
+unaffected. So Han's "never shrink below the target measure count; let the layout get denser instead" is
+satisfied by the existing design — this is a property to verify, not to implement.
+
+**Invariants:**
+
+1. `beatsOnScreen · TICKS_PER_BEAT === leadInBars · measureLengthTicks`, exactly. Never round
+   `beatsOnScreen`. (§108 depends on it; 7/8 at 3 measures is legitimately 10.5.)
+2. `leadInBars === visibleMeasures` — the visual lead-in and the flight span are one number.
+3. `1 <= countInBars <= visibleMeasures`, and whenever `visibleMeasures >= 2` there is at least one
+   cello-only measure followed by at least one metronome measure.
+4. A track's silent lead-in must be expressed in its CONTENT (ungenerated measures / rests), never as an
+   audio-only gate — the notation is built from the same pattern (§108).
+5. Nothing may reintroduce a global lead-in constant, nor a per-meter/per-tempo lookup table (§6c).
+
+**Files:** `src/levels/levels.js` (`beatsPerMeasure`, `roundHalfDown`, `deriveCountIn`,
+`deriveLevelSpan`, `spanForExplicitBeatsOnScreen`, `songLevelDefaults`, `normalizeLevel`),
+`src/levels/levels.json` (27 `beatsOnScreen` literals deleted), `src/constants/timing.js`
+(`LEVEL_LEAD_IN_BARS` deleted), `src/App.jsx` (`levelSpan` memo, `timpaniMelody`,
+`twoHandedBassMelody`, `handleResumeLevel`, `useTwoHandedBass`/`SheetMusic` wiring),
+`src/components/sheet-music/SheetMusic.jsx` (`levelSpan` prop, `DEFAULT_LEVEL_SPAN`, `leadInTicks`,
+`scrollBarlines`), `src/components/sheet-music/SheetRpgLayer.jsx` (derived `leadInBars`),
+`src/hooks/useLevelBackingStream.js` (silent lead-in, chunk size),
+`src/hooks/useLevelTrebleStream.js`, `src/hooks/useLevelMixedStream.js`,
+`src/hooks/useLevelKeyModulationStream.js` (lead-in + lookahead), `src/hooks/useTwoHandedBass.js`,
+`src/utils/timpaniPattern.js` (`silentLeadMeasures`), `src/generation/generateLevelBackingChunk.js`
+(comment), `src/levels/__tests__/levelSpan.test.js` (new, 20 tests),
+`src/levels/__tests__/songLevels.test.js`, `src/utils/__tests__/timpaniPattern.test.js`.

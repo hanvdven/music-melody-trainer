@@ -31,7 +31,6 @@ import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 import { blockTypeAt } from '../../hooks/useLevelMixedStream';
-import { LEVEL_LEAD_IN_BARS } from '../../constants/timing';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -770,9 +769,20 @@ export default function SheetRpgLayer({
         () => (sideScroll ? clipMelodyBundle(scrollNotationPercussion, trebleFinalBarTick) : scrollNotationPercussion),
         [sideScroll, scrollNotationPercussion, trebleFinalBarTick]
     );
+    // #994: the lead-in is per-level now (was the fixed LEVEL_LEAD_IN_BARS = 2). It is derived from the
+    // SAME bundle field the positioning math already uses (`scrollBarlines.leadInTicks`, see
+    // barlineStartX below) rather than taken as a separate prop — so a bar COUNT and a tick COUNT here
+    // can never disagree, and there is no independent default to silently mask a wiring omission
+    // (#889's own follow-up bug was exactly that).
+    const leadInBars = useMemo(
+        () => (scrollBarlines
+            ? Math.round((scrollBarlines.leadInTicks || 0) / (scrollBarlines.measureLengthSlots || 48))
+            : 0),
+        [scrollBarlines]
+    );
     const scrollBarlinesClipped = useMemo(
-        () => (sideScroll ? clipBarlinesBundle(scrollBarlines, LEVEL_LEAD_IN_BARS) : scrollBarlines),
-        [sideScroll, scrollBarlines]
+        () => (sideScroll ? clipBarlinesBundle(scrollBarlines, leadInBars) : scrollBarlines),
+        [sideScroll, scrollBarlines, leadInBars]
     );
     const slimeData = useMemo(() => {
         const out = [];
@@ -817,7 +827,7 @@ export default function SheetRpgLayer({
             for (let i = 0; i < notes.length; i++) {
                 const note = notes[i];
                 if (note === 'r' || note === 'c' || note == null || offsets[i] == null) continue;
-                const measureIndex = Math.floor(offsets[i] / mls) - LEVEL_LEAD_IN_BARS;
+                const measureIndex = Math.floor(offsets[i] / mls) - leadInBars;
                 out.push({
                     key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, beat: offsets[i] / TICKS_PER_BEAT,
                     note, measureIndex, colorKey: slimeColorKey(24),
@@ -826,7 +836,7 @@ export default function SheetRpgLayer({
         }
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bassMelody, scrollBarlinesClipped, startX, pixelsPerTick]);
+    }, [bassMelody, scrollBarlinesClipped, leadInBars, startX, pixelsPerTick]);
 
     // #693 round 8 ("zet onder elke rust een critter... net als slimes onder rusten"): one entry per REST
     // slot (the exact mirror of slimeData above, which skips rests — this only keeps them). A stable

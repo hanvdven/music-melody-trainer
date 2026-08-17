@@ -44,7 +44,7 @@ import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { getBeatDurationTicks } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
-import { TICKS_PER_WHOLE, LEVEL_LEAD_IN_BARS } from '../../constants/timing.js';
+import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange, melodyMeasureSpan } from '../../utils/melodySlice';
@@ -155,8 +155,14 @@ const DOTTED_DURATIONS = new Set([9, 18, 21, 36, 42, 72]);
 // `[]` on each render and can hit its cache.
 const EMPTY_SCALE_NOTES = Object.freeze([]);
 
-// #663: LEVEL_LEAD_IN_BARS now lives in constants/timing.js — it's shared with App.jsx's
+// #663: LEVEL_LEAD_IN_BARS used to live in constants/timing.js — shared with App.jsx's
 // useLevelBackingStream (the JIT chunk size), not just this file's barline-prepend usage.
+// #994: it is gone. The lead-in is per-level now (derived from the level's own tempo + meter in
+// levels.js `deriveLevelSpan`) and arrives here inside the `levelSpan` prop. These defaults reproduce
+// the old constant's behaviour for any non-side-scroll caller, where the values are unused anyway.
+const DEFAULT_LEVEL_SPAN = Object.freeze({
+  beatsOnScreen: 8, leadInBars: 2, countInBars: 2, silentLeadInBars: 0,
+});
 
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
@@ -213,7 +219,13 @@ const SheetMusic = ({
   // hit zone — meter-aware (derived in levels.js's normalizeLevel from timeSignature, "2 measures").
   // Was previously never forwarded here, so SheetRpgLayer silently used its own internal `= 8`
   // (4/4-only) default regardless of what the level actually computed.
-  beatsOnScreen = 8,
+  // #994 (Han 2026-08-17): now arrives as part of the per-level `levelSpan` bundle instead of a lone
+  // `beatsOnScreen` prop — the span (visible measures / lead-in / count-in) is derived per level from
+  // its own tempo + meter (levels.js `deriveLevelSpan`), and bundling prevents the half-wiring that
+  // made #889's original fix a no-op. `null` for every non-side-scroll caller; the destructured
+  // defaults below then reproduce the pre-#994 behaviour exactly.
+  // NOTE: unrelated to the `visibleMeasures` prop (practice-mode layout count) further down.
+  levelSpan = null,
   levelAudioStart = null,           // §88 — audio-time (s) the level backing started; scroll anchors to it
   // #662 (Han 2026-08-02, "slimes mogen alleen zichtbaar zijn TIJDENS een level"): distinct from
   // `sideScroll` — Level 1 is a level too but is NOT sideScroll (static idle slimes). Gates whether
@@ -310,6 +322,12 @@ const SheetMusic = ({
   // through the matching instrument instance. Passed through to InstrumentStaffOverlay.
   onPreviewInstrument = null, // (staff: string, slug: string) => void
 }) => {
+  // #994: unpack the per-level span once. `levelSpan` is null for every non-side-scroll caller, which
+  // falls back to DEFAULT_LEVEL_SPAN (the pre-#994 fixed 2-bar / 8-beat values) — those paths never
+  // read the lead-in fields, but keeping the defaults identical means no non-level render can change.
+  // (`countInBars` is deliberately not unpacked — the count-in is an AUDIO concern, owned by
+  // useLevelBackingStream; the only thing the NOTATION needs is which lead-in bars are silent.)
+  const { beatsOnScreen, leadInBars, silentLeadInBars } = levelSpan || DEFAULT_LEVEL_SPAN;
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
@@ -1095,11 +1113,14 @@ const SheetMusic = ({
   // real generated melody — `bassMelody` prop is already the level's JIT-generated backing stream
   // (App.jsx's useLevelBackingStream) when a side-scroll level is active, spanning -1..numMeasures like
   // any other chunk-generated content, so no per-level pattern branch is needed here any more.
-  const levelTotalMeasures = LEVEL_LEAD_IN_BARS + numMeasures;
-  const leadInTicks = LEVEL_LEAD_IN_BARS * measureLengthSlots;
+  const levelTotalMeasures = leadInBars + numMeasures;
+  const leadInTicks = leadInBars * measureLengthSlots;
   const scrollBassMelody = adjustedBassMelody;
+  // #994: `silentLeadInBars` must match App.jsx's timpani AUDIO call exactly — both read the same
+  // fields off the same normalized level object, which is what keeps §108's "notation is built from
+  // the same pattern the audio schedules from" invariant true for the new variable-length lead-in.
   const scrollPercussionMelody = percussionSettings?.melodic
-    ? buildTimpaniPattern(levelTotalMeasures, timeSignature)
+    ? buildTimpaniPattern(levelTotalMeasures, timeSignature, silentLeadInBars)
     : adjustedPercussionMelody;
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
@@ -3000,9 +3021,11 @@ const SheetMusic = ({
                       // entries prepended here (this bundle ONLY — the shared `allOffsets` used for actual
                       // note positioning elsewhere is untouched) make BarlinesLayer draw 2 EXTRA barlines
                       // before the real content, which the scroll's uniform translate naturally carries
-                      // across the screen first — exactly the -1/0 lead-in bars. LEVEL_LEAD_IN_BARS must
-                      // match the audio lead-in in App.jsx (beatsOnScreen⁄barBeats — 2 for today's levels).
-                      offsets: [...Array(LEVEL_LEAD_IN_BARS).fill('m'), ...allOffsets],
+                      // across the screen first — exactly the -1/0 lead-in bars.
+                      // #994: `leadInBars` is per-level now (was the fixed LEVEL_LEAD_IN_BARS = 2) and
+                      // ALWAYS equals `beatsOnScreen / beatsPerMeasure` by construction in levels.js's
+                      // deriveLevelSpan, so the barline row and the audio lead-in can no longer drift.
+                      offsets: [...Array(leadInBars).fill('m'), ...allOffsets],
                       measureLengthSlots,
                       // #662 (Han 2026-08-03, "bij start van level zie ik onmiddellijk maat -1 en maat 0"):
                       // read by SheetRpgLayer to origin the WHOLE barline row `leadInTicks` earlier than
@@ -3010,10 +3033,11 @@ const SheetMusic = ({
                       // the hero at level start) instead of pinned to the screen's far edge — see the
                       // barlineStartX comment in SheetRpgLayer.jsx for the full derivation.
                       leadInTicks,
-                      // A level always numbers its measures starting at 1 − LEAD_IN_BARS (so the 2 extra
-                      // barlines read "-1" and "0"), regardless of the app's paginated block state.
+                      // A level always numbers its measures starting at 1 − leadInBars (so a 2-bar
+                      // lead-in reads "-1"/"0" and a 4-bar one reads "-3".."0"), regardless of the
+                      // app's paginated block state.
                       startIdx: 0,
-                      blockMeasureStart: 1 - LEVEL_LEAD_IN_BARS,
+                      blockMeasureStart: 1 - leadInBars,
                       blockPlayStart: 0,
                       partialTop,
                       partialMeasureStart,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 import { getNoteSemitone } from '../theory/noteUtils';
 
 // #FR2 (Han 2026-08-10, Level 15 "twee toetsen!!!"): the bass/left-hand keyboard's own SIMPLE grading —
@@ -18,6 +18,11 @@ export default function useTwoHandedBass({
   bpm,
   timeSignature,
   bassMelody,       // the level's growing bass Melody (App.jsx's levelBackingStream.bass)
+  // #994: the level's lead-in length in measures (was the fixed LEVEL_LEAD_IN_BARS = 2; now derived
+  // per level from tempo + meter in levels.js). Both uses below are absolute-position offsets into the
+  // same timeline the backing stream generated against, so this MUST be the level's own value — a
+  // stale 2 would look up the wrong measure's expected root on any level with a longer lead-in.
+  leadInBars = 2,
   onHit,            // level.onHit
   onMiss,           // level.onMiss
 }) {
@@ -39,14 +44,14 @@ export default function useTwoHandedBass({
     if (!bassMelody?.offsets?.length) return null;
     const barBeats = timeSignature[0] || 4;
     const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
-    const lo = (LEVEL_LEAD_IN_BARS + m) * measureLengthTicks;
+    const lo = (leadInBars + m) * measureLengthTicks;
     const hi = lo + measureLengthTicks;
     for (let i = 0; i < bassMelody.offsets.length; i++) {
       const o = bassMelody.offsets[i];
       if (o != null && o >= lo && o < hi && bassMelody.notes[i] !== 'r') return bassMelody.notes[i];
     }
     return null;
-  }, [bassMelody, timeSignature]);
+  }, [bassMelody, timeSignature, leadInBars]);
   // The tick effect below intentionally does NOT depend on `bassMelody` (it would restart the whole rAF
   // loop/measure counter every time a JIT chunk arrives) — so it must read `expectedRootFor` through a
   // ref, not close over it directly, or its "was there a real root" check would stay bound to whatever
@@ -60,7 +65,7 @@ export default function useTwoHandedBass({
     const barBeats = timeSignature[0] || 4;
     const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
     const barSec = measureLengthTicks * secondsPerTick(bpm || 80);
-    const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+    const contentStartTime = levelAudioStart + leadInBars * barSec;
 
     const tick = () => {
       const elapsed = context.currentTime - contentStartTime;
@@ -95,7 +100,7 @@ export default function useTwoHandedBass({
       measureRef.current = -1;
       hitThisMeasureRef.current = false;
     };
-  }, [active, context, levelAudioStart, bpm, timeSignature, onMiss]);
+  }, [active, context, levelAudioStart, bpm, timeSignature, leadInBars, onMiss]);
 
   // PianoView's onNoteInput for the bass keyboard — compares by SEMITONE (not string equality), since
   // the generator's enharmonic spelling for the expected root need not match the fixed keyboard's own

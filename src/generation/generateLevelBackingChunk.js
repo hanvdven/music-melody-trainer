@@ -3,7 +3,8 @@ import { sliceMelodyByRange } from '../utils/melodySlice';
 
 // #663 (Han 2026-08-03, "geen hard-coded oplossingen ... gebruik het gewone protocol voor
 // generate melody"): a level's bass (cello) is no longer a hardcoded whole-note pattern —
-// it's generated through the SAME MelodyGenerator every other track uses, just LEVEL_LEAD_IN_BARS
+// it's generated through the SAME MelodyGenerator every other track uses, just `chunkMeasures`
+// (#994: the level's own derived `leadInBars`, formerly the fixed LEVEL_LEAD_IN_BARS constant)
 // measures ("one chunk") at a time, so useLevelBackingStream.js can generate + schedule it
 // incrementally (the JIT mechanism Han asked for) instead of the whole level up front.
 //

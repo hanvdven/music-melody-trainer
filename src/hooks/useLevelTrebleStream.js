@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Melody from '../model/Melody';
 import { generateLevel9CallResponseBlock } from '../generation/generateLevel9CallResponseBlock';
-import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
 
 // #693 (Han 2026-08-04, round 6, "genereer sequentieel 4 blokken zoals maat 1 en 2" +
@@ -55,10 +55,16 @@ export default function useLevelTrebleStream({
     // one derived value, never a separately hardcoded "1 measure" here vs. there).
     const leadOffsetSeconds = (lvl.wizardSpawnLeadMeasures ?? 1) * barSec;
     // Treble's own tick-0 (a block's offset 0) is NOT levelAudioStart itself — the level's
-    // lead-in (measures -1/0, LEVEL_LEAD_IN_BARS) plays first, same anchor bass/metronome use
-    // (useLevelBackingStream.js) and the OLD one-shot wizard-preview effect this replaces used
+    // lead-in (measures -1/0 and, since #994, possibly more) plays first, same anchor bass/metronome
+    // use (useLevelBackingStream.js) and the OLD one-shot wizard-preview effect this replaces used
     // (`levelAudioStart + leadInSeconds`).
-    const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+    // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
+    const leadInBars = lvl.leadInBars ?? 2;
+    const contentStartTime = levelAudioStart + leadInBars * barSec;
+    // #994 (decision D): a block must EXIST before its notes can enter the right edge of the screen,
+    // which happens `visibleMeasures` measures before it sounds. `blockMeasures` stays 2 (Han's
+    // call/response spec — and generateLevel9CallResponseBlock only supports 2).
+    const lookaheadMeasures = Math.max(blockMeasures, lvl.visibleMeasures ?? blockMeasures);
 
     let growingTreble = new Melody([], [], [], []);
 
@@ -118,8 +124,19 @@ export default function useLevelTrebleStream({
         if (blockIndex === 0) {
           generateAndScheduleBlock(nextIndex);
         } else {
-          const nextCastTarget = contentStartTime + nextIndex * blockMeasures * barSec - leadOffsetSeconds;
-          const delayMs = Math.max(0, (nextCastTarget - 0.5 * barSec - context.currentTime) * 1000);
+          const nextBlockStartTime = contentStartTime + nextIndex * blockMeasures * barSec;
+          const nextCastTarget = nextBlockStartTime - leadOffsetSeconds;
+          // #994 (decision D): TWO deadlines now, and we take the EARLIER of them. The cast deadline
+          // (above, unchanged) is the #693 audio guarantee; the visibility deadline is when this block's
+          // first measure enters the right edge of the screen, which #994's wider spans can push ahead
+          // of the cast deadline. Using Math.min means generation can only ever move EARLIER than the
+          // proven-correct #693 timing, so that bug ("vanaf maat 4 komt de muziek van de wizard te
+          // laat") cannot regress by construction. Note this also closes a pre-existing ~half-measure
+          // visual pop-in even at visibleMeasures === 2: the cast deadline is blockStart − 1.5·barSec
+          // while the notes become visible at blockStart − 2·barSec.
+          const visibilityDeadline = nextBlockStartTime - lookaheadMeasures * barSec;
+          const generateAt = Math.min(visibilityDeadline, nextCastTarget - 0.5 * barSec);
+          const delayMs = Math.max(0, (generateAt - context.currentTime) * 1000);
           timers.push(setTimeout(() => generateAndScheduleBlock(nextIndex), delayMs));
         }
       }

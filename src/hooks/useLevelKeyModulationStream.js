@@ -3,7 +3,7 @@ import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import { sliceMelodyByRange } from '../utils/melodySlice';
 import { updateScaleWithMode } from '../theory/scaleHandler';
-import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 
 // Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard. die doet elke 2 maten een spell en
 // wisselt dan van toonladder (niet van tonic). Wissel tussen majeur en mineur"), confirmed via interview:
@@ -17,6 +17,12 @@ import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, secondsPerTick } from '../constant
 // scale (§6c — reuses the app's own mode-switch machinery, the SAME function setSelectedMode calls,
 // rather than hand-building a Scale object), alternating Major on even chunks / Minor on odd — tonic is
 // whatever the base scale's tonic already is, untouched (`updateScaleWithMode` only ever changes mode).
+// #994 (Han 2026-08-17, decision D): this 2 is a MUSICAL constant — Han's spec is literally "elke 2
+// maten een spell en wisselt dan van toonladder", so the mode-alternation PERIOD must stay 2 measures
+// regardless of how many measures fit on screen. It used to double as the JIT lookahead (see the
+// generation-trigger comment below), which was only correct while the visible span happened to be 2
+// measures too. Those two roles are now separate: the period stays here, the lookahead is derived from
+// the level's own visible span (`lookaheadMeasures`) — the same split #994 applied to LEVEL_LEAD_IN_BARS.
 const chunkMeasures = 2;
 
 export default function useLevelKeyModulationStream({
@@ -44,7 +50,15 @@ export default function useLevelKeyModulationStream({
     const totalContentMeasures = lvl.numMeasures;
     const totalChunks = Math.ceil(totalContentMeasures / chunkMeasures);
     const runId = `${levelAudioStart}`;
-    const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+    // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
+    const leadInBars = lvl.leadInBars ?? 2;
+    const contentStartTime = levelAudioStart + leadInBars * barSec;
+    // #994 (decision D): how far ahead a chunk must EXIST, as opposed to how long it is. A chunk's notes
+    // enter the right edge of the screen `visibleMeasures` measures before they sound, so generating only
+    // `chunkMeasures` ahead makes notes pop in mid-lane on any level whose span exceeds the block length.
+    // At visibleMeasures === 2 this is arithmetically identical to the previous behaviour (generate the
+    // next chunk exactly when this one begins), so levels 10/11 are unchanged today.
+    const lookaheadMeasures = Math.max(chunkMeasures, lvl.visibleMeasures ?? chunkMeasures);
 
     let growingTreble = new Melody([], [], [], []);
     const timers = [];
@@ -73,13 +87,17 @@ export default function useLevelKeyModulationStream({
       // same as bass/metronome's "2+2 maten op voorhand" and what slimes/notes need to already be
       // visible (`beatsOnScreen`). The old "half a measure before next chunk's start" gave only ~1.5
       // measures.
+      // #994 (decision D): that buffer is now expressed as `lookaheadMeasures` before the NEXT chunk's
+      // own start, rather than as "when this chunk starts" — identical arithmetic whenever the visible
+      // span is 2 measures, but it keeps the guarantee ("generated before it can be seen") on levels
+      // where the span is wider. See lookaheadMeasures above.
       const nextIndex = chunkIndex + 1;
       if (nextIndex < totalChunks) {
         if (chunkIndex === 0) {
           generateChunk(nextIndex);
         } else {
-          const thisChunkStartTime = contentStartTime + chunkIndex * chunkMeasures * barSec;
-          const delayMs = Math.max(0, (thisChunkStartTime - context.currentTime) * 1000);
+          const nextChunkStartTime = contentStartTime + nextIndex * chunkMeasures * barSec;
+          const delayMs = Math.max(0, (nextChunkStartTime - lookaheadMeasures * barSec - context.currentTime) * 1000);
           timers.push(setTimeout(() => generateChunk(nextIndex), delayMs));
         }
       }

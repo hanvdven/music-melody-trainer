@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Melody from '../model/Melody';
 import { generateLevelMixedBlock } from '../generation/generateLevelMixedBlock';
-import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
 
 // Level 10 (Han 2026-08-06, "mixed level - stuur 2 maten slimes, dan 2 maten wizard (de gebruikelijke
@@ -55,7 +55,14 @@ export default function useLevelMixedStream({
     const totalBlocks = Math.ceil(totalContentMeasures / blockMeasures);
     const runId = `${levelAudioStart}`;
     const leadOffsetSeconds = (lvl.wizardSpawnLeadMeasures ?? 1) * barSec;
-    const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+    // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
+    const leadInBars = lvl.leadInBars ?? 2;
+    const contentStartTime = levelAudioStart + leadInBars * barSec;
+    // #994 (decision D): how far ahead a block must EXIST, separate from how long it is. `blockMeasures`
+    // is Han's fixed musical spec (see its own comment above); the LOOKAHEAD has to track the level's
+    // visible span or notes pop in mid-lane once the span exceeds the block length. Identical arithmetic
+    // to the previous "generate when this block begins" whenever visibleMeasures === 2.
+    const lookaheadMeasures = Math.max(blockMeasures, lvl.visibleMeasures ?? blockMeasures);
 
     let growingTreble = new Melody([], [], [], []);
 
@@ -111,8 +118,11 @@ export default function useLevelMixedStream({
         if (blockIndex === 0) {
           generateAndScheduleBlock(nextIndex);
         } else {
-          const thisBlockStartTime = contentStartTime + blockIndex * blockMeasures * barSec;
-          const delayMs = Math.max(0, (thisBlockStartTime - context.currentTime) * 1000);
+          // #994 (decision D): expressed as `lookaheadMeasures` before the NEXT block's own start rather
+          // than "when this block starts" — the same value whenever the visible span is 2 measures, but
+          // it keeps the generated-before-visible guarantee on levels with a wider span.
+          const nextBlockStartTime = contentStartTime + nextIndex * blockMeasures * barSec;
+          const delayMs = Math.max(0, (nextBlockStartTime - lookaheadMeasures * barSec - context.currentTime) * 1000);
           timers.push(setTimeout(() => generateAndScheduleBlock(nextIndex), delayMs));
         }
       }
