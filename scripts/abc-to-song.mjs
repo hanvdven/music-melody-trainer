@@ -78,16 +78,21 @@ const MODE_ALIASES = {
     dor: 'Dorian', phr: 'Phrygian', lyd: 'Lydian', mix: 'Mixolydian', loc: 'Locrian',
 };
 
-// Non-Diatonic scale families (Pentatonic etc.) have no circle-of-fifths key signature of their own —
-// scaleHandler.js's own `diatonic` field on each mode already names the closest 7-note church-mode
-// reference for exactly this purpose (see its `getDiatonicIntervals`). Reused here (via the imported
-// `scaleDefinitions`, CLAUDE.md §6c) instead of a second hand-maintained scale-name table: any mode
-// added to scaleHandler.js in the future becomes parseable here automatically. Diatonic's own `diatonic`
-// field spells the church-mode name (Ionian/Aeolian) rather than MODE_FIFTHS's key (Major/Minor).
-const CHURCH_MODE_TO_FIFTHS_KEY = {
-    Ionian: 'Major', Aeolian: 'Minor', Dorian: 'Dorian', Phrygian: 'Phrygian',
-    Lydian: 'Lydian', Mixolydian: 'Mixolydian', Locrian: 'Locrian',
-};
+// Bug fix (Han 2026-08-17, sakura UAT: "de noten kloppen, label is verkeerd" — after independently
+// verifying the music theory): an EARLIER version of this fix used scaleHandler.js's per-mode
+// `diatonic` field (e.g. 'In' -> 'Lydian') as a MODE_FIFTHS lookup key, assuming the "closest diatonic
+// reference" scale shares the pentatonic's own tonic. It does NOT — `diatonic`/`heptaRefIntervals`
+// describe a 7-note scale built on a DIFFERENT tonic that happens to contain the pentatonic notes as a
+// subset (e.g. "In" on E is a subset of F LYDIAN, not E Lydian: E-F-A-B-C are all natural, but E Lydian
+// itself has 5 sharps). Naively computing fifths from `MODE_FIFTHS['Lydian']` + the GIVEN tonic (E)
+// produced a bogus 5-sharp key signature that silently forced sharps onto every bare F/C/G/D letter in
+// sakura's tune body — corrupting real pitches despite the ABC source writing plain, correct natural
+// letters throughout. Deriving the TRUE reference tonic generically (it's a fixed but non-obvious
+// semitone offset per mode, not a simple lookup) is unnecessary complexity for a problem with no
+// universally-agreed answer anyway: unlike the 7 diatonic church modes, exotic/pentatonic scales have no
+// standard circle-of-fifths key-signature convention. Non-Diatonic modes therefore force NO key
+// signature at all (fifths=0) — every accidental must be written explicitly in the ABC source, which is
+// how real pentatonic transcriptions (including both shipped ones) are written anyway.
 
 // #1044 follow-up (Han 2026-08-17, arirang "K:F pentatonic major" / sakura "K:A In"): matches a full
 // mode PHRASE (not just a 3-letter ABC abbreviation) against every non-Diatonic family's mode
@@ -119,26 +124,21 @@ function parseKeyField(raw) {
     const shortKey = modeText.toLowerCase().slice(0, 3);
     const diatonicMode = MODE_ALIASES[shortKey] ?? MODE_ALIASES[modeText.toLowerCase()] ?? null;
 
-    let scaleFamily, mode, fifthsSourceMode;
+    let scaleFamily, mode, fifths;
     if (diatonicMode) {
         scaleFamily = 'Diatonic';
         mode = diatonicMode;
-        fifthsSourceMode = diatonicMode;
+        fifths = LETTER_FIFTHS[letter] + (accidental === '#' ? 7 : accidental === 'b' ? -7 : 0) + MODE_FIFTHS[mode];
     } else {
         const found = modeText ? findNonDiatonicMode(modeText) : null;
         if (!found) throw new Error(`Unsupported mode "${modeRaw}" in K: field "${raw}".`);
         scaleFamily = found.family;
         mode = found.mode;
-        // Fall back to Major if a future scale's `diatonic` reference isn't one of the 7 church modes
-        // (shouldn't happen for anything in scaleHandler.js today) — never silently crash a build.
-        fifthsSourceMode = CHURCH_MODE_TO_FIFTHS_KEY[found.diatonic] ?? 'Major';
+        // No forced key signature for non-Diatonic modes — see the comment above findNonDiatonicMode.
+        fifths = 0;
     }
 
-    const fifths = LETTER_FIFTHS[letter] + (accidental === '#' ? 7 : accidental === 'b' ? -7 : 0) + MODE_FIFTHS[fifthsSourceMode];
-    // key-signature accidentals, per natural letter — for a non-Diatonic mode this is the accidental
-    // set of its DIATONIC REFERENCE scale (see CHURCH_MODE_TO_FIFTHS_KEY above), which is what ABC note
-    // letters in the tune body are actually spelled against; the pentatonic scale itself just omits 2
-    // of those 7 degrees, it doesn't change which letters carry a sharp/flat.
+    // key-signature accidentals, per natural letter (empty for every non-Diatonic mode — see above).
     const sig = {};
     if (fifths > 0) for (let i = 0; i < Math.min(fifths, 7); i++) sig[SHARP_ORDER[i]] = 1;
     if (fifths < 0) for (let i = 0; i < Math.min(-fifths, 7); i++) sig[FLAT_ORDER[i]] = -1;
