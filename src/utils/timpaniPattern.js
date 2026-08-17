@@ -19,25 +19,40 @@ import { TICKS_PER_WHOLE } from '../constants/timing';
 const PATTERN = ['C2', 'C2', 'C3', null];
 const QUARTER = TICKS_PER_WHOLE / 4;   // 12 ticks
 
-// #994 (Han 2026-08-14/17, "flexible on screen notes"): `silentLeadMeasures` makes the FIRST N measures
-// all rests. A side-scroll level's lead-in is now as long as its on-screen span (up to 4 measures for
-// Kalinka's 2/4), but only its LAST `countInBars` measures are an audible count-in — the earlier ones are
-// scenery: visible notation and barlines, no sound. The silence is baked into the pattern itself rather
-// than gated at the scheduling call site, because §108 requires the moving percussion STAFF to be built
-// from the exact same pattern the AUDIO is scheduled from (App.jsx's timpaniMelody and SheetMusic.jsx's
-// scrollPercussionMelody both call this with the same args) — gating only the audio would show the staff
-// playing timpani through measures that are actually silent. Offsets/durations stay fully dense so the
-// pattern's tick timeline is unchanged; only the pitches become 'r'.
-export default function buildTimpaniPattern(numMeasures, timeSignature = [4, 4], silentLeadMeasures = 0) {
+// #994 (Han 2026-08-14/17, "flexible on screen notes"): a side-scroll level's lead-in is now as long as
+// its on-screen span (4 measures for Kalinka's 2/4) instead of a fixed 2, and TIMPANI SOUNDS THROUGH ALL
+// OF IT. An earlier #994 draft added a third `silentLeadMeasures` parameter that rested out the first N
+// measures, so the earliest lead-in measures were visible-but-silent scenery. Han live-tested that on
+// Kalinka and rejected it — *"alle opmaten cello+timpanen. de tweede helft (round up) + metronoom
+// erbij"*: every lead-in measure carries cello+timpani, and only the METRONOME is staggered (which this
+// function has nothing to do with — see useLevelBackingStream.js). The parameter was therefore removed
+// rather than left defaulting to 0 (§7: no dead configurability), so nothing can reintroduce leading
+// silence here by accident. Callers pass only (numMeasures, timeSignature); App.jsx's `timpaniMelody`
+// and SheetMusic.jsx's `scrollPercussionMelody` must stay argument-identical, per §108.
+//
+// Bug fix (#1044, Han 2026-08-17, "levels met bijv 7/8 maten werken nog niet goed - veel glitches"):
+// this used to derive a single `quartersPerMeasure = Math.round(measureTicks / QUARTER)` and then lay
+// hits out on a UNIFORM quartersPerMeasure-per-measure grid (`i * QUARTER` where `i` free-runs across
+// the whole piece). That rounding is exact for any meter whose measure divides evenly into quarter
+// notes (4/4, 3/4, 2/4, 6/8, …) but for 7/8 (42 ticks = 3.5 quarters) it rounds to 4 — so each
+// "measure" of hits the loop laid out was actually 48 ticks of uniform grid, 6 ticks longer than the
+// REAL 42-tick measure. That 6-tick error compounded every single measure (measure 2 already 12 ticks
+// off, measure 3 18 ticks off, …), an ever-growing desync between the timpani/notation and the real
+// barlines. Fixed by deriving `beatInMeasure`/measure membership from each hit's OWN absolute tick
+// position modulo the REAL `measureTicks`, instead of from a rounded per-measure hit count — every
+// measure re-syncs to its own true boundary, so any phase slip within a measure (unavoidable when a
+// meter doesn't divide evenly into quarters) never accumulates into the next one. Byte-identical output
+// for every meter that DOES divide evenly (the whole existing test suite), since `beatInMeasure` reduces
+// to the old `i % quartersPerMeasure` exactly when `measureTicks` is a multiple of `QUARTER`.
+export default function buildTimpaniPattern(numMeasures, timeSignature = [4, 4]) {
     const measureTicks = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
-    const quartersPerMeasure = Math.max(1, Math.round(measureTicks / QUARTER));
-    const totalQuarters = quartersPerMeasure * Math.max(1, numMeasures);
+    const totalTicks = measureTicks * Math.max(1, numMeasures);
     const notes = [], offsets = [], durations = [];
-    for (let i = 0; i < totalQuarters; i++) {
-        const beatInMeasure = i % quartersPerMeasure;
-        const inSilentLeadIn = Math.floor(i / quartersPerMeasure) < silentLeadMeasures;
-        notes.push(inSilentLeadIn ? 'r' : (PATTERN[beatInMeasure % PATTERN.length] ?? 'r'));
-        offsets.push(i * QUARTER);
+    for (let t = 0; t < totalTicks; t += QUARTER) {
+        const measureIndex = Math.floor(t / measureTicks);
+        const beatInMeasure = Math.floor((t - measureIndex * measureTicks) / QUARTER);
+        notes.push(PATTERN[beatInMeasure % PATTERN.length] ?? 'r');
+        offsets.push(t);
         durations.push(QUARTER);
     }
     return { notes, offsets, durations, ties: new Array(notes.length).fill(null) };
