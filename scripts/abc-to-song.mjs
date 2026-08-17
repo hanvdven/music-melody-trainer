@@ -47,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import { TICKS_PER_WHOLE } from '../src/constants/timing.js';
 import { DEFAULT_BPM } from '../src/constants/generatorDefaults.js';
 import { normalizeNoteChars } from '../src/theory/noteUtils.js';
-import { scaleDefinitions } from '../src/theory/scaleHandler.js';
+import { scaleDefinitions, generateNumAccidentals } from '../src/theory/scaleHandler.js';
 
 // ── tiny exact-rational helpers ───────────────────────────────────────────────────────────────────
 // Durations are multiplied by 1/2, 3/2 and 2/3 (halved notes, broken rhythm, triplets); doing that in
@@ -61,12 +61,16 @@ const rcmp = (a, b) => a.n * b.d - b.n * a.d;
 const rint = (a) => (a.n % a.d === 0 ? a.n / a.d : null);
 
 // ── key signatures ────────────────────────────────────────────────────────────────────────────────
-// Position on the circle of fifths for each natural letter (F=-1 … B=5); each ♯ adds 7, each ♭ subtracts 7.
-const LETTER_FIFTHS = { F: -1, C: 0, G: 1, D: 2, A: 3, E: 4, B: 5 };
-// A mode's own displacement on the circle of fifths relative to its parallel Ionian. Same relationship
-// scaleHandler.js encodes for its Diatonic family; kept as a plain table here because this build-time
-// script must run without the app's React/scale machinery.
-const MODE_FIFTHS = { Major: 0, Dorian: -2, Phrygian: -4, Lydian: 1, Mixolydian: -1, Minor: -3, Locrian: -5 };
+// Bug fix (Han 2026-08-17, sakura UAT — first "de noten kloppen, label is verkeerd", then correctly
+// rejecting the follow-up's own "just return 0 for non-Diatonic" cop-out: "wat ben je nu allemaal aan
+// het hardcoden??? In heeft een heptatonic equivalent, de voortekens worden automatisch gegeven"): the
+// key-signature (fifths) computation used to be a SECOND, hand-maintained copy of exactly the math
+// scaleHandler.js's own `generateNumAccidentals` already does — LETTER_FIFTHS + MODE_FIFTHS tables that
+// (in an earlier version of this fix) got the non-Diatonic case wrong by assuming a mode's `diatonic`
+// reference shares its own tonic. `generateNumAccidentals` was fixed there to derive the TRUE reference
+// tonic generically from `heptaRefIntervals` (no lookup table, §6c) — imported and reused directly here
+// instead of re-deriving/duplicating that fix a second time. This script now has ZERO independent
+// key-signature math of its own.
 const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 
@@ -78,26 +82,10 @@ const MODE_ALIASES = {
     dor: 'Dorian', phr: 'Phrygian', lyd: 'Lydian', mix: 'Mixolydian', loc: 'Locrian',
 };
 
-// Bug fix (Han 2026-08-17, sakura UAT: "de noten kloppen, label is verkeerd" — after independently
-// verifying the music theory): an EARLIER version of this fix used scaleHandler.js's per-mode
-// `diatonic` field (e.g. 'In' -> 'Lydian') as a MODE_FIFTHS lookup key, assuming the "closest diatonic
-// reference" scale shares the pentatonic's own tonic. It does NOT — `diatonic`/`heptaRefIntervals`
-// describe a 7-note scale built on a DIFFERENT tonic that happens to contain the pentatonic notes as a
-// subset (e.g. "In" on E is a subset of F LYDIAN, not E Lydian: E-F-A-B-C are all natural, but E Lydian
-// itself has 5 sharps). Naively computing fifths from `MODE_FIFTHS['Lydian']` + the GIVEN tonic (E)
-// produced a bogus 5-sharp key signature that silently forced sharps onto every bare F/C/G/D letter in
-// sakura's tune body — corrupting real pitches despite the ABC source writing plain, correct natural
-// letters throughout. Deriving the TRUE reference tonic generically (it's a fixed but non-obvious
-// semitone offset per mode, not a simple lookup) is unnecessary complexity for a problem with no
-// universally-agreed answer anyway: unlike the 7 diatonic church modes, exotic/pentatonic scales have no
-// standard circle-of-fifths key-signature convention. Non-Diatonic modes therefore force NO key
-// signature at all (fifths=0) — every accidental must be written explicitly in the ABC source, which is
-// how real pentatonic transcriptions (including both shipped ones) are written anyway.
-
-// #1044 follow-up (Han 2026-08-17, arirang "K:F pentatonic major" / sakura "K:A In"): matches a full
-// mode PHRASE (not just a 3-letter ABC abbreviation) against every non-Diatonic family's mode
-// name/wheelName/aliases, case-insensitively. Diatonic is skipped — MODE_ALIASES already owns the
-// standard short ABC forms ("m", "dor", …) for that family.
+// Matches a full mode PHRASE (not just a 3-letter ABC abbreviation) against every non-Diatonic family's
+// mode name/wheelName/aliases, case-insensitively — Diatonic is skipped, MODE_ALIASES already owns the
+// standard short ABC forms ("m", "dor", …) for that family. Purely a NAME/FAMILY resolution helper now
+// (the key-signature math moved to the shared generateNumAccidentals import above).
 function findNonDiatonicMode(modeText) {
     const needle = modeText.toLowerCase();
     for (const [family, defs] of Object.entries(scaleDefinitions)) {
@@ -105,7 +93,7 @@ function findNonDiatonicMode(modeText) {
         for (const def of defs) {
             const candidates = [def.name, def.wheelName, ...(def.aliases || [])].filter(Boolean);
             if (candidates.some((c) => c.toLowerCase() === needle)) {
-                return { family, mode: def.name, diatonic: def.diatonic };
+                return { family, mode: def.name };
             }
         }
     }
@@ -124,21 +112,21 @@ function parseKeyField(raw) {
     const shortKey = modeText.toLowerCase().slice(0, 3);
     const diatonicMode = MODE_ALIASES[shortKey] ?? MODE_ALIASES[modeText.toLowerCase()] ?? null;
 
-    let scaleFamily, mode, fifths;
+    let scaleFamily, mode;
     if (diatonicMode) {
         scaleFamily = 'Diatonic';
         mode = diatonicMode;
-        fifths = LETTER_FIFTHS[letter] + (accidental === '#' ? 7 : accidental === 'b' ? -7 : 0) + MODE_FIFTHS[mode];
     } else {
         const found = modeText ? findNonDiatonicMode(modeText) : null;
         if (!found) throw new Error(`Unsupported mode "${modeRaw}" in K: field "${raw}".`);
         scaleFamily = found.family;
         mode = found.mode;
-        // No forced key signature for non-Diatonic modes — see the comment above findNonDiatonicMode.
-        fifths = 0;
     }
+    // key-signature fifths, for ANY family — scaleHandler.js's generateNumAccidentals derives the true
+    // diatonic-reference tonic generically from heptaRefIntervals (§6c: no lookup table here at all).
+    const fifths = generateNumAccidentals(letter + accidental, mode);
 
-    // key-signature accidentals, per natural letter (empty for every non-Diatonic mode — see above).
+    // key-signature accidentals, per natural letter.
     const sig = {};
     if (fifths > 0) for (let i = 0; i < Math.min(fifths, 7); i++) sig[SHARP_ORDER[i]] = 1;
     if (fifths < 0) for (let i = 0; i < Math.min(-fifths, 7); i++) sig[FLAT_ORDER[i]] = -1;

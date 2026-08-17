@@ -561,17 +561,17 @@ const generateNumAccidentals = (anyTonic, modeName) => {
 
     const cleanName = modeName.split('.').pop().trim().split('(')[0].trim();
 
-    // Returns which SCALE FAMILY (Diatonic/Pentatonic/Hexatonic/...) a mode name actually belongs to,
-    // plus its `diatonic` reference field.
+    // Returns a mode definition's `diatonic` reference field + the interval data needed to derive
+    // where that reference scale's OWN tonic actually sits (see deriveReferenceTonicOffset below).
     const findDiatonicForMode = (name) => {
-        for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
+        for (const modeDefs of Object.values(scaleDefinitions)) {
             if (!Array.isArray(modeDefs)) continue;
             for (const modeDef of modeDefs) {
                 const legacyKey = modeDef.index
                     ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}`
                     : modeDef.wheelName || modeDef.name;
                 if (legacyKey === name || modeDef.name === name || modeDef.wheelName === name) {
-                    return { family, diatonic: modeDef.diatonic || null };
+                    return modeDef;
                 }
             }
         }
@@ -579,31 +579,63 @@ const generateNumAccidentals = (anyTonic, modeName) => {
     };
 
     const found = findDiatonicForMode(modeName) || findDiatonicForMode(cleanName);
-
-    // Bug fix (Han 2026-08-17, live UAT: Sakura ("E In", Pentatonic) showed 5 sharps): this used to
-    // ALWAYS start from `circleOfFifths[tonicNote]` (the GIVEN tonic's own circle-of-fifths position)
-    // and add `modeAdjustments[modeDef.diatonic]` — correct for an actual DIATONIC mode (its `diatonic`
-    // reference genuinely IS itself, same tonic: e.g. E Phrygian's reference is Phrygian-on-E). But for
-    // a non-Diatonic mode (Pentatonic etc.), `diatonic` names a DIFFERENT scale built on a DIFFERENT
-    // tonic that merely CONTAINS the pentatonic notes as a subset — "In" on E is a subset of F LYDIAN,
-    // not E Lydian. Blindly combining the GIVEN tonic (E, circleOfFifths=4) with the reference mode's
-    // adjustment (Lydian=+1) produced a bogus 5-sharp signature, silently forcing sharps onto notes that
-    // are actually natural (E-F-A-B-C). Deriving the TRUE reference tonic generically is real complexity
-    // for a problem with no universally-agreed answer anyway — unlike the 7 diatonic church modes,
-    // exotic/pentatonic scales have no standard circle-of-fifths key-signature convention. Non-Diatonic
-    // modes therefore get NO forced accidentals (0) — same fix, same reasoning, as
-    // scripts/abc-to-song.mjs's parseKeyField (§252/§1044).
-    if (found && found.family !== 'Diatonic') {
-        return 0;
+    if (!found || !found.diatonic) {
+        return circleOfFifths[tonicNote] !== undefined ? circleOfFifths[tonicNote] : 0;
     }
 
-    let accidentals = circleOfFifths[tonicNote] !== undefined ? circleOfFifths[tonicNote] : 0;
-    const modeType = found?.diatonic;
-    if (modeType && modeAdjustments[modeType] !== undefined) {
-        accidentals += modeAdjustments[modeType];
-    }
+    // Bug fix (Han 2026-08-17, live UAT: Sakura ("E In", Pentatonic) showed 5 sharps; Han, correctly,
+    // on the FIRST fix's "just return 0" cop-out: "wat ben je nu allemaal aan het hardcoden??? In heeft
+    // een heptatonic equivalent, de voortekens worden automatisch gegeven"): a mode's `diatonic`
+    // reference field does NOT necessarily share the mode's own tonic — "In" on E is a subset of F
+    // LYDIAN, a DIFFERENT tonic, not E Lydian. `heptaRefIntervals` (already present on every non-
+    // Diatonic mode definition) spells out that reference scale's OWN interval pattern; comparing its
+    // pitch-class set against the mode's own `intervals` pitch-class set derives EXACTLY which semitone
+    // offset the reference tonic sits at — no lookup table, no hardcoded per-mode case (§6c). For an
+    // actual Diatonic mode (no `heptaRefIntervals` of its own — its reference genuinely IS itself), the
+    // fallback `found.intervals` compared against itself trivially resolves to offset 0, so this single
+    // formula reproduces the previous (correct) Diatonic-only behaviour as a special case of the general
+    // one, rather than needing two separate code paths.
+    const refIntervals = found.heptaRefIntervals ?? found.intervals;
+    const offsetSemitones = deriveReferenceTonicOffset(found.intervals, refIntervals);
 
-    return accidentals;
+    // Shift the GIVEN tonic's own circle-of-fifths position by that many semitones — each semitone is
+    // +7 on the (unbounded) fifths axis, reduced back into the same ±7 range every real key signature
+    // lives in (mirrors how transposing a key signature by any interval already works: a semitone is
+    // just a very indirect enharmonic path around the circle of fifths).
+    let refFifths = (circleOfFifths[tonicNote] ?? 0) + 7 * offsetSemitones;
+    while (refFifths > 7) refFifths -= 12;
+    while (refFifths < -7) refFifths += 12;
+
+    return refFifths + (modeAdjustments[found.diatonic] ?? 0);
+};
+
+// Cumulative pitch-class offsets (mod 12) for a closed interval array — e.g. [2,2,1,2,2,2,1] (Ionian)
+// -> [0,2,4,5,7,9,11]. The LAST interval closes the scale back to the octave-equivalent tonic, so only
+// the first (length-1) intervals produce a note offset.
+const cumulativeOffsets = (intervals) => {
+    const offsets = [0];
+    let acc = 0;
+    for (let i = 0; i < intervals.length - 1; i++) {
+        acc = (acc + intervals[i]) % 12;
+        offsets.push(acc);
+    }
+    return offsets;
+};
+
+// Derives the semitone offset from a scale's own tonic to its `diatonic`-reference scale's tonic: the
+// shift `d` (0-11) such that the scale's own pitch-class SET (from `intervals`) is fully contained
+// within the reference scale's pitch-class set (from `refIntervals`) once the reference is transposed
+// up by `d` semitones. For a genuine Diatonic mode, `refIntervals` is the mode's own `intervals` (no
+// separate `heptaRefIntervals`), so the sets are identical and d=0 is found immediately — the general
+// case subsumes the "same tonic" special case instead of assuming it.
+const deriveReferenceTonicOffset = (intervals, refIntervals) => {
+    const ownOffsets = cumulativeOffsets(intervals);
+    const refOffsets = cumulativeOffsets(refIntervals);
+    for (let d = 0; d < 12; d++) {
+        const shifted = new Set(refOffsets.map((h) => (h + d) % 12));
+        if (ownOffsets.every((o) => shifted.has(o))) return d;
+    }
+    return 0; // unreachable for any real scaleHandler.js scale definition; safe fallback only
 };
 
 /**
