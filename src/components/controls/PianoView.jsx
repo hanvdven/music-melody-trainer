@@ -627,6 +627,29 @@ const PianoView = ({
       };
     }
 
+    // SCALE + SUBTLE CHROMA MODE (#1049 follow-up, Han 2026-08-17, "het klavier is niet gekleurd"):
+    // this file has its own separate color computation from the staff's canonical `melodicNoteColor`
+    // (noteUtils.js) — chromatone/subtle-chroma above are ALSO hand-rolled here rather than reusing
+    // that helper, an existing pattern this follows rather than introduces (§6d: match the nearest
+    // sibling behavior on this surface). Same subtle-chroma gradient (60%/85% mix ratios) as above,
+    // gated on `isInScale` (already computed from the live `scale` prop, unaffected by the
+    // trebleSettings.scaleNotes bug fixed in SheetMusic.jsx the same session) — untinted otherwise.
+    if (noteColoringMode === 'scale-subtle-chroma') {
+      if (isInScale) {
+        const semitone = getNoteSemitone(cmp);
+        const baseColor = `var(--chromatone-${semitone})`;
+        const mixTarget = isBlack ? 'black' : 'white';
+        const topColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 60%)`;
+        const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 85%)`;
+        return {
+          ...transposeSetterCGlow,
+          background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
+          color: defaultTextColor,
+        };
+      }
+      return { ...transposeSetterCGlow, color: defaultTextColor };
+    }
+
     // TONIC + SCALE KEYS MODE
     if (noteColoringMode === 'tonic_scale_keys') {
       if (isTonic && isHighlightActive) {

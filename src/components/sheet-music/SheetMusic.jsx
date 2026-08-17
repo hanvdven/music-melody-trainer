@@ -734,10 +734,16 @@ const SheetMusic = ({
   // close over the rangeEditMode/clefEditMode props; it is now called with them passed explicitly
   // (see clefTreble/clefBass below).
 
+  // Bug fix (Han 2026-08-17, live UAT: "enkel de tonica is gekleurd" on both 'Scale' and the new
+  // 'scale-subtle-chroma' mode): `trebleSettings.scaleNotes` is never populated ANYWHERE in the app —
+  // `InstrumentSettings.js` (its own model) has no such field, so this was always `[]`, silently
+  // reducing every scaleNotes-dependent color mode to "tonic only" since the day tonic_scale_keys
+  // shipped. The AUTHORITATIVE scale data lives on the `scale` prop just above (`.notes` — same source
+  // ChordStyleOverlay.jsx already correctly reads via `scale?.notes`, §6c: reuse the working pattern).
   // Memoised so the empty-array fallback gets a stable reference across renders —
   // required for React.memo on MelodyNotesLayer to hit the cache (otherwise a
   // fresh [] each render forces re-renders even when nothing has changed).
-  const scaleNotes = useMemo(() => trebleSettings?.scaleNotes || [], [trebleSettings?.scaleNotes]);
+  const scaleNotes = useMemo(() => scale?.notes || [], [scale?.notes]);
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
