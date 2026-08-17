@@ -17116,3 +17116,77 @@ data genuinely doesn't exist.
 `cumulativeOffsets`, + test), `scripts/abc-to-song.mjs` (`parseKeyField` now calls the shared function;
 `LETTER_FIFTHS`/`MODE_FIFTHS` removed), `src/songs/data/sakura.json`, `src/songs/data/arirang.json`
 (regenerated, zero note diffs).
+
+### §256. Side-scroll level breaks completely on second level start — stale free-running clock anchor (Han 2026-08-17)
+
+**Symptom:** Han: "na tweede keer level starten gaat het helemaal bad" — starting a side-scroll level a
+second (or later) time in the same session produced console spam ("EXTRA NOTE (nothing due)"), severe
+main-thread stalls, and notes that never arrived ("noten komen nooit"). The first level played in a
+session always worked; only later ones broke.
+
+**Root cause:** `SheetRpgLayer.jsx` stays mounted across level changes. Its rAF loop's `clockStartRef` is
+the FREE-RUNNING fallback anchor, used only during the window before the real audio anchor
+(`scrollStartTime`) exists — it was lazily set once (`clockStartRef.current == null ? nowMs : ...`
+`clockStartRef.current`) and never reset anywhere. `scrollStartTime` legitimately returns to `null` on
+every level close and only becomes real again once the new level's instruments are confirmed ready
+(App.jsx's audio-race fix, §… — deliberately delayed). During that real, recurring null-window on a
+SECOND level start, the loop fell back to `clockStartRef` — but it still held its value from the FIRST
+level, potentially minutes old — producing a massive, wrong tick (`t`) for every timing formula in the
+file: spawn gating, hit-detection due-windows, wave-start calculations. That is exactly "notes never
+arrive" and "EXTRA NOTE (nothing due)" spamming for every real note played, plus the main-thread stalls
+from runaway per-frame computation against a corrupted tick.
+
+**Fix:** reset `clockStartRef.current = null` in the same `useEffect` that already resets
+`debugLoggedUnfreezeRef` on `[scrollStartTime]` change — same trigger, same reasoning: a fresh anchor
+cycle must never inherit anything from the last one.
+
+**Invariant:** any ref-based "lazily initialize once" pattern in a component that "stays mounted across
+level changes" (a recurring pattern in this file — see `debugLoggedUnfreezeRef`'s own comment) must be
+re-examined for whether it also needs resetting on the same re-entry trigger. Lazy-once initialization is
+only safe for values that are genuinely mount-lifetime constants.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`clockStartRef` reset added to the existing
+`[scrollStartTime]` effect).
+
+### §257. Regular tempo-locked stutter in side-scroll notation/slime motion — JSX `transform` fighting the rAF loop (#1050 follow-up, Han 2026-08-17)
+
+**Symptom:** Han, after §256 shipped: "pretty clear and steady 1/12-th note stutter. Not smooth at all,
+but very regular." Motion was not smooth despite the earlier #1050 tick-quantization fix (`sideScrollX`'s
+`rawElapsedMs` param) and despite #863's imperative rAF-driven positioning already existing.
+
+**Root cause:** the scroll `<g>` wrapper groups (barline/treble-note/rest/real/bass/percussion — see
+`barlineScrollRef` etc.) set `transform` TWO ways simultaneously:
+
+1. Declaratively via a JSX prop, computed from `scrollPx` in the render body.
+2. Imperatively via `setAttribute('transform', …)` in the rAF loop, every animation frame.
+
+The JSX value was *intended* to be "only the INITIAL/first-paint value" (per its own pre-existing
+comment) with the rAF loop taking over immediately after — but nothing actually pinned it to first-paint.
+It was a plain expression recomputed from the live `tickRef.current` on every render. This component
+re-renders at `frameTick` (sprite-frame) cadence — `FRAMES_PER_BEAT` (5) times per beat, tempo-locked,
+hence "steady" — and every one of those renders wrote a FRESH `scrollPx` into the JSX `transform` prop,
+which React dutifully pushed to the DOM, instantly overwriting whatever smooth position the rAF loop had
+already glided to. The result: smooth motion for up to one `frameMs` interval, then a snap back to the
+frameTick-cadence-sampled position, repeating every beat subdivision — a perfectly regular stutter. This
+is the exact class of bug CLAUDE.md §6 already documents for `opacity` ("React re-renders will overwrite
+inline style set by rAF"), just not yet guarded for `transform` in this file — JSX props and
+`setAttribute` both write the same DOM attribute, so anything continuously rAF-driven must never also be
+a reactive JSX prop.
+
+**Fix:** froze the JSX-side starting value. `frozenScrollPxRef` is written exactly once per wave, inside
+the `[notesKey, scrollStartTime]` effect that already resets `waveStartRef` (the only place a wave's
+scroll clock restarts) — never inside the render body. The render body now reads
+`frozenScrollPxRef.current` instead of recomputing from `tickRef.current`, so its JSX value is identical
+across every subsequent frameTick render; React's reconciliation sees no change and never touches the
+`transform` attribute again after first paint. 100% of ongoing motion is now the rAF loop's imperative
+writes, uninterrupted.
+
+**Invariant:** extends CLAUDE.md §6's "never set opacity via JSX props on animated elements" — the same
+rule applies to `transform` (and any other attribute) once an rAF loop imperatively owns it. Any value
+computed in a render body that a comment describes as "only the initial/first-paint value" must actually
+be pinned (a ref written once at the appropriate reset point) — a plain re-evaluated expression is NOT
+pinned just because a comment says so, and will be silently re-asserted on every render that happens to
+occur, however that render was triggered.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (new `frozenScrollPxRef`, written in the
+wave-reset effect, read in place of the old per-render `scrollPx` computation).

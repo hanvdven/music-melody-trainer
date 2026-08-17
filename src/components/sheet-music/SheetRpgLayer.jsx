@@ -994,6 +994,16 @@ export default function SheetRpgLayer({
     const onCritterKilledRef = useRef(onCritterKilled); onCritterKilledRef.current = onCritterKilled;
     const onFirstTickUnfrozenRef = useRef(onFirstTickUnfrozen); onFirstTickUnfrozenRef.current = onFirstTickUnfrozen;
     const waveStartRef = useRef(0);                        // tick at which the current wave's clock started
+    // #1050 follow-up (Han 2026-08-17, "pretty clear and steady 1/12-th note stutter"): the JSX-side
+    // `transform` on the scroll `<g>` groups (barlineScrollRef/noteScrollRef/etc., see their declaration
+    // near `scrollPx` below) must be a value that's set ONCE per wave and then left alone — never
+    // recomputed from the live tick on a later render — or React's reconciliation stomps the rAF loop's
+    // smooth imperative position back to a stale snapshot every time this component re-renders (which
+    // happens at `frameTick`/sprite-frame cadence, FRAMES_PER_BEAT times per beat — tempo-locked, hence
+    // "steady"). Exactly the `opacity`-via-JSX-props bug CLAUDE.md §6 already bans, for `transform`
+    // instead. Written once by the wave-reset effect below (the only place `waveStartRef` changes), read
+    // (never written) by the render body.
+    const frozenScrollPxRef = useRef(0);
     const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
@@ -1391,6 +1401,16 @@ export default function SheetRpgLayer({
         // count etc.) on that transition is harmless — no real combat could have happened during the
         // pre-anchor free-run.
         waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
+        // #1050 follow-up: freeze the JSX-side scroll transform's starting value HERE — the only place
+        // `waveStartRef` changes — instead of letting the render body recompute it from the live tick on
+        // every re-render (see `frozenScrollPxRef`'s own declaration for why that stomps the rAF loop's
+        // smooth motion). A fresh wave always starts at this position; the rAF loop takes over completely
+        // from the very next frame.
+        {
+            const g = geomRef.current;
+            const scrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+            frozenScrollPxRef.current = g.sideScroll && g.beatMs > 0 ? (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist : 0;
+        }
         // TEMP DEBUG (Han 2026-08-10, #824 follow-up round 3, "notes arrive very late"): logs the exact
         // inputs to the flight-time formula the instant the wave (re)starts, so the expected arrival
         // delay (beat=0's own `beatsOnScreen * beatMs`) can be checked directly against what's actually
@@ -1769,12 +1789,24 @@ export default function SheetRpgLayer({
     // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
     const dist = viewRight - startX;
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
-    // #863: `tick` state is gone — this is now only the INITIAL/first-paint value (used as the JSX
+    // #863: `tick` state is gone — this is only the INITIAL/first-paint value (used as the JSX
     // `<g>` wrappers' initial `transform` attribute below); every subsequent frame the SAME formula is
     // re-evaluated imperatively in the rAF loop (see the `framePx` computation there) and pushed straight
     // to those `<g>` elements via `barlineScrollRef`/`noteScrollRef`/etc., bypassing React entirely.
-    const scrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
-    const scrollPx = sideScroll && beatMs > 0 ? (scrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
+    //
+    // Bug fix (#1050 follow-up, Han 2026-08-17, "pretty clear and steady 1/12-th note stutter"): this
+    // used to recompute from the LIVE `tickRef.current` right here, on every render — but this component
+    // re-renders at `frameTick` (sprite-frame) cadence, FRAMES_PER_BEAT times per beat (tempo-locked,
+    // hence "steady"). Each such render produced a FRESH `scrollPx`, which React dutifully wrote to the
+    // `transform` attribute below — instantly overwriting whatever smooth position the rAF loop had
+    // already reached via its own `setAttribute` calls. Same class of bug CLAUDE.md §6 already bans for
+    // `opacity` ("React re-renders will overwrite inline style set by rAF"): JSX props and the rAF loop's
+    // `setAttribute` both target the same DOM attribute, so JSX must never keep re-asserting a live value.
+    // Now reads `frozenScrollPxRef` — written ONCE per wave by the `[notesKey, scrollStartTime]` effect
+    // above (the only place `waveStartRef` changes), untouched by any later frameTick render. Its JSX
+    // value therefore never changes after the wave starts, so React never touches this attribute again —
+    // the rAF loop owns 100% of the ongoing motion, uninterrupted.
+    const scrollPx = frozenScrollPxRef.current;
     // #661 (Han 2026-08-02): end-of-song final barline (thin + thick) at the end of the last measure. Lives in
     // the barline translate group (pure tick boundary, scrolls with the staff). endTick = numMeasures·mls.
     // Same value as `trebleFinalBarTick` above (kept as a separate 0-default variable here since this
