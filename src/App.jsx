@@ -1452,7 +1452,15 @@ const App = () => {
         // unlike bass/metronome below, which are now JIT-generated chunk by chunk (useLevelBackingStream)
         // to fix the desync/measure-0-only/inaudible-cello bugs. Timpani never had those bugs (it isn't
         // racing an async instrument swap or a regenerated melody), so it needs no change in kind.
-        if (percussionSettings?.melodic && timpaniRef.current && timpaniMelody) {
+        // #1052 (Han 2026-08-17, gated-scroll levels — "freeze the pulse, keep the cello"): timpani IS
+        // the tempo-locked "pulse" here — it's scheduled once, up front, at fixed real-time offsets from
+        // `levelAudioStart`, with no hook to pause/resume it mid-stream. A gated level has no fixed tempo
+        // to click to in the first place (the scroll waits for the player, not a metronome), so the
+        // simplest correct behavior is to not schedule it at all — never a `if (!gatedScroll)` special
+        // case deep in the scheduling math, just skip the one call site that starts it. Cello/bass
+        // (`useLevelBackingStream`) needs NO equivalent gate: it's JIT-scheduled against real
+        // AudioContext time and is already fully decoupled from the visual gate state.
+        if (percussionSettings?.melodic && timpaniRef.current && timpaniMelody && !lvl.gatedScroll) {
             playMelodies(
                 [timpaniMelody], [timpaniRef.current],
                 context, bpm, levelAudioStart,
@@ -2821,6 +2829,11 @@ const App = () => {
                             onEnemyTotal={level.active ? level.setTotalEnemies : undefined}
                             onCritterTotal={level.active ? level.setTotalCritters : undefined}
                             sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
+                            // #1052 (Han 2026-08-17, "gated scroll" — Level 1): scroll advances normally
+                            // between notes, but freezes the instant a note reaches the hit window until
+                            // the player defeats it. Same "explicit level field" convention as sideScroll
+                            // above — only meaningful when sideScroll is also true.
+                            gatedScroll={level.active && !!level.current.gatedScroll}
                             // #889 follow-up (Han 2026-08-14, "de invliegende noten hebben dezelfde
                             // hardcoded 8-kwart-tellen offset"): levels.js's normalizeLevel() derives
                             // the correct meter-aware beatsOnScreen onto level.current, but it was never

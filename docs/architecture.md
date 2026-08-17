@@ -17237,3 +17237,87 @@ ALSO owns that attribute.
 **Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`freezeOnce` helper + `frozenSlimePropsRef`/
 `frozenBassSlimePropsRef`/`frozenCritterPropsRef`/`frozenSwitchPropsRef`, all cleared in the wave-reset
 effect; treble Slime/Projectile, bass Slime, Critter, and switch-flourish render call sites updated).
+
+### §259. "Gated scroll" — Level 1 waits for the player instead of running on a fixed clock (#1052, Han 2026-08-17)
+
+**Purpose:** Han: "ik wil dat het level doorschuift (~90 bpm) tot een volgende slime precies op perfect
+timing staat. Dan wacht het level tot de slime verslagen is vooraleer verder te bewegen." Level 1 (a
+total-beginner level) previously ran the same fixed-tempo continuous scroll as every other side-scroll
+level — notes that arrived late without being hit simply expired as misses, exactly like a rhythm-skill
+level. A gated level instead removes time pressure entirely: it teaches note recognition, not rhythm.
+
+**New level field:** `gatedScroll` (boolean, `levels.json`) — only meaningful when `sideScroll` is also
+true. Level 1 is now `sideScroll: true, gatedScroll: true` (previously `sideScroll: false`, the old
+"static idle combat" mode — converting it to a scrolling-with-gates presentation is what "doorschuift"
+asked for). Threaded straight through App.jsx → `SheetMusic` → `SheetRpgLayer` as a plain prop, same
+convention as `sideScroll` itself, and mirrored into `geomRef.current.gatedScroll` so the rAF loop always
+reads the current value (§6c — same pattern every other per-render geometry field in this file uses).
+
+**How it works:** the scroll clock (`tRawMs`/`tickRef.current`) freezes the INSTANT the earliest
+still-unresolved slime reaches its own "perfect timing" instant — the exact same `delta === 0` arrival
+formula the hit-detection window and expiry effect already use (§6c), so no second timing formula was
+introduced. Implementation is a single ms accumulator (`gatedPauseAccumMsRef`), not a second parallel
+clock:
+
+- `rawTRawMsRef` tracks the RAW (never-frozen) elapsed-ms-since-anchor every rAF frame — real wall-clock
+  time, always advancing.
+- While gated and not yet frozen, the loop checks whether the earliest unresolved slime's arrival
+  threshold has been crossed (`waveElapsedMs >= (beat + beatsOnScreen) * beatMs`); the instant it has,
+  `gatedFrozenRef` flips true and `gatedFreezeStartRawMsRef` captures the raw ms at that moment.
+- While frozen, the EFFECTIVE `tRawMs` (and therefore `t`/`tickRef.current`) is pinned to
+  `gatedFreezeStartRawMsRef − gatedPauseAccumMsRef` — constant, every frame.
+- On a correct hit, `gatedPauseAccumMsRef` absorbs the real time just spent frozen
+  (`rawTRawMsRef.current − gatedFreezeStartRawMsRef.current`) and `gatedFrozenRef` flips false — the very
+  next frame's effective `tRawMs` resumes exactly where it froze, with no jump.
+
+**Why freezing the ONE shared clock is sufficient:** every position/hit-window/wave-elapsed/expiry formula
+in this file already reads `tickRef.current`/`tRawMs` — nothing else needed a gate. In particular the
+existing "miss on expiry" effect (§ near `MUCH_TOO_BEATS`) simply can never reach its own threshold while
+frozen, since `elapsedMs` (derived from the same frozen clock) never advances past the arrival instant —
+a note genuinely cannot expire while gated, without a separate "is this level gated" check in that effect.
+
+**Grading while gated:** a correct hit always grades `{category:'perfect', points:1}` — gradeHit's own
+literal shape, reused rather than reinvented (§6c) — regardless of how long the player took. The existing
+`wrongAttempt → 'secondAttemptCorrected'` demotion is unaffected (orthogonal to timing: getting it wrong
+once still costs the correctness bump even with unlimited time to retry). A wrong pitch while gated shows
+the existing live `'wrongNote'` judgment and does NOT resolve the slime — the freeze simply continues,
+with no timeout, for free (this path already didn't touch `resolvedRef`/the gate state).
+
+**Wait indicator:** ALL on-screen slimes (not just the gating one) switch to their idle/breathing
+animation while frozen — `slimeWalkOrIdleFrame(p)`, a small shared helper reading the RAW clock
+(`rawTRawMsRef`, so slimes visibly keep breathing even though the walk cycle itself is frozen) called from
+both the rAF loop's imperative `setFrame` pushes AND the `freezeOnce` mount-time JSX cache (§258 — one
+formula, not two that could drift). Han: "use the idle animation for all slimes" — the idle-vs-walk state
+IS the "waiting for you" cue; no separate glow/prompt was added.
+
+**Audio:** cello/bass (`useLevelBackingStream`) needed NO code change — it JIT-schedules against real
+AudioContext time and was already fully decoupled from the visual gate state, so it keeps playing through
+a freeze automatically (Han: "keep the cello" — pure atmosphere, not a metronome). Timpani (App.jsx) IS
+the tempo-locked "pulse" — it's scheduled once, up front, for the whole level at fixed real-time offsets
+from `levelAudioStart`, with no hook to pause/resume it mid-stream. Rather than build one, the one
+scheduling call site is simply skipped for `gatedScroll` levels (`!lvl.gatedScroll` added to its existing
+guard) — a gated level has no fixed tempo to click to in the first place. `useLevel.js`'s
+`melodic: !!lvl.sideScroll` (which shows/hides pitched timpani notation) was extended to
+`!!lvl.sideScroll && !lvl.gatedScroll` for the same reason — showing melodic percussion notation for
+audio that will never play would be misleading.
+
+**Invariants:**
+
+- `gatedScroll` is only ever consulted alongside `sideScroll` — never meaningful on its own.
+- The freeze mechanism must never introduce a SECOND clock; every consumer of `tickRef.current`/`tRawMs`
+  must keep working unmodified. If a future feature needs something to advance WHILE gated-frozen (like
+  the idle-breathing animation here), read `rawTRawMsRef` directly rather than adding a bypass to the
+  shared clock.
+- `gatedPauseAccumMsRef`/`gatedFrozenRef` must be cleared on every wave reset (the existing
+  `[notesKey, scrollStartTime]` effect) — a fresh wave must never inherit pause history from the last one.
+
+**Files:** `src/levels/levels.json` (Level 1: `sideScroll: true`, new `gatedScroll: true`), `src/App.jsx`
+(prop threaded to `SheetMusic`; timpani scheduling gated on `!lvl.gatedScroll`), `src/components/sheet-
+music/SheetMusic.jsx` (`gatedScroll` prop forwarded to `SheetRpgLayer`), `src/components/sheet-
+music/SheetRpgLayer.jsx` (`gatedFrozenRef`/`gatedFreezeStartRawMsRef`/`gatedPauseAccumMsRef`/
+`rawTRawMsRef`, freeze-trigger + resume logic in the rAF loop, always-perfect grading + unfreeze in the
+combat-hit effect, `slimeWalkOrIdleFrame` helper), `src/hooks/useLevel.js` (`melodic` flag excludes gated
+levels), `src/hooks/__tests__/useLevel.test.js` (Level 1 is now side-scroll — the wave-clear test now
+calls `onSongEnd()` before asserting `done`), `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`
+(new #1052 test: freeze never expires, always-perfect grading, resume reveals the next note only after a
+correct hit).

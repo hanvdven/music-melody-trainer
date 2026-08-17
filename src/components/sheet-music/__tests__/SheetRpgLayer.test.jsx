@@ -193,7 +193,13 @@ describe('SheetRpgLayer (#647)', () => {
         const withHrefs = [...withNpc.container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '');
 
         expect(withHrefs.length).toBe(withoutHrefs.length + 1);
-        expect(withHrefs.some((h) => h.toLowerCase().includes('gandalfhardcore'))).toBe(true);
+        // #869 (Han 2026-08-17, asset rename): this used to check for the literal brand-name substring
+        // "gandalfhardcore" that happened to appear in nearly every asset path at the time — a weak "is this a
+        // real, non-empty asset URL" sanity check, not something semantically tied to the Monk NPC or that
+        // brand specifically. Now checks for the actual static-asset URL prefix every renamed file still
+        // serves under (public/ASSORTED/, see RpgLevelBottomPanel.jsx's wispUrl for the same convention) —
+        // robust to any future asset rename, unlike a specific pack's brand name.
+        expect(withHrefs.some((h) => h.toLowerCase().includes('/assorted/'))).toBe(true);
     });
 
     it('#991: DAMAGED_FILES has 3 entries; a never-played (expired) treble slime plays a damaged sfx on its "missed" judgment', () => {
@@ -258,5 +264,41 @@ describe('SheetRpgLayer (#647)', () => {
         const without = render(<svg><SheetRpgLayer {...base} npc={null} /></svg>);
         const withUnknown = render(<svg><SheetRpgLayer {...base} npc="Nonexistent Creature Xyz" /></svg>);
         expect(withUnknown.container.querySelectorAll('image').length).toBe(without.container.querySelectorAll('image').length);
+    });
+
+    it('#1052: gated scroll freezes on arrival (never expires while waiting), grades a correct hit "perfect" regardless of delay, and resumes to reveal the next note only after that hit', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const onHit = vi.fn(); const onMiss = vi.fn();
+        const hittableNotesRef = { current: null };
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0, 12], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500,
+            sideScroll: true, gatedScroll: true, onHit, onMiss, hittableNotesRef,
+            scrollStartTime: 0,
+            trebleMelody: { notes: ['C4', 'D4'], offsets: [0, 12], durations: [12, 12] },
+        };
+        let rerender;
+        act(() => { const r = render(<svg><SheetRpgLayer {...base} combatNote={null} /></svg>); rerender = r.rerender; });
+        const play = (note, nonce) => act(() => rerender(<svg><SheetRpgLayer {...base} combatNote={{ note, nonce }} /></svg>));
+
+        // Advance to roughly when C4 is due (same timing #990's side-scroll test uses for an identical
+        // 80bpm/beatsOnScreen=8 wave), then FAR beyond — well past the non-gated MUCH_TOO_BEATS expiry
+        // window a normal side-scroll level would have declared this note "missed" at.
+        act(() => vi.advanceTimersByTime(6000));
+        expect(hittableNotesRef.current()).toEqual(['C4']);
+        act(() => vi.advanceTimersByTime(20000));   // gated: still waiting, never expires
+        expect(onMiss).not.toHaveBeenCalled();
+        expect(hittableNotesRef.current()).toEqual(['C4']);   // still the SAME note — clock never advanced
+
+        // A correct hit, arbitrarily late, still grades "perfect" (no time pressure while gated).
+        play('C4', 1);
+        expect(onHit).toHaveBeenCalledTimes(1);
+        expect(onHit.mock.calls[0][0].category).toBe('perfect');
+
+        // Only NOW does the clock resume — the second note becomes due only after real time elapses again.
+        expect(hittableNotesRef.current()).toEqual([]);
+        act(() => vi.advanceTimersByTime(6000));
+        expect(hittableNotesRef.current()).toEqual(['D4']);
+        vi.useRealTimers();
     });
 });

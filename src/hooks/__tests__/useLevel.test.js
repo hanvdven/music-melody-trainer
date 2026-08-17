@@ -72,12 +72,17 @@ describe('useLevel (#659 Level 1)', () => {
 
     it('clears 4 waves then flags done; regenerates between waves only', () => {
         const { regenerate, result } = setup();
-        act(() => result.current.start());                              // regenerate #1
+        act(() => result.current.start());                              // regenerate #1 — defaults to Level 1
         act(() => { result.current.onWaveCleared(); });                 // wave 1 → regenerate #2
         act(() => { result.current.onWaveCleared(); });                 // wave 2 → #3
         act(() => { result.current.onWaveCleared(); });                 // wave 3 → #4
         expect(result.current.done).toBe(false);
-        act(() => { result.current.onWaveCleared(); });                 // wave 4 → done, NO regen
+        act(() => { result.current.onWaveCleared(); });                 // wave 4 → NO regen
+        expect(result.current.done).toBe(false);
+        // #1052 (Han 2026-08-17): Level 1 is now `sideScroll: true` — per the #688 side-scroll behaviour
+        // just above (`onWaveCleared`), the splash must wait for `onSongEnd()` (the final barline visually
+        // reaching the strike line), not fire the instant the last wave resolves.
+        act(() => { result.current.onSongEnd(); });
         expect(result.current.done).toBe(true);
         expect(regenerate).toHaveBeenCalledTimes(4);
     });

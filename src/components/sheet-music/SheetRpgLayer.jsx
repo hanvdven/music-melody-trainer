@@ -652,7 +652,7 @@ export default function SheetRpgLayer({
     // useTwoHandedBass (its per-measure hit/miss determination, already correct/tested) — this component
     // only resolves the matching visual slime off the event, it never re-derives hit/miss itself (§6c).
     bassMelody = null, bassCombatEvent = null,
-    sideScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
+    sideScroll = false, gatedScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
     // #992 (Han: 3 new Playback Settings setters — RPG fx volume / RPG music volume / RPG visibility):
     // `rpgFxVolume` is the raw VOL_STEPS value (0-1), converted below into a multiplier relative to its
     // OWN default (DEFAULT_RPG_FX_VOLUME) — never a raw replacement gain (see rpgVolumeMultiplier).
@@ -1026,6 +1026,21 @@ export default function SheetRpgLayer({
     const frozenBassSlimePropsRef = useRef(new Map());
     const frozenCritterPropsRef = useRef(new Map());
     const frozenSwitchPropsRef = useRef(new Map());        // Level 11 switch-flourish — keyed by index i
+    // #1052 (Han 2026-08-17, "gated scroll" — Level 1): the scroll clock freezes the INSTANT the earliest
+    // still-unresolved slime reaches its own "perfect timing" instant (same delta===0 point the hit-window/
+    // expiry logic already use, §6c), and resumes exactly where it left off on a correct hit — no jump.
+    // Implemented as a single accumulator subtracted from the RAW (never-frozen) elapsed-since-anchor ms,
+    // rather than a second parallel clock: every position/hit-window/wave-elapsed formula in this file
+    // already reads `tickRef.current`/`tRawMs`, so freezing THAT one shared value freezes everything
+    // downstream for free (including the expiry effect, which simply can never reach its own threshold
+    // while frozen — no separate gate needed there).
+    const gatedFrozenRef = useRef(false);          // currently waiting for the player to defeat the due note?
+    const gatedFreezeStartRawMsRef = useRef(0);    // RAW elapsed-ms-since-anchor at the instant we froze
+    const gatedPauseAccumMsRef = useRef(0);        // total RAW ms consumed by freezes so far this wave
+    const rawTRawMsRef = useRef(0);                // RAW (never-frozen) elapsed-ms-since-anchor, updated every
+                                                    // rAF frame — lets effects outside the loop (e.g. the
+                                                    // combat-hit effect, on unfreeze) read "now" independent
+                                                    // of whether the gated clock is currently frozen.
     const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
@@ -1059,7 +1074,7 @@ export default function SheetRpgLayer({
     // empty dependency array — one continuous loop, not restarted every render, exactly like `sideScrollX`'s
     // existing use of this same ref for the same reason).
     geomRef.current = {
-        startX, viewRight, beatsOnScreen, sideScroll, beatMs, frameMs, isWizard,
+        startX, viewRight, beatsOnScreen, sideScroll, gatedScroll, beatMs, frameMs, isWizard,
         dist: viewRight - startX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
         // #863 round 2: isMixed/spawnLeadBeats added so `computeWizardCast` (below) can run from the rAF
         // loop's mount-time-only closure without stale-closure-capturing these render-scoped values.
@@ -1111,6 +1126,20 @@ export default function SheetRpgLayer({
             x: slimeX, slimeX, noteX, msSinceSpawn, ff,
             walkFrame: msSinceSpawn >= 0 ? Math.floor(ff) % SLIME_WALK.frames : 0, spawned: msSinceSpawn >= 0,
         };
+    };
+
+    // #1052 (Han 2026-08-17, "gated scroll" — wait indicator): while a gated level is frozen, ALL
+    // on-screen slimes switch to their idle/breathing animation instead of mid-walk (Han: "use the idle
+    // animation for all slimes" — the idle-vs-walk state itself IS the "waiting for you" cue, no separate
+    // glow needed). Idle cycling reads the RAW (never-frozen) clock so slimes visibly keep breathing even
+    // though position and the walk cycle itself are frozen. Shared by the rAF loop's imperative pushes AND
+    // the JSX mount-time freeze cache below (§6c) — one formula, not two that could drift.
+    const slimeWalkOrIdleFrame = (p) => {
+        if (gatedFrozenRef.current) {
+            const idleFrame = Math.floor(rawTRawMsRef.current / (geomRef.current.frameMs || 1)) % SLIME_IDLE.frames;
+            return { row: SLIME_IDLE.row, frame: idleFrame };
+        }
+        return { row: SLIME_WALK.row, frame: p.walkFrame };
     };
 
     // A requestAnimationFrame loop drives `tick` — the SAME rAF+AudioContext pattern useSheetMusicHighlight
@@ -1182,11 +1211,35 @@ export default function SheetRpgLayer({
             // before scrollStartTime (during the pre-roll) — slimes just aren't spawned yet.
             const anchor = scrollStartRef.current != null ? scrollStartRef.current
                 : (clockStartRef.current == null ? (clockStartRef.current = nowMs) : clockStartRef.current);
-            const t = Math.round((nowMs - anchor) / INTERVAL_MS);
-            // #1050: the RAW (un-rounded) elapsed ms since the SAME anchor `t` is measured from — passed
-            // to sideScrollX/scroll-transform math below instead of `t * INTERVAL_MS` (see sideScrollX's
-            // own comment). `t` itself is untouched and still drives every discrete/tick-based formula.
-            const tRawMs = nowMs - anchor;
+            // #1050: the RAW (un-rounded) elapsed ms since `anchor` — never itself frozen, always "real"
+            // elapsed time. Kept in a ref so effects outside this loop (e.g. the combat-hit effect, to
+            // measure how long a gated freeze lasted) can read "now" independent of gating below.
+            const rawTRawMs = nowMs - anchor;
+            rawTRawMsRef.current = rawTRawMs;
+            // #1052 (Han 2026-08-17, "gated scroll"): for a gated level, `tRawMs` (and everything derived
+            // from it — position, hit windows, wave-elapsed, expiry) freezes the instant the earliest
+            // still-unresolved slime reaches its own arrival instant, and resumes exactly where it froze
+            // on a correct hit (`gatedPauseAccumMsRef`, updated in the combat-hit effect's kill branch).
+            // Every other formula in this file keeps reading `tRawMs`/`tickRef.current` completely
+            // unchanged — freezing this ONE shared value is sufficient (see this refs' own comment above).
+            let tRawMs = rawTRawMs;
+            const g0 = geomRef.current;
+            if (g0.gatedScroll && g0.sideScroll && g0.beatMs > 0 && g0.beatsOnScreen > 0) {
+                const liveEffMs = rawTRawMs - gatedPauseAccumMsRef.current;
+                if (!gatedFrozenRef.current) {
+                    // Mirrors the SAME arrival formula the hit-detection window/expiry effect already use
+                    // (§6c) — "perfect timing" is delta===0, i.e. the note's full travel time has elapsed.
+                    const waveElapsedMs = liveEffMs - waveStartRef.current * INTERVAL_MS;
+                    const nextIdx = slimesRef.current.findIndex((_, idx) => !resolvedRef.current.has(idx));
+                    const nextSlime = nextIdx >= 0 ? slimesRef.current[nextIdx] : null;
+                    if (nextSlime && waveElapsedMs >= (nextSlime.beat + g0.beatsOnScreen) * g0.beatMs) {
+                        gatedFrozenRef.current = true;
+                        gatedFreezeStartRawMsRef.current = rawTRawMs;
+                    }
+                }
+                tRawMs = gatedFrozenRef.current ? (gatedFreezeStartRawMsRef.current - gatedPauseAccumMsRef.current) : liveEffMs;
+            }
+            const t = Math.round(tRawMs / INTERVAL_MS);
             // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost"): logs the FIRST tick this loop
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
             // picked" log to see whether the anchor arrived here late, or whether it's correct here but
@@ -1270,7 +1323,8 @@ export default function SheetRpgLayer({
                         const wig = wiggleRef.current;
                         const wdx = wig && wig.index === entry.idx ? wig.wdx : 0;
                         entry.el.setPosition(p.slimeX + wdx, g.slimeY);
-                        entry.el.setFrame(SLIME_WALK.row, p.walkFrame);
+                        const wf = slimeWalkOrIdleFrame(p);
+                        entry.el.setFrame(wf.row, wf.frame);
                     }
                 });
                 // Live bass-slimes (Level 15 twoHanded) — same pattern, no wizard/wiggle branch (§862).
@@ -1279,7 +1333,8 @@ export default function SheetRpgLayer({
                     if (!sl || sl.key !== key) return;
                     const p = sideScrollX(sl.beat, t, tRawMs);
                     entry.el.setPosition(p.slimeX, g.bassSlimeY);
-                    entry.el.setFrame(SLIME_WALK.row, p.walkFrame);
+                    const bwf = slimeWalkOrIdleFrame(p);
+                    entry.el.setFrame(bwf.row, bwf.frame);
                 });
                 // Live critters (under rests) — position+frame update together (critterDraw ties them via
                 // the flying-anim oscillation, see the Critter component above).
@@ -1409,6 +1464,9 @@ export default function SheetRpgLayer({
         // frame from the wave that just ended (see `freezeOnce`'s own comment for why these exist).
         frozenSlimePropsRef.current.clear(); frozenBassSlimePropsRef.current.clear();
         frozenCritterPropsRef.current.clear(); frozenSwitchPropsRef.current.clear();
+        // #1052: a fresh wave starts fully unfrozen with a clean pause history — the gated freeze/resume
+        // bookkeeping must never carry over from the wave that just ended.
+        gatedFrozenRef.current = false; gatedPauseAccumMsRef.current = 0;
         // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
         // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
         // #688 (Level 9 rework): back to ONE continuous melody/single wave (like every other side-scroll
@@ -1485,10 +1543,23 @@ export default function SheetRpgLayer({
                 // useLevel.js's onHit can bump a `${tier}Corrected` stat alongside the unchanged
                 // `secondAttemptCorrected` correctness bump — two facts about the same hit, not a
                 // replacement for either.
+                // #1052 (Han 2026-08-17, "gated scroll" — grading with no time pressure): a correct hit
+                // always grades "Perfect" while gated — this level teaches note recognition, not rhythm
+                // (Han interview). Reuses gradeHit's own `{category:'perfect', points:1}` shape verbatim
+                // rather than inventing a parallel one (§6c). The wrongAttempt → 'secondAttemptCorrected'
+                // demotion stays — it's orthogonal to timing: getting it wrong once still costs the
+                // correctness bump even with unlimited time to retry.
                 const grade = wrongAttemptRef.current.has(target.idx)
-                    ? { category: 'secondAttemptCorrected', points: 0.5, timingTier: gradeHit(target.delta, bMs).category }
-                    : gradeHit(target.delta, bMs);
+                    ? { category: 'secondAttemptCorrected', points: 0.5, timingTier: geomRef.current.gatedScroll ? 'perfect' : gradeHit(target.delta, bMs).category }
+                    : (geomRef.current.gatedScroll ? { category: 'perfect', points: 1 } : gradeHit(target.delta, bMs));
                 resolvedRef.current.add(target.idx);
+                // #1052: a correct hit while gated-frozen unfreezes the scroll clock, resuming EXACTLY
+                // where it froze — the real time just spent frozen is folded into `gatedPauseAccumMsRef`
+                // (see its own comment) so the very next rAF frame sees no jump.
+                if (geomRef.current.gatedScroll && gatedFrozenRef.current) {
+                    gatedPauseAccumMsRef.current += rawTRawMsRef.current - gatedFreezeStartRawMsRef.current;
+                    gatedFrozenRef.current = false;
+                }
                 const { x } = sideScrollX(target.sl.beat, tickRef.current);
                 setDyingList((l) => [...l, { index: target.idx, startTick: tickRef.current, x }]);
                 setKilledCount((c) => c + 1);
@@ -2269,10 +2340,11 @@ export default function SheetRpgLayer({
                     // The wiggle shake (Han: a wrong/early note WIGGLES the still-next slime) stays fully
                     // live regardless — it's driven by `wiggleRef.current.wdx` in the rAF loop (set from the
                     // render body above, refreshed every render — "point 8"), never by this frozen prop.
-                    const live = freezeOnce(frozenSlimePropsRef.current, s.key, () => (
-                        { x: p.slimeX, y: slimeY, frame: p.walkFrame }
-                    ));
-                    return <Slime key={s.key} ref={liveSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={SLIME_WALK.row} frame={live.frame} />;
+                    const live = freezeOnce(frozenSlimePropsRef.current, s.key, () => {
+                        const wf = slimeWalkOrIdleFrame(p);
+                        return { x: p.slimeX, y: slimeY, row: wf.row, frame: wf.frame };
+                    });
+                    return <Slime key={s.key} ref={liveSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={live.row} frame={live.frame} />;
                 }
                 // static (Level 1 style): idle under the note; death in place. Wizard is never non-sideScroll
                 // (Level 9's config is sideScroll:true), so this branch stays pure Slime — no isWizard check.
@@ -2308,10 +2380,11 @@ export default function SheetRpgLayer({
                     else bassSlimeRefsMap.current.delete(s.key);
                 };
                 // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
-                const live = freezeOnce(frozenBassSlimePropsRef.current, s.key, () => (
-                    { x: p.slimeX, y: bassSlimeY, frame: p.walkFrame }
-                ));
-                return <Slime key={`bass-${s.key}`} ref={liveBassSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={SLIME_WALK.row} frame={live.frame} />;
+                const live = freezeOnce(frozenBassSlimePropsRef.current, s.key, () => {
+                    const wf = slimeWalkOrIdleFrame(p);
+                    return { x: p.slimeX, y: bassSlimeY, row: wf.row, frame: wf.frame };
+                });
+                return <Slime key={`bass-${s.key}`} ref={liveBassSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={live.row} frame={live.frame} />;
             })}
             {/* #693 round 8 — critters under rests, exact mirror of the slime render above but simpler: no
                 death animation, just hidden once struck (killedCritters). Same sideScrollX/spawn gating so

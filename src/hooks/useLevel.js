@@ -234,7 +234,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // (it already lives on its own dedicated `timpaniRef`/`LEVEL_TIMPANI_SLOT`, never the visible
         // percussion staff). The percussion STAFF stays hidden for a no-percussion song regardless
         // (computeEyes's `songHasPercussion` check below, unchanged).
-        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll }));
+        // #1052 (Han 2026-08-17, gated-scroll levels): a gated level never schedules timpani at all
+        // (App.jsx's one-shot scheduling call is gated on `!lvl.gatedScroll` — see its own comment), so
+        // showing "melodic" percussion notation there would promise pitched timpani audio that never
+        // plays. Excluded the same way a non-side-scroll level already is.
+        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll && !lvl.gatedScroll }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
