@@ -61,7 +61,9 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
     // resulting values so a song's tempo/meter metadata changing can't silently shift its scroll speed.
     it('beatsOnScreen + visible span are derived per song from its own tempo AND meter (#994)', () => {
         const expected = {
-            arirang: { bpm: 90, ts: [3, 4], visible: 3, beatsOnScreen: 9 },
+            // arirang (Han 2026-08-17): re-transcribed from a LilyPond source at its traditional 9/8
+            // Lento meter (was previously a 3/4-simplified transcription at a placeholder 90bpm).
+            arirang: { bpm: 140, ts: [9, 8], visible: 3, beatsOnScreen: 13.5 },
             'frere-jacques': { bpm: 90, ts: [4, 4], visible: 2, beatsOnScreen: 8 },
             kalinka: { bpm: 90, ts: [2, 4], visible: 4, beatsOnScreen: 8 },
             'kangding-qingge': { bpm: 90, ts: [2, 4], visible: 4, beatsOnScreen: 8 },
