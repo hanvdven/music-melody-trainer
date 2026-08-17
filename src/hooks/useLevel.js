@@ -120,6 +120,16 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // `lvl.colorMode` in (explicit level field, else DEFAULT_LEVEL_COLOR_MODE), so the `??` here is
         // just the same defensive fallback every other level-applied field also carries.
         setters.setNoteColoringMode?.(lvl.colorMode ?? DEFAULT_LEVEL_COLOR_MODE);
+        // #1046 (Han 2026-08-17, "voor elke noot met een kruis of mol een courtesy accidental... zet
+        // maar aan voor elk level"): color and courtesy are deliberately SEPARATE params (Han's own
+        // words) — this forces the EXISTING app-wide courtesyAccidentals toggle on for every level,
+        // same unconditional-apply/restore pattern as colorMode just above, rather than inventing a new
+        // "always show" rendering mode. generateAccidentalMap.js's existing showCourtesy=true behavior
+        // already shows an accidental on every altered note's every occurrence (full symbol on first
+        // appearance in a measure, small courtesy glyph on repeats/cross-measure carry-over) — the only
+        // gap was a player having toggled the app-wide setting off; this closes it for every level
+        // regardless of the player's own current preference.
+        setters.setCourtesyAccidentals?.(true);
         // `volume`/`visible` are level-editor-only convenience fields (read separately by
         // resolveLevelVolume/computeEyes), NOT InstrumentSettings fields — stripped before spreading
         // onto trebleSettings so they don't leave a stray unused property behind.
@@ -369,6 +379,9 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // #1045 (Han 2026-08-17): revert a level's `colorMode` override to whatever note-coloring
         // scheme the user had selected before the level started (same pattern as theme above).
         setters.setNoteColoringMode?.(s.noteColoringMode);
+        // #1046 (Han 2026-08-17): revert the forced-on courtesyAccidentals to whatever the player had
+        // set before the level started (same pattern as colorMode/theme above).
+        setters.setCourtesyAccidentals?.(s.courtesyAccidentals);
     }, [setters]);
 
     const close = useCallback(() => {

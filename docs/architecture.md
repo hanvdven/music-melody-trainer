@@ -16999,3 +16999,30 @@ one) has real bar-length mismatches unrelated to this parser fix, flagged separa
 generated from bad data.
 
 **Files:** `src/utils/timpaniPattern.js` (+ test), `scripts/abc-to-song.mjs`, `src/songs/data/sakura.json`.
+
+### §253. Force courtesy accidentals on for every level (#1046, Han 2026-08-17)
+
+**Purpose:** Han: "ik wil in makkelijke levels voor elke noot met een kruis of mol een courtesy
+accidental" — beginners playing a level should always see an accidental on every altered note, never
+depending on whatever the app-wide `courtesyAccidentals` toggle happens to be set to.
+
+**How it works:** tracing `generateAccidentalMap.js`'s existing `showCourtesy=true` logic shows it
+already produces exactly this: the FIRST occurrence of an altered note in a measure always shows the
+full symbol (required by notation, not optional), and REPEATS within a measure or a chromatic carry-over
+across a barline show the small courtesy glyph — i.e. every altered note's every occurrence already gets
+SOME accidental marker, whenever the toggle is on. The only gap was a player having turned that app-wide
+toggle off. Per Han's own direction ("color en courtesy zijn aparte params... gebruik de bestaande
+parameters"), this reuses the EXISTING `courtesyAccidentals`/`setCourtesyAccidentals` state as-is — no
+new rendering mode — and just threads it through the level lifecycle exactly like `colorMode` (§249):
+`useLevel.js`'s `applyConfig` forces it to `true` unconditionally for every level, `restore()` reverts it
+from the level's start-of-session snapshot (`App.jsx`'s `levelSnapshot` now also captures
+`courtesyAccidentals`).
+
+**Invariant:** this is the THIRD field following the "level forces app-wide display setting X" three-part
+shape (normalizeLevel/no-field-needed-here-since-it's-always-on, applyConfig unconditional apply,
+snapshot+restore on exit) — see §249's invariant note. Unlike `colorMode`, this one has no per-level
+override field: Han's own words were "zet maar aan voor elk level" (just turn it on for every level), so
+there's nothing to make level-configurable.
+
+**Files:** `src/hooks/useLevel.js` (`applyConfig`/`restore`), `src/App.jsx` (`levelSetters`,
+`levelSnapshot`).
