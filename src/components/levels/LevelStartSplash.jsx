@@ -67,7 +67,11 @@ export default function LevelStartSplash({ onStart, onClose, debugMode = false }
                 {lvl && !isLevel0 && (
                     <div className="ls-stats" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 14 }}>
                         <div className="ls-stat">
-                            <span className="ls-stat-value">{lvl.bpm}</span>
+                            {/* #1053 (Han 2026-08-17, "Zet de BPM op 'rubato'"): a gated level has no fixed
+                                tempo to click to (SheetRpgLayer waits for the player, #1052) — shown here
+                                the same way BpmControls.jsx's header display does (§6c: same convention,
+                                not a second one), never the raw number. */}
+                            <span className="ls-stat-value">{lvl.gatedScroll ? 'rubato' : lvl.bpm}</span>
                             <span className="ls-stat-label">bpm</span>
                         </div>
                         <div className="ls-stat">

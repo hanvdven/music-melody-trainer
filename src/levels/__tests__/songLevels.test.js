@@ -124,9 +124,10 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
     });
 
     it('normalizeLevel does not add song-derived fields to an existing level without songId (no regression)', () => {
-        // Level 1 has no songId — its range/key/bpm come straight from levels.json, unaffected by the
-        // #871 songLevelDefaults back-fill (which only runs `if (lvl.songId)`).
-        expect(LEVELS[1].songId).toBeUndefined();
-        expect(LEVELS[1].bpm).toBe(80);
+        // #1053 (Han 2026-08-17): Level 1 itself now legitimately HAS a songId (its fixed intro melody) —
+        // Level 4 (the former Level 2, relocated unchanged) is the procedural level with no songId here,
+        // unaffected by the #871 songLevelDefaults back-fill (which only runs `if (lvl.songId)`).
+        expect(LEVELS[4].songId).toBeUndefined();
+        expect(LEVELS[4].bpm).toBe(80);
     });
 });

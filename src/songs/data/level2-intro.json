@@ -1,0 +1,170 @@
+{
+  "id": "level2-intro",
+  "title": "Level 2 Intro",
+  "subtitle": "Traditional",
+  "category": "traditional",
+  "timeSignature": [
+    4,
+    4
+  ],
+  "defaultTempo": 90,
+  "defaultTonic": "C",
+  "numMeasures": 5,
+  "_source": {
+    "abc": "src/songs/abc/level2-intro.abc",
+    "generatedBy": "scripts/abc-to-song.mjs (#871) — re-run instead of hand-editing",
+    "decisions": [
+      "Repeats (|: :|) are NOT expanded — each section is written once.",
+      "Ties (-) are merged into the preceding note's duration.",
+      "Slurs ( ) are ignored.",
+      "Fermatas (H) parsed but NOT emitted (they shift audio without shifting offsets — would desync the side-scroll RPG layer).",
+      "No ABC chord symbols — one tonic triad per measure (drone)."
+    ]
+  },
+  "generator": {
+    "scaleFamily": "Diatonic",
+    "scaleMode": "Major",
+    "chordSettings": {
+      "strategy": "tonic-tonic-tonic",
+      "chordCount": 1,
+      "passingChordTypes": []
+    },
+    "trebleSettings": {
+      "notesPerMeasure": 2
+    },
+    "percussionSettings": null
+  },
+  "difficulties": {
+    "easy": {
+      "_comment": "Single fixed treble line converted from level2-intro.abc — 11 notes over 5 measures. One difficulty tier only (#871).",
+      "treble": {
+        "notes": [
+          "C4",
+          "r",
+          "E4",
+          "r",
+          "G4",
+          "r",
+          "E4",
+          "r",
+          "C4",
+          "D4",
+          "E4",
+          "r",
+          "E4",
+          "F4",
+          "G4",
+          "r",
+          "C4"
+        ],
+        "durations": [
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          48
+        ],
+        "offsets": [
+          0,
+          12,
+          24,
+          36,
+          48,
+          60,
+          72,
+          84,
+          96,
+          108,
+          120,
+          132,
+          144,
+          156,
+          168,
+          180,
+          192
+        ]
+      },
+      "bass": null,
+      "percussion": null,
+      "chords": [
+        {
+          "offset": 0,
+          "duration": 48,
+          "notes": [
+            "C3",
+            "E3",
+            "G3"
+          ],
+          "root": "C3",
+          "type": "major",
+          "name": "C",
+          "suffix": ""
+        },
+        {
+          "offset": 48,
+          "duration": 48,
+          "notes": [
+            "C3",
+            "E3",
+            "G3"
+          ],
+          "root": "C3",
+          "type": "major",
+          "name": "C",
+          "suffix": ""
+        },
+        {
+          "offset": 96,
+          "duration": 48,
+          "notes": [
+            "C3",
+            "E3",
+            "G3"
+          ],
+          "root": "C3",
+          "type": "major",
+          "name": "C",
+          "suffix": ""
+        },
+        {
+          "offset": 144,
+          "duration": 48,
+          "notes": [
+            "C3",
+            "E3",
+            "G3"
+          ],
+          "root": "C3",
+          "type": "major",
+          "name": "C",
+          "suffix": ""
+        },
+        {
+          "offset": 192,
+          "duration": 48,
+          "notes": [
+            "C3",
+            "E3",
+            "G3"
+          ],
+          "root": "C3",
+          "type": "major",
+          "name": "C",
+          "suffix": ""
+        }
+      ]
+    }
+  }
+}

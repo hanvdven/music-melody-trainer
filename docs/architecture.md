@@ -17321,3 +17321,77 @@ levels), `src/hooks/__tests__/useLevel.test.js` (Level 1 is now side-scroll — 
 calls `onSongEnd()` before asserting `done`), `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`
 (new #1052 test: freeze never expires, always-perfect grading, resume reveals the next note only after a
 correct hit).
+
+### §260. Fixed levels 1-3, Level 4 = former Level 2 relocated, main-progression renumbering (#1053, Han 2026-08-17)
+
+**Purpose:** Han: authored exact melodies for the first two gated levels ("C C C C | D E F G | C C G G |
+G F E D | C(hele noot)" for Level 1, the same with rests introduced for Level 2), a third gated level
+using ordinary random generation, and asked for the former Level 2 to move to Level 4 unchanged, with
+every other main-progression level shifting to make room.
+
+**Content mechanism (§6c/§6d — reused the existing song pipeline, not a new "fixed melody" concept):**
+Level 1/2's melodies are authored as `.abc` sources (`src/assets/ASSET DROP/abc/level{1,2}-intro.abc`,
+`L:1/4` so bare letters are quarter notes, rests as ABC's own `z`) and converted via the SAME permanent
+`npm run abc:song` pipeline every other song-backed level (Arirang, Sakura, …) already uses — `--id
+level1-intro`/`level2-intro`, registered in `songIndex.js`. `levels.json` sets `songId` on Levels 1/2 the
+same way song levels 200-206 already do; no new "fixed melody" mechanism was invented. Level 3 is a
+genuinely procedural level (no `songId`) — "random uniform" is simply `convertRankedArrayToMelody`'s
+existing DEFAULT `randomizationRule` (made explicit via `tracks.treble.randomizationRule: 'uniform'` for
+documentation, not because the default needed changing). All three keep `gatedScroll: true` (§259) and an
+internal `bpm: 90` (Han: "~90 bpm" from the original gated-scroll description) even though their DISPLAY
+shows "rubato" (below) — the gate mechanism, not tempo, is what removes time pressure.
+
+**Renumbering scheme:** `levels.json` has THREE separate id ranges that must never be conflated: the main
+progression (0-15 at the time), real songs (200s), and a separate test/QA bank (101-120, edge-case
+scenarios — not part of player progression). Only the main progression was renumbered. Old Level 2 moved
+to id 4 UNCHANGED (not shifted by the general amount — it's a relocation, not a shift); every other
+old id from 3 onward shifted +4 (old 3→7, old 4→8, …, old 11→15, old 15→19) — ids 5/6 were never reused,
+since 4 new slots were inserted at the front rather than every prior id being shifted by exactly 4. Level
+0 (Sandbox) and the 200/100-range levels are completely untouched. `name` fields and any intro text that
+referenced another level by number were updated to match (e.g. Level 19's intro said "zoals level 2" —
+now "zoals level 4", since level 2 no longer means what it used to). No code special-cases a level by
+numeric id anywhere in the app (verified before renumbering) — every behavior is driven by explicit level
+fields (`enemyType`, `decorativeWizard`, `twoHanded`, …), so this was a pure data change.
+
+**"Rubato" display (§6c/§6d — reused the EXISTING rubato UI, not a new mechanism):** `BpmControls.jsx`
+already had a full, unused "rubato" display mode (`isRubato` prop → tempo term shows "rubato", the BPM
+number is replaced by a Maestro glyph) built for an unrelated Exercises tempo-axis feature
+(`isRubato`/`setIsRubato`/`isRubatoRef` in `useAppUIState.js`, consumed by App.jsx's play-logic branches
+for exercise playback pacing). **Deliberately did NOT touch that app-wide state** — wiring gated levels
+into the real `isRubato`/`setIsRubato` would have activated unrelated exercise-mode playback branches
+during RPG combat, which already has its own, different "wait for the player" mechanism (§259). Instead,
+`SheetMusic.jsx` computes a local `gatedScroll || isRubato` and passes that straight to `BpmControls`'
+`isRubato` prop — display-only, and the real toggle is disabled (`onToggleRubato={gatedScroll ? undefined
+: onToggleRubato}`) while gated, since there's nothing meaningful for the player to switch. The Start
+Level splash's BPM tile (`LevelStartSplash.jsx`) shows the same "rubato" string for a `gatedScroll` level
+instead of the raw number, matching the same convention.
+
+**Verified live** (Playwright + Edge, dev server): Level 1's Start-Level splash shows "rubato" in the BPM
+tile and the correct intro text; in-level, the tempo marking shows "rubato" with the Maestro glyph (not a
+number), the title reads "Level 1 Intro in C Major (Ionian)", and slimes correctly spawn on the scrolling
+staff for the fixed melody.
+
+**Test fallout (expected, not bugs):** several tests hardcoded assumptions tied to the OLD numbering
+(`levels.test.js`'s whole "8-level ramp" suite, `useLevel.test.js`'s Level 1/2/8-specific behavior
+checks) — repointed to the new positions (Level 4/7/12 for the quarter-grid/half-note/full-richness ramp
+steps, Level 13 for the Wizard level) rather than weakened. Two required a real semantic fix, not just a
+renumber: `computeEyes` forces `bassEye`/`percussionEye` false for a `songId` level with no bass/
+percussion content REGARDLESS of debug mode (existing #871 behavior) — correct for Level 1/2 now, but it
+means the "debug reveals bass/percussion" test needed a non-`songId` level (Level 4) to still exercise
+that mechanic. The generic "clears 4 waves" mechanism test no longer had a real level with that exact
+wave count (Level 1 is a 1-wave 5-measure song now) — decoupled onto a standalone level object literal so
+it can never break again from a future renumbering.
+
+**Invariant:** never hardcode a level's behavior by numeric id — always read explicit fields. This was
+already true before this ticket but is now load-bearing: ids are not stable identifiers for a level's
+"kind" across renumbering.
+
+**Files:** `src/assets/ASSET DROP/abc/level1-intro.abc`, `level2-intro.abc` (new), `src/songs/data/
+level1-intro.json`, `level2-intro.json` + `src/songs/definitions/level1-intro.js`, `level2-intro.js` (new,
+generated), `src/songs/songIndex.js` (registered), `src/levels/levels.json` (Levels 1-4 rewritten, old
+3-15 renumbered to 7-19), `src/levels/levels.js` (named exports extended: `LEVEL7`-`LEVEL15`, `LEVEL19`;
+`LEVEL5`/`LEVEL6` removed — those ids no longer exist), `src/components/sheet-music/SheetMusic.jsx`
+(`isRubato`/`onToggleRubato` now derive from `gatedScroll`), `src/components/levels/LevelStartSplash.jsx`
+(BPM tile shows "rubato" for gated levels), `src/levels/__tests__/levels.test.js`,
+`src/levels/__tests__/songLevels.test.js`, `src/hooks/__tests__/useLevel.test.js` (repointed to new level
+positions).

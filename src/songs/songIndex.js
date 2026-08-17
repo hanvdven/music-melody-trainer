@@ -1,5 +1,7 @@
 import defaultExercise from './definitions/defaultExercise.js';
 import happyBirthday from './definitions/happyBirthday.js';
+import level1Intro from './definitions/level1-intro.js';
+import level2Intro from './definitions/level2-intro.js';
 import arirang from './definitions/arirang.js';
 import frereJacques from './definitions/frere-jacques.js';
 import kalinka from './definitions/kalinka.js';
@@ -13,6 +15,8 @@ import scarboroughFair from './definitions/scarborough-fair.js';
 const SONGS = [
   defaultExercise,
   happyBirthday,
+  level1Intro,
+  level2Intro,
   arirang,
   frereJacques,
   kalinka,

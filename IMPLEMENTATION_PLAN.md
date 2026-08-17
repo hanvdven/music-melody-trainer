@@ -4879,3 +4879,98 @@ Han, direct na #994's UAT-melding:
 Interview voor #4 (klein, ondubbelzinnig — default-waarde) en #1 (Han gaf zelf de exacte fix) loopt
 kort; #1044 wordt eerst onderzocht (geen fix-implementatie) voor er iets gevraagd wordt; #1045 krijgt
 een volledige interview (scope van "level setting" is nog open).
+
+## 2026-08-17 — ✅ #1047 abc-to-song: pentatonic K: field support + sakura scale fix
+
+Root cause van Han's "sakura moet E In, arirang F pentatonisch majeur" opmerking: het build-script
+kende alleen de 7 diatonische modi. Arirang's `K:F pentatonic major` crashte de regeneratie; sakura's
+`K:A In` resolvede stilletjes verkeerd (`scaleFamily:"Diatonic", scaleMode:"Minor"` i.p.v. Pentatonic/In).
+Fix: `parseKeyField` matcht nu een volledige mode-frase tegen `scaleHandler.js`'s eigen
+`scaleDefinitions` (geïmporteerd, geen tweede hardcoded tabel, §6c) voor elke niet-Diatonische familie;
+het `diatonic`-referentieveld (bv. 'In' -> 'Lydian') geeft de voortekens via de bestaande MODE_FIFTHS.
+Sakura geregenereerd (correct nu). Arirang NOG NIET — Han's eigen edit
+(`src/assets/ASSET DROP/abc/arirang.abc`, verplaatst uit `src/songs/abc/`) heeft maten die niet kloppen
+(bijna elke maat te lang voor 9/8) — te bevestigen voor generatie. Open vraag: sakura transponeren naar
+E, of blijft "E In" iets anders (bv. level-specifieke tonic override)? 802/802 tests, build, lint groen.
+
+## 2026-08-17 — ⏳ Grote burst: metronoom-volume, Level 1 "gated scroll", vaste levels 1-4, stats-systeem (interview loopt)
+
+Han, in één bericht, vier losse dingen:
+
+1. **🐞 Metronoom te zacht** — "metronoom moet op ff, is niet goed hoorbaar."
+2. **⏳ Level 1 nieuw spelmechanisme ("gated scroll")** — level schuift door (~90bpm) tot de
+   volgende slime EXACT op perfect-timing staat, wacht dan tot die slime verslagen is voor het
+   verder scrollt. Grote architecturale wijziging (breekt de huidige continue-lineaire-scroll
+   aanname die de hele sessie zorgvuldig getimed is — §863 perf werk, audio-sync anchoring).
+3. **⏳ Vaste melodieën levels 1-3, BPM="rubato", levels doorschuiven (renummeren)**:
+   - Level 1: `C C C C | D E F G | C C G G | G F E D | C(hele noot).` — alleen kwartnoten.
+   - Level 2: `C r E r | G r E r | C D E r | E F G r | C(hele noot)` — introduceert rusten.
+   - Level 3: random uniform (procedureel, randomizationRule='uniform').
+   - Level 4: **NIET gespecificeerd — Han schreef "4:" en stopte.** Blokkerend, moet gevraagd worden.
+   - Bestaande levels moeten allemaal een nummer opschuiven om plaats te maken.
+4. **⏳ Nieuw stats/progressie-systeem** — bovenop het BESTAANDE ProfileContext (zie
+   `gamification-slice1` memory: "Future exercise/lesson progress moet dit profiel UITBREIDEN, geen
+   parallelle storage key"; `docs/architecture.md` §43; het 11-dimensie `docs/profile-schema.md`
+   ontwerp is EXPLICIET "on_hold", niet gebouwd — dit is een DERDE, level-centrisch tracking-concept,
+   moet gereconcilieerd worden met de twee bestaande):
+   - Hoogste level met ≥80% accuracy gehaald (bijgehouden per gebruiker).
+   - Bij het starten van een nieuw level: standaard voorstel = 1 level moeilijker dan het hoogste
+     level met ≥80% accuracy.
+   - Gekende toonladders (criterium: ≥80% accuracy op een level met die toonladder gehaald).
+   - Gekende liedjes (zelfde criterium, per lied).
+   - Aantal keer gespeeld (per level? per toonladder/lied? — nader te bepalen).
+   - Aantal keer op 100% accuracy gehaald.
+
+Interview loopt voor items 2-4 (architecturaal, dubbelzinnig, en item 3's level 4 ontbreekt sowieso).
+Item 1 (metronoom-volume) apart, klein, mogelijk direct te fixen na een korte check.
+
+## 2026-08-17 — ✅ Item 1 (#1051 metronoom ff) + 🐞 twee kritieke live bugs tussendoor (#1055) + interviews afgerond
+
+**Item 1 (#1051):** `LEVEL_METRONOME_VOLUME` van `'mezzo forte'` naar `'forte'` (geen `ff`-tier in
+`VOL_STEPS`). ✅ Verzonden.
+
+**🐞 Tussendoor, PRIORITEIT boven de burst (Han: "los eerst de andere zaken op")** — twee kritieke bugs
+gemeld tijdens live testen, alle drie via kanban #1055 (niet #1052, die foutieve tagging in het eerste
+commit is gecorrigeerd):
+
+1. "na tweede keer level starten gaat het helemaal bad, noten komen nooit" — `clockStartRef`
+   (free-running fallback-anchor in `SheetRpgLayer.jsx`) werd nooit gereset tussen levels, ondanks dat
+   de component gemount blijft over levelwissels heen. Fix: reset in dezelfde `[scrollStartTime]`-effect
+   die `debugLoggedUnfreezeRef` al reset. ✅ Han bevestigd: "level starten lijkt te werken".
+2. "pretty clear and steady 1/12-th note stutter" → daarna "still a jutter" (2 rondes):
+   - Ronde 1: de scroll-`<g>`-groepen (barlines/noten) zetten `transform` zowel declaratief (JSX-prop,
+     herberekend elke `frameTick`-render) als imperatief (rAF-loop `setAttribute`) — React stompte de
+     smooth rAF-positie elke render terug. Fix: `frozenScrollPxRef`, ééns per wave bevroren.
+   - Ronde 2: identieke bug, één laag dieper — Slime/Projectile/Critter/StaticProjectile2 kregen ALLEMAAL
+     verse x/y/frame JSX-props per render, tegen hun eigen imperatieve rAF-handles in. Fix: generieke
+     `freezeOnce(cache, key, compute)` cache, toegepast op alle 5 continu-bewegende entiteitstypes.
+   - `docs/architecture.md` §256/§257/§258. Bekende resterende instanties (judgment labels, hit bursts,
+     spawn glows, wizard cast frame, ghost note, death frames) gedocumenteerd maar NIET gefixed — kleine,
+     eenmalige animaties, veel lager visueel risico dan de continue glide die net gefixed is.
+   - Status: fix verzonden, wacht op Han's her-test bevestiging ("werk verder" ontvangen — burst hervat,
+     maar als de jutter terugkomt heeft dat opnieuw voorrang).
+
+**Interviews afgerond (items 2-4, over meerdere sessies):**
+
+- Item 3 renummering: nieuwe levels 1-4 vooraan invoegen, alle bestaande levels schuiven op met het
+  aantal nieuwe levels. Level 4 = wat NU level 2 is, ongewijzigd verplaatst (geen nieuwe content nodig).
+  ("3 wat 5 was" — Han's eigen tegenstrijdige eerdere antwoord — vervalt, laatste antwoord is leidend.)
+- Item 4: accuracy getoond in bestaande post-level splash screen (`computeAccuracyPercent`,
+  `LevelStatsCharts.jsx`) is de bron van waarheid voor "≥80%".
+- Item 2 (gated scroll) — apart interview afgenomen 2026-08-17 (kanban #1052, zie ticket-notes):
+  1. Audio tijdens wachten: bevries de tempo-gebonden puls/timpani-klik; cello (akkoord-root drone)
+     blijft onafhankelijk doorspelen — dat is sfeer, geen metronoom.
+  2. Fout invoer tijdens wachten: toon miss/wrong-beoordeling zoals nu, blijf wachten — geen timeout,
+     alleen een juiste noot ontgrendelt.
+  3. Grading: altijd "Perfect" bij een juiste noot zolang gated — geen timing-tiers, dit level leert
+     notenherkenning, geen ritme.
+  4. Wacht-indicator: geen apart glow-signaal — ALLE zichtbare slimes (niet enkel de huidige) spelen hun
+     idle-animatie terwijl bevroren, aangezien niets voorwaarts beweegt op dat moment.
+
+**Volgorde van implementatie** (kanban-dependency #1053 f-f #1052, herbevestigd als bewust: eerst het
+generieke gated-scroll-mechanisme bouwen/verifiëren op het HUIDIGE level 1, dan pas de vaste
+melodieën+renummering toepassen zodat de vlag automatisch meeschuift naar de uiteindelijke levels 1-3):
+
+1. #1052 gated-scroll mechanic (architectuuronderzoek backing-audio scheduling nog te doen vóór plan).
+2. #1053 vaste melodieën levels 1-4 + renummering.
+3. #1054 stats/progressie-systeem (bouwt voort op de nieuwe levelnummers).

@@ -1,81 +1,90 @@
 import { describe, it, expect } from 'vitest';
 import {
-    LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7, LEVEL8, LEVEL9, LEVELS, wavesForLevel,
+    LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12, LEVEL13,
+    LEVELS, wavesForLevel,
 } from '../levels';
 
 // #661 (Han 2026-08-02, "houd het simpel... introduceer stap voor stap: halve noten, achtste noten,
 // verbonden noten, etc." + "maak tussen level 2 en level 3 5 nieuwe levels, dus level 3 schuift door naar
-// level 8"): locks in the 8-level ramp's structural invariants so a future edit can't silently break the
-// id/LEVELS-map consistency or reintroduce cross-level leakage (§91/§92's discipline extended to 8 levels).
-// #679 (Han 2026-08-03): Level 9 (Wizard/projectile combat) added on top — same structural checks extended.
-describe('levels.js — 8-level ramp (Han 2026-08-02) + Level 9 (Han 2026-08-03)', () => {
-    it('LEVELS map keys 1..9 match each level object\'s own id', () => {
-        const all = [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7, LEVEL8, LEVEL9];
-        // Level editor (Han 2026-08-06): levels.json also carries id 0 (the live-editable sandbox) and
-        // 101-120 (hand-editable schema examples, see levels.js's SCHEMA REFERENCE) — assert 1-9 are
-        // present/correct WITHOUT asserting they're the only keys, so those don't break this check.
-        expect(Object.keys(LEVELS).map(Number).filter((id) => id >= 1 && id <= 9)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+// level 8"): locks in the ramp's structural invariants so a future edit can't silently break the
+// id/LEVELS-map consistency or reintroduce cross-level leakage (§91/§92's discipline extended further).
+// #679 (Han 2026-08-03): Level 9 (Wizard/projectile combat, since renumbered — see below) added on top —
+// same structural checks extended.
+//
+// #1053 (Han 2026-08-17, "vaste levels 1-4 + renummering"): levels 1-3 are now GATED introductory levels
+// (fixed melody / rests / random-uniform — see levelGatedScroll.test.js and songLevels.test.js for their
+// own coverage), and level 4 is the former Level 2 relocated unchanged. The note-duration RAMP this file
+// tests (quarter-grid -> half notes -> eighth notes -> full richness) now starts at Level 4 and continues
+// non-contiguously at 7,8,9,10,11,12 (ids 5/6 were never reused — 4 new slots were inserted, not a blanket
+// +4 shift of every old id), with the former Level 9 (Wizard) now at Level 13.
+describe('levels.js — ramp from Level 4 (Han 2026-08-02) + Level 13 Wizard (Han 2026-08-03), renumbered #1053', () => {
+    it('LEVELS map ids match each level object\'s own id, for the whole main-progression roster', () => {
+        const all = [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12, LEVEL13];
+        const ids = [1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13];
+        // Level editor (Han 2026-08-06): levels.json also carries id 0 (the live-editable sandbox), 14/15/19
+        // (Mixed/scale-switch/twoHanded), and 101-120 (hand-editable schema examples) — assert this specific
+        // roster is present/correct WITHOUT asserting they're the only keys, so those don't break this check.
+        ids.forEach((id) => expect(Object.keys(LEVELS).map(Number)).toContain(id));
         all.forEach((lvl, i) => {
-            expect(lvl.id).toBe(i + 1);
-            expect(LEVELS[i + 1]).toBe(lvl);
+            expect(lvl.id).toBe(ids[i]);
+            expect(LEVELS[ids[i]]).toBe(lvl);
         });
     });
 
-    it('every level explicitly declares smallestNoteDenom/insertBeatRests/polyMultiplier (no ambient inheritance)', () => {
-        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7, LEVEL8].forEach((lvl) => {
+    it('every ramp level explicitly declares smallestNoteDenom/insertBeatRests/polyMultiplier (no ambient inheritance)', () => {
+        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12].forEach((lvl) => {
             expect(typeof lvl.smallestNoteDenom).toBe('number');
             expect(typeof lvl.insertBeatRests).toBe('boolean');
             expect(typeof lvl.polyMultiplier).toBe('number');
         });
     });
 
-    it('ramps quarter-grid (1/2) -> half notes (3) -> eighth notes (4-7) -> full richness (8)', () => {
-        expect(LEVEL1).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true });
-        expect(LEVEL2).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true });
-        expect(LEVEL3).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: false });   // half notes unlocked
-        [LEVEL4, LEVEL5, LEVEL6, LEVEL7].forEach((lvl) => {
+    it('ramps quarter-grid (Level 4) -> half notes (7) -> eighth notes (8-11) -> full richness (12)', () => {
+        expect(LEVEL4).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true });
+        expect(LEVEL7).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: false });   // half notes unlocked
+        [LEVEL8, LEVEL9, LEVEL10, LEVEL11].forEach((lvl) => {
             expect(lvl).toMatchObject({ smallestNoteDenom: 8, insertBeatRests: false });   // eighth notes
         });
-        expect(LEVEL8).toMatchObject({ smallestNoteDenom: 8, insertBeatRests: false });
+        expect(LEVEL12).toMatchObject({ smallestNoteDenom: 8, insertBeatRests: false });
     });
 
-    it('range widens exactly at Level 6 (C4-C5), unchanged before and after', () => {
-        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5].forEach((lvl) => {
+    it('range widens exactly at Level 10 (C4-C5), unchanged before and after', () => {
+        [LEVEL4, LEVEL7, LEVEL8, LEVEL9].forEach((lvl) => {
             expect(lvl.range).toEqual({ min: 'C4', max: 'G4' });
         });
-        expect(LEVEL6.range).toEqual({ min: 'C4', max: 'C5' });
-        expect(LEVEL7.range).toEqual({ min: 'C4', max: 'C5' });
+        expect(LEVEL10.range).toEqual({ min: 'C4', max: 'C5' });
+        expect(LEVEL11.range).toEqual({ min: 'C4', max: 'C5' });
     });
 
-    it('debugOnlyLines is true through Level 6, false from Level 7 onward (Level 1 too — "level 1 en 2")', () => {
-        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6].forEach((lvl) => {
+    it('debugOnlyLines is true through Level 10, false from Level 11 onward (Levels 1-3 too — gated intro levels)', () => {
+        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10].forEach((lvl) => {
             expect(lvl.debugOnlyLines).toBe(true);
         });
-        expect(LEVEL7.debugOnlyLines).toBe(false);
-        expect(LEVEL8.debugOnlyLines).toBe(false);
+        expect(LEVEL11.debugOnlyLines).toBe(false);
+        expect(LEVEL12.debugOnlyLines).toBe(false);
     });
 
-    it('fixedBass (the Level 2 whole-note cello exception) persists through Level 7; Level 8 uses the real generated bass', () => {
-        [LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7].forEach((lvl) => {
+    it('fixedBass (the Level 4 whole-note cello exception) persists through Level 11; Level 12 uses the real generated bass', () => {
+        [LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11].forEach((lvl) => {
             expect(lvl.fixedBass).toBe(true);
         });
-        expect(LEVEL8.fixedBass).toBe(false);
+        expect(LEVEL12.fixedBass).toBe(false);
     });
 
-    it('every level has a bpm, enemyType ("Slime" — Han: "gewoon slimes" — EXCEPT Level 9), and a non-empty intro blurb', () => {
-        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7, LEVEL8].forEach((lvl) => {
+    it('every level has a bpm, enemyType ("Slime" — Han: "gewoon slimes" — EXCEPT Level 13/Wizard), and a non-empty intro blurb', () => {
+        [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12].forEach((lvl) => {
             expect(typeof lvl.bpm).toBe('number');
             expect(lvl.enemyType).toBe('Slime');
             expect(lvl.intro).toEqual(expect.any(String));
             expect(lvl.intro.length).toBeGreaterThan(0);
         });
-        expect(typeof LEVEL9.bpm).toBe('number');
-        expect(LEVEL9.intro.length).toBeGreaterThan(0);
+        expect(typeof LEVEL13.bpm).toBe('number');
+        expect(LEVEL13.intro.length).toBeGreaterThan(0);
     });
 
-    // #688 (Han 2026-08-04): every OTHER side-scroll level (2-8) is one continuous 8-measure wave.
-    it('every side-scroll level (2-8) clears in exactly 1 wave (one continuous 8-measure piece)', () => {
-        [LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7, LEVEL8].forEach((lvl) => {
+    // #688 (Han 2026-08-04): every OTHER side-scroll level in the ramp is one continuous 8-measure wave.
+    it('every side-scroll ramp level (4, 7-12) clears in exactly 1 wave (one continuous 8-measure piece)', () => {
+        [LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12].forEach((lvl) => {
             expect(wavesForLevel(lvl)).toBe(1);
         });
     });
@@ -95,22 +104,22 @@ describe('levels.js — 8-level ramp (Han 2026-08-02) + Level 9 (Han 2026-08-03)
     // internally chunks it into 2-measure blocks. `totalMeasures` stays equal to `numMeasures` so this
     // remains exactly 1 wave (one continuous piece, §130's proven "no per-wave regeneration" precedent) —
     // the 4-block structure is an internal JIT-generation detail invisible to the wave-counting system.
-    it('Level 9 is one continuous 8-measure wave, generated as 4 independent JIT call-response blocks', () => {
-        expect(LEVEL9.numMeasures).toBe(8);
-        expect(LEVEL9.numRepeats).toBe(1);
-        expect(LEVEL9.totalMeasures).toBe(8);
-        expect(wavesForLevel(LEVEL9)).toBe(1);
+    it('Level 13 (Wizard) is one continuous 8-measure wave, generated as 4 independent JIT call-response blocks', () => {
+        expect(LEVEL13.numMeasures).toBe(8);
+        expect(LEVEL13.numRepeats).toBe(1);
+        expect(LEVEL13.totalMeasures).toBe(8);
+        expect(wavesForLevel(LEVEL13)).toBe(1);
     });
 
-    it('Level 9 keeps Level 2\'s quarter-grid/range/sideScroll settings, with enemyType "Wizard"', () => {
-        expect(LEVEL9.enemyType).toBe('Wizard');
-        expect(LEVEL9.range).toEqual(LEVEL2.range);
-        expect(LEVEL9.smallestNoteDenom).toBe(LEVEL2.smallestNoteDenom);
-        expect(LEVEL9.insertBeatRests).toBe(LEVEL2.insertBeatRests);
-        expect(LEVEL9.polyMultiplier).toBe(LEVEL2.polyMultiplier);
-        expect(LEVEL9.sideScroll).toBe(LEVEL2.sideScroll);
-        expect(LEVEL9.fixedBass).toBe(LEVEL2.fixedBass);
-        expect(LEVEL9.notesPerMeasure).toBe(2);
-        expect(LEVEL9.wizardSpawnLeadMeasures).toBe(1);
+    it('Level 13 (Wizard) keeps Level 4\'s quarter-grid/range/sideScroll settings, with enemyType "Wizard"', () => {
+        expect(LEVEL13.enemyType).toBe('Wizard');
+        expect(LEVEL13.range).toEqual(LEVEL4.range);
+        expect(LEVEL13.smallestNoteDenom).toBe(LEVEL4.smallestNoteDenom);
+        expect(LEVEL13.insertBeatRests).toBe(LEVEL4.insertBeatRests);
+        expect(LEVEL13.polyMultiplier).toBe(LEVEL4.polyMultiplier);
+        expect(LEVEL13.sideScroll).toBe(LEVEL4.sideScroll);
+        expect(LEVEL13.fixedBass).toBe(LEVEL4.fixedBass);
+        expect(LEVEL13.notesPerMeasure).toBe(2);
+        expect(LEVEL13.wizardSpawnLeadMeasures).toBe(1);
     });
 });

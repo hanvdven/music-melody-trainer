@@ -508,15 +508,26 @@ export const LEVEL_BASS_DEFAULT = {
     range: DEFAULT_BASS.range,
 };
 
+// #1053 (Han 2026-08-17, "vaste levels 1-4 + renummering"): new gated levels 1-3 inserted at the front,
+// old level 2 relocated to id 4 unchanged, every level from the old id-3-onward ramp shifted +4 (ids 5/6
+// were never reused — old level 3 landed on 7, not 5, matching the "insert 4 new slots" scheme, not a
+// literal "shift everything by exactly 4" renumbering of EVERY prior id). Named exports now cover the
+// full main-progression roster (ids jump 4→7 — non-contiguous, matches levels.json itself) rather than
+// stopping at 9.
 export const LEVEL1 = byId[1];
 export const LEVEL2 = byId[2];
 export const LEVEL3 = byId[3];
 export const LEVEL4 = byId[4];
-export const LEVEL5 = byId[5];
-export const LEVEL6 = byId[6];
 export const LEVEL7 = byId[7];
 export const LEVEL8 = byId[8];
 export const LEVEL9 = byId[9];
+export const LEVEL10 = byId[10];
+export const LEVEL11 = byId[11];
+export const LEVEL12 = byId[12];
+export const LEVEL13 = byId[13];
+export const LEVEL14 = byId[14];
+export const LEVEL15 = byId[15];
+export const LEVEL19 = byId[19];
 
 export const LEVELS = byId;
 

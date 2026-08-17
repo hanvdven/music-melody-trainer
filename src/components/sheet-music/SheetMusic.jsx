@@ -1836,6 +1836,14 @@ const SheetMusic = ({
               sheet music (rendered in <SheetRpgLayer/> below, after the note layers). */}
 
           {/* Draw BPM Controls */}
+          {/* #1053 (Han 2026-08-17, "Zet de BPM op 'rubato'" for gated levels): reuses the EXISTING
+              rubato display (tempo term + Maestro glyph, §6c/§6d — never hand-rolled) rather than a new
+              mechanism. Deliberately does NOT touch the app-wide `isRubato`/`setIsRubato` state that
+              drives actual EXERCISE playback pacing elsewhere (App.jsx's handlePlayMelodyLogic etc.) —
+              a gated level's "no fixed tempo" behavior is already fully implemented by SheetRpgLayer's
+              own freeze/resume mechanism (#1052), so this is display-only: `gatedScroll` forces the
+              rubato LOOK regardless of the real `isRubato` toggle, and the toggle itself is disabled
+              while gated (nothing for the player to meaningfully switch — the level dictates this). */}
           <BpmControls
             bpm={bpm}
             onBpmChange={onBpmChange}
@@ -1847,8 +1855,8 @@ const SheetMusic = ({
             openSettingsIfClosed={openSettingsIfClosed}
             onSettingsInteraction={onSettingsInteraction}
             setTempoPicker={setTempoPicker}
-            isRubato={isRubato}
-            onToggleRubato={onToggleRubato}
+            isRubato={gatedScroll || isRubato}
+            onToggleRubato={gatedScroll ? undefined : onToggleRubato}
           />
 
           {/* Draw Repeats Controls - always visible, shows 4x outside adjustments.

@@ -3,12 +3,18 @@
     "id": 0,
     "name": "Level 0 — Sandbox",
     "bpm": 120,
-    "timeSignature": [4, 4],
+    "timeSignature": [
+      4,
+      4
+    ],
     "numMeasures": 2,
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "E5" },
+    "range": {
+      "min": "C4",
+      "max": "E5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -17,19 +23,61 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "default",
-    "key": { "tonic": "C4", "mode": "Major" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
     "intro": "Sandbox — start vanaf de ECHTE app-defaults (DEFAULT_BPM/DEFAULT_TIME_SIG/DEFAULT_SCALE_TONIC/DEFAULT_SCALE_MODE/defaultTrebleInstrumentSettings), alle instellingen zijn live aan te passen via het normale instellingenmenu (nu zichtbaar tijdens dit level) plus het extra Level-0-paneel voor level-specifieke velden."
   },
   {
     "id": 1,
     "name": "Level 1",
-    "bpm": 80,
+    "songId": "level1-intro",
+    "bpm": 90,
+    "sideScroll": true,
+    "gatedScroll": true,
+    "smallestNoteDenom": 4,
+    "insertBeatRests": true,
+    "polyMultiplier": 1,
+    "fixedBass": false,
+    "debugOnlyLines": true,
+    "enemyType": "Slime",
+    "intro": "Kwartnoten — je eerste gevecht. Het level wacht op jou: speel de juiste noot om verder te gaan."
+  },
+  {
+    "id": 2,
+    "name": "Level 2",
+    "songId": "level2-intro",
+    "bpm": 90,
+    "sideScroll": true,
+    "gatedScroll": true,
+    "smallestNoteDenom": 4,
+    "insertBeatRests": true,
+    "polyMultiplier": 1,
+    "fixedBass": false,
+    "debugOnlyLines": true,
+    "enemyType": "Slime",
+    "intro": "Rusten! Niet elke tel heeft een noot — wacht rustig, het level wacht op jou."
+  },
+  {
+    "id": 3,
+    "name": "Level 3",
+    "bpm": 90,
     "numMeasures": 2,
     "numRepeats": 1,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "gatedScroll": true,
@@ -39,17 +87,25 @@
     "fixedBass": false,
     "debugOnlyLines": true,
     "enemyType": "Slime",
-    "intro": "Kwartnoten en rusten — je eerste gevecht."
+    "tracks": {
+      "treble": {
+        "randomizationRule": "uniform"
+      }
+    },
+    "intro": "Nu zonder voorgeschreven melodie — willekeurige noten uit de toonladder, maar het level wacht nog steeds rustig op jou."
   },
   {
-    "id": 2,
-    "name": "Level 2",
+    "id": 4,
+    "name": "Level 4",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 3,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -58,17 +114,20 @@
     "fixedBass": true,
     "debugOnlyLines": true,
     "enemyType": "Slime",
-    "intro": "Side-scrollend gevecht — bas en metronoom worden hoorbaar."
+    "intro": "Nu op tempo — geen wachten meer. Side-scrollend gevecht: bas en metronoom worden hoorbaar."
   },
   {
-    "id": 3,
-    "name": "Level 3",
+    "id": 7,
+    "name": "Level 7",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 3,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -80,14 +139,17 @@
     "intro": "Halve noten."
   },
   {
-    "id": 4,
-    "name": "Level 4",
+    "id": 8,
+    "name": "Level 8",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 3,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 8,
@@ -99,14 +161,17 @@
     "intro": "Achtste noten."
   },
   {
-    "id": 5,
-    "name": "Level 5",
+    "id": 9,
+    "name": "Level 9",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 4,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 8,
@@ -118,14 +183,17 @@
     "intro": "Verbonden noten (ties) over de maatstreep."
   },
   {
-    "id": 6,
-    "name": "Level 6",
+    "id": 10,
+    "name": "Level 10",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 4,
     "variability": 30,
-    "range": { "min": "C4", "max": "C5" },
+    "range": {
+      "min": "C4",
+      "max": "C5"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 8,
@@ -137,14 +205,17 @@
     "intro": "Groter notenbereik (C4–C5)."
   },
   {
-    "id": 7,
-    "name": "Level 7",
+    "id": 11,
+    "name": "Level 11",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 4,
     "variability": 30,
-    "range": { "min": "C4", "max": "C5" },
+    "range": {
+      "min": "C4",
+      "max": "C5"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 8,
@@ -156,14 +227,17 @@
     "intro": "Bas en percussie altijd zichtbaar."
   },
   {
-    "id": 8,
-    "name": "Level 8",
+    "id": 12,
+    "name": "Level 12",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 8,
@@ -175,14 +249,17 @@
     "intro": "Volledige notenrijkdom — echte baslijn, alles samen."
   },
   {
-    "id": 9,
-    "name": "Level 9",
+    "id": 13,
+    "name": "Level 13",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -195,14 +272,17 @@
     "intro": "De wizard geeft 2 kwartnoten — herhaal ze in de volgende maat, 4 keer na elkaar."
   },
   {
-    "id": 10,
-    "name": "Level 10 — Mixed",
+    "id": 14,
+    "name": "Level 14 — Mixed",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -215,14 +295,17 @@
     "intro": "Gemengd: 2 maten slimes (speel meteen wat je ziet), dan 2 maten wizard (rust, luister, speel na) — daarna weer om en om. Let op: alleen de melodie/echo-mechaniek wisselt per blok; het vijandsprite blijft slime."
   },
   {
-    "id": 11,
-    "name": "Level 11 — Toonladderwissel",
+    "id": 15,
+    "name": "Level 15 — Toonladderwissel",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -232,18 +315,24 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "decorativeWizard": true,
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "intro": "Er staat een groene wizard bij — elke 2 maten wisselt de toonladder tussen majeur en mineur (dezelfde tonic). Alleen NIEUWE maten na de wissel klinken in de nieuwe toonladder."
   },
   {
-    "id": 15,
-    "name": "Level 15 — Twee handen",
+    "id": 19,
+    "name": "Level 19 — Twee handen",
     "bpm": 80,
     "numMeasures": 8,
     "numRepeats": 1,
     "notesPerMeasure": 3,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "totalMeasures": 8,
     "sideScroll": true,
     "smallestNoteDenom": 4,
@@ -253,7 +342,10 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "default",
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "twoHanded": true,
     "tracks": {
       "bass": {
@@ -262,11 +354,14 @@
         "rhythmVariability": 0,
         "notePool": "chord",
         "randomizationRule": "emphasize_roots",
-        "range": { "min": "C3", "max": "G3" },
+        "range": {
+          "min": "C3",
+          "max": "G3"
+        },
         "visible": true
       }
     },
-    "intro": "Twee toetsenborden! Rechterhand speelt de melodie (kwartnoten, zoals level 2); linkerhand speelt de baslijn mee (grondtoon op de eerste tel van elke maat, bereik C3-G3)."
+    "intro": "Twee toetsenborden! Rechterhand speelt de melodie (kwartnoten, zoals level 4); linkerhand speelt de baslijn mee (grondtoon op de eerste tel van elke maat, bereik C3-G3)."
   },
   {
     "id": 200,
@@ -378,7 +473,10 @@
     "numBlocks": 4,
     "notesPerMeasure": 1,
     "variability": 0,
-    "range": { "min": "C4", "max": "D4" },
+    "range": {
+      "min": "C4",
+      "max": "D4"
+    },
     "sideScroll": false,
     "smallestNoteDenom": 2,
     "insertBeatRests": true,
@@ -386,20 +484,35 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "default",
-    "key": { "tonic": "C4", "mode": "Major" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
     "intro": "Voorbeeldlevel — extreem simpel & statisch: 1 noot/maat, halve noten, bereik van een secunde (C4–D4)."
   },
   {
     "id": 102,
     "name": "Level 102 — Arpeggio",
     "bpm": 96,
-    "timeSignature": [6, 8],
+    "timeSignature": [
+      6,
+      8
+    ],
     "numMeasures": 4,
     "numBlocks": 3,
     "notesPerMeasure": 4,
     "variability": 60,
-    "range": { "min": "G4", "max": "D5" },
+    "range": {
+      "min": "G4",
+      "max": "D5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -408,9 +521,18 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "classical",
-    "key": { "tonic": "G4", "mode": "Mixolydian" },
+    "key": {
+      "tonic": "G4",
+      "mode": "Mixolydian"
+    },
     "tracks": {
-      "treble": { "notePool": "chord", "randomizationRule": "arp", "voices": 1, "maxLeap": 4, "volume": "f" }
+      "treble": {
+        "notePool": "chord",
+        "randomizationRule": "arp",
+        "voices": 1,
+        "maxLeap": 4,
+        "volume": "f"
+      }
     },
     "intro": "Voorbeeldlevel — arpeggio door het akkoord (melody type: arp), Mixolydisch, forte."
   },
@@ -418,12 +540,18 @@
     "id": 103,
     "name": "Level 103 — Duet",
     "bpm": 84,
-    "timeSignature": [3, 4],
+    "timeSignature": [
+      3,
+      4
+    ],
     "numMeasures": 2,
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 20,
-    "range": { "min": "A3", "max": "E5" },
+    "range": {
+      "min": "A3",
+      "max": "E5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": false,
@@ -432,10 +560,19 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "sunset",
-    "key": { "tonic": "A4", "mode": "Minor" },
+    "key": {
+      "tonic": "A4",
+      "mode": "Minor"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "weighted", "voices": 2 },
-      "bass": { "volume": "p" }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "weighted",
+        "voices": 2
+      },
+      "bass": {
+        "volume": "p"
+      }
     },
     "intro": "Voorbeeldlevel — tweestemmige akkoorden in de melodie (voices: 2), zachte bas (volume: p)."
   },
@@ -447,7 +584,10 @@
     "numBlocks": 2,
     "notesPerMeasure": 6,
     "variability": 80,
-    "range": { "min": "C4", "max": "C6" },
+    "range": {
+      "min": "C4",
+      "max": "C6"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 16,
     "insertBeatRests": false,
@@ -456,9 +596,17 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "stars",
-    "key": { "tonic": "D4", "mode": "Minor" },
+    "key": {
+      "tonic": "D4",
+      "mode": "Minor"
+    },
     "tracks": {
-      "treble": { "notePool": "all", "randomizationRule": "emphasize_roots", "voices": 1, "maxLeap": 24 }
+      "treble": {
+        "notePool": "all",
+        "randomizationRule": "emphasize_roots",
+        "voices": 1,
+        "maxLeap": 24
+      }
     },
     "intro": "Voorbeeldlevel — zestienden, grote sprongen (span 24), twee octaven bereik (C4–C6)."
   },
@@ -470,7 +618,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 3,
     "variability": 40,
-    "range": { "min": "C4", "max": "A4" },
+    "range": {
+      "min": "C4",
+      "max": "A4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -479,9 +630,17 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "river",
-    "key": { "tonic": "A4", "mode": "Minor" },
+    "key": {
+      "tonic": "A4",
+      "mode": "Minor"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "arp_var", "voices": "var", "maxLeap": 7 }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "arp_var",
+        "voices": "var",
+        "maxLeap": 7
+      }
     },
     "intro": "Voorbeeldlevel — drie verweven melodielijnen tegelijk (voices: 'var')."
   },
@@ -493,7 +652,10 @@
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 30,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -502,11 +664,23 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "lava",
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "fixed", "voices": 1 },
-      "bass": { "volume": "pp" },
-      "percussion": { "visible": true, "volume": "f" }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "fixed",
+        "voices": 1
+      },
+      "bass": {
+        "volume": "pp"
+      },
+      "percussion": {
+        "visible": true,
+        "volume": "f"
+      }
     },
     "intro": "Voorbeeldlevel — percussie luid en altijd zichtbaar, bas bijna stil (pp)."
   },
@@ -518,7 +692,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 2,
     "variability": 20,
-    "range": { "min": "A3", "max": "D5" },
+    "range": {
+      "min": "A3",
+      "max": "D5"
+    },
     "sideScroll": false,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -526,9 +703,17 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "museum",
-    "key": { "tonic": "F4", "mode": "Major" },
+    "key": {
+      "tonic": "F4",
+      "mode": "Major"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1, "preferredClef": "alto" }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1,
+        "preferredClef": "alto"
+      }
     },
     "intro": "Voorbeeldlevel — vocale les: altsleutel + comfortabel altbereik (A3–D5), F majeur."
   },
@@ -540,7 +725,10 @@
     "numBlocks": 2,
     "notesPerMeasure": 2,
     "variability": 25,
-    "range": { "min": "Bb4", "max": "F5" },
+    "range": {
+      "min": "Bb4",
+      "max": "F5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -550,20 +738,33 @@
     "enemyType": "Wizard",
     "wizardSpawnLeadMeasures": 2,
     "theme": "royal",
-    "key": { "tonic": "Bb4", "mode": "Major" },
-    "tracks": { "treble": { "preferredClef": "treble" } },
+    "key": {
+      "tonic": "Bb4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "preferredClef": "treble"
+      }
+    },
     "intro": "Voorbeeldlevel — Wizard call-response, B♭ majeur; numBlocks i.p.v. handmatige totalMeasures, numRepeats automatisch 2 (Wizard)."
   },
   {
     "id": 109,
     "name": "Level 109 — Triolen",
     "bpm": 92,
-    "timeSignature": [7, 8],
+    "timeSignature": [
+      7,
+      8
+    ],
     "numMeasures": 3,
     "numBlocks": 3,
     "notesPerMeasure": 3,
     "variability": 50,
-    "range": { "min": "E4", "max": "B4" },
+    "range": {
+      "min": "E4",
+      "max": "B4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -572,9 +773,18 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "clover",
-    "key": { "tonic": "E4", "mode": "Dorian" },
+    "key": {
+      "tonic": "E4",
+      "mode": "Dorian"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "arp_group", "voices": 1, "maxLeap": 9, "polyMultiplier": 3 }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "arp_group",
+        "voices": 1,
+        "maxLeap": 9,
+        "polyMultiplier": 3
+      }
     },
     "intro": "Voorbeeldlevel — tuplets aan (polyMultiplier: 3), Dorisch, arp_group-melodie."
   },
@@ -586,7 +796,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 2,
     "variability": 20,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -594,11 +807,21 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "classical",
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "tracks": {
       "bass": {
-        "notesPerMeasure": 4, "smallestNoteDenom": 4, "rhythmVariability": 20,
-        "notePool": "chord", "randomizationRule": "arp", "range": { "min": "C2", "max": "C3" }
+        "notesPerMeasure": 4,
+        "smallestNoteDenom": 4,
+        "rhythmVariability": 20,
+        "notePool": "chord",
+        "randomizationRule": "arp",
+        "range": {
+          "min": "C2",
+          "max": "C3"
+        }
       }
     },
     "intro": "Voorbeeldlevel — walking bass demo: tracks.bass volledig los van fixedBass, eigen ritme/notePool."
@@ -611,7 +834,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 3,
     "variability": 35,
-    "range": { "min": "G4", "max": "D5" },
+    "range": {
+      "min": "G4",
+      "max": "D5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -620,9 +846,22 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "paper",
-    "key": { "tonic": "G4", "mode": "Major" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
-    "chords": { "strategy": "pop-1-5-6-4", "fixedTonic": null, "chordCount": 4 },
+    "key": {
+      "tonic": "G4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
+    "chords": {
+      "strategy": "pop-1-5-6-4",
+      "fixedTonic": null,
+      "chordCount": 4
+    },
     "intro": "Voorbeeldlevel — akkoordenprogressie I-V-vi-IV i.p.v. de statische tonic-drone (chords override)."
   },
   {
@@ -633,7 +872,10 @@
     "numBlocks": 6,
     "notesPerMeasure": 1,
     "variability": 0,
-    "range": { "min": "D4", "max": "A4" },
+    "range": {
+      "min": "D4",
+      "max": "A4"
+    },
     "sideScroll": false,
     "smallestNoteDenom": 1,
     "insertBeatRests": true,
@@ -641,20 +883,35 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "marble",
-    "key": { "tonic": "D4", "mode": "Minor" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
+    "key": {
+      "tonic": "D4",
+      "mode": "Minor"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
     "intro": "Voorbeeldlevel — trage hele noten (smallestNoteDenom: 1), zeer laag tempo (60 bpm)."
   },
   {
     "id": 113,
     "name": "Level 113 — Presto",
     "bpm": 128,
-    "timeSignature": [5, 4],
+    "timeSignature": [
+      5,
+      4
+    ],
     "numMeasures": 3,
     "numBlocks": 3,
     "notesPerMeasure": 4,
     "variability": 45,
-    "range": { "min": "F#4", "max": "C#5" },
+    "range": {
+      "min": "F#4",
+      "max": "C#5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -663,8 +920,17 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "vapourwave",
-    "key": { "tonic": "F#4", "mode": "Major" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
+    "key": {
+      "tonic": "F#4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
     "intro": "Voorbeeldlevel — F♯ majeur, snel tempo (128 bpm)."
   },
   {
@@ -675,7 +941,10 @@
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 15,
-    "range": { "min": "Eb4", "max": "Bb4" },
+    "range": {
+      "min": "Eb4",
+      "max": "Bb4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -685,8 +954,17 @@
     "enemyType": "Wizard",
     "wizardSpawnLeadMeasures": 3,
     "theme": "cloudy-day",
-    "key": { "tonic": "Eb4", "mode": "Major" },
-    "tracks": { "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 } },
+    "key": {
+      "tonic": "Eb4",
+      "mode": "Major"
+    },
+    "tracks": {
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      }
+    },
     "intro": "Voorbeeldlevel — E♭ majeur, lange wizard-aankondiging (wizardSpawnLeadMeasures: 3), rustig tempo."
   },
   {
@@ -697,7 +975,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 3,
     "variability": 55,
-    "range": { "min": "B3", "max": "F#5" },
+    "range": {
+      "min": "B3",
+      "max": "F#5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -706,9 +987,17 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "rock",
-    "key": { "tonic": "B4", "mode": "Harmonic Minor" },
+    "key": {
+      "tonic": "B4",
+      "mode": "Harmonic Minor"
+    },
     "tracks": {
-      "treble": { "notePool": "all", "randomizationRule": "weighted", "voices": 1, "maxLeap": 12 }
+      "treble": {
+        "notePool": "all",
+        "randomizationRule": "weighted",
+        "voices": 1,
+        "maxLeap": 12
+      }
     },
     "intro": "Voorbeeldlevel — harmonisch mineur, volledige bas-rijkdom (fixedBass: false)."
   },
@@ -720,7 +1009,10 @@
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 25,
-    "range": { "min": "A4", "max": "E5" },
+    "range": {
+      "min": "A4",
+      "max": "E5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -729,11 +1021,22 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "pride-light",
-    "key": { "tonic": "A4", "mode": "Major" },
+    "key": {
+      "tonic": "A4",
+      "mode": "Major"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 },
-      "bass": { "visible": false },
-      "percussion": { "visible": false }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      },
+      "bass": {
+        "visible": false
+      },
+      "percussion": {
+        "visible": false
+      }
     },
     "intro": "Voorbeeldlevel — bas/percussie EXPLICIET verborgen (tracks.*.visible: false), ondanks debugOnlyLines: false."
   },
@@ -741,12 +1044,18 @@
     "id": 117,
     "name": "Level 117 — Drieklank",
     "bpm": 84,
-    "timeSignature": [3, 4],
+    "timeSignature": [
+      3,
+      4
+    ],
     "numMeasures": 2,
     "numBlocks": 4,
     "notesPerMeasure": 2,
     "variability": 45,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -755,9 +1064,17 @@
     "debugOnlyLines": true,
     "enemyType": "Slime",
     "theme": "barley",
-    "key": { "tonic": "C4", "mode": "Mixolydian" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Mixolydian"
+    },
     "tracks": {
-      "treble": { "notePool": "chord", "randomizationRule": "arp_group", "voices": 3, "maxLeap": 5 }
+      "treble": {
+        "notePool": "chord",
+        "randomizationRule": "arp_group",
+        "voices": 3,
+        "maxLeap": 5
+      }
     },
     "intro": "Voorbeeldlevel — drie-stemmige akkoordmelodie (voices: 3) via arp_group, Mixolydisch."
   },
@@ -769,7 +1086,10 @@
     "numBlocks": 3,
     "notesPerMeasure": 2,
     "variability": 20,
-    "range": { "min": "G4", "max": "D5" },
+    "range": {
+      "min": "G4",
+      "max": "D5"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 4,
     "insertBeatRests": true,
@@ -779,10 +1099,19 @@
     "enemyType": "Wizard",
     "wizardSpawnLeadMeasures": 1,
     "theme": "dog",
-    "key": { "tonic": "G4", "mode": "Minor" },
+    "key": {
+      "tonic": "G4",
+      "mode": "Minor"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1 },
-      "metronome": { "volume": "mf" }
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1
+      },
+      "metronome": {
+        "volume": "mf"
+      }
     },
     "intro": "Voorbeeldlevel — Wizard, G mineur, metronoom expliciet op mf (tracks.metronome.volume)."
   },
@@ -794,7 +1123,10 @@
     "numBlocks": 4,
     "notesPerMeasure": 3,
     "variability": 50,
-    "range": { "min": "C4", "max": "G4" },
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": true,
@@ -802,12 +1134,27 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "ram",
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "tracks": {
-      "treble": { "notePool": "scale", "randomizationRule": "uniform", "voices": 1, "insertBeatRests": false },
+      "treble": {
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "voices": 1,
+        "insertBeatRests": false
+      },
       "bass": {
-        "notesPerMeasure": 2, "smallestNoteDenom": 4, "rhythmVariability": 10,
-        "notePool": "scale", "randomizationRule": "uniform", "range": { "min": "C2", "max": "G2" },
+        "notesPerMeasure": 2,
+        "smallestNoteDenom": 4,
+        "rhythmVariability": 10,
+        "notePool": "scale",
+        "randomizationRule": "uniform",
+        "range": {
+          "min": "C2",
+          "max": "G2"
+        },
         "insertBeatRests": true
       }
     },
@@ -817,12 +1164,18 @@
     "id": 120,
     "name": "Level 120 — Kitchen Sink",
     "bpm": 118,
-    "timeSignature": [7, 8],
+    "timeSignature": [
+      7,
+      8
+    ],
     "numMeasures": 4,
     "numBlocks": 2,
     "notesPerMeasure": 4,
     "variability": 50,
-    "range": { "min": "C4", "max": "C6" },
+    "range": {
+      "min": "C4",
+      "max": "C6"
+    },
     "sideScroll": true,
     "smallestNoteDenom": 8,
     "insertBeatRests": false,
@@ -830,21 +1183,46 @@
     "debugOnlyLines": false,
     "enemyType": "Slime",
     "theme": "disco",
-    "key": { "tonic": "C4", "mode": "Major" },
+    "key": {
+      "tonic": "C4",
+      "mode": "Major"
+    },
     "tracks": {
       "treble": {
-        "notePool": "all", "randomizationRule": "arp_var", "voices": 2, "maxLeap": 10,
-        "smallestNoteDenom": 16, "insertBeatRests": false, "rhythmVariability": 70,
-        "polyMultiplier": 4, "volume": "f", "preferredClef": "treble"
+        "notePool": "all",
+        "randomizationRule": "arp_var",
+        "voices": 2,
+        "maxLeap": 10,
+        "smallestNoteDenom": 16,
+        "insertBeatRests": false,
+        "rhythmVariability": 70,
+        "polyMultiplier": 4,
+        "volume": "f",
+        "preferredClef": "treble"
       },
       "bass": {
-        "notesPerMeasure": 2, "smallestNoteDenom": 8, "rhythmVariability": 30,
-        "notePool": "chord", "randomizationRule": "arp", "range": { "min": "C2", "max": "C3" },
-        "volume": "mf", "visible": true
+        "notesPerMeasure": 2,
+        "smallestNoteDenom": 8,
+        "rhythmVariability": 30,
+        "notePool": "chord",
+        "randomizationRule": "arp",
+        "range": {
+          "min": "C2",
+          "max": "C3"
+        },
+        "volume": "mf",
+        "visible": true
       },
-      "percussion": { "volume": "mp", "visible": true }
+      "percussion": {
+        "volume": "mp",
+        "visible": true
+      }
     },
-    "chords": { "strategy": "modal-random", "fixedTonic": null, "chordCount": 2 },
+    "chords": {
+      "strategy": "modal-random",
+      "fixedTonic": null,
+      "chordCount": 2
+    },
     "intro": "Voorbeeldlevel — alles tegelijk: voices, tuplets, per-track volume/zichtbaarheid, akkoordprogressie."
   }
 ]
