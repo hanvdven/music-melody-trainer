@@ -7181,10 +7181,10 @@ origins is what caused both the invisible lead-in and the barline/note misalignm
 the parenthetical "since `beatsOnScreen` already equals the lead-in span for today's levels" is no longer a
 coincidence to rely on: §248 derives `beatsOnScreen` and `leadInBars` from a single `visibleMeasures`, so
 `leadInTicks === beatsOnScreen · TICKS_PER_BEAT` is guaranteed structurally. That is also why `beatsOnScreen`
-must never be rounded (7/8 at 3 visible measures is legitimately 10.5). Additionally, the earliest
-lead-in measures may now be deliberately SILENT while still visible — the "notation matches audible
-content" invariant above is preserved by generating the silence into the content itself, not by gating
-the audio.
+must never be rounded (7/8 at 3 visible measures is legitimately 10.5). The lead-in's CONTENT rule is
+unchanged by #994: every lead-in measure carries cello+timpani (Han rejected a draft that left the earliest
+ones silent — see §248), so the "notation matches audible content" invariant above still holds bar-for-bar
+across the whole lead-in, at whatever length the level derives.
 
 **Files:** `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`scrollPercussionMelody`,
 `leadInTicks`, `spansLeadIn` fields), `src/components/sheet-music/SheetRpgLayer.jsx` (`barlineStartX`/
@@ -7291,10 +7291,12 @@ Bass and metronome are no longer generated once for the whole level. They grow i
 
 **UPDATED by #994 (see §248):** `chunkMeasures` is no longer `LEVEL_LEAD_IN_BARS` (a fixed 2) but the
 level's own derived `leadInBars`, so the "generated exactly one chunk = one screenful ahead" relationship
-described here holds at any span rather than only at 2 measures. Chunk 0 now generates only the AUDIBLE
-tail of the lead-in (`countInBars` measures for bass, `metronomeBars` for the metronome) — the "metronome's
-chunk 0 is trimmed by one measure" trick described above is exactly what #994 generalized to produce the
-silent lead-in. Timpani is still `buildTimpaniPattern`, but now takes a `silentLeadMeasures` argument.
+described here holds at any span rather than only at 2 measures. Chunk 0 generates the FULL lead-in for
+bass/cello (every lead-in measure is scored — Han rejected a draft that left the earliest ones silent),
+while the metronome's chunk 0 stays shorter: the "trimmed by one measure" trick described above is
+generalized to `metronomeBars = ceil(leadInBars/2)`, i.e. the metronome joins for the second half of the
+lead-in. At a 2-bar lead-in that is 1 measure — byte-identical to the behaviour described here. Timpani is
+still `buildTimpaniPattern`, unchanged in role.
 
 **React 18 StrictMode remount safety (found via this ticket's own test suite):** `main.jsx` wraps the app in
 `<React.StrictMode>`, which double-invokes every effect in development (mount → cleanup → mount again) to
@@ -16698,10 +16700,7 @@ beatsPerMeasure  = TICKS_PER_WHOLE * (num/den) / TICKS_PER_BEAT      // quarter-
 targetBeats      = round(bpm / 10)                                   // ~6 s at ANY tempo
 visibleMeasures  = max(1, roundHalfDown(targetBeats / beatsPerMeasure))
 leadInBars       = visibleMeasures                                   // the visual lead-in IS the span
-countInBars      = min(visibleMeasures, max(2, ceil(visibleMeasures / 2)))
-metronomeBars    = max(1, countInBars - 1)
-celloOnlyBars    = countInBars - metronomeBars
-silentLeadInBars = visibleMeasures - countInBars
+metronomeBars    = ceil(leadInBars / 2)                              // the ONLY staggered track
 beatsOnScreen    = visibleMeasures * beatsPerMeasure                 // NOT rounded — see the invariant
 ```
 
@@ -16715,14 +16714,28 @@ count-in"; `Math.floor` fixes Kalinka but gives 3/4 @84 only 2 measures, contrad
 have 3 measures on screen". Half-DOWN is the only tie-break satisfying both (Han decision A, 2026-08-17).
 Only exact-`.5` quotients differ from `Math.round`.
 
-**Why `countInBars` carries the `max(2, …)` floor (Han decision B, 2026-08-17).** Han's count-in rule is
-an ORDERING, not just a length: always at least one measure of cello+timpani ALONE, then at least one
-measure with the metronome added (§110's "cello + timpanen vanaf maat -1, metronoom vanaf maat 0",
-generalized). An earlier draft put a `max(1, …)` floor on the metronome instead; Han rejected that,
-because on a short level it collapses both roles into one measure. Putting the floor on `countInBars`
-(clamped by `visibleMeasures`) widens the audible portion instead, preserving the ordering. The
-`max(1, …)` on `metronomeBars` remains ONLY as the `visibleMeasures === 1` degenerate guard (extreme fast
-tempo / long meter), where all three tracks unavoidably share the single available measure.
+**The lead-in is NEVER silent — only the metronome is staggered.** Han, after live-testing Kalinka
+(2026-08-17): *"alle opmaten cello+timpanen. de tweede helft (round up) + metronoom erbij"* — every
+lead-in measure carries cello+timpani, from the very first one; the metronome joins for the second half of
+the lead-in, rounded up. That is the whole rule. No clamping is needed anywhere: `ceil(x/2)` is inherently
+within `[1, x]` for every `x >= 1`, so even the degenerate `leadInBars === 1` case (extreme fast tempo /
+long meter) falls out correctly — the metronome simply joins that single measure alongside the cello. At
+the original 2-bar lead-in `metronomeBars` is 1, exactly reproducing §110's "cello + timpanen vanaf maat
+-1, metronoom vanaf maat 0".
+
+**⚠ REJECTED DESIGN — DO NOT REINTRODUCE.** The first #994 implementation split the lead-in three ways:
+`silentLeadInBars` (visible but COMPLETELY silent scenery) + `celloOnlyBars` + `metronomeBars`, derived
+via `countInBars = min(visibleMeasures, max(2, ceil(visibleMeasures/2)))`. The reasoning was that Han's
+"2 measures count-in" named a short audible tail inside a longer, mostly-silent lead-in, and that the
+cello-then-metronome ORDERING needed protecting by widening that tail. Both premises were wrong. On
+Kalinka (`leadInBars` 4) it left measures -3 and -2 completely silent and delayed cello/timpani to
+measure -1; Han heard all three backing tracks entering late against a visual lead-in that was itself
+correct, and rejected the concept outright rather than asking for a tweak. His model is the opposite and
+far simpler: the lead-in is fully scored from its first measure, and "count-in" refers only to when the
+metronome joins. `countInBars`, `celloOnlyBars` and `silentLeadInBars` were deleted, not adjusted —
+they described nothing real. `levelSpan.test.js` and `songLevels.test.js` now assert those fields are
+`undefined`, and `timpaniPattern.test.js` asserts the function has no `silentLeadMeasures` parameter, so
+the concept cannot creep back in.
 
 Net effect on the catalogue: **20 of 36 side-scroll levels are byte-identical to before** — every 4/4
 level in the 72–100 bpm band derives `visible 2 / countIn 2 / silent 0 / beatsOnScreen 8`, exactly its
@@ -16740,8 +16753,8 @@ derived once in `normalizeLevel()` and threaded to consumers:
 
 | Consumer | What it needs | How it gets it |
 |---|---|---|
-| `App.jsx` | `leadInBars`, `silentLeadInBars` | reads `level.current`; bundles a `levelSpan` object for the render path |
-| `SheetMusic.jsx` | `beatsOnScreen`, `leadInBars`, `silentLeadInBars` | ONE `levelSpan` object prop (see below) |
+| `App.jsx` | `leadInBars` | reads `level.current`; bundles a `levelSpan` object for the render path |
+| `SheetMusic.jsx` | `beatsOnScreen`, `leadInBars` | ONE `levelSpan` object prop (see below) |
 | `SheetRpgLayer.jsx` | `leadInBars` | **derived** from `scrollBarlines.leadInTicks / measureLengthSlots` |
 | `useLevelBackingStream.js` | all of them + chunk size | reads `lvl` (already receives the level object) |
 | `useLevelTrebleStream` / `MixedStream` / `KeyModulationStream` | `leadInBars`, `visibleMeasures` | reads `lvl` |
@@ -16781,33 +16794,33 @@ would break the equality above and drift barlines ~half a beat from their own no
 `dist/bos`), so a fractional value is both safe and required. `levelSpan.test.js` asserts the equality
 across 9 meters × 11 tempos.
 
-#### Silent vs audible lead-in (new behaviour)
+#### How the lead-in is scored
 
-Only the LAST `countInBars` measures of the lead-in sound. The earlier `silentLeadInBars` are scenery:
-barlines, measure numbers and notation scroll normally, with no metronome, no cello and no timpani.
+- **Cello** (`useLevelBackingStream.js`): the lead-in chunk generates the FULL `leadInBars` and is
+  scheduled at `chunkStartTime`, which IS `levelAudioStart` for chunk 0 — no offset of any kind. So the
+  cello's first note sounds exactly when the first lead-in barline appears on screen. Because
+  `chunkMeasures === leadInBars`, the lead-in chunk uses the same length expression as every content
+  chunk, and `baseTicks` is the same unified `chunkIndex * chunkMeasures * measureLengthTicks` for all
+  chunks (the branch that special-cased the lead-in was the rejected draft).
+- **Metronome** (same file): the only staggered track. Its lead-in chunk is `metronomeBars` long, with
+  both its tick timeline (`metronomeBaseTicks`) and its schedule (`metronomeStartTime`) shifted by
+  `(leadInBars - metronomeBars)` measures, so it occupies the LAST `metronomeBars` measures of the
+  lead-in. This is exactly §110's existing one-measure metronome trim
+  (`metronomeLength = chunkMeasures - 1`) generalized to a lead-in of any length.
+- **Timpani** (`src/utils/timpaniPattern.js`): spans lead-in + content with no leading rests, so it too
+  sounds from the first lead-in measure. `App.jsx`'s `timpaniMelody` and `SheetMusic.jsx`'s
+  `scrollPercussionMelody` must stay ARGUMENT-IDENTICAL — that identity is what satisfies §108's
+  "notation is built from the same pattern the audio is scheduled from". The rejected draft's
+  `silentLeadMeasures` third parameter was removed rather than left defaulting to 0 (§7: no dead
+  configurability), so leading silence cannot be reintroduced here by accident.
 
-The silence is baked into the CONTENT, never gated at the scheduling site — §108 requires the moving
-bass/percussion staves to be built from the exact same pattern the audio is scheduled from, so gating
-only the audio would show timpani hits during measures that are actually silent. Two mechanisms, both
-reusing prior art rather than adding a new one (§6c):
-
-- **Cello + metronome** (`useLevelBackingStream.js`): chunk 0 generates only its audible tail —
-  `length = countInBars` for bass, `metronomeBars` for the metronome — with `baseTicks` /
-  `audibleStartTime` / `metronomeStartTime` shifted forward to land on the correct lead-in measures. This
-  is a direct generalization of §110's existing one-measure metronome trim
-  (`metronomeLength = chunkMeasures - 1`), which already did exactly this for a 2-bar lead-in.
-- **Timpani** (`src/utils/timpaniPattern.js`): a third `silentLeadMeasures = 0` parameter emits `'r'` for
-  the first N measures while keeping offsets/durations dense, so the tick timeline is unchanged. Default
-  `0` keeps `useMelodyState.js`'s non-level call byte-identical. `App.jsx`'s audio call and
-  `SheetMusic.jsx`'s notation call pass the same value from the same level object.
-
-`levelAudioStart` still anchors the FIRST lead-in measure (the visual clock's zero), so the silent bars
-are real elapsed time, not skipped time — that is what keeps the scroll geometry in step with the audio.
+`levelAudioStart` anchors the FIRST lead-in measure, which is also the visual clock's zero — so audio and
+scroll geometry start together, which is precisely what the rejected design broke.
 
 Note (pre-existing, newly visible): in 2/4 there are only 2 quarter-beats per measure, so
 `buildTimpaniPattern`'s per-measure re-indexing (§231 point 4 / the #871 fix) only ever reaches
 `PATTERN[0]` and `PATTERN[1]` — both `C2`. Kalinka's timpani is therefore a flat `C2` pulse rather than
-the `C2 C2 C3 rest` figure. That is §871 behaviour, not something #994 changed, but a 2/4 level now shows
+the `C2 C2 C3 rest` figure. That is #871 behaviour, not something #994 changed, but a 2/4 level now shows
 4 lead-in measures of it, so it is far more noticeable.
 
 #### JIT chunk size and the wizard lookahead (Han decision D)
@@ -16851,13 +16864,16 @@ satisfied by the existing design — this is a property to verify, not to implem
 1. `beatsOnScreen · TICKS_PER_BEAT === leadInBars · measureLengthTicks`, exactly. Never round
    `beatsOnScreen`. (§108 depends on it; 7/8 at 3 measures is legitimately 10.5.)
 2. `leadInBars === visibleMeasures` — the visual lead-in and the flight span are one number.
-3. `1 <= countInBars <= visibleMeasures`, and whenever `visibleMeasures >= 2` there is at least one
-   cello-only measure followed by at least one metronome measure.
-4. A track's silent lead-in must be expressed in its CONTENT (ungenerated measures / rests), never as an
-   audio-only gate — the notation is built from the same pattern (§108).
+3. **No lead-in measure is ever silent.** Cello and timpani sound through the entire `leadInBars` span,
+   starting at `levelAudioStart` itself. The metronome is the only track with an offset, and it always
+   covers the last `metronomeBars = ceil(leadInBars/2)` measures — so `1 <= metronomeBars <= leadInBars`
+   holds without any clamping.
+4. If a future change ever DOES need a silent lead-in region, it must be expressed in the track's CONTENT
+   (ungenerated measures / rests), never as an audio-only gate, since the notation is built from the same
+   pattern (§108). But read the rejected-design note above first — Han has already ruled this out once.
 5. Nothing may reintroduce a global lead-in constant, nor a per-meter/per-tempo lookup table (§6c).
 
-**Files:** `src/levels/levels.js` (`beatsPerMeasure`, `roundHalfDown`, `deriveCountIn`,
+**Files:** `src/levels/levels.js` (`beatsPerMeasure`, `roundHalfDown`, `deriveMetronomeBars`,
 `deriveLevelSpan`, `spanForExplicitBeatsOnScreen`, `songLevelDefaults`, `normalizeLevel`),
 `src/levels/levels.json` (27 `beatsOnScreen` literals deleted), `src/constants/timing.js`
 (`LEVEL_LEAD_IN_BARS` deleted), `src/App.jsx` (`levelSpan` memo, `timpaniMelody`,
@@ -16867,6 +16883,11 @@ satisfied by the existing design — this is a property to verify, not to implem
 `src/hooks/useLevelBackingStream.js` (silent lead-in, chunk size),
 `src/hooks/useLevelTrebleStream.js`, `src/hooks/useLevelMixedStream.js`,
 `src/hooks/useLevelKeyModulationStream.js` (lead-in + lookahead), `src/hooks/useTwoHandedBass.js`,
-`src/utils/timpaniPattern.js` (`silentLeadMeasures`), `src/generation/generateLevelBackingChunk.js`
-(comment), `src/levels/__tests__/levelSpan.test.js` (new, 20 tests),
+`src/utils/timpaniPattern.js`, `src/generation/generateLevelBackingChunk.js`
+(comment), `src/levels/__tests__/levelSpan.test.js` (new, 22 tests),
 `src/levels/__tests__/songLevels.test.js`, `src/utils/__tests__/timpaniPattern.test.js`.
+
+**Rework history:** the first implementation (commit `04a303e`) shipped the rejected silent-lead-in design
+above and was bounced at UAT; the corrected version is the second `[#994-impl-Opus/high]` commit. The
+`§108` and `§110` cross-references in this document were written against the first version and updated
+alongside the correction.

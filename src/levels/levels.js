@@ -303,25 +303,27 @@ const beatsPerMeasure = (timeSignature) =>
 //
 // `roundHalfDown` (NOT Math.round): the quotient lands on an exact .5 for Kalinka (2/4 @90bpm ->
 // round(90/10)=9 targetBeats, 9/2 = 4.5), and the tie-break decides whether Han's own worked examples
-// hold. Math.round (half-UP) gives Kalinka 5 measures / 3 count-in, contradicting his "4 measures on
-// screen, 2 measures count-in"; Math.floor gives Kalinka 4 but then gives 3/4 @84bpm only 2 measures,
+// hold. Math.round (half-UP) gives Kalinka 5 measures, contradicting his "4 measures on
+// screen"; Math.floor gives Kalinka 4 but then gives 3/4 @84bpm only 2 measures,
 // contradicting his "3/4 should have 3 measures on screen". Half-DOWN is the only tie-break that
 // satisfies both. Confirmed by Han 2026-08-17 (decision A). Only exact-.5 cases differ from Math.round.
 const roundHalfDown = (x) => Math.ceil(x - 0.5);
 
-// The audible count-in, and how it splits (Han 2026-08-17, decision B). Han's rule is an ORDERING,
-// not merely a length: the count-in must ALWAYS give at least one measure of cello+timpani ALONE,
-// then at least one measure with the metronome added ("cello + timpanen vanaf maat -1, metronoom
-// vanaf maat 0", #663, generalized). That's why `countInBars` carries its own `max(2, …)` floor —
-// widening the audible portion past ceil(visibleMeasures/2) on short levels — instead of the
-// metronome carrying a floor: a floor on the metronome would have silently collapsed the two roles
-// into one measure. Clamped by `visibleMeasures` so the count-in can never exceed the lead-in itself.
+// REJECTED DESIGN — DO NOT REINTRODUCE (Han, live Kalinka UAT 2026-08-17). An earlier #994 pass split
+// the lead-in three ways: `silentLeadInBars` (visible but COMPLETELY silent scenery) + `celloOnlyBars`
+// + `metronomeBars`, via `countInBars = min(visibleMeasures, max(2, ceil(visibleMeasures/2)))`. On
+// Kalinka (leadInBars 4) that made measures -3 and -2 silent and delayed cello/timpani to measure -1;
+// Han heard all three backing tracks starting too late against a (correct) visual lead-in and rejected
+// the whole concept: *"alle opmaten cello+timpanen. de tweede helft (round up) + metronoom erbij"* —
+// EVERY lead-in measure carries cello+timpani, there is never a silent lead-in measure, and only the
+// METRONOME is staggered. So there is no count-in "window" at all: the lead-in is fully scored from its
+// first measure, and `metronomeBars` below is simply which trailing part of it also gets the metronome.
 //
-// Degenerate case `visibleMeasures === 1` (extreme fast tempo / long meter): countInBars is forced to
-// 1, so cello+timpani+metronome unavoidably share that single measure — no cello-only measure fits.
-// That's the ONLY case where `celloOnlyBars` is 0, and the only reason `metronomeBars` keeps a max(1,…).
-const deriveCountIn = (visibleMeasures) =>
-    Math.min(visibleMeasures, Math.max(2, Math.ceil(visibleMeasures / 2)));
+// The metronome joins for the second half of the lead-in, rounded up (Han's "de tweede helft (round
+// up)"). No clamping is needed: ceil(x/2) is inherently within [1, x] for every x >= 1, so this also
+// covers the degenerate leadInBars === 1 case (metronome joins that single measure alongside the
+// cello/timpani) without any special-casing.
+const deriveMetronomeBars = (leadInBars) => Math.ceil(leadInBars / 2);
 
 // The single source of truth for a side-scroll level's span. Returns every value the rest of the app
 // used to read off the global `LEVEL_LEAD_IN_BARS` constant, which could not survive becoming
@@ -343,17 +345,12 @@ export const deriveLevelSpan = ({ bpm, timeSignature }) => {
     // ("around 8-12 beats on screen ... for 80-120 bpm").
     const targetBeats = Math.round((bpm || 80) / 10);
     const visibleMeasures = Math.max(1, roundHalfDown(targetBeats / bpMeasure));
-    const countInBars = deriveCountIn(visibleMeasures);
-    // The metronome joins one measure into the count-in (see deriveCountIn's comment). max(1,…) is
-    // only the visibleMeasures===1 degenerate guard, never the ordering mechanism.
-    const metronomeBars = Math.max(1, countInBars - 1);
     return {
         visibleMeasures,
         leadInBars: visibleMeasures,          // the visual/notation lead-in IS the visible span
-        countInBars,
-        metronomeBars,
-        celloOnlyBars: countInBars - metronomeBars,
-        silentLeadInBars: visibleMeasures - countInBars,
+        // Cello + timpani always span ALL `leadInBars` measures — there is no field for that because
+        // there is no choice to make. Only the metronome is staggered (see deriveMetronomeBars).
+        metronomeBars: deriveMetronomeBars(visibleMeasures),
         beatsOnScreen: visibleMeasures * bpMeasure,
     };
 };
@@ -363,15 +360,10 @@ export const deriveLevelSpan = ({ bpm, timeSignature }) => {
 // can never disagree. (No level ships one today; #994 deleted every literal from levels.json.)
 const spanForExplicitBeatsOnScreen = (beatsOnScreen, timeSignature) => {
     const visibleMeasures = Math.max(1, Math.round(beatsOnScreen / beatsPerMeasure(timeSignature)));
-    const countInBars = deriveCountIn(visibleMeasures);
-    const metronomeBars = Math.max(1, countInBars - 1);
     return {
         visibleMeasures,
         leadInBars: visibleMeasures,
-        countInBars,
-        metronomeBars,
-        celloOnlyBars: countInBars - metronomeBars,
-        silentLeadInBars: visibleMeasures - countInBars,
+        metronomeBars: deriveMetronomeBars(visibleMeasures),
         beatsOnScreen,
     };
 };
@@ -435,8 +427,8 @@ const normalizeLevel = (lvl) => {
     // 4/4-derived "8". Song levels already get a correct derived value via songLevelDefaults; this
     // covers the procedural side too, same formula, same fallback-only-if-omitted convention as
     // numRepeats/totalMeasures above.
-    // #994: this now produces the WHOLE span bundle (visibleMeasures/leadInBars/countInBars/
-    // metronomeBars/celloOnlyBars/silentLeadInBars/beatsOnScreen), derived from bpm + meter, and it is
+    // #994: this now produces the WHOLE span bundle (visibleMeasures/leadInBars/metronomeBars/
+    // beatsOnScreen), derived from bpm + meter, and it is
     // derived from `merged` — i.e. AFTER a song level's defaults and the level's own explicit
     // bpm/timeSignature have been resolved — so an explicit `bpm` override always gets a matching span.
     // Explicit `beatsOnScreen` still wins (the established convention), but its lead-in bar count is

@@ -31,11 +31,16 @@ import playMelodies from '../audio/playMelodies';
 //
 // #994 (Han 2026-08-14/17, "flexible on screen notes"): the lead-in is no longer a fixed 2 measures —
 // it is the level's whole on-screen span (`lvl.leadInBars`, derived from tempo + meter in levels.js),
-// which can be 4 measures for Kalinka's 2/4. Only the LAST `lvl.countInBars` of those measures are an
-// audible count-in; the earlier `lvl.silentLeadInBars` are scenery (visible notation, no sound at all).
-// Within the count-in Han's ordering rule holds: at least one measure of cello ALONE, then at least one
-// with the metronome added — which is the same asymmetry above, generalized. The chunk SIZE also
-// follows `leadInBars`, which is what keeps the lookahead exactly one screenful (see `chunkMeasures`).
+// which is 4 measures for Kalinka's 2/4. The chunk SIZE also follows `leadInBars`, which is what keeps
+// the lookahead exactly one screenful (see `chunkMeasures`).
+//
+// Han's lead-in rule, after his live Kalinka UAT rejected an earlier draft (2026-08-17): *"alle opmaten
+// cello+timpanen. de tweede helft (round up) + metronoom erbij"* — cello (and timpani, built in App.jsx)
+// sound through the ENTIRE lead-in, from its very first measure; there are NO silent lead-in measures.
+// Only the metronome is staggered, joining for the second half of the lead-in (`lvl.metronomeBars =
+// ceil(leadInBars/2)`), which is the generalization of the original 2-bar behaviour above. The rejected
+// draft instead left the earliest lead-in measures completely silent and delayed cello/timpani — see the
+// REJECTED DESIGN note in levels.js and §248, and do not reintroduce it.
 export default function useLevelBackingStream({
   active,          // level.active && !!level.current?.sideScroll
   lvl,             // level.current
@@ -101,11 +106,8 @@ export default function useLevelBackingStream({
     // still "generated exactly one screenful ahead", the same guarantee as the original "2+2 maten op
     // voorhand" but now at whatever span the level actually uses.
     const leadInBars = lvl.leadInBars ?? 2;
-    const countInBars = lvl.countInBars ?? 2;
-    const silentLeadInBars = Math.max(0, leadInBars - countInBars);
-    // The metronome joins one measure INTO the count-in (Han's ordering rule — cello alone first).
-    // max(1,…) only covers the degenerate leadInBars===countInBars===1 case; see levels.js.
-    const metronomeBars = lvl.metronomeBars ?? Math.max(1, countInBars - 1);
+    // The metronome joins for the second half of the lead-in, rounded up (Han). Cello covers ALL of it.
+    const metronomeBars = lvl.metronomeBars ?? Math.ceil(leadInBars / 2);
     const chunkMeasures = leadInBars;
     const bassScale = scale.generateBassScale();
     const runId = `${levelAudioStart}`;
@@ -131,17 +133,18 @@ export default function useLevelBackingStream({
     const generateAndScheduleChunk = (chunkIndex) => {
       const isLeadIn = chunkIndex === 0;
       const contentCovered = isLeadIn ? 0 : (chunkIndex - 1) * chunkMeasures;
-      // #994: the lead-in chunk generates only its AUDIBLE tail (`countInBars`), not the whole span —
-      // the earlier `silentLeadInBars` measures get no generated content at all, which is what makes
-      // them genuinely silent for cello (and, via buildTimpaniPattern's silentLeadMeasures, timpani).
-      const length = isLeadIn ? countInBars : Math.min(chunkMeasures, numContentMeasures - contentCovered);
+      // #994 (corrected after Han's Kalinka UAT): the lead-in chunk generates the FULL lead-in span for
+      // cello — every lead-in measure is scored, none is silent. `chunkMeasures === leadInBars`, so this
+      // is the same expression the content chunks use.
+      const length = isLeadIn ? leadInBars : Math.min(chunkMeasures, numContentMeasures - contentCovered);
       if (length <= 0) return;
 
       // #663 follow-up (Han: "cello + timpanen vanaf maat -1, metronoom vanaf maat 0"): the metronome
-      // must NOT sound during the FIRST audible count-in measure — it joins one bar later, so its
-      // lead-in "chunk" is one bar shorter than bass's. Every later chunk is identical for both tracks.
-      // #994: generalized from `chunkMeasures - 1` to the derived `metronomeBars`, so the "cello alone,
-      // then cello + metronome" ordering holds at any count-in length (2 bars today, 3 at 5+ visible).
+      // must NOT sound from the very start of the lead-in — it joins later, so its lead-in "chunk" is
+      // shorter than bass's. Every later chunk is identical for both tracks.
+      // #994: generalized from `chunkMeasures - 1` to `metronomeBars` (= ceil(leadInBars/2), Han's "de
+      // tweede helft (round up)"), so the metronome enters halfway through a lead-in of any length. At
+      // the original 2-bar lead-in this is 1, reproducing the #663 behaviour exactly.
       const metronomeLength = isLeadIn ? metronomeBars : length;
 
       const { bass: bassChunk, metronome: metronomeChunk } = generateLevelBackingChunk({
@@ -158,33 +161,31 @@ export default function useLevelBackingStream({
         runId: `${runId}-${chunkIndex}`,
       });
 
-      // #994: chunk 0's generated content is the count-in only, so it starts `silentLeadInBars` measures
-      // INTO the lead-in rather than at its very beginning. Every later chunk is unchanged.
-      const baseTicks = isLeadIn
-        ? silentLeadInBars * measureLengthTicks
-        : chunkIndex * chunkMeasures * measureLengthTicks;
+      // Chunk 0's cello starts at the very first lead-in measure (tick 0) — no offset, since the whole
+      // lead-in is scored. `chunkIndex * chunkMeasures` is 0 for the lead-in anyway, so this is the same
+      // expression for every chunk; kept unified rather than branched (the branch was the rejected draft).
+      const baseTicks = chunkIndex * chunkMeasures * measureLengthTicks;
       // #871 follow-up (Han 2026-08-11): grown/published unconditionally again for every side-scroll
       // level — the cello backing no longer needs to skip itself for a no-bass song, since it now plays
       // through its own dedicated instrument/invisible-melody slot (App.jsx) instead of the visible bass
       // staff / `instruments.bass`, so it can no longer bleed into a song that provides no bass.
       growingBass = appendChunk(growingBass, bassChunk, baseTicks);
       setBass(growingBass);
-      // The metronome's lead-in chunk starts LATER than bass's (it joins one bar into the count-in) —
-      // its own tick-timeline is shifted forward to match, so it never overlaps silence.
+      // The metronome's lead-in chunk starts LATER than bass's — its own tick-timeline is shifted
+      // forward to match, so it never sounds during the first half of the lead-in.
       // #994: derived as "the last `metronomeBars` measures of the lead-in" instead of the hardcoded
-      // one-measure offset, so it lands correctly for any lead-in/count-in length.
+      // one-measure offset, so it lands correctly for a lead-in of any length.
       const metronomeBaseTicks = isLeadIn
         ? (leadInBars - metronomeBars) * measureLengthTicks
         : baseTicks;
       growingMetronome = appendChunk(growingMetronome, metronomeChunk, metronomeBaseTicks);
       setMetronome(growingMetronome);
 
-      // #994: audio times mirror the tick offsets above exactly — chunk 0's cello enters after the
-      // silent scenery bars, and the metronome one bar further in. `levelAudioStart` still anchors the
-      // very FIRST lead-in measure (the visual clock's zero), so the silent bars are real elapsed time,
-      // not skipped time — that is what keeps the §108 barline/scroll geometry in step with the audio.
+      // #994: audio times mirror the tick offsets above exactly. `levelAudioStart` anchors the very FIRST
+      // lead-in measure (the visual clock's zero), and the cello is scheduled AT it — so cello/timpani
+      // begin exactly when the first lead-in barline appears on screen. Only the metronome is offset,
+      // by the same amount as its tick timeline above.
       const chunkStartTime = levelAudioStart + chunkIndex * chunkMeasures * barSec;
-      const audibleStartTime = isLeadIn ? chunkStartTime + silentLeadInBars * barSec : chunkStartTime;
       const metronomeStartTime = isLeadIn
         ? chunkStartTime + (leadInBars - metronomeBars) * barSec
         : chunkStartTime;
@@ -196,13 +197,13 @@ export default function useLevelBackingStream({
       if (chunkIndex === 0) {
         // eslint-disable-next-line no-console
         console.debug('[LevelTiming] backing chunk 0 scheduling', {
-          nowCtxTime: context.currentTime, levelAudioStart, chunkStartTime, audibleStartTime,
-          metronomeStartTime, barSec, leadInBars, countInBars, silentLeadInBars, metronomeBars,
+          nowCtxTime: context.currentTime, levelAudioStart, chunkStartTime,
+          metronomeStartTime, barSec, leadInBars, metronomeBars,
         });
       }
       if (bassChunk.notes.length) {
         scheduleAndTrack(
-          [bassChunk], [bassInstrument], audibleStartTime, { bass: bassInstrument },
+          [bassChunk], [bassInstrument], chunkStartTime, { bass: bassInstrument },
           { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
         );
       }

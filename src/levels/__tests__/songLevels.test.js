@@ -80,17 +80,21 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
         });
     });
 
-    // #994: Kalinka is the ticket's motivating example, so its full lead-in split is pinned explicitly —
-    // "4 measures on screen (start at measure -3) and a 2 measures count-in", i.e. measures -3/-2 are
-    // visible but SILENT, -1 is cello+timpani only, and 0 adds the metronome.
-    it('Kalinka (2/4) shows 4 measures with a 2-measure count-in: 2 silent, then cello, then + metronome', () => {
+    // #994: Kalinka is the ticket's motivating example, so its lead-in is pinned explicitly.
+    // Han's corrected design after his live UAT (2026-08-17): "alle opmaten cello+timpanen. de tweede
+    // helft (round up) + metronoom erbij" — all 4 lead-in measures (-3..0) carry cello+timpani, NONE is
+    // silent, and the metronome joins for the second half (measures -1 and 0). An earlier pass instead
+    // left -3/-2 silent and delayed cello to -1; Han heard the backing start too late and rejected it.
+    it('Kalinka (2/4): all 4 lead-in measures are scored, metronome joins for the last 2', () => {
         const kalinka = LEVELS[202];
         expect(kalinka.songId).toBe('kalinka');
         expect(kalinka.visibleMeasures).toBe(4);
-        expect(kalinka.countInBars).toBe(2);
-        expect(kalinka.silentLeadInBars).toBe(2);
-        expect(kalinka.celloOnlyBars).toBe(1);
-        expect(kalinka.metronomeBars).toBe(1);
+        expect(kalinka.leadInBars).toBe(4);
+        expect(kalinka.metronomeBars).toBe(2);
+        // The rejected concepts must not come back.
+        expect(kalinka.silentLeadInBars).toBeUndefined();
+        expect(kalinka.countInBars).toBeUndefined();
+        expect(kalinka.celloOnlyBars).toBeUndefined();
     });
 
     it('each fixed-song level clears in exactly 1 wave (the whole song, no mid-level regeneration)', () => {

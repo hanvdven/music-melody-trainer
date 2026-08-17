@@ -1270,12 +1270,9 @@ const App = () => {
         return {
             beatsOnScreen: lvl.beatsOnScreen,
             leadInBars: lvl.leadInBars,
-            countInBars: lvl.countInBars,
-            silentLeadInBars: lvl.silentLeadInBars,
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [level.active, level.current?.id, level.current?.beatsOnScreen, level.current?.leadInBars,
-        level.current?.countInBars, level.current?.silentLeadInBars]);
+    }, [level.active, level.current?.id, level.current?.beatsOnScreen, level.current?.leadInBars]);
     // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
     // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
     // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
@@ -1295,20 +1292,18 @@ const App = () => {
     // `invisibleMelody1` (constants/melodyInstances.js) — the first concrete instance of the new
     // generalized audio-only-instance mechanism. Depends on primitive fields (not `level.current`
     // itself) so it doesn't recompute on every unrelated App.jsx render.
-    // #994: the lead-in is now per-level (`level.current.leadInBars`, derived in levels.js), and its
-    // EARLIEST `silentLeadInBars` measures must be genuinely silent — so the timpani pattern itself
-    // carries leading rests rather than being gated at the scheduling site. That keeps §108's
-    // invariant intact: SheetMusic.jsx builds the percussion NOTATION from the same call with the same
-    // arguments (both read these fields off the same normalized level object), so the moving staff can
-    // never show timpani hits during measures that are actually silent.
+    // #994: the lead-in is now per-level (`level.current.leadInBars`, derived in levels.js), and timpani
+    // sounds through ALL of it — Han's "alle opmaten cello+timpanen" (live Kalinka UAT 2026-08-17,
+    // rejecting an earlier draft that left the earliest lead-in measures silent). So the pattern simply
+    // spans lead-in + content with no leading rests. SheetMusic.jsx builds the percussion NOTATION from
+    // the identical call, which is what keeps §108's "notation is built from the pattern the audio is
+    // scheduled from" invariant true.
     const timpaniMelody = useMemo(() => {
         if (!percussionSettings?.melodic || !level.current?.numMeasures) return null;
         const leadInBars = level.current.leadInBars ?? 2;
-        return buildTimpaniPattern(
-            leadInBars + level.current.numMeasures, timeSignature, level.current.silentLeadInBars ?? 0,
-        );
+        return buildTimpaniPattern(leadInBars + level.current.numMeasures, timeSignature);
     }, [percussionSettings?.melodic, level.current?.numMeasures, level.current?.id,
-        level.current?.leadInBars, level.current?.silentLeadInBars, timeSignature]);
+        level.current?.leadInBars, timeSignature]);
     // #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
     // melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle levels."):
     // the level's cello backing now plays through its OWN dedicated Soundfont — exactly the same pattern
@@ -2819,8 +2814,8 @@ const App = () => {
                             // back to its own internal `= 8` default (4/4-only) regardless of what
                             // levels.js computed, so the #889 fix had zero effect on the actual note/
                             // slime flight timing.
-                            // #994: the four span values (beatsOnScreen + leadInBars + countInBars +
-                            // silentLeadInBars) are passed as ONE object rather than four sibling props,
+                            // #994: the span values (beatsOnScreen + leadInBars) are passed as ONE
+                            // object rather than sibling props,
                             // deliberately: the #889 bug above was a HALF-WIRED prop whose plausible
                             // independent default (`= 8`) hid the omission for weeks. A single object
                             // cannot be half-wired — either the span is here or it obviously isn't.

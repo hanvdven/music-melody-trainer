@@ -4856,3 +4856,26 @@ voor die shipte). `test:run`/`build`/`lint` groen.
 
 **Openstaand:** vogel-instrumentgetrouwheid (piccolo/bassoon per soort) blijft geblokkeerd — geen nieuwe
 bird-MIDI-export in ASSET DROP sinds de laatste check.
+
+## 2026-08-17 — ⏳ Vier nieuwe CR's/bugs na #994 (interview loopt)
+
+Han, direct na #994's UAT-melding:
+
+1. **#1043 🐞 Enemies/critters staan over de voortekens heen** wanneer de percussie-balk niet in
+   beeld is. Root cause gevonden: `SheetRpgLayer.jsx`'s `slimeY = trebleStart + staffHeight + 12` is
+   relatief aan de treble-balk i.p.v. aan de onderkant van het level — `heroY = viewBottom - HERO_H`
+   doet dat al wel. Han's gevraagde fix: gewoon altijd op de baseline (`viewBottom`) ankeren, ongeacht
+   percussie-zichtbaarheid.
+2. **#1044 🐞 7/8- (en andere oneven-maatsoort) en akkoord-levels: "veel glitches"** — nog niet
+   gescoped, Han zegt zelf "te onderzoeken". Mogelijk een regressie van #994's `deriveLevelSpan`
+   (die specifiek de fractionele 7/8 `beatsOnScreen` raakte) — te bevestigen voor er een fix-plan komt.
+3. **#1045 ⏳ Color mode toevoegen aan de settings van een level**, default subtle chroma.
+   `noteColoringMode` bestaat al als GLOBALE `DisplaySettingsContext`-setting (schemes: none/SCALE/
+   CHORD/chromatone/subtle-chroma) maar niet per-level — interview nodig over per-level override vs.
+   forceren bij level-start.
+4. **#1046 ⏳ Courtesy accidentals standaard aan** — `courtesyAccidentals` bestaat al als toggle
+   (`DisplaySettingsContext.jsx`/`SettingsPanel.jsx`), staat nu standaard uit.
+
+Interview voor #4 (klein, ondubbelzinnig — default-waarde) en #1 (Han gaf zelf de exacte fix) loopt
+kort; #1044 wordt eerst onderzocht (geen fix-implementatie) voor er iets gevraagd wordt; #1045 krijgt
+een volledige interview (scope van "level setting" is nog open).

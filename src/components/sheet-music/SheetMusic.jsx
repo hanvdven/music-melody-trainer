@@ -160,9 +160,7 @@ const EMPTY_SCALE_NOTES = Object.freeze([]);
 // #994: it is gone. The lead-in is per-level now (derived from the level's own tempo + meter in
 // levels.js `deriveLevelSpan`) and arrives here inside the `levelSpan` prop. These defaults reproduce
 // the old constant's behaviour for any non-side-scroll caller, where the values are unused anyway.
-const DEFAULT_LEVEL_SPAN = Object.freeze({
-  beatsOnScreen: 8, leadInBars: 2, countInBars: 2, silentLeadInBars: 0,
-});
+const DEFAULT_LEVEL_SPAN = Object.freeze({ beatsOnScreen: 8, leadInBars: 2 });
 
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
@@ -325,9 +323,9 @@ const SheetMusic = ({
   // #994: unpack the per-level span once. `levelSpan` is null for every non-side-scroll caller, which
   // falls back to DEFAULT_LEVEL_SPAN (the pre-#994 fixed 2-bar / 8-beat values) — those paths never
   // read the lead-in fields, but keeping the defaults identical means no non-level render can change.
-  // (`countInBars` is deliberately not unpacked — the count-in is an AUDIO concern, owned by
-  // useLevelBackingStream; the only thing the NOTATION needs is which lead-in bars are silent.)
-  const { beatsOnScreen, leadInBars, silentLeadInBars } = levelSpan || DEFAULT_LEVEL_SPAN;
+  // (`metronomeBars` is deliberately not unpacked — which lead-in bars the metronome joins for is a
+  // pure AUDIO concern owned by useLevelBackingStream, and the metronome has no notation on these staves.)
+  const { beatsOnScreen, leadInBars } = levelSpan || DEFAULT_LEVEL_SPAN;
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
@@ -1116,11 +1114,12 @@ const SheetMusic = ({
   const levelTotalMeasures = leadInBars + numMeasures;
   const leadInTicks = leadInBars * measureLengthSlots;
   const scrollBassMelody = adjustedBassMelody;
-  // #994: `silentLeadInBars` must match App.jsx's timpani AUDIO call exactly — both read the same
-  // fields off the same normalized level object, which is what keeps §108's "notation is built from
-  // the same pattern the audio schedules from" invariant true for the new variable-length lead-in.
+  // #994: this call must stay ARGUMENT-IDENTICAL to App.jsx's timpani AUDIO call (`timpaniMelody`) —
+  // that identity is what keeps §108's "notation is built from the same pattern the audio schedules
+  // from" invariant true for the variable-length lead-in. Timpani spans the whole lead-in (Han: "alle
+  // opmaten cello+timpanen"), so neither call passes any leading-silence argument.
   const scrollPercussionMelody = percussionSettings?.melodic
-    ? buildTimpaniPattern(levelTotalMeasures, timeSignature, silentLeadInBars)
+    ? buildTimpaniPattern(levelTotalMeasures, timeSignature)
     : adjustedPercussionMelody;
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
