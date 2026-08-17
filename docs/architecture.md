@@ -17026,3 +17026,28 @@ there's nothing to make level-configurable.
 
 **Files:** `src/hooks/useLevel.js` (`applyConfig`/`restore`), `src/App.jsx` (`levelSetters`,
 `levelSnapshot`).
+
+### §254. "Scale + subtle chromatone" hybrid color mode; new level default (#1049, Han 2026-08-17)
+
+**Purpose:** Han: "ik wil een nieuwe kleurmodus: scale x subtle chroma: kleur enkel de noten uit de
+toonladder in subtle chroma. Laat dat de default zijn voor alle levels die ik nu heb." A new note-coloring
+scheme that combines two existing ones: `subtle-chroma`'s pitch-class-gradient coloring, applied ONLY to
+notes that are actually in the current scale (like `tonic_scale_keys`' own filter) — out-of-scale/
+chromatic notes stay plain.
+
+**How it works:** `melodicNoteColor` (`src/theory/noteUtils.js`, the canonical per-note color helper,
+§6d) gained a new `'scale-subtle-chroma'` branch: computes the note's pitch class, checks it against the
+tonic/`scaleNotes` (the exact same in-scale test `tonic_scale_keys` already uses), and if in-scale returns
+`chromatoneMix(pc, 60, theme)` (the exact same gradient `subtle-chroma` already uses) — otherwise `null`
+(falls back to plain `var(--text-primary)` at the call site, same as `tonic_scale_keys`'s own out-of-scale
+notes). `renderMelodyNotes.jsx` needed zero changes — `tonic_scale_keys`/`chords` are the only modes with
+a local special-case branch before falling through to `melodicNoteColor`; every other mode (chromatone,
+subtle-chroma, and now this one) already flows straight through.
+
+**Invariant:** a new color mode should be added to `melodicNoteColor` directly, reusing whichever
+existing filter/gradient logic it combines, rather than a parallel implementation — this mode reuses
+100% existing logic (§6c), it just composes two already-shipped behaviors.
+
+**Files:** `src/theory/noteUtils.js` (`melodicNoteColor`), `src/components/sheet-music/overlays/
+NoteColoringStaffOverlay.jsx` (`SCHEMES` entry), `src/levels/levels.js` (`DEFAULT_LEVEL_COLOR_MODE`
+changed from `'subtle-chroma'` to `'scale-subtle-chroma'`, §249).
