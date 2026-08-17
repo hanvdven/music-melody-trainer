@@ -11,6 +11,8 @@ import {
     respellToKeySignature,
     tritoneOf,
     representativeChord,
+    melodicNoteColor,
+    chromatoneMix,
 } from '../noteUtils';
 import { getTranspositionFifths } from '../../constants/transposingInstruments';
 
@@ -297,5 +299,29 @@ describe('representativeChord (#432 — chords-mode preview colouring)', () => {
         const rc = representativeChord([], 'C4');
         expect(getNoteSemitone(rc.root)).toBe(6);            // F♯ = tritone of C
         expect(rc.notes.map(getNoteSemitone).sort((a, b) => a - b)).toEqual([0, 6]);
+    });
+});
+
+// #1049 (Han 2026-08-17, "scale x subtle chroma: kleur enkel de noten uit de toonladder in subtle
+// chroma"): the new hybrid mode reuses subtle-chroma's own chromatoneMix gradient for the color, but
+// only applies it to notes that are actually in the current scale (tonic included) — not a new
+// filtering mechanism, the same in-scale test tonic_scale_keys already uses.
+describe('melodicNoteColor — scale-subtle-chroma (#1049)', () => {
+    const opts = { noteColoringMode: 'scale-subtle-chroma', tonic: 'C4', scaleNotes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'], theme: 'dark' };
+
+    it('colors an in-scale note with the subtle-chroma gradient for its own pitch class', () => {
+        expect(melodicNoteColor('E4', opts)).toBe(chromatoneMix(getNoteSemitone('E4'), 60));
+    });
+
+    it('colors the tonic itself too, not just non-tonic scale degrees', () => {
+        expect(melodicNoteColor('C4', opts)).toBe(chromatoneMix(getNoteSemitone('C4'), 60));
+    });
+
+    it('returns null (no color) for a note NOT in the scale', () => {
+        expect(melodicNoteColor('F♯4', opts)).toBe(null);
+    });
+
+    it('matches by pitch class regardless of octave', () => {
+        expect(melodicNoteColor('E5', opts)).toBe(chromatoneMix(getNoteSemitone('E4'), 60));
     });
 });

@@ -280,7 +280,11 @@ const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 
 // #1045 (Han 2026-08-17): every level's default note-coloring scheme, unless the level overrides it
 // with its own `colorMode`. Must match one of NoteColoringStaffOverlay.jsx's SCHEMES mode values.
-export const DEFAULT_LEVEL_COLOR_MODE = 'subtle-chroma';
+// #1049 follow-up (Han 2026-08-17, "laat dat de default zijn voor alle levels die ik nu heb"):
+// changed from plain 'subtle-chroma' (colors every note) to the new 'scale-subtle-chroma' hybrid
+// (colors only in-scale notes, same subtle-chroma gradient) — no level currently sets its own explicit
+// `colorMode`, so this single constant change already updates every shipped level.
+export const DEFAULT_LEVEL_COLOR_MODE = 'scale-subtle-chroma';
 
 // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
 // moet zijn na 2 maten (6 kwarttellen)"), generalized #889 (Han 2026-08-14): `beatsOnScreen` (the

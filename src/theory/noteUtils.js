@@ -358,6 +358,17 @@ export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [
         if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
         if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
     }
+    // #1049 (Han 2026-08-17, "scale x subtle chroma: kleur enkel de noten uit de toonladder in subtle
+    // chroma"): reuses subtle-chroma's own chromatoneMix gradient for the COLOR, but only for notes
+    // that are actually in the current scale (tonic included) — tonic_scale_keys' own in-scale test
+    // (pitch-class match against tonic/scaleNotes), not a new filtering mechanism. Out-of-scale notes
+    // return null (falls back to plain 'var(--text-primary)' at the call site), same as
+    // tonic_scale_keys already does for its own out-of-scale notes.
+    if (noteColoringMode === 'scale-subtle-chroma') {
+        const pc = getNoteSemitone(note);
+        const inScale = pc === getNoteSemitone(tonic) || scaleNotes.some(s => getNoteSemitone(s) === pc);
+        if (inScale) return chromatoneMix(pc, 60, theme);
+    }
     return null;
 };
 

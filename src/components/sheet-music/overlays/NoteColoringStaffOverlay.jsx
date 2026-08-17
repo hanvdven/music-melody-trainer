@@ -49,6 +49,10 @@ const SCHEMES = [
     { mode: 'chords', label: 'Chord' },
     { mode: 'chromatone', label: 'Chromatone' },
     { mode: 'subtle-chroma', label: 'Subtle chromatone' },
+    // #1049 (Han 2026-08-17, "scale x subtle chroma: kleur enkel de noten uit de toonladder in subtle
+    // chroma"): subtle chromatone's own colour gradient, but only for in-scale notes — reuses
+    // tonic_scale_keys' in-scale test, not a new filtering mechanism (see melodicNoteColor, §6c).
+    { mode: 'scale-subtle-chroma', label: 'Scale + subtle chromatone' },
 ];
 // The full diatonic run so each scheme's colouring reads clearly (Han 2026-06-17: the shortened
 // 5-note run dropped too many in-between notes). #497 (Han 2026-07-19): on a BASS-clef top staff the
