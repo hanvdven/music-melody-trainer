@@ -2196,7 +2196,14 @@ const SheetMusic = ({
                           />
                         </g>
                       )}
-                      {textLyricsActive && actualTreble && (
+                      {/* #1044 bug fix (Han 2026-08-17, "ik zie lyrics in beeld die meebewegen met de
+                          noten, maar ik zie óók statische lyrics"): this static render was missing the
+                          `!sideScroll` gate every other staff layer already has (MelodyNotesLayer just
+                          above, BarlinesLayer, etc.) — during a side-scroll level it rendered
+                          SIMULTANEOUSLY with the scrolling `scrollLyrics` variant (below, correctly
+                          gated `sideScroll && textLyricsActive`), showing both a static AND a moving
+                          copy of the same song lyrics at once. */}
+                      {textLyricsActive && actualTreble && !sideScroll && (
                         <g className="text-lyrics-group">
                           {/* Pass original trebleMelody so melody.lyrics indices align correctly. */}
                           <LyricsLayer
