@@ -1052,9 +1052,21 @@ export default function SheetRpgLayer({
     // and escape use (you strike the blob, not the glyph).
     // #688: the Wizard's projectile uses the SAME flight span as a slime (`beatsOnScreen`) again — only
     // its RENDER visibility is gated separately (see `spawnLeadBeats` above / the render call site below).
-    const sideScrollX = (beat, atTick) => {
+    // #1050 (Han 2026-08-17, "de framerate is niet perfect, het beeld is wat schokkerig... SUPERsmooth"):
+    // `rawElapsedMs` is an OPTIONAL third parameter — the un-rounded milliseconds elapsed since the same
+    // anchor `atTick` is measured from. When the caller has it (the rAF loop's own per-frame hot path,
+    // below), it's used INSTEAD of reconstructing ms from `atTick * INTERVAL_MS`. `atTick` is a tick
+    // rounded to the nearest INTERVAL_MS (8ms) — fine for anything that only needs to categorize a
+    // discrete moment (hit-detection windows, spawn/visibility gating, initial paint), but real frames
+    // arrive ~16.67ms apart, not a clean multiple of 8, so multiplying the ROUNDED tick back out for a
+    // CONTINUOUS position made the modeled per-frame time delta unevenly alternate (mostly 16ms, then a
+    // 24ms catch-up jump) — a constant, structural velocity jitter in otherwise-linear motion, independent
+    // of any other work happening that frame. Discrete/event-driven callers are unaffected: they still
+    // pass only `atTick` and get the exact same tick-quantized value as before.
+    const sideScrollX = (beat, atTick, rawElapsedMs) => {
         const { startX: sx, viewRight: vr, beatsOnScreen: bos, beatMs: bMs, frameMs: fMs } = geomRef.current;
-        const msSinceSpawn = (atTick - waveStartRef.current) * INTERVAL_MS - beat * bMs;
+        const elapsedSinceAnchor = rawElapsedMs ?? (atTick * INTERVAL_MS);
+        const msSinceSpawn = elapsedSinceAnchor - waveStartRef.current * INTERVAL_MS - beat * bMs;
         const dist = vr - sx;
         const noteX = vr - (msSinceSpawn / (bos * bMs)) * dist;                 // linear
         const totalFrames = Math.round((bos * bMs) / fMs);                     // walk frames over the crossing
@@ -1126,6 +1138,10 @@ export default function SheetRpgLayer({
             const anchor = scrollStartRef.current != null ? scrollStartRef.current
                 : (clockStartRef.current == null ? (clockStartRef.current = nowMs) : clockStartRef.current);
             const t = Math.round((nowMs - anchor) / INTERVAL_MS);
+            // #1050: the RAW (un-rounded) elapsed ms since the SAME anchor `t` is measured from — passed
+            // to sideScrollX/scroll-transform math below instead of `t * INTERVAL_MS` (see sideScrollX's
+            // own comment). `t` itself is untouched and still drives every discrete/tick-based formula.
+            const tRawMs = nowMs - anchor;
             // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost"): logs the FIRST tick this loop
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
             // picked" log to see whether the anchor arrived here late, or whether it's correct here but
@@ -1174,7 +1190,9 @@ export default function SheetRpgLayer({
             if (g.sideScroll && g.dist > 0 && g.beatMs > 0) {
                 // Scroll transform — mirrors the render body's own scrollPx/scrollPPT formula exactly
                 // (§6c: same arithmetic, just evaluated here every frame instead of once per React render).
-                const scrollElapsedMs = (t - waveStartRef.current) * INTERVAL_MS;
+                // #1050: tRawMs (not `t * INTERVAL_MS`) — see sideScrollX's own comment on why the
+                // rounded tick must not be reconstructed into a continuous-motion millisecond value.
+                const scrollElapsedMs = tRawMs - waveStartRef.current * INTERVAL_MS;
                 const framePx = (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist;
                 const barlineTransform = `translate(${-framePx}, 0)`;
                 const noteTransform = `translate(${NOTE_STAFF_DX - framePx}, 0)`;
@@ -1191,11 +1209,11 @@ export default function SheetRpgLayer({
                 // point 7's "IMPORTANT" note in the ticket — an entity that walked off-screen simply stops
                 // getting fresh positions for up to one frameTick interval, an acceptable ~100-300ms lag
                 // for something already leaving the screen).
-                const nowMsForOsc = t * INTERVAL_MS;
+                const nowMsForOsc = tRawMs;   // #1050: raw, not `t * INTERVAL_MS` — see sideScrollX's comment
                 slimeRefsMap.current.forEach((entry, key) => {
                     const sl = slimesRef.current[entry.idx];
                     if (!sl || sl.key !== key) return;   // stale entry from a just-replaced wave
-                    const p = sideScrollX(sl.beat, t);
+                    const p = sideScrollX(sl.beat, t, tRawMs);
                     if (entry.kind === 'projectile') {
                         const oscX = oscillate(sl.key, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
                         const oscY = oscillate(sl.key + 1000, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
@@ -1214,7 +1232,7 @@ export default function SheetRpgLayer({
                 bassSlimeRefsMap.current.forEach((entry, key) => {
                     const sl = bassSlimesRef.current[entry.idx];
                     if (!sl || sl.key !== key) return;
-                    const p = sideScrollX(sl.beat, t);
+                    const p = sideScrollX(sl.beat, t, tRawMs);
                     entry.el.setPosition(p.slimeX, g.bassSlimeY);
                     entry.el.setFrame(SLIME_WALK.row, p.walkFrame);
                 });
@@ -1223,7 +1241,7 @@ export default function SheetRpgLayer({
                 critterRefsMap.current.forEach((entry, key) => {
                     const c = crittersRef.current[entry.idx];
                     if (!c || c.key !== key) return;
-                    const p = sideScrollX(c.beat, t);
+                    const p = sideScrollX(c.beat, t, tRawMs);
                     const gF = Math.floor(p.ff / 4) % 1000;   // same slow idle cadence as the render body used
                     entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF);
                 });
@@ -1232,7 +1250,7 @@ export default function SheetRpgLayer({
                     const el = switchRefsArr.current[i];
                     if (!el) return;
                     const switchBeat = k * 2 * g.beatsPerMeasure;
-                    const p = sideScrollX(switchBeat, t);
+                    const p = sideScrollX(switchBeat, t, tRawMs);
                     el.setCenter(p.noteX, g.projectileCenterY);
                     el.setFrame(Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES);
                 });
