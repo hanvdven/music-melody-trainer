@@ -607,8 +607,15 @@ const SheetMusic = ({
   // leaving `scaleFactor` itself (and therefore staff/note size) completely unchanged. Naturally tapers
   // to a no-op once enough staves are visible that the actual height already meets/exceeds the
   // reference (Han's "behalve als alle balken actief zijn"). Non-sideScroll views are untouched.
+  // Layout fix (Han 2026-08-18, "maak de verticale afstand tussen het 'level' en de notenbalk (1
+  // notenbalk actief) 50% kleiner"): #1043's fix above filled ALL of the available slack
+  // (`refLogicalHeightForViewBox - logicalHeightForViewBox`) when only one staff is visible — Han now
+  // wants that gap halved, not eliminated (sprites still need to sit clearly below the staff, per
+  // #1043's own original ask). Only the EXTRA slack #1043 added is halved; the natural single-staff
+  // baseline (`logicalHeightForViewBox`) is untouched, and this still naturally tapers to a no-op once
+  // enough staves are visible that the actual height already meets/exceeds the reference.
   const levelLogicalHeightForViewBox = sideScroll
-    ? Math.max(logicalHeightForViewBox, refLogicalHeightForViewBox)
+    ? logicalHeightForViewBox + Math.max(0, refLogicalHeightForViewBox - logicalHeightForViewBox) * 0.5
     : logicalHeightForViewBox;
 
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)

@@ -93,6 +93,10 @@ const slimeColorKey = (d) => (d >= 24 ? 'blue' : d >= 12 ? 'green' : 'red');
 const SLIME_VIEW_H = 33;   // on-sheet slime height (Han: +50%); tunable
 const SLIME_VIEW_W = SLIME_VIEW_H * (SLIME_CROP.w / SLIME_CROP.h);
 const HERO_H = 140;        // on-sheet hero height (Han: 2×); tunable
+// Layout fix (Han 2026-08-18, "de hero mag een kleeein tikkie naar links ook" — after anchoring the
+// hero to the shifted strike zone, §261/perfect-timing-shift): a small pixel offset pulling ONLY the
+// hero sprite back left of the exact strike point — tunable, unrelated to the strike-zone shift itself.
+const HERO_NUDGE_LEFT_PX = 15;
 
 // #679 Level 9 (Wizard/projectile) geometry — mirrors the Slime/Hero constants above 1:1.
 const WIZARD_H = HERO_H;                                    // same scale as the hero it faces (Han: companion-weight)
@@ -1121,9 +1125,19 @@ export default function SheetRpgLayer({
     // geometry without closing over stale render-scoped values (the loop's own effect has an intentionally
     // empty dependency array — one continuous loop, not restarted every render, exactly like `sideScrollX`'s
     // existing use of this same ref for the same reason).
+    // Layout fix (Han 2026-08-18, "move the 'perfect timing' a bit to the right (maybe about 5%
+    // screenwidth)"): shifts where slimes/notes actually STOP (and therefore where the hero anchors,
+    // §261's `heroX = startX`) rightward, WITHOUT touching the raw `startX` PROP itself — SheetMusic.jsx
+    // has ~27 OTHER consumers of that prop for completely unrelated static-layout positioning (clef, key
+    // signature, etc.) that must stay exactly where they are. `effectiveStartX` is the ONE place this
+    // shift is applied; every combat/flight formula in this file derives its stopping point from
+    // `geomRef.current.startX`/`.dist` (either directly or via `sideScrollX`'s own `vr - sx` read), so
+    // storing the shifted value there — not the raw prop — is sufficient to move noteX/slimeX/heroX/the
+    // debug strike-zone bands all together, with nothing left inconsistent.
+    const effectiveStartX = sideScroll ? startX + viewRight * 0.05 : startX;
     geomRef.current = {
-        startX, viewRight, beatsOnScreen, sideScroll, gatedScroll, beatMs, frameMs, isWizard,
-        dist: viewRight - startX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
+        startX: effectiveStartX, viewRight, beatsOnScreen, sideScroll, gatedScroll, beatMs, frameMs, isWizard,
+        dist: viewRight - effectiveStartX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
         // #863 round 2: isMixed/spawnLeadBeats added so `computeWizardCast` (below) can run from the rAF
         // loop's mount-time-only closure without stale-closure-capturing these render-scoped values.
         isMixed, spawnLeadBeats,
@@ -1885,7 +1899,13 @@ export default function SheetRpgLayer({
     // bands), so anchoring the hero there puts him exactly where the action happens, with the
     // clef/key signature (drawn separately, always at the far left) now clearly to his left instead of
     // underneath him.
-    const heroX = startX;
+    // Layout fix (Han 2026-08-18, "move the 'perfect timing' a bit to the right... about 5%
+    // screenwidth"): reuses `effectiveStartX` (declared once, above, right before `geomRef.current` —
+    // see its own comment) rather than a second local redeclaration. Follow-up (Han: "de hero mag een
+    // kleeein tikkie naar links ook" — the hero himself may sit a LITTLE further left than the exact
+    // strike point, ONLY the hero, not the slimes/notes/strike-zone bands): `HERO_NUDGE_LEFT_PX` pulls
+    // just the hero sprite back slightly.
+    const heroX = effectiveStartX - HERO_NUDGE_LEFT_PX;
     const heroY = viewBottom - HERO_H;
     // #863: `gFrame` IS `frameTick` — both are `floor(elapsedMs / frameMs)`, computed once in the rAF loop
     // (see the `fIdx` comment there) and mirrored into this render-scoped name for readability at call
@@ -1988,7 +2008,7 @@ export default function SheetRpgLayer({
     // translated left by `scrollPx` every tick — a rigid, LINEAR glide (Han). At elapsed = beatsOnScreen
     // beats a note has travelled the full `dist` (viewRight → startX = the hero). This matches the LINEAR
     // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
-    const dist = viewRight - startX;
+    const dist = viewRight - effectiveStartX;
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
     // #863: `tick` state is gone — this is only the INITIAL/first-paint value (used as the JSX
     // `<g>` wrappers' initial `transform` attribute below); every subsequent frame the SAME formula is
@@ -2026,7 +2046,11 @@ export default function SheetRpgLayer({
     useEffect(() => { songEndFiredRef.current = false; }, [notesKey]);
     useEffect(() => {
         if (!sideScroll || finalBarTick <= 0 || songEndFiredRef.current) return;
-        const strikeX = startX + SLIME_VIEW_W / 2;
+        // Layout fix (Han 2026-08-18): must use the SAME shifted strike position as everything else in
+        // this file (see `effectiveStartX`'s own comment) — using the raw `startX` here would fire
+        // song-end at the OLD position while notes/slimes visually stop at the NEW one, a real
+        // desync between "the level thinks it's over" and "what's on screen".
+        const strikeX = effectiveStartX + SLIME_VIEW_W / 2;
         // #863: this effect now only runs at `frameTick` cadence, so the render body's own `scrollPx`
         // (computed once per render, from `tickRef.current` AT render time) is no longer guaranteed fresh
         // by the time this effect body runs — recompute it here inline from `tickRef.current`, using the
@@ -2254,8 +2278,11 @@ export default function SheetRpgLayer({
                             the right edge. */}
                         <linearGradient id="rpgLaneFadeGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
                             <stop offset={0} stopColor="#000" />
-                            <stop offset={Math.max(0, (startX - LANE_FADE_L) / viewRight)} stopColor="#000" />
-                            <stop offset={Math.max(0, Math.min(1, startX / viewRight))} stopColor="#fff" />
+                            {/* Layout fix (Han 2026-08-18): `effectiveStartX`, not the raw `startX` prop — the
+                                fade must happen AT the shifted strike line, or a note would visibly fade out
+                                before reaching the new red line (see `effectiveStartX`'s own comment). */}
+                            <stop offset={Math.max(0, (effectiveStartX - LANE_FADE_L) / viewRight)} stopColor="#000" />
+                            <stop offset={Math.max(0, Math.min(1, effectiveStartX / viewRight))} stopColor="#fff" />
                             <stop offset={Math.max(0, (viewRight - LANE_FADE_R) / viewRight)} stopColor="#fff" />
                             <stop offset={1} stopColor="#000" />
                         </linearGradient>
@@ -2310,7 +2337,9 @@ export default function SheetRpgLayer({
                 graded ±1/2-beat (= ±1/8 note) TIME window around that moment (gradeHit tiers; combat check),
                 so the old spatial band is gone. */}
             {sideScroll && dist > 0 && (
-                <line x1={startX + SLIME_VIEW_W / 2} y1={trebleStart - 8} x2={startX + SLIME_VIEW_W / 2}
+                // Layout fix (Han 2026-08-18, "move the 'perfect timing' a bit to the right"): THE red
+                // strike line itself — `effectiveStartX`, see its own declaration comment.
+                <line x1={effectiveStartX + SLIME_VIEW_W / 2} y1={trebleStart - 8} x2={effectiveStartX + SLIME_VIEW_W / 2}
                     y2={Math.max(trebleStart, viewBottom)} stroke="#e63232" strokeWidth={1.5} strokeOpacity={0.85}
                     style={{ pointerEvents: 'none' }} />
             )}
@@ -2353,7 +2382,9 @@ export default function SheetRpgLayer({
                         // the stem direction can't flip mid-flight. (Level 2 = forced quarters, C4–G4: exact.)
                         const note = Array.isArray(s.note) ? s.note[0] : s.note;
                         const ny = getNoteAbsoluteY(note, trebleStart, 'treble', 'treble');
-                        const nx = startX + NOTE_STAFF_DX;
+                        // Layout fix (Han 2026-08-18): `effectiveStartX`, matching the shifted strike line —
+                        // the struck note's ghost/fly-up must appear where it was actually hit, not the old spot.
+                        const nx = effectiveStartX + NOTE_STAFF_DX;
                         const prog = Math.min(1, framesSince(dyingEntry.startTick) / DEATH_FRAMES);
                         const up = prog * 46;
                         // #863 round 2: registers the flying/fading ghost note's WRAPPER `<g>` — the rAF loop
@@ -2517,7 +2548,7 @@ export default function SheetRpgLayer({
                 px-per-beat = dist/beatsOnScreen, so half-width(tier) = (dist/bos)·tierBeats. Green = perfect
                 (±1/32 note), yellow = too fast/slow (±1/16), orange = much too fast/slow (±1/8). */}
             {debugMode && sideScroll && dist > 0 && (() => {
-                const strikeX = startX + SLIME_VIEW_W / 2;
+                const strikeX = effectiveStartX + SLIME_VIEW_W / 2;
                 const pxPerBeat = dist / beatsOnScreen;
                 const zoneY = trebleStart - 8, zoneH = Math.max(trebleStart, viewBottom) - zoneY;
                 const band = (halfBeats, color) => (
@@ -2557,7 +2588,9 @@ export default function SheetRpgLayer({
                     entry.charEls[i] = el;
                 };
                 return (
-                    <text key={j.id} ref={liveJudgmentRef} x={startX + SLIME_VIEW_W / 2 + 10} y={y}
+                    // Layout fix (Han 2026-08-18): `effectiveStartX` — judgment labels float up from the
+                    // shifted strike line, matching where the hit actually happened.
+                    <text key={j.id} ref={liveJudgmentRef} x={effectiveStartX + SLIME_VIEW_W / 2 + 10} y={y}
                         fill={JUDGMENT_COLOR[j.category] || 'var(--text-primary)'} opacity={1 - prog}
                         fontSize="36" fontWeight="700" fontFamily="Georgia, 'Times New Roman', serif"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>

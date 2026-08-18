@@ -17483,3 +17483,46 @@ startX`), `src/hooks/useLevelBackingStream.js` (`loopForever`/wrapped `contentCo
 (`showExpectedNoteGlow` prop + `expectedNoteGlow` composed into every `getKeyStyle` branch),
 `src/components/layout/TabView.jsx` (prop forwarded to the treble `PianoView`), `src/App.jsx` (prop
 computed from `level.current?.gatedScroll`), `src/levels/levels.json` (Level 3 `totalMeasures: 10`).
+
+### §262. Strike-line shift, hero nudge, vertical gap halved (Han 2026-08-18)
+
+**Strike-line shift (Han: "de held staat nu rechts van de perfect timing box, haal de perfect timing
+lijn ook wat naar rechts").** §261's `heroX = startX` correctly anchored the hero to the strike zone, but
+made the pre-existing mismatch between the hero's own body width and the single-point strike position
+visible for the first time — Han asked to shift the strike position itself rightward (~5% screen width),
+not just re-nudge the hero. New `effectiveStartX = sideScroll ? startX + viewRight * 0.05 : startX`,
+declared once (immediately before `geomRef.current`, which stores it AS `startX`/`.dist` so `sideScrollX`
+and every rAF-loop position formula pick it up automatically) — the raw `startX` PROP itself is
+deliberately untouched, since SheetMusic.jsx has ~27 unrelated consumers of it for static clef/key-
+signature layout. Every OTHER site in this file that independently referenced the strike position from
+the raw prop needed its own explicit fix, since they don't route through `geomRef`: the visible red
+strike `<line>`, the note fade-out gradient (`rpgLaneFadeGrad` — notes must fade out AT the new line, not
+the old one), the debug hit-zone bands (both occurrences), the real `onSongEnd` barline-crossing
+detection (critical — using the raw prop here would have fired level-end at the OLD position while notes
+visually stopped at the NEW one), the struck-note ghost/fly-up X, and the judgment-label float-up X.
+
+**Hero nudge (Han, same message: "de hero mag een kleeein tikkie naar links ook").** `HERO_NUDGE_LEFT_PX
+= 15` — a small additional pixel offset pulling ONLY the hero sprite slightly left of the exact
+(shifted) strike point; slimes/notes/the strike line itself are unaffected.
+
+**Vertical gap halved (Han: "maak de verticale afstand het 'level' en de notenbalk (1 notenbalk actief)
+50% kleiner").** #1043's fix (above, this same file's `levelLogicalHeightForViewBox` history) deliberately deepened the level's viewBox when only one staff is
+visible, filling ALL available slack (`refLogicalHeightForViewBox - logicalHeightForViewBox`) so RPG
+sprites wouldn't sit right under the staff. Han now wants that gap halved, not reverted — `logicalHeightForViewBox
++ Math.max(0, refLogicalHeightForViewBox - logicalHeightForViewBox) * 0.5` halves only the EXTRA slack
+#1043 added; the natural single-staff baseline is untouched, and it still tapers to a no-op once enough
+staves are visible that the actual height already meets/exceeds the reference.
+
+**Verified live** (Playwright + Edge, dev server, Level 1): red strike line visibly shifted right, hero
+now well-aligned on it (slightly left-nudged), vertical gap to the staff visibly reduced.
+
+**Investigated, not reproduced:** Han reported "level crash aan het einde van de rubato levels" (crash at
+the end of rubato levels). Two full Level 1 playthroughs (fresh start AND a replay via "Opnieuw", all 17
+notes hit correctly via scripted input) completed cleanly both times — no thrown errors, the "Well done!"
+splash rendered correctly with accurate stats both times. Could not reproduce with the information
+available; needs a concrete repro from Han (which level, what the crash actually looks like — a white
+screen/thrown error vs. a frozen UI — and ideally the browser console output) before guessing further.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`effectiveStartX`, `HERO_NUDGE_LEFT_PX`, every
+strike-position consumer updated), `src/components/sheet-music/SheetMusic.jsx`
+(`levelLogicalHeightForViewBox` halves the #1043 slack instead of filling it).
