@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import useLevelBackingStream from '../useLevelBackingStream';
 import Scale from '../../model/Scale.js';
@@ -76,5 +76,26 @@ describe('useLevelBackingStream (#663)', () => {
     const measureLengthTicks = 48;   // TICKS_PER_WHOLE * 4/4
     expect(result.current.bass.offsets.every((o) => o < 4 * measureLengthTicks)).toBe(true);
     unmount();
+  });
+
+  it('#1052 third follow-up: a gatedScroll level NEVER stops generating chunks (wraps back to measure 0 instead of running out, so the cello never goes silent during an arbitrarily long freeze)', () => {
+    vi.useFakeTimers();
+    const context = { currentTime: 10 };   // fake timers, not real audio time — chunk scheduling below is timer-driven
+    const stopFnsRef = { current: [] };
+    const gatedLvl = { sideScroll: true, gatedScroll: true, bpm: 80, numMeasures: 2 };
+    const { unmount } = renderHook(() => useLevelBackingStream({
+      active: true, lvl: gatedLvl, scale, timeSignature, bassSettings, chordProgression: null,
+      context, levelAudioStart: 10.35, bassReady: true, metronomeReady: true, levelMelodyReady: true,
+      bassInstrument, metronomeInstrument, stopFnsRef,
+    }));
+    const callsAfterInitial = playMelodies.mock.calls.length;   // lead-in + chunk1, same as the non-gated tests above
+
+    // A non-gated 2-measure level (totalChunks = 1 + ceil(2/2) = 2) would have NOTHING left to
+    // schedule beyond this point — advancing timers well past its own short real-time schedule proves
+    // the gated level keeps going instead of falling silent.
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(playMelodies.mock.calls.length).toBeGreaterThan(callsAfterInitial);
+    unmount();
+    vi.useRealTimers();
   });
 });

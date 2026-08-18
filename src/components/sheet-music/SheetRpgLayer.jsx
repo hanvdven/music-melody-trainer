@@ -234,7 +234,20 @@ const CRITTER_HOVER_PX = 14;
 // helper so the imperative `update()` handle below (called from the rAF loop) can reuse the EXACT SAME
 // formula (§6c) instead of a second hand-copied version — a real risk here since Critter's "position" is
 // not just x/y, it's x/y ALREADY INCLUDING the flying-anim oscillation offset.
-function critterDraw(variant, x, y, frame, preferIdle = false) {
+// Bug fix (Han 2026-08-18, "the porcupine critter is below the baseline, squirrel too, and the armadillo
+// is above it (compared to the slimes)"): `y` (always `slimeY`, the SAME value passed to every critter
+// AND every slime) used to be applied as a plain TOP-left anchor, exactly like Slime's own `<svg y={y}>`.
+// Slimes all share ONE fixed sprite height (`SLIME_VIEW_H`), so anchoring by top-left also happens to put
+// every slime's BOTTOM edge at the same y — but critter variants have DIFFERENT `crop.h` (porcupine/
+// squirrel/armadillo/etc. are not the same sprite-sheet cell size), so top-anchoring them at the same y
+// left each one's bottom edge (its visual "feet"/ground-contact point) at a DIFFERENT height — some
+// hovering above the slimes' ground line, some sunk below it. Fix: anchor by BOTTOM instead — offset
+// `drawY` so `drawY + variant.crop.h*scale` always equals `y + SLIME_VIEW_H` (the slimes' own bottom
+// edge), the same way real sprites in this file are grounded. `scale` defaults to `CRITTER_SCALE` (the
+// Critter component's own default) so existing call sites that don't pass it are unaffected in practice
+// (they already use that default) — added as a real parameter, not assumed, so a future differently-
+// scaled critter still grounds correctly (§6c: one formula, not a hardcoded constant baked in twice).
+function critterDraw(variant, x, y, frame, preferIdle = false, scale = CRITTER_SCALE) {
     // #693 round 11 (Han: "critters gebruiken nog steeds niet de walk/run/fly animatie als ze die hebben"):
     // a critter perpetually scrolls across the staff (it's always "moving" relative to the player, unlike
     // the RPG level's stationary-until-clicked Wisp), so it always prefers its move-type animation — same
@@ -255,7 +268,7 @@ function critterDraw(variant, x, y, frame, preferIdle = false) {
     const len = anim.cells.length;
     const cell = len > 0 ? anim.cells[((frame % len) + len) % len] : null;
     const ox = cell ? -cell.col * variant.frame.w : 0, oy = cell ? -cell.row * variant.frame.h : 0;
-    let drawX = x, drawY = y;
+    let drawX = x, drawY = y + SLIME_VIEW_H - variant.crop.h * scale;   // bottom-anchored — see this fn's own comment
     if (isFlyingAnim(anim, variant)) {
         const seed = variant.crop.x * 31 + variant.crop.y;
         const tMs = frame * 120;
@@ -279,15 +292,19 @@ const Critter = React.memo(forwardRef(function Critter({ x, y, variant, frame, o
         // #863 perf fix — position AND frame update together (a flying critter's draw position depends on
         // its frame via the oscillation wobble, so they can't be split into separate setPosition/setFrame
         // calls without desyncing them for one rAF tick).
-        update(nx, ny, nframe) {
+        // #1052 second follow-up (Han 2026-08-18, "critter... idle animation on 'rubato pause'"): optional
+        // 5th arg overrides the mount-time `preferIdle` prop per call — the rAF loop passes `true` while
+        // gated-frozen (see its own call site) so a scrolling critter switches to its idle animation
+        // instead of freezing mid-move-cycle, without needing a React re-render to change `preferIdle`.
+        update(nx, ny, nframe, forceIdle) {
             if (!variant) return;
-            const { ox, oy, drawX, drawY } = critterDraw(variant, nx, ny, nframe, preferIdle);
+            const { ox, oy, drawX, drawY } = critterDraw(variant, nx, ny, nframe, forceIdle ?? preferIdle, scale);
             if (svgRef.current) { svgRef.current.setAttribute('x', drawX); svgRef.current.setAttribute('y', drawY); }
             if (imgRef.current) { imgRef.current.setAttribute('x', ox); imgRef.current.setAttribute('y', oy); }
         },
-    }), [variant, preferIdle]);
+    }), [variant, preferIdle, scale]);
     if (!variant) return null;
-    const { ox, oy, drawX, drawY } = critterDraw(variant, x, y, frame, preferIdle);
+    const { ox, oy, drawX, drawY } = critterDraw(variant, x, y, frame, preferIdle, scale);
     const viewW = variant.crop.w * scale, viewH = variant.crop.h * scale;
     const flip = shouldFlip ? `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)` : undefined;   // face left, matches Slime
     return (
@@ -903,6 +920,37 @@ export default function SheetRpgLayer({
     // to begin with; no visual smoothness is lost, only redundant intermediate re-renders are cut.
     const [frameTick, setFrameTick] = useState(0);
     const lastFrameIndexRef = useRef(-1);   // last sprite-frame index frameTick was set to (dedupe guard)
+    // #1050 second follow-up (Han 2026-08-18, "still jitter, exactly the same as before" — reported
+    // AFTER the §257/§258 position-freeze fixes, i.e. a genuinely different cause): a real Playwright +
+    // Edge CDP profile of Level 1 showed 53% of frames dropped in `npm run dev` (only 0.3% in a
+    // production build), with the dominant CPU cost being React's DEV-mode `jsxDEV`/`createElement`
+    // overhead — SheetRpgLayer's render body reconstructs its ENTIRE JSX tree (every `.map()` over
+    // slimes/critters/judgments/hits/spawnGlows/…) every time `frameTick` changes, and it used to change
+    // every sprite-frame boundary (`frameMs` — as low as ~100ms at higher BPM). By the time §258 landed,
+    // NOTHING continuously-animated actually needs frameTick to re-render that often any more: every
+    // live entity's position AND frame (including walk-vs-idle, `slimeWalkOrIdleFrame`) is already fully
+    // imperative. frameTick's only remaining real job is mount/unmount (culling) plus a few still-
+    // declarative one-off paths (judgment/hit/spawnGlow mounting, static-mode idle cycling) — none of
+    // which need sub-second precision (an entity is on screen for multiple SECONDS before it must
+    // mount/unmount). Decoupling the re-render rate from `frameMs` (tempo-dependent) to a fixed, coarse
+    // wall-clock throttle cuts render-body invocations several-fold with no visible behavior change.
+    const FRAMETICK_THROTTLE_MS = 200;
+    const lastFrameTickWallMsRef = useRef(0);
+    // #1050 third follow-up (Han 2026-08-18, "the performance sucks... decouple [note scrolling] from
+    // the RPG-overlay in terms of framerate" — after the §257/§258/FRAMETICK_THROTTLE fixes still
+    // weren't enough): the scroll-transform update (barline/note groups, above) and ALL the RPG combat
+    // entity work (slime/critter/dying/judgment/hit/spawnGlow position+frame pushes) run in the SAME
+    // rAF callback. Even though the scroll-transform push happens FIRST and is cheap, the browser can't
+    // paint the frame until the WHOLE callback returns — so if the entity work is slow, the note
+    // position update that already happened moments earlier in the same callback still arrives late.
+    // Splitting into two separate requestAnimationFrame chains would NOT fix this by itself (the browser
+    // still batches every rAF callback due for a frame before painting) — the fix that actually matters
+    // is letting the ENTITY work skip itself on some frames while the clock/scroll-transform NEVER does.
+    // `runRpgEntityUpdates` (computed once per frame, just below) gates every entity position/frame push
+    // EXCEPT the Wizard's cast-sync scan, which stays per-frame on purpose (Han, #679: "de flits moet
+    // exact op de noot landen" — throttling that specific scan previously caused an audible desync bug).
+    const RPG_ENTITY_THROTTLE_MS = 33;   // ~30fps ceiling for entities; note scroll itself is never throttled
+    const lastRpgEntityUpdateMsRef = useRef(0);
     const [killedCount, setKilledCount] = useState(0);     // static: killed count; side-scroll: RESOLVED count
     // dying is a LIST (Han 2026-08-02): with the ±1/2-beat graded window two kills can overlap one death
     // animation (notes a beat apart, played fast) — a single `dying` slot would swallow the second kill.
@@ -1268,10 +1316,26 @@ export default function SheetRpgLayer({
             // already mandates, extended to position/transform. `g` is this render's latest geometry
             // (frameMs/beatMs/dist/etc. — see the geomRef.current assignment above sideScrollX).
             const g = geomRef.current;
-            // #863 round 2: `fIdx` (the ever-increasing sprite-frame counter, = `gFrame`/`frameTick`) is
-            // needed by BOTH the throttled-setState check at the bottom of this loop AND the Wizard
-            // idle-frame push below — computed once here, reused by both (§6c).
+            // #863 round 2: `fIdx` (the ever-increasing sprite-frame counter) is needed by BOTH the
+            // throttled-setState check at the bottom of this loop AND the Wizard idle-frame push below —
+            // computed once here, reused by both (§6c).
             const fIdx = Math.floor((t * INTERVAL_MS) / g.frameMs);
+            // #1052 second follow-up (Han 2026-08-18, "in rubato mode, all animations are stopped when
+            // the note is at 'perfect timing', including... idle animations of critters and character...
+            // NO!! We talked about this!!!!"): `frameTick`/`gFrame` (= `rawFIdx`, pushed to React state
+            // just below) drives EVERY still-declarative idle animation in the render body — hero, NPC,
+            // decorative Wizard, static-mode critters (`gFrame` — see its own declaration further down).
+            // It used to derive from `fIdx` (the FROZEN clock `t`), so once gated-frozen, `fIdx` stopped
+            // changing and `setFrameTick` simply never fired again — freezing hero/NPC/idle animation
+            // right along with gameplay position, exactly the regression Han is calling out (§259 already
+            // got this right for SLIMES specifically, via `slimeWalkOrIdleFrame`'s own raw-clock read, but
+            // never touched the shared `frameTick` value everything else relies on). `rawFIdx` reads
+            // `rawTRawMsRef` (never frozen, see its own declaration) instead — idle-type animation now
+            // keeps running through a freeze, matching the same principle: gameplay POSITION freezes,
+            // everything cosmetic/idle does not. Wizard's own CAST-SYNC timing is a deliberate exception —
+            // it still reads the frozen `t` via `computeWizardCast(t)` below, since a cast must stay tied
+            // to the actual (possibly-paused) game clock, not idle-cycle independently of it.
+            const rawFIdx = Math.floor(rawTRawMsRef.current / g.frameMs);
             // Bug fix (Han 2026-08-10, #863 production crash — "het level werkt uberhaupt niet in build"):
             // before this refactor, all this per-entity math ran inside React's OWN render, so a thrown
             // error there was (at worst) a React render-time crash, once. Now it runs in a raw rAF
@@ -1284,12 +1348,22 @@ export default function SheetRpgLayer({
             // sprite sheet with a negative frame — see its own fix above) is now also fixed at the source;
             // this try/catch is the second, structural layer of defence so a FUTURE edge case in this
             // large imperative surface can't silently brick combat for an entire level again.
+            // #1050 third follow-up: computed ONCE per frame, before the try block, so BOTH the
+            // sideScroll entity section below AND the dying/judgment/hit/spawnGlow section after it
+            // (which run un-nested from each other but must agree on the SAME throttle decision for
+            // one consistent frame) read the identical value. The scroll-transform push itself is NOT
+            // gated by this — seebelow.
+            const runRpgEntityUpdates = nowMs - lastRpgEntityUpdateMsRef.current >= RPG_ENTITY_THROTTLE_MS;
+            if (runRpgEntityUpdates) lastRpgEntityUpdateMsRef.current = nowMs;
             try {
             if (g.sideScroll && g.dist > 0 && g.beatMs > 0) {
                 // Scroll transform — mirrors the render body's own scrollPx/scrollPPT formula exactly
                 // (§6c: same arithmetic, just evaluated here every frame instead of once per React render).
                 // #1050: tRawMs (not `t * INTERVAL_MS`) — see sideScrollX's own comment on why the
                 // rounded tick must not be reconstructed into a continuous-motion millisecond value.
+                // #1050 third follow-up: this push is DELIBERATELY never gated by `runRpgEntityUpdates` —
+                // note-scroll smoothness must never depend on how much RPG-entity work happens to be
+                // pending this frame (see this section's own top-of-file comment).
                 const scrollElapsedMs = tRawMs - waveStartRef.current * INTERVAL_MS;
                 const framePx = (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist;
                 const barlineTransform = `translate(${-framePx}, 0)`;
@@ -1301,6 +1375,7 @@ export default function SheetRpgLayer({
                 if (bassScrollRef.current) bassScrollRef.current.setAttribute('transform', noteTransform);
                 if (percussionScrollRef.current) percussionScrollRef.current.setAttribute('transform', noteTransform);
 
+                if (runRpgEntityUpdates) {
                 // Live slimes/projectiles (treble). Only entities CURRENTLY MOUNTED (i.e. present in the
                 // ref map — React's own render-body culling decided that at the last frameTick-cadence
                 // render) get updated; a stale/about-to-unmount entry is skipped, not force-updated (see
@@ -1342,8 +1417,14 @@ export default function SheetRpgLayer({
                     const c = crittersRef.current[entry.idx];
                     if (!c || c.key !== key) return;
                     const p = sideScrollX(c.beat, t, tRawMs);
-                    const gF = Math.floor(p.ff / 4) % 1000;   // same slow idle cadence as the render body used
-                    entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF);
+                    // #1052 second follow-up: while gated-frozen, force the critter's IDLE animation and
+                    // drive its frame from the raw (never-frozen) clock instead of `p.ff` (which is
+                    // derived from the frozen `tRawMs` and would otherwise freeze mid-move-cycle) — same
+                    // "gameplay position freezes, idle animation doesn't" principle as `slimeWalkOrIdleFrame`.
+                    const gF = gatedFrozenRef.current
+                        ? Math.floor(rawTRawMsRef.current / (g.frameMs || 1) / 4) % 1000
+                        : Math.floor(p.ff / 4) % 1000;   // same slow idle cadence as the render body used
+                    entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF, gatedFrozenRef.current);
                 });
                 // Level 11 switch-flourish (StaticProjectile2) — fixed SWITCH_LOOKAHEAD array, plain index.
                 SWITCH_LOOKAHEAD.forEach((k, i) => {
@@ -1354,6 +1435,7 @@ export default function SheetRpgLayer({
                     el.setCenter(p.noteX, g.projectileCenterY);
                     el.setFrame(Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES);
                 });
+                }   // runRpgEntityUpdates
             }
 
             // #863 round 2 (Han 2026-08-10 follow-up: INP still "needs improvement" after round 1) — the
@@ -1369,6 +1451,10 @@ export default function SheetRpgLayer({
             // (`framesElapsed`, `PROJECTILE_DEATH_OPACITY`, `judgmentY`, `HIT_BURST_OPACITY`,
             // `spawnGlowDraw` via the SpawnGlow component's own `update()`, `computeWizardCast`) — no
             // reimplementation, only WHERE they're evaluated changes (§6c).
+            // #1050 third follow-up: this WHOLE section (dying/ghost/judgment/hit/spawnGlow) is gated on
+            // `runRpgEntityUpdates` — EXCEPT the Wizard cast-sync scan below, which stays per-frame on
+            // purpose (see this loop's own top comment on why that one specific case is exempt).
+            if (runRpgEntityUpdates) {
             dyingRefsMap.current.forEach((entry) => {
                 const deathFrame = Math.min(framesElapsed(t, entry.startTick, g.frameMs), g.DEATH_FRAMES - 1);
                 if (entry.kind === 'projectile') {
@@ -1418,12 +1504,14 @@ export default function SheetRpgLayer({
             spawnGlowRefsMap.current.forEach((entry) => {
                 entry.el.update(framesElapsed(t, entry.startTick, g.frameMs));
             });
-            // Wizard: idle loop uses `fIdx` (same "ever-increasing sprite-frame counter" `gFrame` used
-            // elsewhere); a combat Wizard additionally re-scans for a cast sequence every frame so the
-            // flash lands exactly on the audio cue (see `computeWizardCast`'s own comment).
+            }   // runRpgEntityUpdates
+            // Wizard: idle loop uses `rawFIdx` (never-frozen — see its own declaration, keeps idle-cycling
+            // through a gated freeze); a combat Wizard additionally re-scans for a cast sequence every
+            // frame so the flash lands exactly on the audio cue (see `computeWizardCast`'s own comment) —
+            // that scan deliberately keeps reading the frozen `t`, not `rawFIdx`.
             if (wizardRef.current || decorativeWizardRef.current) {
                 const idleLenL = WIZARD_IDLE_CELLS.length;
-                const idleFrame = ((fIdx % idleLenL) + idleLenL) % idleLenL;   // non-negative modulo (§679 bugfix)
+                const idleFrame = ((rawFIdx % idleLenL) + idleLenL) % idleLenL;   // non-negative modulo (§679 bugfix)
                 if (wizardRef.current) {
                     const cast = computeWizardCast(t);
                     wizardRef.current.setCells(cast.frame >= 0 ? cast.cells : WIZARD_IDLE_CELLS, cast.frame >= 0 ? cast.frame : idleFrame);
@@ -1438,12 +1526,20 @@ export default function SheetRpgLayer({
                 logger.error('RpgCombat', 'E028-SHEETRPG-IMPERATIVE-FRAME', err, { t });
             }
 
-            // #863 BUCKET B (round 1): throttle React re-renders to once per sprite-frame boundary instead
-            // of every rAF tick — only setState (and thus re-render) when the sprite frame actually
-            // changes, since a sprite frame is by definition constant between frameMs boundaries.
-            if (fIdx !== lastFrameIndexRef.current) {
-                lastFrameIndexRef.current = fIdx;
-                setFrameTick(fIdx);
+            // #863 BUCKET B (round 1): throttle React re-renders instead of firing every rAF tick.
+            // #1050 second follow-up: no longer gated on "the sprite frame changed" (frameMs boundary,
+            // tempo-dependent) — every continuously-animated thing is imperative now (see this ref's own
+            // comment above), so frameTick only needs to fire often enough for mount/unmount and a few
+            // one-off declarative paths, which tolerate a fixed, coarse wall-clock cadence regardless of
+            // BPM. Still dedupes on `rawFIdx` so an UNCHANGED sprite frame after the throttle window never
+            // triggers a redundant identical re-render.
+            // #1052 second follow-up: pushes `rawFIdx` (never-frozen), not `fIdx` (the gated clock) — see
+            // `rawFIdx`'s own declaration for why: `frameTick` drives hero/NPC/decorative-Wizard idle
+            // animation in the render body, which must keep cycling through a gated freeze.
+            if (rawFIdx !== lastFrameIndexRef.current && nowMs - lastFrameTickWallMsRef.current >= FRAMETICK_THROTTLE_MS) {
+                lastFrameIndexRef.current = rawFIdx;
+                lastFrameTickWallMsRef.current = nowMs;
+                setFrameTick(rawFIdx);
             }
             raf = requestAnimationFrame(loop);
         };
@@ -1782,7 +1878,14 @@ export default function SheetRpgLayer({
 
     // ── render ────────────────────────────────────────────────────────────────
     const dollW = DOLL_CROP.w * (HERO_H / DOLL_CROP.h);
-    const heroX = -2;
+    // Layout fix (Han 2026-08-18, "move the character to startX, so that the key and accidentals are
+    // left of the hero"): was a fixed `-2` (far left, overlapping the clef/key-signature area) —
+    // `startX` is the same "perfect timing"/strike-zone anchor slimes and notes travel toward (see
+    // `sideScrollX`'s own `vr - dist` math, `strikeX = startX + SLIME_VIEW_W/2` in the debug zone
+    // bands), so anchoring the hero there puts him exactly where the action happens, with the
+    // clef/key signature (drawn separately, always at the far left) now clearly to his left instead of
+    // underneath him.
+    const heroX = startX;
     const heroY = viewBottom - HERO_H;
     // #863: `gFrame` IS `frameTick` — both are `floor(elapsedMs / frameMs)`, computed once in the rAF loop
     // (see the `fIdx` comment there) and mirrored into this render-scoped name for readability at call

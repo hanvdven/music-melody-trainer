@@ -61,6 +61,9 @@ const TabView = ({
     // so the practice keyboard can route a wrong note through manualInstruments.trebleWrong
     // (chorus+tremolo). See App.jsx's getExpectedTrebleNotesRef for the full contract.
     expectedTrebleNotesRef = null,
+    // #1052 fourth follow-up: forwarded straight to the treble PianoView below — see App.jsx's own
+    // comment on this prop and PianoView's `showExpectedNoteGlow` for the full contract.
+    showExpectedNoteGlow = false,
     qwertyKeyboardActive,
     rangeEditMode,
     clefEditMode,
@@ -226,6 +229,7 @@ const TabView = ({
                                         // falls back to always using the normal instrument there.
                                         wrongNoteInstrument={activeClef === 'treble' ? manualInstruments.trebleWrong : null}
                                         expectedNotesRef={activeClef === 'treble' ? expectedTrebleNotesRef : null}
+                                        showExpectedNoteGlow={activeClef === 'treble' && showExpectedNoteGlow}
                                         activeClef={activeClef}
                                         minNote={activeClef === 'treble' ? trebleDisp.min : bassDisp.min}
                                         maxNote={activeClef === 'treble' ? trebleDisp.max : bassDisp.max}

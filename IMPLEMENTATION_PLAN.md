@@ -4972,5 +4972,47 @@ generieke gated-scroll-mechanisme bouwen/verifiëren op het HUIDIGE level 1, dan
 melodieën+renummering toepassen zodat de vlag automatisch meeschuift naar de uiteindelijke levels 1-3):
 
 1. #1052 gated-scroll mechanic (architectuuronderzoek backing-audio scheduling nog te doen vóór plan).
-2. #1053 vaste melodieën levels 1-4 + renummering.
+2. #1053 vaste levels 1-4 + renummering.
 3. #1054 stats/progressie-systeem (bouwt voort op de nieuwe levelnummers).
+
+## 2026-08-18 — 🐞⏳ Grote UAT-burst na #1052/#1053: performance, rubato-freeze bugs, layout, level 3
+
+Han, na live testen, in één bericht — 11 losse punten. PRIORITEIT expliciet op performance ("really, the
+performance sucks, which is not acceptable in a music app" — herhaald, aangescherpt).
+
+1. **🐞🔥 Framerate "horrible, unacceptable"** — ondanks de #1050/§257/§258 fixes en de §"FRAMETICK_THROTTLE"
+   dev-mode-cost-verlaging. Han's eigen diagnose: "I told you about prioritizing note scrolling... decouple
+   it from the RPG-overlay in terms of framerate" — de note-scroll rAF-update en de RPG-combat rAF-update
+   zitten in ÉÉN gedeelde rAF-callback; als het RPG-gedeelte (slimes/critters/hit-detection/re-renders)
+   traag is, wordt de HELE frame laat gepaint, ook al was de note-transform-update zelf goedkoop en vroeg
+   in de callback. Vereist een ECHTE architecturale split: note-scroll moet GEGARANDEERD elke frame
+   bijwerken; RPG-entiteiten mogen een lagere/variabele cadans hebben zonder de note-paint te blokkeren.
+2. **🐞 "in rubato mode, all animations are stopped when the note is at 'perfect timing', including note
+   despawn, idle animations of critters and character... NO!! We talked about this!!!!"** — de #1052-fix
+   (`slimeWalkOrIdleFrame`, raw-clock idle cycling tijdens gated freeze) is ALLEEN op slimes toegepast, niet
+   op critters/hero/NPC. Han's eis: critter/hero/NPC idle-animatie, effect-animaties, note-animaties, "andere
+   animaties" moeten GEWOON doorlopen tijdens een gated freeze — alleen de GAMEPLAY-positie/voortgang bevriest.
+3. **🐞 Critter verticale anchor inconsistent**: porcupine/squirrel zitten ONDER de baseline, armadillo zit
+   ERBOVEN, vergeleken met slimes/andere critters — anchor/positionering-bug, per-variant te checken.
+4. **⏳ Rubato-level bevriest/hangt als de speler te lang wacht** ("I think it gets confused if the 'level
+   clock' is finished") — vermoedelijk een JIT-audio-chunk-scheduling die een BEGRENSDE real-time duur
+   aanneemt en door zijn geplande content heen raakt tijdens een lange freeze.
+5. **🐞⏳ Cello is NIET rubato — speelt gewoon het lied op vaste real-time schedule, stopt na een tijdje.**
+   NIEUW gedrag: houd de cello-noot vast tot de bijbehorende VISUELE noot voorbij 'perfect timing' gaat, speel
+   dan de volgende — gekoppeld aan het gated-freeze-mechanisme, niet aan een vaste klok. Dit maakt het
+   volgens Han mogelijk om **timpani te herstellen** (nu uitgeschakeld voor gated levels, §1052/§259) — timpani
+   moet dan OOK op dezelfde manier "houden tot voorbij perfect timing" werken.
+6. **⏳ Nieuwe feature: gloed/outline op de te spelen pianotoets, voor levels 1-3** (visuele hint welke toets
+   nu moet).
+7. **⏳ Layout: afstand hero↔vioolsleutel kleiner bij één maat**, voor duidelijkere visuele connectie.
+8. **⏳ Layout: 'perfect timing'-lijn ~5% schermbreedte naar rechts; hero verplaatsen naar startX zodat
+   sleutel+voortekens LINKS van de hero staan** (nu overlappen ze grotendeels).
+9. **🐞 Level 3 heeft maar 4 "maten" (waves)** — moet 10 maten worden (5 blokken van 2 maten
+   = `totalMeasures: 10`, wavesForLevel = 5). notesPerMeasure/smallestNoteDenom/variability blijven
+   ongewijzigd (2 / kwart(4) / 30%, al correct in #1053's levels.json).
+
+Aanpak: performance-decoupling (punt 1) en de freeze/idle-animatie-bug (punt 2, direct gekoppeld aan
+Han's frustratie "we talked about this") krijgen voorrang, dan de critter-anchor-bug en level 3 (snel/
+mechanisch), dan de cello/timpani-herontwerp (architecturaal, punt 4+5 hangen samen — de "hangt bij lang
+wachten"-bug is vermoedelijk DEZELFDE onderliggende oorzaak als de niet-rubato-cello), dan de layout-
+tweaks en de nieuwe glow-key-feature.

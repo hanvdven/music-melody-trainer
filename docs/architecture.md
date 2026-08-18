@@ -17395,3 +17395,91 @@ generated), `src/songs/songIndex.js` (registered), `src/levels/levels.json` (Lev
 (BPM tile shows "rubato" for gated levels), `src/levels/__tests__/levels.test.js`,
 `src/levels/__tests__/songLevels.test.js`, `src/hooks/__tests__/useLevel.test.js` (repointed to new level
 positions).
+
+### §261. Post-#1052/#1053 UAT burst: performance decoupling, freeze-idle bug, critter anchor, gated cello (Han 2026-08-18)
+
+Six fixes/features shipped together from one large UAT report. Deferred (see each item's own note):
+timpani restoration, "shift perfect-timing line + reduce hero/clef gap for a single bar" (both need a
+closer look at `startX`'s ~27 shared consumers before touching it), and the fully precise "hold each
+cello note until ITS OWN melody note passes perfect timing" (the interim fix below solves the reported
+bugs but is coarser — see its own note).
+
+**1. Performance: decouple note-scroll from RPG-entity work (Han: "the performance sucks... decouple
+[note scrolling] from the RPG-overlay in terms of framerate").** All of SheetRpgLayer's per-frame work —
+the note/barline scroll-transform push AND every RPG combat entity (slime/critter/dying/judgment/hit/
+spawnGlow position+frame pushes) — ran in ONE rAF callback. Splitting into two SEPARATE
+`requestAnimationFrame` chains would NOT by itself fix this (the browser still batches every rAF callback
+due for a frame before painting) — the actual fix is letting the RPG-entity work SKIP itself on some
+frames while the clock/scroll-transform never does. `runRpgEntityUpdates` (`RPG_ENTITY_THROTTLE_MS = 33`,
+~30fps ceiling) gates every entity push; the scroll-transform push is deliberately never gated. One
+exception: the Wizard's cast-sync scan stays per-frame on purpose (Han, #679: "de flits moet exact op de
+noot landen" — throttling that specific scan previously caused an audible desync bug).
+
+**2. Bug: idle animations (critter/hero/NPC/decorative-Wizard) froze during a gated pause (Han: "NO!! We
+talked about this!!!!").** §259's fix (`slimeWalkOrIdleFrame`, a raw never-frozen clock) was applied to
+slimes ONLY. Every OTHER still-declarative idle animation is driven by `frameTick`/`gFrame`, which was
+computed from `fIdx` — itself derived from the FROZEN game clock `t`, so once gated-frozen, `fIdx` simply
+stopped changing and `setFrameTick` never fired again. Fix: a parallel `rawFIdx` (from `rawTRawMsRef`,
+never frozen) now drives `frameTick` instead — hero/NPC/decorative-Wizard idle animation keeps cycling
+through a freeze. Critters (which scroll, not just idle) needed a second piece: `Critter`'s imperative
+`update()` gained an optional `forceIdle` argument, passed `true` while gated-frozen, switching a
+scrolling critter to its idle animation (with a raw-clock frame) instead of freezing mid-move-cycle. The
+Wizard's own CAST-SYNC scan is the one deliberate exception (see item 1) — it still reads the frozen `t`.
+
+**3. Bug: critter vertical anchor inconsistent with slimes (porcupine/squirrel below the ground line,
+armadillo above it).** `critterDraw`'s `y` was applied as a plain TOP-left anchor, identical to how Slime
+anchors itself — safe for slimes (one fixed `SLIME_VIEW_H` for all of them) but wrong for critters, whose
+variants have DIFFERENT `crop.h` (porcupine/squirrel/armadillo/etc. are different sprite-sheet cell
+sizes). Top-anchoring at the same y left each variant's BOTTOM edge (its visual ground-contact point) at
+a different height. Fixed by bottom-anchoring: `drawY = y + SLIME_VIEW_H - variant.crop.h * scale`, so
+every critter's bottom edge lines up with the slimes' own bottom edge regardless of its sprite size.
+`critterDraw` gained a `scale` parameter (defaulting to `CRITTER_SCALE`) so this works for any future
+differently-scaled critter, not just today's default.
+
+**4. Bug: gated cello/timpani ran on a fixed real-time schedule, not aware of the freeze (Han: "the cello
+plays its tones and then after a while it stops... it's not rubato at all" + "if I take too much time...
+it freezes").** `useLevelBackingStream` pre-schedules a level's ENTIRE backing (a handful of JIT chunks,
+almost all generated within the first few seconds for a short gated level) at fixed Web-Audio timestamps
+computed from `levelAudioStart` + bpm + measure count — completely oblivious to gating. A gated level can
+be frozen for an ARBITRARY real-time duration, so the backing simply finished its short, fixed schedule
+and went silent while the player was still stuck on an early note — very likely also the source of the
+reported "freezes" (a plausible downstream confusion once the backing had nothing left scheduled while
+the level was still active). **Interim fix** (the FULL fix — holding each cello note exactly until its
+own melody note passes perfect timing — needs a new event bridge from SheetRpgLayer's internal freeze/
+unfreeze transitions to `useLevelBackingStream`, and is tracked as a follow-up): a `gatedScroll` level's
+`useLevelBackingStream` chunk generation now NEVER stops — `contentCovered` wraps back to measure 0
+(repeating the same chord progression) once past the level's own content length via `% (loopForever ?
+numContentMeasures : Infinity)` (a no-op for non-gated levels, since `x % Infinity === x`), so the cello
+keeps sounding indefinitely for as long as the level stays active instead of running dry. Natural effect
+cleanup already stops everything the instant the level closes, so looping "forever" is safe. Timpani
+restoration is explicitly NOT part of this fix — re-enabling it with only this interim (still real-time-
+paced) mechanism would just produce an audibly out-of-sync click track during a freeze, the exact problem
+disabling it originally solved (§259); it needs the same gate-sync bridge as the full cello fix.
+
+**5. Layout: hero now anchors to `startX` instead of a hardcoded `-2` (Han: "move the character to
+startX, so that the key and accidentals are left of the hero").** `startX` is the same "perfect timing"/
+strike-zone anchor slimes and notes already travel toward (`strikeX = startX + SLIME_VIEW_W/2` in the
+debug zone bands) — the hero previously sat far off to the left (`x = -2`), overlapping the clef/key-
+signature area instead of standing where the actual gameplay happens.
+
+**6. New feature: glow the piano key currently due, for gated levels (Han: "give a glow outline to the
+piano key to be played in levels 1-3").** Reuses the EXISTING `expectedNotesRef` mechanism #990 already
+threads into `PianoView` (previously audio-only — chooses the wrong-note-instrument timbre) and the SAME
+glow style the transpose-setter's reference-key hint already uses (§6c/§6d — no second "what note is due"
+mechanism, no second glow visual). New `showExpectedNoteGlow` prop (App.jsx → `TabView` → `PianoView`),
+true only while `level.current?.gatedScroll` is active — deliberately NOT enabled for continuously-
+scrolling levels, whose hittable window changes every fraction of a beat and would flicker distractingly;
+a gated level holds the same note steady for as long as the player needs, which is when a glow is useful.
+
+**Also:** Level 3 (#1053) extended from 4 waves to 10 measures / 5 waves (`totalMeasures: 8` → `10`; Han:
+"waarom is level 3 maar 4 maten? maak het 10 maten (5 blokken van 2 maten)" — `notesPerMeasure`/
+`smallestNoteDenom`/`variability` were already correct).
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`RPG_ENTITY_THROTTLE_MS`/
+`lastRpgEntityUpdateMsRef`/`runRpgEntityUpdates` gating; `rawFIdx` driving `frameTick`; `Critter`'s
+`update()` `forceIdle` param + rAF call site; `critterDraw`'s bottom-anchor + `scale` param; `heroX =
+startX`), `src/hooks/useLevelBackingStream.js` (`loopForever`/wrapped `contentCovered`,
+`src/hooks/__tests__/useLevelBackingStream.test.js` new test), `src/components/controls/PianoView.jsx`
+(`showExpectedNoteGlow` prop + `expectedNoteGlow` composed into every `getKeyStyle` branch),
+`src/components/layout/TabView.jsx` (prop forwarded to the treble `PianoView`), `src/App.jsx` (prop
+computed from `level.current?.gatedScroll`), `src/levels/levels.json` (Level 3 `totalMeasures: 10`).

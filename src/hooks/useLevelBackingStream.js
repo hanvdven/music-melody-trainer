@@ -129,10 +129,29 @@ export default function useLevelBackingStream({
     // fixed 2-measure lookahead buffer for every chunk, including the first.
     const numContentMeasures = lvl.numMeasures;
     const totalChunks = 1 + Math.ceil(numContentMeasures / chunkMeasures);
+    // #1052 third follow-up (Han 2026-08-18, "the cello plays its tones and then after a while it
+    // stops... it's not rubato at all, it just plays the song as normal" + "if I take too much time at
+    // a rubato level, it freezes"): a gated level (§259) can stay frozen for an ARBITRARY real-time
+    // duration while the player works out a note, but this stream used to stop generating chunks once
+    // it reached the level's own (short) measure count — real time keeps moving during a freeze, so the
+    // cello simply finished its fixed real-time schedule and went silent while the player was still
+    // stuck on an early note. A full fix (holding each cello note until its own melody note passes
+    // "perfect timing", exactly synced to the gate) needs a new event bridge from SheetRpgLayer's
+    // internal freeze/unfreeze transitions and is tracked as a follow-up — this is the safe interim
+    // fix: for a gated level, NEVER stop generating chunks. `contentCovered` wraps back to measure 0
+    // (repeating the same chord progression) once past the level's own content length, so the cello
+    // keeps sounding indefinitely for as long as the level stays active, instead of going silent.
+    // Natural effect cleanup (this effect's own return function) already stops every scheduled note and
+    // cancels every pending timer the instant the level closes or this effect re-runs for any other
+    // reason, so looping "forever" here is safe — nothing outlives the level.
+    const loopForever = !!lvl.gatedScroll;
 
     const generateAndScheduleChunk = (chunkIndex) => {
       const isLeadIn = chunkIndex === 0;
-      const contentCovered = isLeadIn ? 0 : (chunkIndex - 1) * chunkMeasures;
+      // #1052 third follow-up: `% (loopForever ? numContentMeasures : Infinity)` wraps back to measure 0
+      // once past the level's own content length ONLY when looping — `x % Infinity === x` for any finite
+      // x, so a non-gated level's `contentCovered` is completely unchanged by this expression.
+      const contentCovered = isLeadIn ? 0 : ((chunkIndex - 1) * chunkMeasures) % (loopForever ? numContentMeasures : Infinity);
       // #994 (corrected after Han's Kalinka UAT): the lead-in chunk generates the FULL lead-in span for
       // cello — every lead-in measure is scored, none is silent. `chunkMeasures === leadInBars`, so this
       // is the same expression the content chunks use.
@@ -219,7 +238,9 @@ export default function useLevelBackingStream({
       // ("2+2 maten op voorhand"). Chunk 0 and chunk 1 both fire immediately (synchronously,
       // one right after the other) since there's no earlier moment to pre-generate chunk 0 from.
       const nextIndex = chunkIndex + 1;
-      if (nextIndex < totalChunks) {
+      // #1052 third follow-up: `loopForever` levels never stop scheduling — see this function's own
+      // `contentCovered` comment above for how the content wraps instead of running out.
+      if (loopForever || nextIndex < totalChunks) {
         if (chunkIndex === 0) {
           generateAndScheduleChunk(nextIndex);
         } else {

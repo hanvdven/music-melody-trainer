@@ -3092,6 +3092,10 @@ const App = () => {
                     activeClef={activeClef}
                     handleInputTestNote={handleNoteInputCombat}
                     expectedTrebleNotesRef={getExpectedTrebleNotesRef}
+                    // #1052 fourth follow-up (Han 2026-08-18, glow the due piano key on gated levels
+                    // 1-3): same "explicit level field" convention as `gatedScroll` itself (App.jsx's
+                    // SheetMusic prop) — only true while a gatedScroll level is actually running.
+                    showExpectedNoteGlow={level.active && !!level.current?.gatedScroll}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}

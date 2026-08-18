@@ -82,6 +82,14 @@ const PianoView = ({
   // held, independent of any other note playing at the same time.
   wrongNoteInstrument = null,
   expectedNotesRef = null,
+  // #1052 fourth follow-up (Han 2026-08-18, "give a glow outline to the piano key to be played in
+  // levels 1-3"): reuses the SAME `expectedNotesRef` #990 already threads down for wrong-note-instrument
+  // routing (§6c — no second "what note is due" mechanism) but only for the GATED levels this was asked
+  // for — a continuously-scrolling level's hittable window changes every fraction of a beat, so glowing
+  // it there would flicker distractingly; a gated level holds the SAME note for as long as the player
+  // needs, which is exactly when a steady visual hint is useful. App.jsx passes this true only while
+  // `level.current?.gatedScroll` is active.
+  showExpectedNoteGlow = false,
   interactionMode = 'play',
   onTonicSelect = null,
   // 'set-transpose' interaction (keyboard transposition setter): clicking a key makes THAT key
@@ -595,13 +603,28 @@ const PianoView = ({
       ? { boxShadow: '0 0 14px 4px rgba(242,200,121,0.8)', zIndex: 10 }
       : null;
 
+    // #1052 fourth follow-up: the key currently due in a gated level (see `showExpectedNoteGlow`'s own
+    // comment) — SAME glow treatment as the transpose-setter's reference key above (§6d: one canonical
+    // "this key matters right now" visual, not a second hand-rolled one), read fresh via
+    // `resolveNotePitch` (the SAME octave-aware comparison #990's wrong-note routing already uses,
+    // §6c) rather than a raw string/enharmonic-unsafe comparison.
+    const expectedNoteGlow = (showExpectedNoteGlow && expectedNotesRef?.current)
+      ? (() => {
+          const expected = expectedNotesRef.current();
+          const pitch = resolveNotePitch(cmp);
+          return expected?.length && expected.some((n) => resolveNotePitch(n) === pitch)
+            ? { boxShadow: '0 0 14px 4px rgba(242,200,121,0.8)', zIndex: 10 }
+            : null;
+        })()
+      : null;
+
     // CHORDS MODE (no playback): tint keys belonging to the representative chord with the chord
     // root's colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
     if (noteColoringMode === 'chords') {
       const c = chordNoteColor(cmp, activeChord, theme);
       return c
-        ? { ...transposeSetterCGlow, background: c, color: defaultTextColor }
-        : { ...transposeSetterCGlow, color: defaultTextColor };
+        ? { ...transposeSetterCGlow, ...expectedNoteGlow, background: c, color: defaultTextColor }
+        : { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
     }
 
     // CHROMATONE MODE
@@ -621,7 +644,7 @@ const PianoView = ({
       const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} ${mixRatioBottom})`;
 
       return {
-        ...transposeSetterCGlow,
+        ...transposeSetterCGlow, ...expectedNoteGlow,
         background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
         color: defaultTextColor
       };
@@ -642,33 +665,33 @@ const PianoView = ({
         const topColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 60%)`;
         const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 85%)`;
         return {
-          ...transposeSetterCGlow,
+          ...transposeSetterCGlow, ...expectedNoteGlow,
           background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
           color: defaultTextColor,
         };
       }
-      return { ...transposeSetterCGlow, color: defaultTextColor };
+      return { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
     }
 
     // TONIC + SCALE KEYS MODE
     if (noteColoringMode === 'tonic_scale_keys') {
       if (isTonic && isHighlightActive) {
         return {
-          ...transposeSetterCGlow,
+          ...transposeSetterCGlow, ...expectedNoteGlow,
           backgroundColor: 'var(--white-key-color-tonic)',
           color: defaultTextColor
         };
       }
       if (isInScale && isHighlightActive) {
         return {
-          ...transposeSetterCGlow,
+          ...transposeSetterCGlow, ...expectedNoteGlow,
           backgroundColor: isBlack ? 'var(--black-key-color-highlight)' : 'var(--white-key-color-highlight)',
           color: defaultTextColor
         };
       }
     }
 
-    return { ...transposeSetterCGlow, color: defaultTextColor };
+    return { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
   };
 
   /* =========================

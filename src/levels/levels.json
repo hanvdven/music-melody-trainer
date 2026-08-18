@@ -78,7 +78,7 @@
       "min": "C4",
       "max": "G4"
     },
-    "totalMeasures": 8,
+    "totalMeasures": 10,
     "sideScroll": true,
     "gatedScroll": true,
     "smallestNoteDenom": 4,
