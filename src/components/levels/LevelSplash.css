@@ -30,23 +30,12 @@
 .ls-card-wide { max-width: 480px; }
 @keyframes ls-pop { from { transform: scale(0.85); } to { transform: scale(1); } }
 
-/* #863 (Han 2026-08-10, "zet het splash screen in zijn volledigheid in de top view"): LevelSplash now
-   renders INLINE in App.jsx's top-view slot (alongside the avatar/stats/bestiary panels) instead of as a
-   floating `.ls-overlay` modal — no backdrop, no fixed positioning, fills the slot's width so the timing
-   chart gets far more room than the old 480px-capped `.ls-card-wide` modal ever allowed. `.ls-overlay`/
-   `.ls-card` above are UNCHANGED and still used by LevelPausePopup/LevelStartSplash's own modals. */
-.ls-panel {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  background-color: var(--panel-bg);
-  color: var(--text-primary);
-  border: 2px solid var(--accent-yellow);
-  border-radius: 16px;
-  padding: 24px 22px;
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-}
+/* #867 (Han 2026-08-18): the `.ls-panel` card that used to hold LevelSplash's own layout (added #863,
+   "zet het splash screen in zijn volledigheid in de top view") is REMOVED — the level-result view now
+   renders directly inside SheetMusic's SVG (LevelResultOverlay.jsx), not as an HTML card. `.ls-overlay`/
+   `.ls-card` below are UNCHANGED and still used by LevelPausePopup/LevelStartSplash's own modals; the
+   `.ls-badge`/`.ls-title`/.../`.ls-btn` rules below stay too — LevelStartSplash and LevelPausePopup (and
+   now App.jsx's level-result Replay/Close buttons, §6d) still use them. */
 
 .ls-badge { font-size: 48px; line-height: 1; }
 .ls-title {
@@ -78,22 +67,6 @@
 }
 .ls-stat-value { font-size: 24px; font-weight: 800; color: var(--text-primary); }
 .ls-stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
-
-.ls-chart-block {
-  width: 100%;
-  background-color: color-mix(in srgb, var(--panel-bg), var(--text-primary) 6%);
-  border: 1px solid var(--text-dim);
-  border-radius: 10px;
-  padding: 10px 8px;
-  margin-bottom: 20px;
-}
-.ls-chart-title {
-  font-size: 11px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 6px;
-}
 
 .ls-actions { display: flex; gap: 10px; justify-content: center; }
 .ls-btn {

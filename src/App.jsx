@@ -31,7 +31,7 @@ import { StatsTopPanel, StatsBottomPanel } from './components/character/Characte
 import { CHARACTER_CATEGORIES, catByKeyLabel } from './components/character/characterEditorShared';
 import { CATEGORIES as AVATAR_CATEGORIES } from './model/characterAssets';
 import AvatarSubHeader from './components/layout/AvatarSubHeader';
-import LevelSplash from './components/levels/LevelSplash';
+import { computeAccuracyPercent, TimingLegend } from './components/levels/LevelStatsCharts';
 import TwoHandedKeyboardPanel from './components/levels/TwoHandedKeyboardPanel';
 import DialogueBox from './components/character/DialogueBox';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_FRAME } from './model/enemyAssets';
@@ -1579,7 +1579,15 @@ const App = () => {
     // here are the level's GROWING melodies, threaded into MelodyProvider below in place of
     // `melodies.bass`/`melodies.metronome` while a side-scroll level is active.
     const levelBackingStream = useLevelBackingStream({
-        active: level.active && !!level.current?.sideScroll,
+        // #867 (Han 2026-08-18, "zet voor de zekerheid het level af"): gated levels' `loopForever`
+        // branch (useLevelBackingStream.js) keeps regenerating/scheduling chunks — wrapping back to
+        // measure 0 — for as long as this stays active. `level.active` alone doesn't flip false until
+        // the player clicks Sluiten (useLevel.js's close()), so leaving the result screen open on a
+        // gated-scroll level re-looped the backing audio, sounding like the level restarted. Adding
+        // `!level.done` here stops the loop the INSTANT the song genuinely ends, mirroring the existing
+        // `active && !done` gating precedent used elsewhere (§191) — no new flag, no other behaviour
+        // change (already-scheduled audio still rings out; this only stops new chunks being queued).
+        active: level.active && !level.done && !!level.current?.sideScroll,
         lvl: level.current,
         scale,
         timeSignature,
@@ -1815,6 +1823,23 @@ const App = () => {
         level.close();
         setCharacterScreen(null);
     }, [level]);
+    // #867 (Han 2026-08-18) — KPI rows for the in-staff level-result view, rendered at the chord-label
+    // row by LevelResultOverlay.jsx. Identical formula/labels to the deleted LevelSplash.jsx (§6c, not
+    // reimplemented — computeAccuracyPercent is the same shared helper).
+    const levelResultRows = useMemo(() => {
+        if (!level.current) return [];
+        const accuracy = computeAccuracyPercent(level.stats);
+        const timed = !!level.current.sideScroll;
+        return [
+            { label: 'Enemies vanquished', value: `${level.stats.defeated}/${level.totalEnemies}` },
+            { label: 'Accuraatheid', value: `${accuracy}%` },
+            ...(timed && level.totalCritters > 0 ? [
+                { label: 'Critters saved', value: `${level.totalCritters - level.stats.critterKilled}/${level.totalCritters}` },
+            ] : []),
+            ...(timed ? [{ label: 'Punten', value: level.stats.points }] : []),
+            { label: 'Langste streak', value: level.stats.longestStreak },
+        ];
+    }, [level.current, level.stats, level.totalEnemies, level.totalCritters]);
     // Stop any scheduled backing + drop the anchor when the level ends (splash close / replay handles its own).
     useEffect(() => {
         if (!level.active) {
@@ -2792,16 +2817,19 @@ const App = () => {
                     {characterScreen === 'stats' && <StatsTopPanel />}
                     {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} />}
                     {characterScreen === 'rpg-level' && <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />}
-                    {characterScreen === 'levelResult' && level.current && (
-                        <LevelSplash levelName={level.current.name} stats={level.stats}
-                            totalEnemies={level.totalEnemies} totalCritters={level.totalCritters}
-                            timed={!!level.current.sideScroll} twoHanded={!!level.current.twoHanded}
-                            onReplay={handleReplayLevel} onClose={handleCloseLevelResult} />
-                    )}
-                    {!characterScreen && (
+                    {/* #867 (Han 2026-08-18, "de info op de plaats van de bladmuziek"): the old
+                        <LevelSplash> sibling-swap is gone — SheetMusic now stays mounted for
+                        `levelResult` too and renders the result view INSIDE its own SVG (levelResult
+                        prop below), so it occupies the exact same box the notation does. */}
+                    {(!characterScreen || characterScreen === 'levelResult') && (
                     <ErrorBoundary boundary="sheet-music">
                         <SheetMusic
                             {...sheetMusicCommonProps}
+                            levelResult={characterScreen === 'levelResult' && level.current ? {
+                                stats: level.stats,
+                                twoHanded: !!level.current.twoHanded,
+                                rows: levelResultRows,
+                            } : null}
                             onOpenCharacter={() => { closeAllEditModes(); setCharacterScreen('equipment'); }}   // #647/#667 hero click opens avatar-context
                             combatNote={combatNote}                          // #647 combat — last played note
                             hittableNotesRef={rpgHittableNotesRef}           // #990 — live "hittable notes" getter
@@ -3055,7 +3083,7 @@ const App = () => {
                     // bottom panel mirrors RpgLevelBottomPanel's own placement pattern exactly — the
                     // dialogue box replaces the keyboard/TabView down here while the level-result panel
                     // occupies the top-view slot above (§189/§191's `characterScreen === 'levelResult'`).
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 }}>
                         <DialogueBox
                             portraitUrl={levelResultPortrait.url}
                             portraitCrop={levelResultPortrait.crop}
@@ -3070,6 +3098,17 @@ const App = () => {
                             onToggleAutoContinue={rpgLevel.toggleAutoContinue}
                             hasMorePages={levelResultDialogue.hasNextPage}
                         />
+                        {/* #867 — the timing-tier colour legend (what each bar colour on the staff-chart
+                            means) moved down here from the old LevelSplash card, alongside Replay/Close
+                            — reuses the existing TimingLegend component as-is (§6c), not reimplemented. */}
+                        <TimingLegend />
+                        {/* Replay/Close actions, relocated from the now-deleted LevelSplash card. Reuses
+                            the shared .ls-btn/.ls-actions chrome (LevelStartSplash/LevelPausePopup
+                            already use the same classes, §6d — same buttons, same look). */}
+                        <div className="ls-actions" style={{ width: '100%', maxWidth: 360 }}>
+                            <button className="ls-btn ls-replay" onClick={handleReplayLevel}>↻ Opnieuw</button>
+                            <button className="ls-btn" onClick={handleCloseLevelResult}>Sluiten</button>
+                        </div>
                     </div>
                 ) : (
                 <TabView

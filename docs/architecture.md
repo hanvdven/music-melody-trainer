@@ -17526,3 +17526,76 @@ screen/thrown error vs. a frozen UI — and ideally the browser console output) 
 **Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`effectiveStartX`, `HERO_NUDGE_LEFT_PX`, every
 strike-position consumer updated), `src/components/sheet-music/SheetMusic.jsx`
 (`levelLogicalHeightForViewBox` halves the #1043 slack instead of filling it).
+
+### §263. Level-result view moved into the sheet-music staff itself, replacing LevelSplash (Han 2026-08-18, #867)
+
+**Purpose.** Han: "ik wil niet langer een splash screen, ik wil de info zien op de plaats van de
+bladmuziek" — the floating `LevelSplash` "Well done!" card is retired entirely. The level-complete result
+now renders INSIDE `SheetMusic`'s own SVG box, reusing the real notenbalk as the timing-accuracy chart's
+axis (Han: "de notenbalk wordt de as"). Confirmed via an interactive ASCII mockup before implementation
+(§4b interview) after two earlier readings of the request (a plain relocate, then a sibling-swap into
+`SheetMusic`'s outer flex slot) turned out to undershoot what Han meant.
+
+**How it works.** `SheetMusic` gained a `levelResult` prop (`{ stats, twoHanded, rows }`, null for normal
+rendering). App.jsx no longer swaps `<LevelSplash>` in for `<SheetMusic>` when `characterScreen ===
+'levelResult'` — both branches of that condition now render `SheetMusic`, which is handed `levelResult`
+only in the result case. Rather than threading a suppression flag through SheetMusic's ~800-line,
+animation-mode-forked (pagination/wipe/scroll) note-rendering tree — one of the most invariant-sensitive
+parts of the app — `LevelResultOverlay.jsx` is rendered as the LAST child inside SheetMusic's `<svg>` (so
+it paints on top of everything) and draws a covering `<rect>` over the real notation, then re-draws:
+
+- the treble/bass staff's own 5 lines (identical coordinates to the real ones: local y = [0,10,20,30,40]
+  within each staff-group's `translateY(trebleStart|bassStart)`) — these lines double as the 0/25/50/75/
+  100% gridlines for the timing-tier bar chart (`renderStaffTierBars` in `LevelStatsCharts.jsx`, §6c: the
+  SAME `TIMING_TIERS`/`tierTotal`/`TIER_COLOR` logic the old modal chart used, just re-parameterized to
+  explicit `x0/x1/yTop/yBottom` bounds instead of a fixed chart box);
+- for `twoHanded` levels, the treble staff shows right-hand bars and the bass staff shows left-hand bars
+  (mirrors §862's existing L/R split — now one staff per hand instead of one bar split in two); single-
+  hand levels get one combined chart on the treble staff, bass staff stays plain lines;
+  the level didn't show a bass staff during play, the overlay omits it too (`isBassVisible` gate);
+- the KPI row (enemies vanquished / accuracy% / critters saved / points / longest streak — same formula
+  as the deleted `LevelSplash.jsx`, computed in `App.jsx`'s `levelResultRows`) at the CANONICAL chord-
+  label baseline, `ChordLabelsLayer.chordRootY(trebleStart)` (§6d single source of truth — not a new Y).
+
+The hidden real notation still renders underneath the covering rect (wasted paint, not suppressed) — an
+accepted trade-off given this is a level-result screen, not a 60fps-animated state, in exchange for zero
+changes to SheetMusic's existing rendering tree.
+
+Replay/Close actions and the timing-tier colour legend (`TimingLegend`, unchanged) moved from the deleted
+`LevelSplash` card down to the BOTTOM panel, alongside the existing post-combat `DialogueBox` (§189/§191's
+`characterScreen === 'levelResult'` branch) — App.jsx's `handleReplayLevel`/`handleCloseLevelResult`
+callbacks are unchanged, just re-wired to plain buttons there instead of `LevelSplash`'s own.
+
+**Restart-bug fix (Han: "zet voor de zekerheid het level af").** Leaving the result screen open a long
+time on a gated-scroll level (1-3) re-looped the backing cello/metronome, sounding like the level
+restarted. Root cause: `useLevelBackingStream.js`'s `loopForever` branch (gated on `lvl.gatedScroll`)
+keeps generating/scheduling chunks — wrapping back to measure 0 — for as long as its `active` param stays
+true, and `level.active` doesn't flip false until the player clicks "Sluiten" (`useLevel.js`'s `close()`).
+Fix: App.jsx's `useLevelBackingStream({ active: ... })` now gates on `level.active && !level.done`,
+mirroring the existing `active && !done` precedent used elsewhere (§191) — stops new chunks the instant
+the song ends; already-scheduled audio still rings out normally.
+
+**Audio abrupt-cut:** the ticket's third original ask ("stop alle noten op de 'end of song' timestamp")
+was confirmed by Han as already resolved by prior work — no change made.
+
+**Deleted (dead code, §7):** `LevelSplash.jsx`, `LevelSplash.test.jsx`, `TimingBarChart` (the old fixed-
+box modal chart) and its `CHART_W`/`BAR_CHART_H`/`BAR_GAP`/`AXIS_W` constants, and the `.ls-panel`/
+`.ls-chart-block`/`.ls-chart-title` CSS rules. `.ls-overlay`/`.ls-card`/`.ls-badge`/`.ls-title`/`.ls-sub`/
+`.ls-stats`/`.ls-stat*`/`.ls-actions`/`.ls-btn*` are UNCHANGED and still shared by `LevelStartSplash.jsx`/
+`LevelPausePopup.jsx` (and now App.jsx's relocated Replay/Close buttons) — verified via grep before
+deleting anything so no still-used chrome was removed.
+
+**Verified:** `npm run test:run` (819 passed), `npm run lint` (0 errors), `npm run build` (clean). A
+`resvg`-based render harness (same pattern as `scripts/render-chordstyle.jsx`, §6d point 4) confirmed
+`LevelResultOverlay` renders the staff-chart/KPI-row layout correctly with representative two-handed
+stats. Vite's dev server transforms every changed module without error. **Not verified live in a real
+browser through an actual level-completion** — no browser-automation tool was available in this session;
+a prior session's §262 entry shows Playwright WAS used for live Level 1 verification elsewhere, so that
+remains the recommended follow-up check before closing UAT.
+
+**Files:** `src/components/sheet-music/LevelResultOverlay.jsx` (new), `src/components/sheet-music/
+SheetMusic.jsx` (`levelResult` prop + overlay mount point), `src/components/levels/LevelStatsCharts.jsx`
+(`renderStaffTierBars`, exported `TIMING_TIERS`/`tierTotal`/`TEXT_FONT`, removed `TimingBarChart`),
+`src/components/levels/LevelSplash.css` (dead rules removed), `src/App.jsx` (`levelResultRows` memo,
+merged `SheetMusic`/result rendering, relocated Replay/Close/legend, `useLevelBackingStream` gating fix),
+deleted `src/components/levels/LevelSplash.jsx` + its test.

@@ -32,6 +32,7 @@ import SheetRpgLayer from './SheetRpgLayer';
 import LyricsLayer from './LyricsLayer';
 import FermataLayer from './FermataLayer';
 import PreviewOverlay from './PreviewOverlay';
+import LevelResultOverlay from './LevelResultOverlay';
 import { renderOneMeasureRepeatSymbols } from './renderOneMeasureRepeatSymbols';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
@@ -242,6 +243,11 @@ const SheetMusic = ({
   // true so normal (non-level) callers are unaffected; App.jsx flips it false for the span between
   // requesting a (re)generation and that generation actually landing.
   levelMelodyReady = true,
+  // #867 (Han 2026-08-18): when set, SheetMusic renders the level-complete result view (staff-as-axis
+  // timing chart + KPI row at the chord-label baseline) INSIDE its own SVG instead of the retired
+  // LevelSplash overlay card. Shape: { stats, twoHanded, rows }. `rows` is the KPI array (label/value
+  // pairs) App.jsx already builds the same way LevelSplash.jsx used to. null/undefined = normal render.
+  levelResult = null,
   // #679 (Han 2026-08-03, Level 9: "zet rechts de wizard tegenover de avatar... ipv slimes, gebruik cast
   // 2"): which enemy SheetRpgLayer renders — "Slime" (default, every level 1-8) or "Wizard" (Level 9's
   // static caster + linear projectiles instead of hopping slimes). Read straight from the level config
@@ -3390,6 +3396,27 @@ const SheetMusic = ({
                       tonic={tonic}
                       theme={theme}
                       debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* #867 — level-complete result view, painted LAST (on top of everything above) so
+                      its covering rect hides the real notation without touching that tree. See
+                      LevelResultOverlay.jsx's own header comment for the full rationale. */}
+                  {levelResult && (
+                    <LevelResultOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      coverX={-5}
+                      coverY={-30}
+                      coverWidth={logicalScreenWidth}
+                      coverHeight={levelLogicalHeightForViewBox}
+                      stats={levelResult.stats}
+                      twoHanded={levelResult.twoHanded}
+                      rows={levelResult.rows}
                     />
                   )}
                 </>

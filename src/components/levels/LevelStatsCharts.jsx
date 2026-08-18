@@ -12,7 +12,7 @@ import { TIMING_ORDER, GRADE_LABELS } from '../../levels/gradeHit';
 //
 // Han 2026-08-02: text in this SVG is NEVER the Maestro notation font (see CLAUDE.md §1a) — every
 // <text> below sets an explicit CSS font (TEXT_FONT), never inherits.
-const TEXT_FONT = "Georgia, 'Times New Roman', serif";
+export const TEXT_FONT = "Georgia, 'Times New Roman', serif";
 
 // #825 (Han 2026-08-10): sourced from the shared --judgment-* CSS custom properties (src/styles/App.css)
 // — the SAME tokens SheetRpgLayer.jsx's live popup uses — instead of an independently hardcoded hex
@@ -38,7 +38,7 @@ const TIER_COLOR = {
 // never-resolved" outcomes with no meaningful timing delta (wrongUncorrected is only known at slime
 // EXPIRY, by which point "how early/late" no longer applies), so they're paired in the trailing bar
 // instead of wrongUncorrected needing an unrelated 7th bar of its own.
-const TIMING_TIERS = [
+export const TIMING_TIERS = [
     { key: 'extraNote', label: 'note when none due', color: TIER_COLOR.extraNote },
     ...TIMING_ORDER.map((key) => ({
         key, label: GRADE_LABELS[key], stacked: [
@@ -122,96 +122,47 @@ export function extractHandStats(stats, hand) {
     return out;
 }
 
-function tierTotal(tierDef, s) {
+export function tierTotal(tierDef, s) {
     return tierDef.stacked ? tierDef.stacked.reduce((sum, seg) => sum + (s[seg.key] || 0), 0) : (s[tierDef.key] || 0);
 }
 
-const CHART_W = 360, BAR_CHART_H = 220, BAR_GAP = 8, AXIS_W = 22;
-
-// One bar (or, in split mode, one L/R pair) per TIMING_TIERS entry. `splitStats` (#862, twoHanded levels
-// only — App.jsx only passes it when the level is twoHanded) = `{ bass, treble }`, each a stats-shaped
-// object (via extractHandStats). When present, every slot renders TWO sub-bars side by side, each scaled
-// to a PERCENTAGE of THAT HAND's own total notes (Han: "links 8x perfect = 100%, en rechts 121x perfect
-// en toch maar 30%, want veel meer noten") — a shared 0–100% axis makes the two comparable despite wildly
-// different note counts. Without `splitStats`, renders exactly as before: one bar per slot, raw counts,
-// self-scaled to the chart's own max.
-export function TimingBarChart({ stats, splitStats }) {
-    const plotH = BAR_CHART_H - 40;   // room for the count/label row below + a little headroom above
-    const leftMargin = splitStats ? AXIS_W : 0;
-    const usableW = CHART_W - leftMargin;
-    const slotW = (usableW - BAR_GAP * (TIMING_TIERS.length - 1)) / TIMING_TIERS.length;
-    const combinedMax = splitStats ? 1 : Math.max(1, ...TIMING_TIERS.map((t) => tierTotal(t, stats)));
-    const bassTotal = splitStats ? Math.max(1, computeTotalNotes(splitStats.bass)) : 1;
-    const trebleTotal = splitStats ? Math.max(1, computeTotalNotes(splitStats.treble)) : 1;
-
-    // Renders one bar (stacked or plain) at (x, width w) for stats object `s`, scaled by `toHeight(count)
-    // -> px`. `maxScale` is the value that counts as "100%/full height" for the near-max label check
-    // (Han: "bovenste label... geclipt door de titel-regel; als max/2 zet het label dan in de bar" — a
-    // TALL bar's count label moves INSIDE it instead of floating above, where it'd clip the title row
-    // above the chart).
-    const renderBar = (tierDef, s, x, w, toHeight, maxScale, key) => {
-        const total = tierTotal(tierDef, s);
+// #867 (Han 2026-08-18, "de notenbalk wordt de as"): renders the 7 TIMING_TIERS as bars scaled between
+// explicit pixel bounds instead of a fixed chart box — lets the SAME tier/color/stacking logic that used
+// to drive the floating LevelSplash modal chart (now deleted) instead draw directly onto the sheet-music
+// staff lines (LevelResultOverlay.jsx passes yTop/yBottom = the staff's own top/bottom line, so the 5
+// staff lines double as the 0/25/50/75/100% gridlines — exact match, no new axis needed). `handStats` is
+// a stats-shaped object: pass `stats` for a combined chart, or `extractHandStats(stats, 'bass'|'treble')`
+// for a per-hand chart (twoHanded levels, §862's L/R split — now one staff per hand instead of one bar
+// split in two).
+export function renderStaffTierBars({ handStats, x0, x1, yTop, yBottom, keyPrefix }) {
+    const gap = 3;
+    const slotW = (x1 - x0 - gap * (TIMING_TIERS.length - 1)) / TIMING_TIERS.length;
+    const maxScale = Math.max(1, ...TIMING_TIERS.map((t) => tierTotal(t, handStats)));
+    const plotH = yBottom - yTop;
+    const toHeight = (v) => (v / maxScale) * plotH;
+    return TIMING_TIERS.map((t, i) => {
+        const x = x0 + i * (slotW + gap);
+        const total = tierTotal(t, handStats);
         const totalH = toHeight(total);
-        const topY = plotH - totalH;
-        const segs = tierDef.stacked || [{ key: tierDef.key, color: tierDef.color }];
-        let segY = plotH;
+        const topY = yBottom - totalH;
+        const segs = t.stacked || [{ key: t.key, color: t.color }];
+        let segY = yBottom;
         const rects = segs.map((seg) => {
-            const segCount = s[seg.key] || 0;
+            const segCount = handStats[seg.key] || 0;
             const segH = toHeight(segCount);
             segY -= segH;
-            return segCount > 0 ? <rect key={seg.key} x={x} y={segY} width={w} height={Math.max(segH, 2)} fill={seg.color} /> : null;
+            return segCount > 0 ? (
+                <rect key={`${keyPrefix}-${t.key}-${seg.key}`} x={x} y={segY} width={slotW} height={Math.max(segH, 0.5)} fill={seg.color} />
+            ) : null;
         });
-        const nearMax = total >= maxScale / 2;
-        const labelY = nearMax ? topY + 13 : topY - 4;
         return (
-            <g key={key}>
+            <g key={`${keyPrefix}-${t.key}`}>
                 {rects}
                 {total > 0 && (
-                    <text x={x + w / 2} y={labelY} textAnchor="middle" fontSize="10" fontWeight="700"
-                        fontFamily={TEXT_FONT} fill={nearMax ? '#fff' : 'var(--text-primary)'}>{total}</text>
+                    <text x={x + slotW / 2} y={topY - 1.5} textAnchor="middle" fontSize="7" fontWeight="700"
+                        fontFamily={TEXT_FONT} fill="var(--text-primary)">{total}</text>
                 )}
             </g>
         );
-    };
-
-    return (
-        <svg viewBox={`0 0 ${CHART_W} ${BAR_CHART_H}`} width="100%" height={BAR_CHART_H} role="img" aria-label="Timing accuracy">
-            {/* #862 split-mode axis: 0/25/50/75/100% gridlines, so two very different note counts (e.g.
-                8 bass notes vs 121 treble notes) read as directly comparable proportions. */}
-            {splitStats && [0, 25, 50, 75, 100].map((pct) => {
-                const y = plotH - (pct / 100) * plotH;
-                return (
-                    <g key={pct}>
-                        <line x1={leftMargin} y1={y} x2={CHART_W} y2={y} stroke="var(--text-dim)" strokeWidth={0.5} strokeOpacity={pct === 0 ? 0.8 : 0.35} />
-                        <text x={leftMargin - 4} y={y + 3} textAnchor="end" fontSize="7" fontFamily={TEXT_FONT} fill="var(--text-secondary)">{pct}</text>
-                    </g>
-                );
-            })}
-            {TIMING_TIERS.map((t, i) => {
-                const slotX = leftMargin + i * (slotW + BAR_GAP);
-                return (
-                    <g key={t.key}>
-                        {splitStats ? (() => {
-                            const gap = 2;
-                            const halfW = (slotW - gap) / 2;
-                            const toHeightBass = (v) => (v / bassTotal) * plotH;
-                            const toHeightTreble = (v) => (v / trebleTotal) * plotH;
-                            return (
-                                <>
-                                    {renderBar(t, splitStats.bass, slotX, halfW, toHeightBass, 100, `${t.key}-L`)}
-                                    {renderBar(t, splitStats.treble, slotX + halfW + gap, halfW, toHeightTreble, 100, `${t.key}-R`)}
-                                    <text x={slotX + halfW / 2} y={plotH + 10} textAnchor="middle" fontSize="7" fontWeight="700"
-                                        fontFamily={TEXT_FONT} fill="var(--text-dim)">L</text>
-                                    <text x={slotX + halfW + gap + halfW / 2} y={plotH + 10} textAnchor="middle" fontSize="7" fontWeight="700"
-                                        fontFamily={TEXT_FONT} fill="var(--text-dim)">R</text>
-                                </>
-                            );
-                        })() : renderBar(t, stats, slotX, slotW, (v) => (v / combinedMax) * plotH, combinedMax, t.key)}
-                        <text x={slotX + slotW / 2} y={BAR_CHART_H - (splitStats ? 4 : 4)} textAnchor="middle" fontSize="8.5"
-                            fontFamily={TEXT_FONT} fill="var(--text-secondary)">{t.label}</text>
-                    </g>
-                );
-            })}
-        </svg>
-    );
+    });
 }
