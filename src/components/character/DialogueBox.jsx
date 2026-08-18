@@ -1,6 +1,7 @@
 import React from 'react';
 import bitfantasyFontUrl from '../../assets/fonts/pixel_fonts/Bitfantasy.ttf';
-import { Frame64Overlay } from './BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
+import { Frame64Overlay } from './CreatureSprite';
 import OscillatingText from './OscillatingText';
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world

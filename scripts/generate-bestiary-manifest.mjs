@@ -63,7 +63,7 @@
 //   SECTION: POST-PROCESS MERGES               — folds "Sheet2"/"Combat"/etc. suffixed variants back together
 //   SECTION: SWATCH + PORTRAIT + BRAND-STRIP   — colour swatches, projectile/portrait pairing, name cleanup
 //   SECTION: OUTPUT                            — writes bestiaryManifest.generated.js
-import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs';
+import { readdirSync, statSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, relative, dirname } from 'path';
 import { PNG } from 'pngjs';
 // #790 (Han 2026-08-09, "er is een giga-bestand met sprite-definities; doe een voorstel die drastisch op
@@ -91,6 +91,14 @@ import {
 // regenerating (and re-verifying) the whole hand-tuned manifest for zero behavioural benefit.
 const ROOT = join(process.cwd(), 'public/ASSORTED/characters');
 const OUT = join(process.cwd(), 'src/model/bestiaryManifest.generated.js');
+// #1028 (Han 2026-08-17, "bestiary clean up" part 1+2): hand/UI-editable per-creature tag overrides, layered
+// on top of the regex/name-list tag derivation below (SECTION: further down — stays the untouched baseline;
+// migrating ~200 lines of hand-tuned rules into JSON in one pass was judged too risky, same phased principle
+// as #1028 part 3's slime hop-data). Edited live via the bestiary's debug-mode tag editor (useBestiaryEditor.js
+// -> the dev-only /api/bestiary-metadata endpoint in vite.config.js), which writes straight to this file — new
+// tag corrections go here from now on instead of a new regex line.
+const METADATA_PATH = join(process.cwd(), 'src/model/bestiaryMetadata.json');
+const bestiaryMetadata = existsSync(METADATA_PATH) ? JSON.parse(readFileSync(METADATA_PATH, 'utf8')) : {};
 
 // Category → folder(s). #671 (Han 2026-08-03, third follow-up: "verdeel characters onder volgens mijn
 // categorisering: passive, with attack, with portrait, with walk") — the single 'characters' bucket is
@@ -122,9 +130,9 @@ const CATEGORY_OVERRIDES = [
     { test: (p) => /char_passive\/Art lady\.png$/i.test(p), category: 'mature' },
     { test: (p) => /char_passive\/Bathtime( Bare)?\.png$/i.test(p), category: 'mature' },
     { test: (p) => /Funny Spring Characters\.png$/i.test(p), category: 'mature' },
-    { test: (p) => /GandalfHardcore Covered Characters sheet\.png$/i.test(p), category: 'mature' },
-    { test: (p) => /GandalfHardcore Dryad sheet\.png$/i.test(p), category: 'mature' },
-    { test: (p) => /GandalfHardcore Eve sheet\.png$/i.test(p), category: 'mature' },
+    { test: (p) => /Covered Characters sheet\.png$/i.test(p), category: 'mature' },
+    { test: (p) => /Dryad sheet\.png$/i.test(p), category: 'mature' },
+    { test: (p) => /Eve sheet\.png$/i.test(p), category: 'mature' },
     { test: (p) => /Japanese Characters( Bare)?\.png$/i.test(p), category: 'mature' },
     { test: (p) => /Lovers\.png$/i.test(p), category: 'mature' },
     { test: (p) => /char_passive\/(Character sheet( bare)? |Character sheet\.)/i.test(p) && /Spirit/.test(p), category: 'mature' },
@@ -132,7 +140,7 @@ const CATEGORY_OVERRIDES = [
     // the Female Pixel Art column, or 'humanoid'/'passive' for the many standalone sheets) moves to 'mature'.
     { test: (p) => /\/Succubus\//i.test(p) || /Succubus/i.test(p), category: 'mature' },
     // #687 (Han 2026-08-04, "laat maid bathing apart en zet bij mature")
-    { test: (p) => /GandalfHardcore maid bathing\.png$/i.test(p), category: 'mature' },
+    { test: (p) => /maid bathing\.png$/i.test(p), category: 'mature' },
     // #682 new "incomplete" category (Han: "portrait -> incomplete") — these packs sit in 'portrait' today
     // but are only partially verified (multi-colour sheets with no confirmed portrait pairing / animation
     // breakdown) — moved to their own tab so they read as distinct from the checked 'portrait' entries.
@@ -174,7 +182,7 @@ const JUNK_NAME = /dont forget|read ?me|portrait| - guides/i;
 // #669/#671 (Han: "de doggy backpack en doggy hat zijn equipable" → "maak een toggler voor hat en
 // backpack") — not standalone creatures; routed to a separate ACCESSORIES map instead of the manifest.
 const PET_ACCESSORY = /doggy (backpack|hat)/i;
-const DOGGY_BODY = /GandalfHardcore Pet companion\/(GandalfHardcore )?doggy sheet/i;
+const DOGGY_BODY = /Pet companion\/doggy sheet/i;
 
 // Already hand-curated in enemyAssets.js (fully animated, feeds real gameplay via SLIME_COLORS/etc. too) —
 // skip these so the bestiary never lists the same creature twice.
@@ -188,7 +196,13 @@ const CURATED_KEYWORDS = ['lamia', 'bat', 'flying eye', 'flying witch', 'mimic',
 // HUMAN character) was silently dropped because 'rat' matched inside it too (word-boundary alone can't
 // tell "Rat" the curated enemy apart from "Rat thief" the passive character) — carved out explicitly,
 // same targeted-exception convention as EXCLUDED_NAME above, rather than a fragile folder/heuristic guess.
-const isCurated = (name) => !/^Rat thief$/i.test(name) && CURATED_KEYWORDS.some((k) => new RegExp(`\\b${k}\\b`, 'i').test(name));
+// #1028 follow-up (Han 2026-08-17, "ik mis een dier van elthen (animals/critters): bat"): the SAME class of
+// bug — "Bat_Sprite_Sheet.png" (normalizes to "Bat Sprite Sheet") matched the 'bat' keyword and was dropped
+// as a supposed duplicate of the hand-curated combat Bat (enemyAssets.js, a DIFFERENT art source — that one
+// is GandalfHardcore, this file is Elthen's Pixel Art Shop, see the artist-attribution rules further down).
+// They are two genuinely different creatures that happen to share a common name, not one drawn twice.
+const CURATED_KEYWORD_EXCEPTIONS = /^Rat thief$|^Bat Sprite Sheet$/i;
+const isCurated = (name) => !CURATED_KEYWORD_EXCEPTIONS.test(name) && CURATED_KEYWORDS.some((k) => new RegExp(`\\b${k}\\b`, 'i').test(name));
 
 // #682 (Han 2026-08-04: "haal de bikini girls uit de set - past niet in de stijl" + "haal het karakter
 // 'color variations' weg uit de lijst. ook 'heavy colors' mag weg") — never a pickable bestiary creature,
@@ -330,10 +344,10 @@ const FRAME_OVERRIDES = [
     // unaffected, left on the blanket rule below. The main Succubus/"Succubus map" sheets (156×72) — all
     // exceptions to the 64×64 blanket rule below, so MUST precede it. (The loose junk "Succubus sheet.png"
     // preview swatch is skipped outright now, not framed — see the main scan loop.)
-    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus (Eisheth|Lilim|Pair)\//i.test(p), frame: { w: 64, h: 64 } },
-    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus (Lilith|Morgana)\//i.test(p), frame: { w: 64, h: 80 } },
-    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus Mother\/GandalfHardcore Succubus Mother( bare2?)?\.png$/i.test(p), frame: { w: 144, h: 64 } },
-    { test: (p) => /Succubus\/(GandalfHardcore Succubus|GandalfHardcore Pale Succubus)\//i.test(p), frame: { w: 156, h: 72 } },
+    { test: (p) => /Succubus\/Bonus Succubus (Eisheth|Lilim|Pair)\//i.test(p), frame: { w: 64, h: 64 } },
+    { test: (p) => /Succubus\/Bonus Succubus (Lilith|Morgana)\//i.test(p), frame: { w: 64, h: 80 } },
+    { test: (p) => /Succubus\/Bonus Succubus Mother\/Succubus Mother( bare2?)?\.png$/i.test(p), frame: { w: 144, h: 64 } },
+    { test: (p) => /Succubus\/(Succubus|Pale Succubus)\//i.test(p), frame: { w: 156, h: 72 } },
     // #672 (Han: "characters: je mag aannemen dat ze 64x64 zijn") — blanket override for all 4 character
     // folders (passive/attack/portrait/walk), replacing the generic square-guess for these.
     { test: (p) => /characters\/(char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(p), frame: { w: 64, h: 64 } },
@@ -375,7 +389,7 @@ function frameOverrideFor(relPath) {
 // ═══ SECTION: BASE-NAME OVERRIDES ═══
 const BASE_OVERRIDES = [
     { test: (p) => /Wisp with outline\.png$/i.test(p), base: 'Wisp', variant: 'Outline' },
-    { test: (p) => /GandalfHardcore Wisp\.png$/i.test(p), base: 'Wisp', variant: 'Plain' },
+    { test: (p) => /Wisp\.png$/i.test(p), base: 'Wisp', variant: 'Plain' },
     // #670 (Han: "maak van covered/uncovered twee kleurvarianten") — "covered"/no-suffix aren't colour
     // words the generic grouper recognises, so grouped by hand.
     { test: (p) => /Female Hell Giant covered\.png$/i.test(p), base: 'Hell Giant', variant: 'Covered' },
@@ -422,10 +436,10 @@ const BASE_OVERRIDES = [
     { test: (p) => /Goblin enemy bright green sheet\.png$/i.test(p), base: 'Goblin', variant: 'Bright Green' },
     // #683 (Han: "zombies: kleurvarianten brown, dark red, red, yellow") — v1-v4 assumed to correspond to
     // this exact colour order (filenames are just "v1".."v4", no colour word) — flagged assumption.
-    { test: (p) => /GandalfHardcore Zombie v1 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Brown' },
-    { test: (p) => /GandalfHardcore Zombie v2 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Dark Red' },
-    { test: (p) => /GandalfHardcore Zombie v3 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Red' },
-    { test: (p) => /GandalfHardcore Zombie v4 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Yellow' },
+    { test: (p) => /Zombie v1 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Brown' },
+    { test: (p) => /Zombie v2 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Dark Red' },
+    { test: (p) => /Zombie v3 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Red' },
+    { test: (p) => /Zombie v4 sheet\.png$/i.test(p), base: 'Zombie', variant: 'Yellow' },
     // #687 (Han 2026-08-04, skeleton colour order: "grey (sheet), retro, full white, red, gold, ghost") —
     // grouped explicitly (like Goblin/Zombie above) since "retro"/"gold"/"ghost" aren't in `COLORS` and
     // "sheet"/"colors"/"full" would otherwise leak into the base name via `parseVariant`.
@@ -439,22 +453,22 @@ const BASE_OVERRIDES = [
     // dimension; both are folded into it as "{Color}"/"{Color} (Full)" (same technique as Knighty's
     // Colour×Heavy/Run combos, §682) — renders as text-pill toggles rather than true colour swatches (same
     // trade-off already shipped for Knighty), since `variantColor()` only exact-matches a bare colour word.
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full black\.png$/i.test(p), base: 'Maid', variant: 'Black (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full blue\.png$/i.test(p), base: 'Maid', variant: 'Blue (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full brown\.png$/i.test(p), base: 'Maid', variant: 'Brown (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full green\.png$/i.test(p), base: 'Maid', variant: 'Green (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full purple\.png$/i.test(p), base: 'Maid', variant: 'Purple (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full red\.png$/i.test(p), base: 'Maid', variant: 'Red (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full white\.png$/i.test(p), base: 'Maid', variant: 'White (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character full yellow\.png$/i.test(p), base: 'Maid', variant: 'Yellow (White Accent)' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character black\.png$/i.test(p), base: 'Maid', variant: 'Black' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character blue\.png$/i.test(p), base: 'Maid', variant: 'Blue' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character brown\.png$/i.test(p), base: 'Maid', variant: 'Brown' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character green\.png$/i.test(p), base: 'Maid', variant: 'Green' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character purple\.png$/i.test(p), base: 'Maid', variant: 'Purple' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character red\.png$/i.test(p), base: 'Maid', variant: 'Red' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character white\.png$/i.test(p), base: 'Maid', variant: 'White' },
-    { test: (p) => /GandalfHardcore Maid Character\/Maid Character yellow\.png$/i.test(p), base: 'Maid', variant: 'Yellow' },
+    { test: (p) => /Maid Character\/Maid Character full black\.png$/i.test(p), base: 'Maid', variant: 'Black (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full blue\.png$/i.test(p), base: 'Maid', variant: 'Blue (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full brown\.png$/i.test(p), base: 'Maid', variant: 'Brown (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full green\.png$/i.test(p), base: 'Maid', variant: 'Green (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full purple\.png$/i.test(p), base: 'Maid', variant: 'Purple (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full red\.png$/i.test(p), base: 'Maid', variant: 'Red (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full white\.png$/i.test(p), base: 'Maid', variant: 'White (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character full yellow\.png$/i.test(p), base: 'Maid', variant: 'Yellow (White Accent)' },
+    { test: (p) => /Maid Character\/Maid Character black\.png$/i.test(p), base: 'Maid', variant: 'Black' },
+    { test: (p) => /Maid Character\/Maid Character blue\.png$/i.test(p), base: 'Maid', variant: 'Blue' },
+    { test: (p) => /Maid Character\/Maid Character brown\.png$/i.test(p), base: 'Maid', variant: 'Brown' },
+    { test: (p) => /Maid Character\/Maid Character green\.png$/i.test(p), base: 'Maid', variant: 'Green' },
+    { test: (p) => /Maid Character\/Maid Character purple\.png$/i.test(p), base: 'Maid', variant: 'Purple' },
+    { test: (p) => /Maid Character\/Maid Character red\.png$/i.test(p), base: 'Maid', variant: 'Red' },
+    { test: (p) => /Maid Character\/Maid Character white\.png$/i.test(p), base: 'Maid', variant: 'White' },
+    { test: (p) => /Maid Character\/Maid Character yellow\.png$/i.test(p), base: 'Maid', variant: 'Yellow' },
     // #693 (Han 2026-08-04, critters batch round 2: "human baby... met 3 kleurvarianten: light, dark,
     // yellow") — the 3 files are just numbered ("Sprite Sheet"/"2"/"3"), no colour word in the filename;
     // read in that exact numeric order as light/dark/yellow per Han's list order — NOT independently
@@ -486,7 +500,7 @@ const ROW_LABEL_OVERRIDES = [
     { test: (p) => /creature_humanoid\/(damned|Mummy|Orc)/i.test(p) && !/damned bloated|damned tree/i.test(p), labels: ['Idle', 'Walk', 'Attack', 'Death'] },
     { test: (p) => /damned bloated\.png$/i.test(p), labels: ['Idle', 'Move', 'Death'] },
     // #676 (Han: "archer: idle, shoot, move, hit, death") — all 8 colour variants + the plain sheet.
-    { test: (p) => /char_with_attack\/GandalfHardcore Archer.*sheet\.png$/i.test(p), labels: ['Idle', 'Shoot', 'Move', 'Hit', 'Death'] },
+    { test: (p) => /char_with_attack\/Archer.*sheet\.png$/i.test(p), labels: ['Idle', 'Shoot', 'Move', 'Hit', 'Death'] },
     // #676 (Han: "beekeeper attack -> beekeeper pose") — 3rd row relabelled, first two left as-is.
     { test: (p) => /char_with_walk\/Beekeeper/i.test(p), labels: ['Idle', 'Move', 'Pose'] },
     // #693 (Han 2026-08-04, critters batch round 2: "portals: rij 1 idle, rij 2 appear, rij 3 dissappear")
@@ -531,7 +545,7 @@ const ROW_LABEL_OVERRIDES = [
     // "Pale Succubus" source folders) — NOT the "Human Form" sheets (only 31 rows, see the separate note
     // below) and NOT the loose junk "Succubus sheet.png" preview swatch (4 rows, untouched).
     {
-        test: (p) => /Succubus\/(GandalfHardcore Succubus|GandalfHardcore Pale Succubus)\//i.test(p) && !/Human Form/i.test(p),
+        test: (p) => /Succubus\/(Succubus|Pale Succubus)\//i.test(p) && !/Human Form/i.test(p),
         labels: [
             'Idle', 'Idle Hands Back', 'Jump', 'Fly', 'Fall', 'Walk', 'Run', 'Walk Back', 'Walk Back Lure',
             'Lure', 'Death 1', 'Death 2', 'Dead Burn 1', 'Dead Burn 2',
@@ -549,7 +563,7 @@ const ROW_LABEL_OVERRIDES = [
     // (labelsFor's fallback already handles "fewer/more rows than labels" safely): whichever of the 35
     // labels have a matching row get used, any leftover rows fall back to generic "Row N".
     {
-        test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form/i.test(p),
+        test: (p) => /Succubus\/Succubus\/Succubus Human Form/i.test(p),
         labels: [
             'Idle', 'Idle Hands Back', 'Jump', 'Fly', 'Fall', 'Walk', 'Run', 'Walk Back', 'Walk Back Lure',
             'Lure', 'Death 1', 'Death 2', 'Dead Burn 1', 'Dead Burn 2',
@@ -692,7 +706,7 @@ function analyze(absPath, relPath) {
     }
     // #870 (Han 2026-08-11, "succubus mother (144x64, alle cellen tezamen 'idle')") — same treatment,
     // applies to all 5 wing/bare variant files (Succubus Mother / bare / bare2 / bare no wings / bare2 no wings).
-    if (/Succubus\/GandalfHardcore Bonus Succubus Mother\//i.test(relPath)) {
+    if (/Succubus\/Bonus Succubus Mother\//i.test(relPath)) {
         const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
         return { width, height, frame, crop, animations: [{ key: 'idle', label: 'Idle', cells }], contentRows };
     }
@@ -1409,7 +1423,7 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
 
             // #870 (Han 2026-08-11): Warrior's sheet splits into 'Sword Sheathed'/'Sword Drawn' variants
             // (see warriorEntries above).
-            if (/char_with_attack\/GandalfHardcore Warrior\.png$/i.test(relPath)) {
+            if (/char_with_attack\/Warrior\.png$/i.test(relPath)) {
                 manifest.push(...warriorEntries(absPath, relPath, category));
                 continue;
             }
@@ -1417,15 +1431,15 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // #870 (Han 2026-08-11/12): Dryad sheet.png / Eve sheet.png split into named colour variants
             // (see threeRowVariantEntries above); Covered Characters sheet.png splits into its 26 named
             // characters (see coveredCharacterEntries above).
-            if (/GandalfHardcore Dryad sheet\.png$/i.test(relPath)) {
+            if (/Dryad sheet\.png$/i.test(relPath)) {
                 manifest.push(...threeRowVariantEntries(absPath, relPath, categoryOverrideFor(relPath, category), 'Lady Dryad', ['Normal (Bare)', 'Grey (Bare)', 'Red (Bare)'], { w: 62, h: 64 }));
                 continue;
             }
-            if (/GandalfHardcore Eve sheet\.png$/i.test(relPath)) {
+            if (/Eve sheet\.png$/i.test(relPath)) {
                 manifest.push(...threeRowVariantEntries(absPath, relPath, categoryOverrideFor(relPath, category), 'Lady Eve', ['Red (Bare)', 'Green/Gold (Bare)', 'Demon (Bare)']));
                 continue;
             }
-            if (/GandalfHardcore Covered Characters sheet\.png$/i.test(relPath)) {
+            if (/Covered Characters sheet\.png$/i.test(relPath)) {
                 manifest.push(...coveredCharacterEntries(absPath, relPath, categoryOverrideFor(relPath, category)));
                 continue;
             }
@@ -1498,7 +1512,7 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             }
             // #676 (Han: "tavern npcs zijn 4 personages, splits. lute -> musicians, flute -> musicians,
             // drunk dancing, couple dancing.")
-            if (/GandalfHardcore tavern NPCs\.png$/i.test(relPath)) {
+            if (/tavern NPCs\.png$/i.test(relPath)) {
                 manifest.push(...expandNamedRows(absPath, relPath, CHAR64, [
                     { rows: [0], category: 'musicians', base: 'Lute', variant: null },
                     { rows: [1], category: 'musicians', base: 'Flute', variant: null },
@@ -1543,11 +1557,11 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // junk preview-swatch file (§683's "* colors.png" pattern, just named differently) — stripping
             // "sheet" from its name would collide with the real "Succubus" creature, so it's skipped outright
             // instead (it was never wired to anything, only ever its own disconnected 4-row card).
-            if (/\/Succubus\/GandalfHardcore Succubus sheet\.png$/i.test(relPath)) continue;
+            if (/\/Succubus\/Succubus sheet\.png$/i.test(relPath)) continue;
             // #870 (Han 2026-08-12, "lady dryad flowers: haal de bare variant weg") — this file WAS her
             // only bare pairing (merged as variant 'Bare' below); Han wants it gone entirely now, so the
             // whole file is skipped rather than just excluded from the merge.
-            if (/GandalfHardcore Flower dryad\.png$/i.test(relPath)) continue;
+            if (/Flower dryad\.png$/i.test(relPath)) continue;
             // #693 — "Leaf Elemental S Dormant.png" is only ever shown as the main Leaf Elemental's
             // "Dormant" animation (added below) — never scanned standalone.
             if (/\/animals\/critters\/Leaf Elemental S Dormant\.png$/i.test(relPath)) continue;
@@ -1656,14 +1670,14 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // #675 (Han: "de wizards") — the 8 colour-variant portrait-paired wizard sheets.
             if (/char_with_porttrait\/Wizard\/.*Wizard sheet\.png$/i.test(relPath)) analysis.animations = wizardPortraitAnimations();
             // #677 (Han: "santa, vampire lady 2, zij steeds ...")
-            if (/(GandalfHardcore Santa Claus|GandalfHardcore Vampire Lady v2)\.png$/i.test(relPath)) analysis.animations = santaVampireAnimations();
+            if (/(Santa Claus|Vampire Lady v2)\.png$/i.test(relPath)) analysis.animations = santaVampireAnimations();
             // #689 (Han 2026-08-04, "goddess: idle animatie mag weg (idle frames) walk -> fly en gebruik
             // die als preview") — 832×64 = 13×1, the SAME layout Santa/Vampire use (5 idle + 8 walk cols).
             // #870 (Han 2026-08-12, "goddess NPC: float -> walk. Haar idle animatie (eerste 5 frames) is
             // verdwenen"; corrected same day: "eerste animatie is 'idle' niet float (en dus ook niet
             // flying)"): correction to §689's premise — the idle frames were NOT empty filler, so idle is
             // KEPT (stays 'idle' — she is NOT flying), the old 'fly'-labelled row renamed 'walk' instead.
-            if (/Goddess\/GandalfHardcore Goddess NPC\.png$/i.test(relPath)) {
+            if (/Goddess\/Goddess NPC\.png$/i.test(relPath)) {
                 analysis.animations = santaVampireAnimations()
                     .map((a) => (a.key === 'walk' ? { key: 'walk', label: 'Walk', cells: a.cells } : a));
             }
@@ -1694,16 +1708,16 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             if (/char_with_porttrait\/.*Goblin.*sheet\.png$/i.test(relPath)) analysis.animations = goblinAnimations();
             // #689 (Han 2026-08-04, "poop thrower en poop impact sheet horen bij elkaar")
             if (/poop thrower\/Throwing poop\.png$/i.test(relPath)) analysis.animations = poopThrowerAnimations();
-            if (/GandalfHardcore Zombie v\d sheet\.png$/i.test(relPath)) analysis.animations = zombieAnimations();
-            if (/GandalfHardcore Maid Character\/Maid Character( full)? [a-z]+\.png$/i.test(relPath)) analysis.animations = maidAnimations();
+            if (/Zombie v\d sheet\.png$/i.test(relPath)) analysis.animations = zombieAnimations();
+            if (/Maid Character\/Maid Character( full)? [a-z]+\.png$/i.test(relPath)) analysis.animations = maidAnimations();
             // #687 (Han 2026-08-04, Maid mega-merge): sheet2/combat/sword-down each get their OWN animation
             // set here; base/variant tagging (grouped later by the merge pass below) happens further down.
             if (/Maid Character 2\/Maid Character2 /i.test(relPath)) analysis.animations = maidSheet2Animations();
             if (/Maid Character 3 Combat\/Maid Combat Sheet /i.test(relPath)) analysis.animations = maidCombatAnimations();
             if (/Maid Character 4\/Maid Walk with sword down Sheet [a-z]+\.png$/i.test(relPath)) analysis.animations = maidSwordDownAnimations();
             // #690 (Han: hat sheets share the SAME grid as their non-hat counterparts)
-            if (/GandalfHardcore Maid Witch Hat\/Maid Witch hat sheet1\.png$/i.test(relPath)) analysis.animations = maidAnimations();
-            if (/GandalfHardcore Maid Witch Hat\/Maid Witch hat sheet2\.png$/i.test(relPath)) analysis.animations = maidSheet2Animations();
+            if (/Maid Witch Hat\/Maid Witch hat sheet1\.png$/i.test(relPath)) analysis.animations = maidAnimations();
+            if (/Maid Witch Hat\/Maid Witch hat sheet2\.png$/i.test(relPath)) analysis.animations = maidSheet2Animations();
             if (/Maid Character 3 Combat\/Maid Witch hat combat\.png$/i.test(relPath)) analysis.animations = maidCombatAnimations();
             // #689 (Han 2026-08-04)
             if (/Skeleton Enemy Sheet\/skeleton (sheet|retro colors|full white|red|gold|ghost)\.png$/i.test(relPath)) analysis.animations = skeletonAnimations();
@@ -1866,10 +1880,10 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // they get treated as ONE MORE "colour" — literally named "Hat" — merged in the same pass as
             // every other Maid source below. There is only ONE hat sheet (not one per Maid colour), so this
             // becomes a single extra toggle option rather than a true colour×hat combination — flagged.
-            if (/GandalfHardcore Maid Witch Hat\/Maid Witch hat sheet1\.png$/i.test(relPath)) { base = 'Maid'; variant = 'Hat'; }
-            if (/GandalfHardcore Maid Witch Hat\/Maid Witch hat sheet2\.png$/i.test(relPath)) { base = 'Maid'; variant = 'Hat (Sheet2)'; }
+            if (/Maid Witch Hat\/Maid Witch hat sheet1\.png$/i.test(relPath)) { base = 'Maid'; variant = 'Hat'; }
+            if (/Maid Witch Hat\/Maid Witch hat sheet2\.png$/i.test(relPath)) { base = 'Maid'; variant = 'Hat (Sheet2)'; }
             if (/Maid Character 3 Combat\/Maid Witch hat combat\.png$/i.test(relPath)) { base = 'Maid'; variant = 'Hat (Combat)'; }
-            const KNIGHTY_PORTRAIT = '../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png';
+            const KNIGHTY_PORTRAIT = '../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png';
             const HEAVY_PORTRAIT = '../assets/ASSORTED/characters/char_with_porttrait/Knight Heavy/Heavy Knight Run and Portrait/Heavy Knight portrait 64x64.png';
             let knightyPortraitOverride;
             if (/Knight Knighty\/[A-Za-z]+ knight\.png$/i.test(relPath)) { base = 'Knight (Knighty)'; knightyPortraitOverride = KNIGHTY_PORTRAIT; }
@@ -1882,14 +1896,14 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // 1-candidate rule); resolved via the explicit `GOBLIN_PORTRAIT_BY_VARIANT` mapping.
             let goblinPortraitOverride;
             if (/char_with_porttrait\/.*Goblin.*sheet\.png$/i.test(relPath) && GOBLIN_PORTRAIT_BY_VARIANT[variant]) {
-                goblinPortraitOverride = `../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/${GOBLIN_PORTRAIT_BY_VARIANT[variant]}`;
+                goblinPortraitOverride = `../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/${GOBLIN_PORTRAIT_BY_VARIANT[variant]}`;
             }
             // #687 (Han 2026-08-04, skeleton portraits): "Skeleton Portraits 64x64.png" is ONE 3×2 grid (6
             // cells, one per colour, §675's Wizard-portrait-grid technique reused rather than re-invented) —
             // order given explicitly by Han, so no guessing needed (unlike §675's original Wizard order).
             const SKELETON_PORTRAIT_ORDER = ['Grey', 'Retro', 'Full White', 'Red', 'Gold', 'Ghost'];
             const isSkeletonPortrait = /Skeleton Enemy Sheet\/skeleton (sheet|retro colors|full white|red|gold|ghost)\.png$/i.test(relPath);
-            const SKELETON_PORTRAIT_STRIP = '../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png';
+            const SKELETON_PORTRAIT_STRIP = '../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png';
             // #689 (Han: "zet de poop impact sheet naast de poop thrower alsof het een portret is") — a
             // 7-frame strip shown whole (no cell/frame crop, unlike Wizard/Skeleton's colour grids) in the
             // portrait slot, purely as a companion reference image.
@@ -2260,16 +2274,16 @@ for (const entry of manifest) {
     // ({base, variant: 'Normal'|'Bare'}) — explicit per-file rename (not a generic rule) since the raw
     // filenames aren't consistently patterned ("Eisheth Bonus" vs "Bonus Succubus Lilim" vs "Lilith Bonus").
     const BONUS_SUCCUBUS_RENAME = [
-        { test: (p) => /Eisheth\/GandalfHardcore Eisheth Bonus\.png$/i.test(p), base: 'Eisheth', variant: 'Normal' },
-        { test: (p) => /Eisheth\/GandalfHardcore Eisheth no bra\.png$/i.test(p), base: 'Eisheth', variant: 'Bare' },
-        { test: (p) => /Lilim\/GandalfHardcore Bonus Succubus Lilim\.png$/i.test(p), base: 'Lilim', variant: 'Normal' },
-        { test: (p) => /Lilim\/GandalfHardcore Bonus Succubus Lilim no bra\.png$/i.test(p), base: 'Lilim', variant: 'Bare' },
-        { test: (p) => /Lilith\/GandalfHardcore Lilith Bonus\.png$/i.test(p), base: 'Lilith', variant: 'Normal' },
-        { test: (p) => /Lilith\/GandalfHardcore Lilith no bra\.png$/i.test(p), base: 'Lilith', variant: 'Bare' },
-        { test: (p) => /Morgana\/GandalfHardcore Morgana\.png$/i.test(p), base: 'Morgana', variant: 'Normal' },
-        { test: (p) => /Morgana\/GandalfHardcore Morgana no bra\.png$/i.test(p), base: 'Morgana', variant: 'Bare' },
-        { test: (p) => /Pair\/GandalfHardcore Bonus Succubus pair\.png$/i.test(p), base: 'Pair', variant: 'Normal' },
-        { test: (p) => /Pair\/GandalfHardcore Bonus Succubus pair no bra\.png$/i.test(p), base: 'Pair', variant: 'Bare' },
+        { test: (p) => /Eisheth\/Eisheth Bonus\.png$/i.test(p), base: 'Eisheth', variant: 'Normal' },
+        { test: (p) => /Eisheth\/Eisheth no bra\.png$/i.test(p), base: 'Eisheth', variant: 'Bare' },
+        { test: (p) => /Lilim\/Bonus Succubus Lilim\.png$/i.test(p), base: 'Lilim', variant: 'Normal' },
+        { test: (p) => /Lilim\/Bonus Succubus Lilim no bra\.png$/i.test(p), base: 'Lilim', variant: 'Bare' },
+        { test: (p) => /Lilith\/Lilith Bonus\.png$/i.test(p), base: 'Lilith', variant: 'Normal' },
+        { test: (p) => /Lilith\/Lilith no bra\.png$/i.test(p), base: 'Lilith', variant: 'Bare' },
+        { test: (p) => /Morgana\/Morgana\.png$/i.test(p), base: 'Morgana', variant: 'Normal' },
+        { test: (p) => /Morgana\/Morgana no bra\.png$/i.test(p), base: 'Morgana', variant: 'Bare' },
+        { test: (p) => /Pair\/Bonus Succubus pair\.png$/i.test(p), base: 'Pair', variant: 'Normal' },
+        { test: (p) => /Pair\/Bonus Succubus pair no bra\.png$/i.test(p), base: 'Pair', variant: 'Bare' },
     ];
     const bsr = BONUS_SUCCUBUS_RENAME.find((r) => r.test(entry.relPath));
     if (bsr) { entry.base = bsr.base; entry.variant = bsr.variant; }
@@ -2277,11 +2291,11 @@ for (const entry of manifest) {
     // bare files merge into one creature; original filenames' own "bare"/"bare2" naming preserved as-is
     // (Han gave no better names for what distinguishes them from each other).
     const SUCCUBUS_MOTHER_RENAME = [
-        { test: (p) => /Mother\/GandalfHardcore Succubus Mother\.png$/i.test(p), variant: 'Plain' },
-        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare\.png$/i.test(p), variant: 'Bare' },
-        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare2\.png$/i.test(p), variant: 'Bare 2' },
-        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare no wings\.png$/i.test(p), variant: 'Bare (No Wings)' },
-        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare2 no wings\.png$/i.test(p), variant: 'Bare 2 (No Wings)' },
+        { test: (p) => /Mother\/Succubus Mother\.png$/i.test(p), variant: 'Plain' },
+        { test: (p) => /Mother\/Succubus Mother bare\.png$/i.test(p), variant: 'Bare' },
+        { test: (p) => /Mother\/Succubus Mother bare2\.png$/i.test(p), variant: 'Bare 2' },
+        { test: (p) => /Mother\/Succubus Mother bare no wings\.png$/i.test(p), variant: 'Bare (No Wings)' },
+        { test: (p) => /Mother\/Succubus Mother bare2 no wings\.png$/i.test(p), variant: 'Bare 2 (No Wings)' },
     ];
     const smr = SUCCUBUS_MOTHER_RENAME.find((r) => r.test(entry.relPath));
     if (smr) { entry.base = 'Succubus Mother'; entry.variant = smr.variant; }
@@ -2292,16 +2306,16 @@ for (const entry of manifest) {
     // {base, variant} pair, since neither folder's filename says a colour; the folder itself IS the 4th
     // colour ("Pale"), not a duplicate.
     const MAIN_SUCCUBUS_RENAME = [
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus\.png$/i.test(p), variant: 'Plain' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus No Bra sheet\.png$/i.test(p), variant: 'Plain (Bare)' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus purple\.png$/i.test(p), variant: 'Purple' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus purple No Bra sheet\.png$/i.test(p), variant: 'Purple (Bare)' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus red\.png$/i.test(p), variant: 'Red' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus red No Bra sheet\.png$/i.test(p), variant: 'Red (Bare)' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form sheet\.png$/i.test(p), variant: 'Human Form' },
-        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form no Brasheet\.png$/i.test(p), variant: 'Human Form (Bare)' },
-        { test: (p) => /Succubus\/GandalfHardcore Pale Succubus\/GandalfHardcore Succubus\.png$/i.test(p), variant: 'Pale' },
-        { test: (p) => /Succubus\/GandalfHardcore Pale Succubus\/GandalfHardcore Succubus No Bra sheet\.png$/i.test(p), variant: 'Pale (Bare)' },
+        { test: (p) => /Succubus\/Succubus\/Succubus\.png$/i.test(p), variant: 'Plain' },
+        { test: (p) => /Succubus\/Succubus\/Succubus No Bra sheet\.png$/i.test(p), variant: 'Plain (Bare)' },
+        { test: (p) => /Succubus\/Succubus\/Succubus purple\.png$/i.test(p), variant: 'Purple' },
+        { test: (p) => /Succubus\/Succubus\/Succubus purple No Bra sheet\.png$/i.test(p), variant: 'Purple (Bare)' },
+        { test: (p) => /Succubus\/Succubus\/Succubus red\.png$/i.test(p), variant: 'Red' },
+        { test: (p) => /Succubus\/Succubus\/Succubus red No Bra sheet\.png$/i.test(p), variant: 'Red (Bare)' },
+        { test: (p) => /Succubus\/Succubus\/Succubus Human Form sheet\.png$/i.test(p), variant: 'Human Form' },
+        { test: (p) => /Succubus\/Succubus\/Succubus Human Form no Brasheet\.png$/i.test(p), variant: 'Human Form (Bare)' },
+        { test: (p) => /Succubus\/Pale Succubus\/Succubus\.png$/i.test(p), variant: 'Pale' },
+        { test: (p) => /Succubus\/Pale Succubus\/Succubus No Bra sheet\.png$/i.test(p), variant: 'Pale (Bare)' },
     ];
     const msr = MAIN_SUCCUBUS_RENAME.find((r) => r.test(entry.relPath));
     if (msr) { entry.base = 'Succubus'; entry.variant = msr.variant; }
@@ -2441,113 +2455,135 @@ for (const entry of manifest) {
             'Female Vampire', 'Vampire Lady v2', 'Frodo', 'Goblin', 'Hell Giant', 'Lady Skull Witch',
             'Large Skull', 'Rat thief', 'Skeleton', 'The Devil', 'Wizard Skeleton', 'Zombie',
             'Wanderer Dark',   // #870 (Han 2026-08-12, "wanderer dark: ... verplaats naar humaoid")
+            'Adept Necromancer',   // #1028 follow-up (Han 2026-08-17, "adept necromancer -> humanoid (geen animal)")
         ]),
+        // #1028 follow-up (Han 2026-08-17, "baby -> human (geen animal)"): the blanket "critters folder ->
+        // animal" default (above) wrongly caught a human infant sprite filed under animals/critters/.
+        human: new Set(['Human Baby']),
         animal: new Set(['boss spider']),
     };
     for (const [being, names] of Object.entries(BEING_OVERRIDE)) {
         if (names.has(entry.base)) entry.being = being;
     }
+    // #1028 follow-up (Han 2026-08-17, "de porcupine-animaties zijn mislabeld... chicken heeft alle
+    // animaties onder 'idle'... geef me een manier, als is het via typen, de animatie labels aan te passen
+    // via de bestiary. ik wil ook specifieke animaties het label 'flying' kunnen geven"): per-ANIMATION
+    // metadata overrides, same `bestiaryMetadata.json` file tags/movement/facing/name already use (§245),
+    // but keyed by the animation's own sprite-sheet ROW (`a.cells[0].row`) rather than by its current `key`
+    // — Han's exact bug report (Chicken: every row currently reads 'idle') means several animations can
+    // share the same wrong key, so keying by key text couldn't target "just this one" row for a rename.
+    // MUST run before the tag-derivation block below (`entry.animations.some(a => ...)` for 'move'/'attack'/
+    // etc.), so a corrected key actually participates in classification, not just cosmetic display.
+    // #1028 follow-up round 2 (Han 2026-08-17, "ik kan niet de frames kiezen bij een animatie; of een
+    // animatie toevoegen/verwijderen... ik vind het prima om de frames/cells comma seperated in te voeren
+    // in een soort terminal"): extends the SAME per-row override with `cells` (a hand-typed replacement for
+    // the auto-scanned cell list — the pixel-scanner's guess is sometimes wrong, e.g. a newly-added file
+    // with an unusual sheet layout) and `removed` (drops that row entirely). `addedAnimations` is a
+    // separate list (not row-keyed — a brand new animation has no existing row to key off) appended after
+    // overrides/removal are applied.
+    const creatureMeta = bestiaryMetadata[entry.base];
+    const animOverride = creatureMeta?.animOverrides;
+    if (animOverride) {
+        entry.animations = entry.animations
+            .map((a) => {
+                const ov = animOverride[String(a.cells?.[0]?.row ?? '')];
+                if (!ov) return a;
+                return {
+                    ...a,
+                    ...(ov.newKey ? { key: ov.newKey, label: cap(ov.newKey) } : {}),
+                    ...(ov.cells ? { cells: ov.cells } : {}),
+                    ...(ov.flying === true ? { tags: [...new Set([...(a.tags || []), 'flying'])] } : {}),
+                    ...(ov.flying === false ? { tags: (a.tags || []).filter((t) => t !== 'flying') } : {}),
+                    removed: !!ov.removed,
+                };
+            })
+            .filter((a) => !a.removed);
+    }
+    if (creatureMeta?.addedAnimations?.length) {
+        entry.animations = [
+            ...entry.animations,
+            ...creatureMeta.addedAnimations.map((a) => ({ key: a.key, label: cap(a.key), cells: a.cells })),
+        ];
+    }
+    // #1028 follow-up round 3 (Han 2026-08-17, "maak p x q frame ook aanpasbaar. bijvoorbeeld voor giant bat
+    // staat er 72x72, moet zijn 16x24 - ik wil dat ook in de bestiary kunnen aanpassen"): overrides the
+    // auto-guessed `frame` (the pixel-scanner's proposal, sometimes wrong for an unusual sheet layout — see
+    // the new Bat entry above). `crop` resets to the FULL new frame (no auto-trim) rather than trying to
+    // re-run the pixel scanner against a hand-typed size — Han already sees the result and can trim further
+    // with his own per-animation `cells` edits (round 2) if the frame itself still has dead space.
+    if (creatureMeta?.frame) {
+        entry.frame = creatureMeta.frame;
+        entry.crop = { x: 0, y: 0, w: creatureMeta.frame.w, h: creatureMeta.frame.h };
+    }
+    // #1028 follow-up (Han 2026-08-17, "ik wil ook een 'creator/artist tag' enkel zichtbaar in debug mode" —
+    // asset attribution, debug-only, NOT part of the tags/filter system): "SSW: Szadi art. de critters die
+    // niet uit de critter sheet komen (dus de losse per file): Elthen's Pixel Art Shop. de eenden en ganzen:
+    // Estrella the Mustang. alle rest: HarcoreGandalf" — 4 buckets, same relPath/name-roster signals already
+    // used above, so a simple ordered fallback rather than a fifth new pattern.
+    // Han follow-up (2026-08-17): "de items uit Basic Vermin Animations / Basic Magical Animations / Basic
+    // Animal Animations zijn allemaal van DeepDiveGameStudios" — these 3 packs also live under
+    // animals/critters/ (individual per-file, not the packed sheet), so they must be checked BEFORE the
+    // generic Elthen's-Pixel-Art-Shop critters-folder rule below or they'd be caught by it instead.
+    entry.artist = /\/SSW\//i.test(entry.relPath) ? 'Szadi Art'
+        // Duck/Goose physically live under animals/critters/ (water-birds.png) — checked BEFORE the folder
+        // rules below so they don't fall into a generic critters bucket.
+        : (entry.base === 'Duck' || entry.base === 'Goose') ? 'Estrella the Mustang'
+            : /\/animals\/critters\/basic (vermin|magical|animal) animations\//i.test(entry.relPath) ? 'DeepDiveGameStudios'
+                : (/\/animals\/critters\//i.test(entry.relPath) && !/critters sheet\.png$/i.test(entry.relPath)) ? "Elthen's Pixel Art Shop"
+                    : 'GandalfHardcore';
     //
     // 2. `tags` — subtractive (AND) filters, unaffected by `being`. Each one below is either DERIVED from an
-    //    existing signal (category/relPath/animation) or an explicit name-based roster where Han gave one —
-    //    same §6c convention as flying/mature/bare above. `human`/`monstrous` genuinely have no derivable
-    //    signal and are NOT guessed at — those chips return nothing.
-    if (/char_with_porttrait\//i.test(entry.relPath)) tags.push('portrait');   // Han: "dus ook de succubussen en de warrior"
-    // Han: "portrait move (nieuw: heeft move animatie) attack (nieuw: heeft attack animatie)" — autotags;
-    // corrected same day: "gebruik ook synoniemen van move, om de set uit te breiden: move/walk/run/charge/fly".
+    //    existing signal (category/relPath/animation) or an explicit name-based roster (§6c: used only where
+    //    no formula/folder/signal can derive the tag). `human`/`monstrous` genuinely have no derivable signal
+    //    and are NOT guessed at — those chips return nothing.
+    if (/char_with_porttrait\//i.test(entry.relPath)) tags.push('portrait');
     if (entry.animations.some((a) => ['move', 'walk', 'run', 'charge', 'fly'].includes(a.key))) tags.push('move');
     if (entry.animations.some((a) => a.key === 'attack')) tags.push('attack');
     if (entry.category === 'musicians' || entry.base === 'Oriental Musician' || entry.base === 'Tavern Musician') tags.push('musician');
-    // Han: "critter: alles uit critter sheet en de critter map" — relPath-based (not `category`, which can
-    // be OVERRIDDEN away from 'critters' for things that physically live in that folder, e.g. totems/portal).
-    // #924 round 9 (Han 2026-08-12, "oops... you gave all critters the nature tag, not just the ones that I
-    // explicitly mentioned and the ones in the sheet 'critter sheet.png'"): 'critter' (folder membership) and
-    // 'nature' (real-world wild animal, as opposed to a monster/fantasy being that HAPPENS to live in the
-    // same folder — Cacodaemon, Eye Monster, Pixies, Flying Brain Monster, Glowing Wisp, Fairy, Plague Bat,
-    // Portal, Swooping Bat, etc.) are NOT the same thing and must not share one condition. 'critter' stays
-    // folder-based; 'nature' is now assigned explicitly below, either via the packed multi-species
-    // "critters sheet.png" (`entry.category === 'critters' && CRITTER_ROWS`-sourced) or via the name rosters
-    // Han listed by hand (GROUND/WATER/UNDERWATER/FLYING_NATURE_ADD_NAMES below).
+    // 'critter' (folder membership) and 'nature' (real-world wild animal — as opposed to a monster/fantasy
+    // being that happens to live in the same folder, e.g. Cacodaemon/Eye Monster/Plague Bat/Portal) are
+    // deliberately NOT the same condition — 'critter' stays folder-based here; 'nature' is assigned further
+    // down from the explicit species rosters (GROUND/WATER/UNDERWATER/FLYING_NATURE_ADD/CRITTER_SHEET_SPECIES).
     if (/\/animals\/critters\//i.test(entry.relPath)) tags.push('critter');
     if (/\/animals\/pets\//i.test(entry.relPath) || entry.base === 'Dog (Small)' || entry.base === 'Cat') tags.push('pet');
     if (/oriental|japanese/i.test(entry.base)) tags.push('oriental');
-    // Han: "ken tavern toe aan: lady corset, lady leg, medieval servant, christmas lady, cook, lady can can,
-    // lady bar" (2 rounds of additions merged into one list).
     if (/tavern|beer|dancer|dancing|jester|lady corset|lady leg|medieval servant|christmas lady|\bcook\b|lady can can|lady bar\b|maid lift skirt/i.test(entry.base)) tags.push('tavern');
-    if (/vendor|merchant/i.test(entry.base)) tags.push('trader');
-    // Han: "ken trader toe aan: lady potions, wizard evil, steampunker, seer"
-    if (/lady potions|wizard evil|steampunker|\bseer\b/i.test(entry.base)) tags.push('trader');
-    // Han: "lady potions mag worker krijgen" (additive, on top of trader above).
-    if (/lady potions/i.test(entry.base)) tags.push('worker');
-    // Han: "lady beer mag ook naar seasonal"
+    if (/vendor|merchant|lady potions|wizard evil|steampunker|\bseer\b/i.test(entry.base)) tags.push('trader');
+    if (/lady potions/i.test(entry.base)) tags.push('worker');   // additive, on top of trader above
     if (/\blady beer\b/i.test(entry.base)) tags.push('seasonal');
-    // Han: "roman, christian" — new tags. "christian; monk, nun, bisop, crusader, inquisition"
     if (/\broman\b/i.test(entry.base)) tags.push('roman');
     if (/\bmonk\b|\bnun\b|bishop|crusader|inquisition/i.test(entry.base)) tags.push('christian');
-    // Han: "wanderer dark: voeg hellish tag toe"
     if (/wanderer dark/i.test(entry.base)) tags.push('hellish');
-    // Han: "knights -> verander naar 'military': voeg toe; mad butcher, warrior, alle guards, barbarian,
-    // marquise, musketeer, orc, pirate, samurai" (plus every existing "knight"-named entry); corrected same
-    // day: "gewone butcher mag uit military" (only "mad butcher" counts, not bare "Butcher") + "archer, male
-    // wood archer, elf archer mogen military" + "crusader".
     if (/knight|mad butcher|warrior|\bguard\b|barbarian|marquise|musketeer|\borc\b|pirate|samurai|archer|crusader/i.test(entry.base)) tags.push('military');
-    // Han: "voeg een categorie 'worker' toe, doe een pass: lumberjack, blacksmith, ..." — extended to the
-    // obvious labour/trade/service roles across the roster (explicitly excludes "mad butcher"/guards, which
-    // Han routed to `military` above instead); corrected same day with more names: "armorer, artist painter,
-    // artist statue" / "dwarf, grave digger, lady basket, man sharpening, man pickaxe, man rake, man
-    // blacksmith, scribe, town crier, meat vendor, cook".
-    // corrected same day: "lady washing foot: geen worker, wel bathhouse" — removed from this list.
     if (/lumberjack|blacksmith|gravedigger|grave digger|man rake|man pickaxe|man sharpening|woman laundry|woman basket|\bcook\b|lady sweeping|\bnurse\b|\bscribe\b|seemstress|executioner|plague doctor|medieval servant|armorer|artist painter|artist statue|\bdwarf\b|lady basket|town crier|meat vendor/i.test(entry.base)) tags.push('worker');
     if (/snowman|santa|christmas|bavarian/i.test(entry.base)) tags.push('seasonal');
-    // Han: "hellish: voeg alles met burning, demon/daemon succubus, toe aan hellish, damned, imp" — the
-    // /Succubus/ folder catches Eisheth/Lilim/Lilith/Morgana/Pair too (succubus-family bonus characters
-    // whose OWN base name doesn't literally contain "succub").
+    // /Succubus/ folder catches Eisheth/Lilim/Lilith/Morgana/Pair too (bonus succubus-family characters whose
+    // own base name doesn't literally contain "succub").
     if (/burning|demon|daemon|succub|damned|\bimp\b/i.test(entry.base) || /\/Succubus\//i.test(entry.relPath)) tags.push('hellish');
-    // Han: "lady tub: voeg bath house toe" / "lady washing foot: ... wel bathhouse"
-    // Han: "magical: alle wizards, seers, etc." — extended to the "basic magical animations" pack (already
-    // literally named for this) plus the other obvious magical-archetype keywords.
     if (/wizard|\bseer\b|witch|\bmage\b|necromancer|sorceress|pyromancer|druid|golem|elemental|treant|priest/i.test(entry.base) || /basic magical animations/i.test(entry.relPath)) tags.push('magical');
-    // Han: "undead (nieuw): alles met skeleton" + "voeg undead toe als tag: skeletons, vampires" — extended
-    // to the other obvious undead archetypes already in the roster (zombie/ghoul/mummy/skull).
     if (/skeleton|vampire|zombie|ghoul|mummy|skull/i.test(entry.base)) tags.push('undead');
-    // Han (corrected 2026-08-12, "er staan te veel in, en er ontbreken er, enkel zij met projectiel. bijv:
-    // male wood archer heeft geen projectiel -> eruit, flying brain monster heeft er wel een -> erin"): a
-    // precise explicit roster of creatures with an ACTUAL wired projectile portrait — NOT a name-keyword
-    // guess (which wrongly caught "Male Wood Archer"/"Elf Archer" with no projectile, and missed "Flying
-    // Brain Monster"). "Wizard" (plain) explicitly excluded — see PORTRAIT_OVERRIDES_BY_NAME above, its
-    // projectile portrait wiring was itself a mistake and has been removed.
+    // Precise explicit roster of creatures with an ACTUALLY wired projectile portrait — a name-keyword guess
+    // both over- and under-matches here (e.g. "Male Wood Archer" has no projectile; "Flying Brain Monster"
+    // does). Plain "Wizard" deliberately excluded (its projectile portrait wiring was a mistake, since removed).
     const RANGED_NAMES = new Set(['Throwing poop', 'Archer', 'Wizard (Portrait)', 'Fire Totem', 'Explosion', 'Flying Brain Monster']);
     if (RANGED_NAMES.has(entry.base)) tags.push('ranged');
-    // Han: "voeg een categorie 'bathhouse' toe aan alles met bath/bathing in de titel"
     if (/bath|bathing|lady tub|lady washing/i.test(entry.base)) tags.push('bathhouse');
-    // Han: "maak een nieuwe categorie: townsfolk. alles uit de volgende mappen mag die tag krijgen: SSW,
-    // char_passive, char_with_attack, char_with_portrait, char_with_walk" — relPath-based, covers every
-    // "ordinary NPC" folder (deliberately excludes animals/critters/succubus/etc., which live elsewhere).
-    // Han (corrected 2026-08-12): "haal uit townsfolk: goddess, succubus, zombie, skeleton, goblin" — these
-    // folders are shared with genuinely non-townsfolk (hostile/mythic) residents.
+    // relPath-based "ordinary NPC" folders, minus the hostile/mythic residents those same folders also house.
     if (/\/(SSW|char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(entry.relPath)
         && !/goddess|succub|zombie|skeleton|goblin/i.test(entry.base)) tags.push('townsfolk');
-    // Han (2026-08-13): "voeg aan townsfolk toe: chickens, cows, horses, pigs, dogs, cats, tiger, fox" — the
-    // farm/pet animals live OUTSIDE the folders matched above (animals/farm, animals/pets, animals/critters,
-    // animals/Tiger.png), so they need an explicit name roster, same convention as RANGED_NAMES/
-    // MATURE_ROSTER_NAMES (no single folder or formula covers "ordinary village animal").
+    // Farm/pet animals live outside the folders matched above — explicit roster, no single folder covers
+    // "ordinary village animal".
     const TOWNSFOLK_ANIMAL_NAMES = new Set([
         'chicken', 'cow', 'horse', 'pig', 'Dog (Small)', 'Doggy', 'Cat', 'Tiger', 'Fox (Small)', 'Fox',
     ]);
     if (TOWNSFOLK_ANIMAL_NAMES.has(entry.base)) tags.push('townsfolk');
-    // Han: "training dummy -> townsfolk"
     if (entry.base === 'Training Dummy') tags.push('townsfolk');
-    // Han: "alle entiteiten met fly moeten ook de tag 'move' hebben" — some flying creatures (the
-    // ALWAYS_FLYING_NAMES roster, stamped above on an 'idle' animation rather than a renamed 'move'/'fly'
-    // key) never picked up 'move' from the key-based rule a few lines up; this closes that gap generically
-    // instead of listing the same roster twice.
+    // Closes a gap for flying creatures stamped 'flying' on an 'idle' animation (ALWAYS_FLYING_NAMES) rather
+    // than a renamed 'move'/'fly' key, which the key-based 'move' rule above never sees.
     if (tags.includes('flying') && !tags.includes('move')) tags.push('move');
-    // #924 (Han 2026-08-12, "bestiary pass"): 'hostile' plus the habitat tags (ground/water/underwater —
-    // 'flying' already exists) used by the RPG-world's "spawn a random critter matching this habitat"
-    // system (useWorldCritterSpawns.js). Explicit name rosters, same §6c convention as RANGED_NAMES/
-    // TOWNSFOLK_ANIMAL_NAMES/ALWAYS_FLYING_NAMES — no formula can derive "this creature is hostile" or
-    // "lives in water" from a name/folder/animation alone.
-    // #989 (Han 2026-08-14, "geef hostile tag aan: eye monster") — added to the existing roster.
+    // Hostile + habitat tags (ground/water/underwater — 'flying' already exists), used by the RPG-world's
+    // "spawn a random critter matching this habitat" system (useWorldCritterSpawns.js). Explicit rosters —
+    // no formula derives "hostile" or "lives in water" from a name/folder/animation alone.
     const HOSTILE_NAMES = new Set([
         'Akaname', 'Brain Mole Monarch', 'Cacodaemon', 'Corrupted Treant', 'Ghoul', 'Giant Fly',
         'Giant Dragonfly', 'Imp', 'Intellect Devourer', 'Eye Monster',
@@ -2560,45 +2596,33 @@ for (const entry of manifest) {
         'Squirrel', 'Stinky Skunk', 'Tiny Chick', 'Tunneling Mole', 'Worm',
     ]);
     if (GROUND_NATURE_NAMES.has(entry.base)) tags.push('ground');
-    // #989 (Han 2026-08-14, "crab. (water, animal, critter)") — Crab Sprite Sheet.png added.
     const WATER_NATURE_NAMES = new Set(['Coral Crab', 'Croaking Toad', 'Slow Turtle', 'Crab']);
     if (WATER_NATURE_NAMES.has(entry.base)) tags.push('water');
     const UNDERWATER_NATURE_NAMES = new Set(['Jellyfish', 'Octopus']);
     if (UNDERWATER_NATURE_NAMES.has(entry.base)) tags.push('underwater');
-    // Han: "geef tag nature en flying (als hij er nog niet op zit) aan: fly (small), bumble bee, honking
-    // goose, leaping frog, pidgeon" — Fly (Small)/Bumble Bee already get 'flying' from their own animation
-    // key / ALWAYS_FLYING_NAMES respectively; this roster only needs the ones that were missing it.
-    // #989: 'Pidgeon' renamed to 'Pigeon (Rock Dove)' above — this Set uses the NEW name so the check still
-    // matches (this runs in the same loop iteration, after the rename).
+    // Fly (Small)/Bumble Bee already get 'flying' from their own animation key / ALWAYS_FLYING_NAMES
+    // respectively — this roster only covers the ones missing it. Uses 'Pigeon (Rock Dove)', the renamed
+    // form of 'Pidgeon' applied earlier in this same loop iteration.
     const FLYING_NATURE_ADD_NAMES = new Set(['Honking Goose', 'Leaping Frog', 'Pigeon (Rock Dove)']);
     if (FLYING_NATURE_ADD_NAMES.has(entry.base) && !tags.includes('flying')) tags.push('flying');
-    // #989 (Han 2026-08-14, "bestiary pass" — a new species-level tag, narrower than 'flying'/'critter', the
-    // RPG-world's bird spawner filters on so a "bird" marker only ever picks an actual bird species):
-    // "tag as bird: blue jay, pigeon (rename: 'pigeon (collared dove)'), goose, pidgeon (rename: 'pigeon
-    // (rock dove)')" + the water-birds sheet's own "(bird, animal, critter, on_water)" tag list (Duck/Goose).
+    // Species-level tag, narrower than 'flying'/'critter' — the RPG-world's bird spawner filters on this so
+    // a "bird" marker only ever picks an actual bird species.
     const BIRD_NAMES = new Set(['Blue Jay', 'Pigeon (Collared Dove)', 'Goose', 'Pigeon (Rock Dove)', 'Duck']);
     if (BIRD_NAMES.has(entry.base)) tags.push('bird');
-    // #989: "de bedoeling is dat on water creatures heen en weer zwemmen" — habitat tag the RPG-world's
-    // swim-behaviour code (RpgLevelPanel.jsx) filters on, distinct from the pre-existing 'water'
-    // (WATER_NATURE_NAMES, land critters that merely live NEAR water, e.g. Coral Crab/Croaking Toad).
+    // Habitat tag the RPG-world's swim-behaviour code (RpgLevelPanel.jsx) filters on — distinct from the
+    // pre-existing 'water' (WATER_NATURE_NAMES: land critters that merely live NEAR water, e.g. Coral Crab).
     const ON_WATER_NAMES = new Set(['Duck', 'Goose']);
     if (ON_WATER_NAMES.has(entry.base)) tags.push('on_water');
-    // #989 (Han 2026-08-14, "geef nieuwe tag 'night' aan plague bat en swooping bat") — used by the
-    // RPG-world's day/dusk/dawn/night critter spawn gating (day: no 'night'; dusk/dawn: all; night: only
-    // 'night').
+    // Used by the RPG-world's day/dusk/dawn/night critter spawn gating (day: no 'night'; dusk/dawn: all;
+    // night: only 'night').
     const NIGHT_NAMES = new Set(['Plague Bat', 'Swooping Bat']);
     if (NIGHT_NAMES.has(entry.base)) tags.push('night');
-    // #989 (Han 2026-08-14, "firefly: lightsource, geel-groen") — colour handled via SWATCH_OVERRIDES above;
-    // this just flags it as an actual light-emitting creature (no consumer wired yet — descriptive data,
-    // same convention as `facing` originally was per §870).
+    // Flags an actual light-emitting creature — colour handled via SWATCH_OVERRIDES above; no consumer wired
+    // to this tag yet (descriptive data, same convention `facing` originally was per §870).
     if (entry.base === 'Firefly') tags.push('lightsource');
-    // #989 (Han 2026-08-14, one-time snapshot correction, NOT a persistent rule — "haal de critter tag weg
-    // van: giant fly, bat, mosquito, giant dragonfly, brain mole monarch, phoenixling, cocadaemon, portal,
-    // eye monster, flying brain monster" + "alle monsters die nu hostile hebben moeten de critter tag
-    // verliezen [...] pas gewoon toe op de huidige set"): union of Han's explicit list and the roster
-    // captured by HOSTILE_NAMES ABOVE, as a literal name list — deliberately NOT "if hostile then no
-    // critter" (that would also strip 'critter' from any hostile creature added later, which Han explicitly
-    // ruled out).
+    // One-time snapshot correction (union of an explicit list + everything in HOSTILE_NAMES) — deliberately
+    // NOT "if hostile then no critter" as a standing rule (that would also strip 'critter' from any hostile
+    // creature added later, which Han explicitly ruled out).
     const NO_CRITTER_NAMES = new Set([
         'Giant Fly', 'Bat', 'Mosquito', 'Giant Dragonfly', 'Brain Mole Monarch', 'Phoenixling', 'Cacodaemon',
         'Green Portal', 'Purple Portal', 'Eye Monster', 'Flying Brain Monster', ...HOSTILE_NAMES,
@@ -2607,19 +2631,13 @@ for (const entry of manifest) {
         const i = tags.indexOf('critter');
         if (i !== -1) tags.splice(i, 1);
     }
-    // #924 round 9 (Han: "you gave all critters the nature tag, not just the ones I explicitly mentioned and
-    // the ones in the sheet 'critter sheet.png'"): 'nature' is exactly (a) the packed 16-species
-    // "critters sheet.png" (`expandCritters`/CRITTER_ROWS — literal small real-world fauna: Frog, Pigeon,
-    // Blue Jay, Rat, Snail, Turtle, Firefly, Ladybird, Fly, Butterfly, Mosquito, Dragonfly), plus (b) every
-    // name Han explicitly listed by hand across the ground/water/underwater/flying rosters above (which also
-    // covers Fly (Small)/Bumble Bee — already-flying but still real animals, so still nature). It is NOT a
-    // blanket "lives in the animals/critters/ folder" rule — that folder also holds monsters/fantasy beings
-    // (Cacodaemon, Eye Monster, Pixies, Flying Brain Monster, Glowing Wisp, Fairy, Plague Bat, Portal,
-    // Swooping Bat, etc.) which must NOT get 'nature'.
-    // 'Dragonfly (Small)': the packed sheet's own row is renamed away from bare 'Dragonfly' earlier in the
-    // pipeline (line ~2152, disambiguating it from the unrelated, much bigger "Giant Dragonfly") — by the
-    // time tags are derived here, `entry.base` already reflects that rename.
-    // #989: 'Pigeon' renamed to 'Pigeon (Collared Dove)' above — this Set uses the NEW name.
+    // 'nature' is exactly (a) the packed 16-species "critters sheet.png" (CRITTER_SHEET_SPECIES_NAMES) plus
+    // (b) every name in the ground/water/underwater/flying rosters above — NOT a blanket "lives in the
+    // animals/critters/ folder" rule (that folder also holds monsters/fantasy beings — Cacodaemon, Eye
+    // Monster, Pixies, Flying Brain Monster, Glowing Wisp, Fairy, Plague Bat, Portal, Swooping Bat — which
+    // must NOT get 'nature'). 'Dragonfly (Small)': renamed from bare 'Dragonfly' earlier in the pipeline
+    // (disambiguating it from the unrelated, much bigger "Giant Dragonfly") — `entry.base` already reflects
+    // that rename by the time tags are derived here.
     const CRITTER_SHEET_SPECIES_NAMES = new Set([
         'Frog', 'Pigeon (Collared Dove)', 'Blue Jay', 'Rat', 'Snail', 'Turtle', 'Firefly', 'Ladybird', 'Fly',
         'Butterfly', 'Mosquito', 'Dragonfly (Small)',
@@ -2629,6 +2647,16 @@ for (const entry of manifest) {
         ...FLYING_NATURE_ADD_NAMES, 'Fly (Small)', 'Bumble Bee',
     ]);
     if (NATURE_NAMES.has(entry.base)) tags.push('nature');
+    // #1028: hand/UI-edited overrides (tag editor) win last, on top of every derivation rule above — a
+    // rename is expressed as remove-old + add-new (there is no separate "rename" op; the editor issues both).
+    const metaOverride = bestiaryMetadata[entry.base];
+    if (metaOverride?.tagsRemove?.length) {
+        for (const t of metaOverride.tagsRemove) {
+            const i = tags.indexOf(t);
+            if (i !== -1) tags.splice(i, 1);
+        }
+    }
+    if (metaOverride?.tagsAdd?.length) tags.push(...metaOverride.tagsAdd);
     if (tags.length) entry.tags = [...new Set(tags)];
 }
 

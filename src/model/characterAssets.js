@@ -40,7 +40,7 @@ const assortedUrlMap = (prefix) => Object.fromEntries(
 );
 const CHAR_FILES = assortedUrlMap('characters/char_hero/');
 const EFFECT_FILES = assortedUrlMap('fx/character effects/');
-const PET_FILES = assortedUrlMap('characters/animals/pets/GandalfHardcore Pet companion/');
+const PET_FILES = assortedUrlMap('characters/animals/pets/Pet companion/');
 
 // #648 CR (Han): purpose-built 16×16 item icons (from src/assets/rpg/16x16, curated + renamed per category)
 // used as the equipment slot's TYPE glyph behind the equipped sprite — they fit the square slots far better

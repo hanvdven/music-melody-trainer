@@ -2,6 +2,55 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import { execSync } from 'child_process';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
+
+// #1028 (Han 2026-08-17, "bestiary clean up" part 2 — tag editor in debug mode): a dev-only write endpoint
+// so the bestiary's debug-mode tag editor can persist add/remove/rename tag edits straight to
+// src/model/bestiaryMetadata.json (the same file generate-bestiary-manifest.mjs layers on top of its
+// regex-derived tags). `apply: 'serve'` means this middleware only exists for `npm run dev` — it is never
+// wired into `vite build`, so production bundles carry no write endpoint.
+function bestiaryMetadataPlugin() {
+  const metadataPath = join(process.cwd(), 'src/model/bestiaryMetadata.json');
+  return {
+    name: 'bestiary-metadata-writer',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api/bestiary-metadata', (req, res) => {
+        if (req.method !== 'PUT') { res.statusCode = 405; res.end(); return; }
+        let body = '';
+        req.on('data', (chunk) => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const parsed = JSON.parse(body);
+            if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('expected a JSON object');
+            writeFileSync(metadataPath, `${JSON.stringify(parsed, null, 2)}\n`);
+            // Re-run the generator synchronously so bestiaryManifest.generated.js (the file the running app
+            // actually reads tags from) picks up the edit immediately — Vite's watcher then reloads the app
+            // off the regenerated file, same as if `node scripts/generate-bestiary-manifest.mjs` had been run
+            // by hand. Errors here still return the metadata write as saved (it was valid JSON); only the
+            // regeneration step failed, surfaced separately so the edit isn't silently lost.
+            try {
+              execSync('node scripts/generate-bestiary-manifest.mjs', { cwd: process.cwd(), stdio: 'pipe' });
+            } catch (genErr) {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ ok: true, regenerateError: String(genErr.message || genErr) }));
+              return;
+            }
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+          }
+        });
+      });
+    },
+  };
+}
 
 const gitBranch = (() => {
   try { return execSync('git rev-parse --abbrev-ref HEAD').toString().trim(); }
@@ -55,6 +104,7 @@ export default defineConfig(async () => {
       // Dev-server-only: does not run during `vite build`/`vite preview`'s actual bundling, only
       // adds https to the `server`/`preview` config objects.
       basicSsl(),
+      bestiaryMetadataPlugin(),
     ],
     server: {
       host: '0.0.0.0',

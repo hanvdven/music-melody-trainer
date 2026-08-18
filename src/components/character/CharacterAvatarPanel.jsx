@@ -1,6 +1,9 @@
 import React from 'react';
 import CharacterDoll from './CharacterDoll';
-import { CreatureSprite, Frame64Overlay, PREVIEW_SCALE } from './BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): CreatureSprite/Frame64Overlay moved to their own file
+// (see CreatureSprite.jsx's header comment) — only PREVIEW_SCALE still comes from BestiaryPanels.jsx.
+import { CreatureSprite, Frame64Overlay } from './CreatureSprite';
+import { PREVIEW_SCALE } from './BestiaryPanels';
 import { findVariantByUrl, findIdleAnim } from '../../model/bestiaryAssets';
 import { CATEGORIES, BODY_FRAME, urlOfLayer, CATEGORY_ICON } from '../../model/characterAssets';
 import { GRID, checker, thumbStyle } from './characterEditorShared';

@@ -262,4 +262,34 @@ describe('useLevel (#659 Level 1)', () => {
         act(() => result.current.close());
         expect(setters.setPercussionSettings.mock.calls.at(-1)[0]()).toMatchObject({ melodic: false });
     });
+
+    it('every level start unconditionally un-pins playbackConfig.randomize.melody/chords (Han 2026-08-18, "na level 2 start level 3 niet")', () => {
+        // App.jsx's handleLoadSong (fired for a songId level, right after applyConfig — see begin())
+        // PINS randomize.melody/chords to false so the loaded song plays verbatim. Before this fix,
+        // NOTHING ever un-pinned it again for a later level with no songId of its own — leftover state
+        // from whichever song-backed level last ran would silently persist across every subsequent
+        // level start for the rest of the session. Simulates that exact leftover (a pinned
+        // playbackConfig, as if a songId level's loadSong had just run) and asserts a plain level's
+        // start() clears it.
+        const { setters, snapshot, result } = setup();
+        snapshot.mockReturnValue({
+            ...snap(), playbackConfig: { y: 1, randomize: { tonic: false, mode: false, family: false, melody: false, chords: false } },
+        });
+        act(() => result.current.start(LEVEL4));   // LEVEL4 has no songId — a plain procedural level
+        // Level 4 has debugOnlyLines: true, so the SEPARATE live-debug-mode effect (line ~267 above)
+        // ALSO calls setPlaybackConfig — find applyConfig's OWN call specifically (the only one that
+        // also sets repsPerMelody) rather than assuming it's the last call in the mock's history.
+        const applyConfigCall = setters.setPlaybackConfig.mock.calls.find((args) => {
+            const out = args[0]({
+                repsPerMelody: undefined,
+                randomize: { tonic: false, mode: false, family: false, melody: false, chords: false },
+            });
+            return out.repsPerMelody !== undefined;
+        });
+        expect(applyConfigCall).toBeTruthy();
+        const applied = applyConfigCall[0]({
+            randomize: { tonic: false, mode: false, family: false, melody: false, chords: false },
+        });
+        expect(applied.randomize).toMatchObject({ melody: true, chords: true });
+    });
 });

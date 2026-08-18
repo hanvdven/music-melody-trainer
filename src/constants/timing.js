@@ -28,5 +28,5 @@ export const secondsPerBeat = (bpm) => 60 / bpm;
 // count-in length, the JIT backing-generation chunk size, and the visual/notation lead-in span — and
 // #994 makes the span depend on each level's own tempo and meter. It is replaced by
 // `deriveLevelSpan()` in src/levels/levels.js, which returns all three as separate per-level values
-// (leadInBars / countInBars / metronomeBars / visibleMeasures / beatsOnScreen) threaded to consumers
+// (leadInBars / metronomeBars / visibleMeasures / beatsOnScreen) threaded to consumers
 // from the normalized level object. See §248 in docs/architecture.md.

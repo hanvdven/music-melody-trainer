@@ -61,6 +61,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -113,6 +114,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -163,6 +165,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "townsfolk"
@@ -252,6 +255,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -303,6 +307,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -354,6 +359,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -406,6 +412,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -458,6 +465,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -511,6 +519,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -563,6 +572,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -616,6 +626,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -668,6 +679,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -721,6 +733,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -773,6 +786,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -846,6 +860,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -919,6 +934,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "bathhouse",
@@ -991,6 +1007,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bathhouse",
@@ -1063,6 +1080,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -1134,6 +1152,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -1186,6 +1205,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -1236,6 +1256,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -1286,6 +1307,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -1339,6 +1361,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "christian",
       "townsfolk"
@@ -1390,6 +1413,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -1517,6 +1541,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -1644,6 +1669,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -1772,6 +1798,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -1843,6 +1870,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -1894,6 +1922,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -1946,6 +1975,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "worker",
       "townsfolk"
@@ -1998,6 +2028,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "christian",
       "townsfolk"
@@ -2077,6 +2108,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "tavern",
       "worker",
@@ -2287,6 +2319,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -2496,6 +2529,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -2576,6 +2610,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -2655,9 +2690,10491 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Hugging Ladies",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 20,
+      "w": 29,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#7e4f49",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Sitting",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 35,
+      "w": 29,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#74565e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Back",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#513e42",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Pose",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#744f55",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Lying",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 43,
+      "w": 30,
+      "h": 21
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#644339",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Ladies Bare",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 10,
+      "y": 19,
+      "w": 40,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#83544d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Posing Lady Pose 1",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#734f4a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Posing Lady Pose 2",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 17,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#694b45",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Posing Lady Pose 3",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 48,
+      "w": 42,
+      "h": 16
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#7b5750",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Fancy",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 20,
+      "w": 23,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#575142",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Guard Bow",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Guard Crossbow",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 22,
+      "w": 36,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Guard Axe",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 12,
+      "w": 35,
+      "h": 52
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Guard Short Sword",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 34,
+      "w": 29,
+      "h": 30
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Guard Short Crossbow",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 29,
+      "w": 33,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Leg",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5a4c4e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Artist Statue",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 19,
+      "w": 41,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8d8079",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Artist Painter",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 15,
+      "w": 42,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#614c3f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Maid (Roster)",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#776762",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Nurse",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#785c5b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Potions",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 18,
+      "w": 31,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#553a41",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "trader",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Flower",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 37,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#9c27b0",
+    "swatchColor2": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Jester",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#554743",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Lady Goth",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 18,
+      "w": 19,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#5b313e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Wizard",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 35,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "musicians",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Satyr",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#554443",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "musician",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 1.png",
+    "base": "Monk",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 18,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3d2f2b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "christian",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Hugging Ladies",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 20,
+      "w": 29,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#624653",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Sitting",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 35,
+      "w": 29,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#713738",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Back",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6e514a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Pose",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6f534a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Lying",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 43,
+      "w": 30,
+      "h": 21
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#663f42",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Ladies Bare",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 10,
+      "y": 19,
+      "w": 40,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6b494b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Posing Lady Pose 1",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#734f4b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Posing Lady Pose 2",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 17,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6e4644",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Posing Lady Pose 3",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 48,
+      "w": 42,
+      "h": 16
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#724739",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Fancy",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 20,
+      "w": 23,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#574744",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Guard Bow",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Guard Crossbow",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 22,
+      "w": 36,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Guard Axe",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 12,
+      "w": 35,
+      "h": 52
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Guard Short Sword",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 34,
+      "w": 29,
+      "h": 30
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Guard Short Crossbow",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 29,
+      "w": 33,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Leg",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#7e563b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Artist Statue",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 19,
+      "w": 41,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#46413d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Artist Painter",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 15,
+      "w": 42,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4b4843",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Maid (Roster)",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#324c62",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Nurse",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6a5b55",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Potions",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 18,
+      "w": 31,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4e4538",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "trader",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Flower",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 37,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#4a80e0",
+    "swatchColor2": "#e53935",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Jester",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4d3c35",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Lady Goth",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 18,
+      "w": 19,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#314160",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Wizard",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 35,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#e53935",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "musicians",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Satyr",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#59312f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "musician",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 2.png",
+    "base": "Monk",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 18,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4e352c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "christian",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Hugging Ladies",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 20,
+      "w": 29,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3d4243",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Sitting",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 35,
+      "w": 29,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#80645b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Back",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a2a31",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Pose",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#65374d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Lying",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 43,
+      "w": 30,
+      "h": 21
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6a493f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Ladies Bare",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 10,
+      "y": 19,
+      "w": 40,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#702e31",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Posing Lady Pose 1",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 20,
+      "w": 19,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#67282f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Posing Lady Pose 2",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 17,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#734d5c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Posing Lady Pose 3",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 48,
+      "w": 42,
+      "h": 16
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#742b33",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Fancy",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 20,
+      "w": 23,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#443136",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Guard Bow",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Guard Crossbow",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 22,
+      "w": 36,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Guard Axe",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 12,
+      "w": 35,
+      "h": 52
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Guard Short Sword",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 34,
+      "w": 29,
+      "h": 30
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Guard Short Crossbow",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 29,
+      "w": 33,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Leg",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4f3d40",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Artist Statue",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 19,
+      "w": 41,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3c3032",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Artist Painter",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 15,
+      "w": 42,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#67564d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Maid (Roster)",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#554436",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Nurse",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 19,
+      "w": 18,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#57443a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Potions",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 18,
+      "w": 31,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#51423c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "trader",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Flower",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 37,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#eeeeee",
+    "swatchColor2": "#fdd835",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Jester",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#492a29",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Lady Goth",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 18,
+      "w": 19,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#433748",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Wizard",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 35,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "musicians",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Satyr",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 12,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#554642",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "musician",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 3.png",
+    "base": "Monk",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 21,
+      "w": 18,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#29242c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "christian",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Sharpening",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 22,
+      "w": 40,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Plague Doctor",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 20,
+      "w": 32,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Tabbard Idle",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 20,
+      "w": 22,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Blacksmith",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 19,
+      "w": 34,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Sweeping",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 38,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Roman Orator",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 18,
+      "w": 22,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "roman",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Roman Man",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "roman",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Roman Woman",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "roman",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Skull Witch",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 18,
+      "w": 35,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "magical",
+      "undead",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Woman Laundry",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 19,
+      "w": 25,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Woman Basket Apples",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 22,
+      "w": 21,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Woman Praying",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 33,
+      "w": 26,
+      "h": 31
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Bare Ass",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 22,
+      "w": 23,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Can Can",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 17,
+      "w": 24,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Corset",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 22,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Mini Skirt",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Tub",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 35,
+      "w": 33,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "bathhouse",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Beer",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 25,
+      "w": 26,
+      "h": 39
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "seasonal",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Rake",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 16,
+      "w": 28,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Pickaxe",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 19,
+      "w": 29,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Bavarian Lady",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 21,
+      "w": 33,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "seasonal",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Marquise",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 17,
+      "w": 28,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Beer Sitting",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 26,
+      "w": 26,
+      "h": 38
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "seasonal",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Beer",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 20,
+      "w": 27,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Man Barbarian Axe",
+    "variant": null,
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 10,
+      "y": 18,
+      "w": 40,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Flower",
+    "variant": "Bare",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 19,
+      "w": 23,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
+    "base": "Lady Sitting Stone",
+    "variant": "Bare",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 25,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Lady Bar",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 21,
+      "w": 28,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6d4b53",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Lift Skirt",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 24,
+      "w": 28,
+      "h": 40
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#735249",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Pregnant",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 22,
+      "w": 21,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#43545e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Dress Leaning",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 22,
+      "w": 16,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3c464a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Dress Sitting Chair",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 28,
+      "w": 21,
+      "h": 36
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#474156",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Dress Sitting Ground",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 35,
+      "w": 21,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#783b3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Reading",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 20,
+      "w": 24,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#795043",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Lying Ground",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 45,
+      "w": 38,
+      "h": 19
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#763b3d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Lady Lying Ground",
+    "variant": "1 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Frontal",
+    "variant": "1 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Backside",
+    "variant": "1 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Maid Backside 2",
+    "variant": "1 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Cat",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 46,
+      "w": 21,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#9e9e9e",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Cat",
+    "variant": "Hat",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 41,
+      "w": 25,
+      "h": 23
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Dog (Small)",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 46,
+      "w": 19,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#c8956a",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Dog (Small)",
+    "variant": "Helmet",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 31,
+      "w": 21,
+      "h": 33
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Guard Squat",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 30,
+      "w": 31,
+      "h": 34
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Guard Shield",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Guard Beer",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 22,
+      "w": 29,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Guard Lute",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 35,
+      "w": 30,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Executioner Squat",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 26,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#453c3f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Lumberjack",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 31,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#60493f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Butcher",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 29,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#573f38",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Witch",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 16,
+      "w": 20,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#a4e02c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Lady Basket",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 21,
+      "w": 24,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6d5a58",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Male Noble",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#7c3f3e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Cook",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 16,
+      "w": 24,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#714244",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Musketeer",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 15,
+      "w": 38,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 5
+          },
+          {
+            "row": 13,
+            "col": 6
+          },
+          {
+            "row": 13,
+            "col": 7
+          },
+          {
+            "row": 13,
+            "col": 8
+          },
+          {
+            "row": 13,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4caf50",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Mermaid",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 5,
+      "y": 33,
+      "w": 49,
+      "h": 31
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 0
+          },
+          {
+            "row": 14,
+            "col": 1
+          },
+          {
+            "row": 14,
+            "col": 2
+          },
+          {
+            "row": 14,
+            "col": 3
+          },
+          {
+            "row": 14,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6c503e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet1.png",
+    "base": "Seer",
+    "variant": "Sheet 1",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 19,
+      "w": 28,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 5
+          },
+          {
+            "row": 14,
+            "col": 6
+          },
+          {
+            "row": 14,
+            "col": 7
+          },
+          {
+            "row": 14,
+            "col": 8
+          },
+          {
+            "row": 14,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#574048",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "trader",
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Lady Bar",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 21,
+      "w": 28,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#664d45",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Lift Skirt",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 24,
+      "w": 28,
+      "h": 40
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#73543a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Pregnant",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 22,
+      "w": 21,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#75475c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Dress Leaning",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 22,
+      "w": 16,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5d3031",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Dress Sitting Chair",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 28,
+      "w": 21,
+      "h": 36
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5f312e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Dress Sitting Ground",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 35,
+      "w": 21,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#583f3f",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Reading",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 20,
+      "w": 24,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#674f42",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Lying Ground",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 45,
+      "w": 38,
+      "h": 19
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5b4c53",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Lady Lying Ground",
+    "variant": "2 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Frontal",
+    "variant": "2 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Backside",
+    "variant": "2 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Maid Backside 2",
+    "variant": "2 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Cat",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 46,
+      "w": 21,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#8a5a3b",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Cat",
+    "variant": "Hat",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 41,
+      "w": 25,
+      "h": 23
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Dog (Small)",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 46,
+      "w": 19,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#5c3a1e",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Dog (Small)",
+    "variant": "Helmet",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 31,
+      "w": 21,
+      "h": 33
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Guard Squat",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 30,
+      "w": 31,
+      "h": 34
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Guard Shield",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Guard Beer",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 22,
+      "w": 29,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Guard Lute",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 35,
+      "w": 30,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Executioner Squat",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 26,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#403a47",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Lumberjack",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 31,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4f3f41",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Butcher",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 29,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#695150",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Witch",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 16,
+      "w": 20,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Lady Basket",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 21,
+      "w": 24,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#503b3d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Male Noble",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#44496c",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Cook",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 16,
+      "w": 24,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#897771",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Musketeer",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 15,
+      "w": 38,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 5
+          },
+          {
+            "row": 13,
+            "col": 6
+          },
+          {
+            "row": 13,
+            "col": 7
+          },
+          {
+            "row": 13,
+            "col": 8
+          },
+          {
+            "row": 13,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#e53935",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Mermaid",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 5,
+      "y": 33,
+      "w": 49,
+      "h": 31
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 0
+          },
+          {
+            "row": 14,
+            "col": 1
+          },
+          {
+            "row": 14,
+            "col": 2
+          },
+          {
+            "row": 14,
+            "col": 3
+          },
+          {
+            "row": 14,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4e4c5e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet2.png",
+    "base": "Seer",
+    "variant": "Sheet 2",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 19,
+      "w": 28,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 5
+          },
+          {
+            "row": 14,
+            "col": 6
+          },
+          {
+            "row": 14,
+            "col": 7
+          },
+          {
+            "row": 14,
+            "col": 8
+          },
+          {
+            "row": 14,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#643a37",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "trader",
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Lady Bar",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 21,
+      "w": 28,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#533f40",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Lift Skirt",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 24,
+      "w": 28,
+      "h": 40
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5d2f2e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Pregnant",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 22,
+      "w": 21,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#6c5d4e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Dress Leaning",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 24,
+      "y": 22,
+      "w": 16,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#65514b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Dress Sitting Chair",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 28,
+      "w": 21,
+      "h": 36
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5a3834",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Dress Sitting Ground",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 35,
+      "w": 21,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#634b55",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Reading",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 20,
+      "w": 24,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#552c3a",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Lying Ground",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 45,
+      "w": 38,
+      "h": 19
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#6b504d",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Lady Lying Ground",
+    "variant": "3 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Frontal",
+    "variant": "3 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Backside",
+    "variant": "3 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Maid Backside 2",
+    "variant": "3 (Bare)",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Cat",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 46,
+      "w": 21,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#2b2b2b",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Cat",
+    "variant": "Hat",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 41,
+      "w": 25,
+      "h": 23
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk",
+      "ground",
+      "nature"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Dog (Small)",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 46,
+      "w": 19,
+      "h": 18
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#d4d4d4",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "animal",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Dog (Small)",
+    "variant": "Helmet",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 31,
+      "w": 21,
+      "h": 33
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "pet",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Guard Squat",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 30,
+      "w": 31,
+      "h": 34
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Guard Shield",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 18,
+      "w": 34,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Guard Beer",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 22,
+      "w": 29,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Guard Lute",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 35,
+      "w": 30,
+      "h": 29
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8a5a3b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Executioner Squat",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 26,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3c4940",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Lumberjack",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 17,
+      "w": 31,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#583d43",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Butcher",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 19,
+      "w": 29,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#3e3f51",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Witch",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 16,
+      "w": 20,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#1a3a6b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "magical",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Lady Basket",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 17,
+      "y": 21,
+      "w": 24,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#64556e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Male Noble",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 18,
+      "w": 24,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#344945",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Cook",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 16,
+      "w": 24,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#5a3e4b",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Musketeer",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 14,
+      "y": 15,
+      "w": 38,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 13,
+            "col": 5
+          },
+          {
+            "row": 13,
+            "col": 6
+          },
+          {
+            "row": 13,
+            "col": 7
+          },
+          {
+            "row": 13,
+            "col": 8
+          },
+          {
+            "row": 13,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#4a80e0",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Mermaid",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 5,
+      "y": 33,
+      "w": 49,
+      "h": 31
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 0
+          },
+          {
+            "row": 14,
+            "col": 1
+          },
+          {
+            "row": 14,
+            "col": 2
+          },
+          {
+            "row": 14,
+            "col": 3
+          },
+          {
+            "row": 14,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#684646",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet3.png",
+    "base": "Seer",
+    "variant": "Sheet 3",
+    "width": 640,
+    "height": 960,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 19,
+      "w": 28,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 14,
+            "col": 5
+          },
+          {
+            "row": 14,
+            "col": 6
+          },
+          {
+            "row": 14,
+            "col": 7
+          },
+          {
+            "row": 14,
+            "col": 8
+          },
+          {
+            "row": 14,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#513d2e",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "trader",
+      "magical",
       "townsfolk"
     ]
   },
@@ -2707,6 +13224,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "tavern",
       "seasonal",
@@ -2795,6 +13313,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -2883,6 +13402,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -2970,7 +13490,1204 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Dryad Flowers",
+    "variant": "Normal",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 32,
+      "w": 22,
+      "h": 32
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Sitting Stone",
+    "variant": "Normal",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 25,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Sitting Stone",
+    "variant": "Dark Skin",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 25,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Sitting Stone",
+    "variant": "Purple Hair",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 29,
+      "w": 25,
+      "h": 35
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Eve",
+    "variant": "Red",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Eve",
+    "variant": "Green/Gold",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Eve",
+    "variant": "Demon",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Normal",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Grey",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Red",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Lying Ground",
+    "variant": "1",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Lying Ground",
+    "variant": "2",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Lying Ground",
+    "variant": "3",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 44,
+      "w": 33,
+      "h": 20
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          },
+          {
+            "row": 7,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Frontal",
+    "variant": "1",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Frontal",
+    "variant": "2",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 8
+          },
+          {
+            "row": 8,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Frontal",
+    "variant": "3",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 18,
+      "w": 20,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside",
+    "variant": "1",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 8
+          },
+          {
+            "row": 9,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside",
+    "variant": "2",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside",
+    "variant": "3",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 19,
+      "w": 16,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 8
+          },
+          {
+            "row": 10,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside 2",
+    "variant": "1",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside 2",
+    "variant": "2",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 8
+          },
+          {
+            "row": 11,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Maid Backside 2",
+    "variant": "3",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Covered Characters sheet.png",
+    "base": "Lady Sitting Hair",
+    "variant": "Normal",
+    "width": 640,
+    "height": 832,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 33,
+      "w": 34,
+      "h": 31
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 8
+          },
+          {
+            "row": 12,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
       "townsfolk"
     ]
   },
@@ -3020,6 +14737,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "christian",
       "military",
@@ -3076,7 +14794,167 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Dryad sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Normal (Bare)",
+    "width": 310,
+    "height": 192,
+    "frame": {
+      "w": 62,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Dryad sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Grey (Bare)",
+    "width": 310,
+    "height": 192,
+    "frame": {
+      "w": 62,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Dryad sheet.png",
+    "base": "Lady Dryad",
+    "variant": "Red (Bare)",
+    "width": 310,
+    "height": 192,
+    "frame": {
+      "w": 62,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 16,
+      "w": 32,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
       "townsfolk"
     ]
   },
@@ -3154,8 +15032,168 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Eve sheet.png",
+    "base": "Lady Eve",
+    "variant": "Red (Bare)",
+    "width": 320,
+    "height": 192,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Eve sheet.png",
+    "base": "Lady Eve",
+    "variant": "Green/Gold (Bare)",
+    "width": 320,
+    "height": 192,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "mature",
+    "relPath": "../assets/ASSORTED/characters/char_passive/Eve sheet.png",
+    "base": "Lady Eve",
+    "variant": "Demon (Bare)",
+    "width": 320,
+    "height": 192,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 17,
+      "w": 25,
+      "h": 47
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature",
+      "bare",
       "townsfolk"
     ]
   },
@@ -3234,6 +15272,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "trader",
       "magical",
@@ -3315,6 +15354,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "undead"
@@ -3382,10 +15422,12 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "townsfolk",
-      "move"
+      "move",
+      "magical"
     ]
   },
   {
@@ -3454,6 +15496,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "magical",
@@ -3526,6 +15569,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -3581,12001 +15625,9 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Hugging Ladies",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 20,
-      "w": 29,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#7e4f49",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Sitting",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 35,
-      "w": 29,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#74565e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Back",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#513e42",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Pose",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#744f55",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Lying",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 43,
-      "w": 30,
-      "h": 21
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#644339",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Ladies Bare",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 10,
-      "y": 19,
-      "w": 40,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#83544d",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Posing Lady Pose 1",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#734f4a",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Posing Lady Pose 2",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 17,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#694b45",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Posing Lady Pose 3",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 48,
-      "w": 42,
-      "h": 16
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#7b5750",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Fancy",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 20,
-      "w": 23,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#575142",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Guard Bow",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Guard Crossbow",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 22,
-      "w": 36,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Guard Axe",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 12,
-      "w": 35,
-      "h": 52
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Guard Short Sword",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 34,
-      "w": 29,
-      "h": 30
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Guard Short Crossbow",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 29,
-      "w": 33,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Leg",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5a4c4e",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Artist Statue",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 19,
-      "w": 41,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8d8079",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Artist Painter",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 15,
-      "w": 42,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#614c3f",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Maid (Roster)",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#776762",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Nurse",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#785c5b",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Potions",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 18,
-      "w": 31,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#553a41",
-    "being": "human",
-    "tags": [
-      "trader",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Flower",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 37,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#9c27b0",
-    "swatchColor2": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Jester",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#554743",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Lady Goth",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 18,
-      "w": 19,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#5b313e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Wizard",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 35,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "musicians",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Satyr",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#554443",
-    "being": "human",
-    "tags": [
-      "musician",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 1.png",
-    "base": "Monk",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 18,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3d2f2b",
-    "being": "human",
-    "tags": [
-      "christian",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Hugging Ladies",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 20,
-      "w": 29,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#624653",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Sitting",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 35,
-      "w": 29,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#713738",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Back",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6e514a",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Pose",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6f534a",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Lying",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 43,
-      "w": 30,
-      "h": 21
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#663f42",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Ladies Bare",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 10,
-      "y": 19,
-      "w": 40,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6b494b",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Posing Lady Pose 1",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#734f4b",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Posing Lady Pose 2",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 17,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6e4644",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Posing Lady Pose 3",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 48,
-      "w": 42,
-      "h": 16
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#724739",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Fancy",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 20,
-      "w": 23,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#574744",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Guard Bow",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Guard Crossbow",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 22,
-      "w": 36,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Guard Axe",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 12,
-      "w": 35,
-      "h": 52
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Guard Short Sword",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 34,
-      "w": 29,
-      "h": 30
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Guard Short Crossbow",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 29,
-      "w": 33,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Leg",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#7e563b",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Artist Statue",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 19,
-      "w": 41,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#46413d",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Artist Painter",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 15,
-      "w": 42,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4b4843",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Maid (Roster)",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#324c62",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Nurse",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6a5b55",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Potions",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 18,
-      "w": 31,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4e4538",
-    "being": "human",
-    "tags": [
-      "trader",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Flower",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 37,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#4a80e0",
-    "swatchColor2": "#e53935",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Jester",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4d3c35",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Lady Goth",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 18,
-      "w": 19,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#314160",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Wizard",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 35,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#e53935",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "musicians",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Satyr",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#59312f",
-    "being": "human",
-    "tags": [
-      "musician",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 2.png",
-    "base": "Monk",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 18,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4e352c",
-    "being": "human",
-    "tags": [
-      "christian",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Hugging Ladies",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 20,
-      "w": 29,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3d4243",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Sitting",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 35,
-      "w": 29,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#80645b",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Back",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a2a31",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Pose",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#65374d",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Lying",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 43,
-      "w": 30,
-      "h": 21
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6a493f",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Ladies Bare",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 10,
-      "y": 19,
-      "w": 40,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#702e31",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Posing Lady Pose 1",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 20,
-      "w": 19,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#67282f",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Posing Lady Pose 2",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 17,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#734d5c",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Posing Lady Pose 3",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 48,
-      "w": 42,
-      "h": 16
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#742b33",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Fancy",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 20,
-      "w": 23,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#443136",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Guard Bow",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Guard Crossbow",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 22,
-      "w": 36,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Guard Axe",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 12,
-      "w": 35,
-      "h": 52
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Guard Short Sword",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 34,
-      "w": 29,
-      "h": 30
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Guard Short Crossbow",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 29,
-      "w": 33,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Leg",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4f3d40",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Artist Statue",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 19,
-      "w": 41,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3c3032",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Artist Painter",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 15,
-      "w": 42,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#67564d",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Maid (Roster)",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#554436",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Nurse",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 19,
-      "w": 18,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#57443a",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Potions",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 18,
-      "w": 31,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#51423c",
-    "being": "human",
-    "tags": [
-      "trader",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Flower",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 37,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#eeeeee",
-    "swatchColor2": "#fdd835",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Jester",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#492a29",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Lady Goth",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 18,
-      "w": 19,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#433748",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Wizard",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 35,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "musicians",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Satyr",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 12,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#554642",
-    "being": "human",
-    "tags": [
-      "musician",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 3.png",
-    "base": "Monk",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 21,
-      "w": 18,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#29242c",
-    "being": "human",
-    "tags": [
-      "christian",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Sharpening",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 22,
-      "w": 40,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Plague Doctor",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 20,
-      "w": 32,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Tabbard Idle",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 20,
-      "w": 22,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Blacksmith",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 19,
-      "w": 34,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Sweeping",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 38,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Roman Orator",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 18,
-      "w": 22,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "roman",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Roman Man",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "roman",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Roman Woman",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "roman",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Skull Witch",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 18,
-      "w": 35,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "mature",
-      "magical",
-      "undead",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Woman Laundry",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 19,
-      "w": 25,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Woman Basket Apples",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 22,
-      "w": 21,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Woman Praying",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 33,
-      "w": 26,
-      "h": 31
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Bare Ass",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 22,
-      "w": 23,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Can Can",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 17,
-      "w": 24,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Corset",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 22,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Mini Skirt",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Tub",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 35,
-      "w": 33,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "bathhouse",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Beer",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 25,
-      "w": 26,
-      "h": 39
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
-      "seasonal",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Rake",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 16,
-      "w": 28,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Pickaxe",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 19,
-      "w": 29,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Bavarian Lady",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 21,
-      "w": 33,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "seasonal",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Marquise",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 17,
-      "w": 28,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Beer Sitting",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 26,
-      "w": 26,
-      "h": 38
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
-      "seasonal",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Beer",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 20,
-      "w": 27,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Man Barbarian Axe",
-    "variant": null,
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 10,
-      "y": 18,
-      "w": 40,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Flower",
-    "variant": "Bare",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 19,
-      "w": 23,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet 4.png",
-    "base": "Lady Sitting Stone",
-    "variant": "Bare",
-    "width": 640,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 25,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Lady Bar",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 21,
-      "w": 28,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6d4b53",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Lift Skirt",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 24,
-      "w": 28,
-      "h": 40
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#735249",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Pregnant",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 22,
-      "w": 21,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#43545e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Dress Leaning",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 22,
-      "w": 16,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3c464a",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Dress Sitting Chair",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 28,
-      "w": 21,
-      "h": 36
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#474156",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Dress Sitting Ground",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 35,
-      "w": 21,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#783b3b",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Reading",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 20,
-      "w": 24,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#795043",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Lying Ground",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 45,
-      "w": 38,
-      "h": 19
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#763b3d",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Lady Lying Ground",
-    "variant": "1 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Frontal",
-    "variant": "1 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Backside",
-    "variant": "1 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Maid Backside 2",
-    "variant": "1 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Cat",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 46,
-      "w": 21,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#9e9e9e",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Cat",
-    "variant": "Hat",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 41,
-      "w": 25,
-      "h": 23
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Dog (Small)",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 46,
-      "w": 19,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#c8956a",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Dog (Small)",
-    "variant": "Helmet",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 31,
-      "w": 21,
-      "h": 33
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Guard Squat",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 30,
-      "w": 31,
-      "h": 34
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Guard Shield",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Guard Beer",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 22,
-      "w": 29,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Guard Lute",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 35,
-      "w": 30,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Executioner Squat",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 26,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#453c3f",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Lumberjack",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 31,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#60493f",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Butcher",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 29,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#573f38",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Witch",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 16,
-      "w": 20,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#a4e02c",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Lady Basket",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 21,
-      "w": 24,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6d5a58",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Male Noble",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#7c3f3e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Cook",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 16,
-      "w": 24,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#714244",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Musketeer",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 15,
-      "w": 38,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 5
-          },
-          {
-            "row": 13,
-            "col": 6
-          },
-          {
-            "row": 13,
-            "col": 7
-          },
-          {
-            "row": 13,
-            "col": 8
-          },
-          {
-            "row": 13,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4caf50",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Mermaid",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 5,
-      "y": 33,
-      "w": 49,
-      "h": 31
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 0
-          },
-          {
-            "row": 14,
-            "col": 1
-          },
-          {
-            "row": 14,
-            "col": 2
-          },
-          {
-            "row": 14,
-            "col": 3
-          },
-          {
-            "row": 14,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6c503e",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet1.png",
-    "base": "Seer",
-    "variant": "Sheet 1",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 19,
-      "w": 28,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 5
-          },
-          {
-            "row": 14,
-            "col": 6
-          },
-          {
-            "row": 14,
-            "col": 7
-          },
-          {
-            "row": 14,
-            "col": 8
-          },
-          {
-            "row": 14,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#574048",
-    "being": "human",
-    "tags": [
-      "mature",
-      "trader",
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Lady Bar",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 21,
-      "w": 28,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#664d45",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Lift Skirt",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 24,
-      "w": 28,
-      "h": 40
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#73543a",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Pregnant",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 22,
-      "w": 21,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#75475c",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Dress Leaning",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 22,
-      "w": 16,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5d3031",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Dress Sitting Chair",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 28,
-      "w": 21,
-      "h": 36
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5f312e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Dress Sitting Ground",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 35,
-      "w": 21,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#583f3f",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Reading",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 20,
-      "w": 24,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#674f42",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Lying Ground",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 45,
-      "w": 38,
-      "h": 19
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5b4c53",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Lady Lying Ground",
-    "variant": "2 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Frontal",
-    "variant": "2 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Backside",
-    "variant": "2 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Maid Backside 2",
-    "variant": "2 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Cat",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 46,
-      "w": 21,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#8a5a3b",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Cat",
-    "variant": "Hat",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 41,
-      "w": 25,
-      "h": 23
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Dog (Small)",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 46,
-      "w": 19,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#5c3a1e",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Dog (Small)",
-    "variant": "Helmet",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 31,
-      "w": 21,
-      "h": 33
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Guard Squat",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 30,
-      "w": 31,
-      "h": 34
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Guard Shield",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Guard Beer",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 22,
-      "w": 29,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Guard Lute",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 35,
-      "w": 30,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Executioner Squat",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 26,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#403a47",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Lumberjack",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 31,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4f3f41",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Butcher",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 29,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#695150",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Witch",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 16,
-      "w": 20,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Lady Basket",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 21,
-      "w": 24,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#503b3d",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Male Noble",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#44496c",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Cook",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 16,
-      "w": 24,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#897771",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Musketeer",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 15,
-      "w": 38,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 5
-          },
-          {
-            "row": 13,
-            "col": 6
-          },
-          {
-            "row": 13,
-            "col": 7
-          },
-          {
-            "row": 13,
-            "col": 8
-          },
-          {
-            "row": 13,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#e53935",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Mermaid",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 5,
-      "y": 33,
-      "w": 49,
-      "h": 31
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 0
-          },
-          {
-            "row": 14,
-            "col": 1
-          },
-          {
-            "row": 14,
-            "col": 2
-          },
-          {
-            "row": 14,
-            "col": 3
-          },
-          {
-            "row": 14,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4e4c5e",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet2.png",
-    "base": "Seer",
-    "variant": "Sheet 2",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 19,
-      "w": 28,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 5
-          },
-          {
-            "row": 14,
-            "col": 6
-          },
-          {
-            "row": 14,
-            "col": 7
-          },
-          {
-            "row": 14,
-            "col": 8
-          },
-          {
-            "row": 14,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#643a37",
-    "being": "human",
-    "tags": [
-      "mature",
-      "trader",
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Lady Bar",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 21,
-      "w": 28,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#533f40",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Lift Skirt",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 24,
-      "w": 28,
-      "h": 40
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5d2f2e",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Pregnant",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 22,
-      "w": 21,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#6c5d4e",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Dress Leaning",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 24,
-      "y": 22,
-      "w": 16,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#65514b",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Dress Sitting Chair",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 28,
-      "w": 21,
-      "h": 36
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5a3834",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Dress Sitting Ground",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 35,
-      "w": 21,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#634b55",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Reading",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 20,
-      "w": 24,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#552c3a",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Lying Ground",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 45,
-      "w": 38,
-      "h": 19
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#6b504d",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Lady Lying Ground",
-    "variant": "3 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Frontal",
-    "variant": "3 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Backside",
-    "variant": "3 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Maid Backside 2",
-    "variant": "3 (Bare)",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Cat",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 46,
-      "w": 21,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#2b2b2b",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Cat",
-    "variant": "Hat",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 41,
-      "w": 25,
-      "h": 23
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk",
-      "ground",
-      "nature"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Dog (Small)",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 46,
-      "w": 19,
-      "h": 18
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#d4d4d4",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Dog (Small)",
-    "variant": "Helmet",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 31,
-      "w": 21,
-      "h": 33
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "animal",
-    "tags": [
-      "pet",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Guard Squat",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 30,
-      "w": 31,
-      "h": 34
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Guard Shield",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 18,
-      "w": 34,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Guard Beer",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 22,
-      "w": 29,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Guard Lute",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 35,
-      "w": 30,
-      "h": 29
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8a5a3b",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Executioner Squat",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 26,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3c4940",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Lumberjack",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 17,
-      "w": 31,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#583d43",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Butcher",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 19,
-      "w": 29,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#3e3f51",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Witch",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 16,
-      "w": 20,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#1a3a6b",
-    "being": "human",
-    "tags": [
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Lady Basket",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 17,
-      "y": 21,
-      "w": 24,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#64556e",
-    "being": "human",
-    "tags": [
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Male Noble",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 18,
-      "w": 24,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#344945",
-    "being": "human",
-    "tags": [
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Cook",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 16,
-      "w": 24,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#5a3e4b",
-    "being": "human",
-    "tags": [
-      "tavern",
-      "worker",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Musketeer",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 14,
-      "y": 15,
-      "w": 38,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 13,
-            "col": 5
-          },
-          {
-            "row": 13,
-            "col": 6
-          },
-          {
-            "row": 13,
-            "col": 7
-          },
-          {
-            "row": 13,
-            "col": 8
-          },
-          {
-            "row": 13,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#4a80e0",
-    "being": "human",
-    "tags": [
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Mermaid",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 5,
-      "y": 33,
-      "w": 49,
-      "h": 31
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 0
-          },
-          {
-            "row": 14,
-            "col": 1
-          },
-          {
-            "row": 14,
-            "col": 2
-          },
-          {
-            "row": 14,
-            "col": 3
-          },
-          {
-            "row": 14,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#684646",
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore characters sheet3.png",
-    "base": "Seer",
-    "variant": "Sheet 3",
-    "width": 640,
-    "height": 960,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 19,
-      "w": 28,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 14,
-            "col": 5
-          },
-          {
-            "row": 14,
-            "col": 6
-          },
-          {
-            "row": 14,
-            "col": 7
-          },
-          {
-            "row": 14,
-            "col": 8
-          },
-          {
-            "row": 14,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#513d2e",
-    "being": "human",
-    "tags": [
-      "mature",
-      "trader",
-      "magical",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Dryad Flowers",
-    "variant": "Normal",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 32,
-      "w": 22,
-      "h": 32
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Sitting Stone",
-    "variant": "Normal",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 25,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Sitting Stone",
-    "variant": "Dark Skin",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 25,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Sitting Stone",
-    "variant": "Purple Hair",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 29,
-      "w": 25,
-      "h": 35
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Eve",
-    "variant": "Red",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Eve",
-    "variant": "Green/Gold",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Eve",
-    "variant": "Demon",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Normal",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Grey",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Red",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Lying Ground",
-    "variant": "1",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Lying Ground",
-    "variant": "2",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Lying Ground",
-    "variant": "3",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 44,
-      "w": 33,
-      "h": 20
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          },
-          {
-            "row": 7,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Frontal",
-    "variant": "1",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Frontal",
-    "variant": "2",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 8
-          },
-          {
-            "row": 8,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Frontal",
-    "variant": "3",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 18,
-      "w": 20,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside",
-    "variant": "1",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 8
-          },
-          {
-            "row": 9,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside",
-    "variant": "2",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside",
-    "variant": "3",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 19,
-      "w": 16,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 8
-          },
-          {
-            "row": 10,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside 2",
-    "variant": "1",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside 2",
-    "variant": "2",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 8
-          },
-          {
-            "row": 11,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Maid Backside 2",
-    "variant": "3",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Covered Characters sheet.png",
-    "base": "Lady Sitting Hair",
-    "variant": "Normal",
-    "width": 640,
-    "height": 832,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 33,
-      "w": 34,
-      "h": 31
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 8
-          },
-          {
-            "row": 12,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Dryad sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Normal (Bare)",
-    "width": 310,
-    "height": 192,
-    "frame": {
-      "w": 62,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Dryad sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Grey (Bare)",
-    "width": 310,
-    "height": 192,
-    "frame": {
-      "w": 62,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Dryad sheet.png",
-    "base": "Lady Dryad",
-    "variant": "Red (Bare)",
-    "width": 310,
-    "height": 192,
-    "frame": {
-      "w": 62,
-      "h": 64
-    },
-    "crop": {
-      "x": 13,
-      "y": 16,
-      "w": 32,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Eve sheet.png",
-    "base": "Lady Eve",
-    "variant": "Red (Bare)",
-    "width": 320,
-    "height": 192,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Eve sheet.png",
-    "base": "Lady Eve",
-    "variant": "Green/Gold (Bare)",
-    "width": 320,
-    "height": 192,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore Eve sheet.png",
-    "base": "Lady Eve",
-    "variant": "Demon (Bare)",
-    "width": 320,
-    "height": 192,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 17,
-      "w": 25,
-      "h": 47
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "mature",
-      "bare",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "musicians",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore tavern NPCs.png",
-    "base": "Lute",
-    "variant": null,
-    "width": 640,
-    "height": 256,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 21,
-      "w": 28,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "human",
-    "tags": [
-      "musician",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "musicians",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore tavern NPCs.png",
-    "base": "Flute",
-    "variant": null,
-    "width": 640,
-    "height": 256,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 19,
-      "w": 26,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "musician",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore tavern NPCs.png",
-    "base": "Drunk Dancing",
-    "variant": null,
-    "width": 640,
-    "height": 256,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 16,
-      "y": 21,
-      "w": 28,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "passive",
-    "relPath": "../assets/ASSORTED/characters/char_passive/GandalfHardcore tavern NPCs.png",
-    "base": "Couple Dancing",
-    "variant": null,
-    "width": 640,
-    "height": 256,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 15,
-      "y": 21,
-      "w": 36,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      }
-    ],
-    "being": "human",
-    "tags": [
-      "tavern",
       "townsfolk"
     ]
   },
@@ -15645,6 +15697,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -15718,6 +15771,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "oriental",
@@ -15790,6 +15844,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "oriental",
@@ -15918,6 +15973,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -15997,6 +16053,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -16048,6 +16105,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "townsfolk"
@@ -16127,6 +16185,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -16205,6 +16264,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -16283,6 +16343,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "oriental",
       "tavern",
@@ -16355,6 +16416,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -16425,6 +16487,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "townsfolk"
@@ -16505,6 +16568,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -16585,6 +16649,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -16664,6 +16729,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -16723,6 +16789,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -16774,6 +16841,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -16825,6 +16893,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -16876,6 +16945,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "tavern",
       "worker",
@@ -16929,6 +16999,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "townsfolk"
@@ -16980,6 +17051,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "townsfolk"
@@ -17031,6 +17103,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "townsfolk"
@@ -17120,6 +17193,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -17209,6 +17283,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "christian",
@@ -17281,6 +17356,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "oriental",
       "townsfolk"
@@ -17352,6 +17428,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "oriental",
@@ -17425,6 +17502,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "musician",
       "oriental",
@@ -17498,6 +17576,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "musician",
@@ -17572,6 +17651,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "oriental",
       "townsfolk"
@@ -17643,6 +17723,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "oriental",
       "townsfolk"
@@ -17714,6 +17795,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "oriental",
@@ -17786,6 +17868,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "townsfolk"
@@ -17838,6 +17921,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -18077,6 +18161,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "ranged",
       "townsfolk"
@@ -18128,6 +18213,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -18198,6 +18284,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -18269,6 +18356,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "townsfolk"
@@ -18341,6 +18429,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "townsfolk"
@@ -18413,6 +18502,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "townsfolk"
@@ -18485,6 +18575,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -18556,6 +18647,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -18627,6 +18719,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -18681,6 +18774,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "roman",
       "townsfolk"
@@ -18737,6 +18831,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "roman",
       "townsfolk"
@@ -18792,6 +18887,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "worker",
       "townsfolk"
@@ -18863,6 +18959,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "seasonal",
       "townsfolk"
@@ -18952,6 +19049,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "christian",
@@ -19005,8 +19103,238 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "trader",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "musicians",
+    "relPath": "../assets/ASSORTED/characters/char_passive/tavern NPCs.png",
+    "base": "Lute",
+    "variant": null,
+    "width": 640,
+    "height": 256,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 21,
+      "w": 28,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "musician",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "musicians",
+    "relPath": "../assets/ASSORTED/characters/char_passive/tavern NPCs.png",
+    "base": "Flute",
+    "variant": null,
+    "width": 640,
+    "height": 256,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 19,
+      "w": 26,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "musician",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/tavern NPCs.png",
+    "base": "Drunk Dancing",
+    "variant": null,
+    "width": 640,
+    "height": 256,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 16,
+      "y": 21,
+      "w": 28,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/tavern NPCs.png",
+    "base": "Couple Dancing",
+    "variant": null,
+    "width": 640,
+    "height": 256,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 15,
+      "y": 21,
+      "w": 36,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "tavern",
       "townsfolk"
     ]
   },
@@ -19084,6 +19412,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -19155,6 +19484,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "worker",
       "townsfolk"
@@ -19206,6 +19536,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -19334,6 +19665,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "magical",
       "townsfolk"
@@ -19385,6 +19717,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "military",
       "townsfolk"
@@ -19464,6 +19797,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "worker",
       "townsfolk"
@@ -19547,6 +19881,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "worker",
       "townsfolk"
@@ -19602,6 +19937,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "trader",
       "townsfolk"
@@ -19693,6 +20029,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "trader",
       "worker",
@@ -19773,6 +20110,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "tavern",
       "townsfolk"
@@ -19828,6 +20166,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "tavern",
       "townsfolk"
@@ -19883,6 +20222,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "tavern",
       "townsfolk"
@@ -19938,6 +20278,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "tavern",
       "townsfolk"
@@ -19993,6 +20334,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "musician",
       "tavern",
@@ -20049,6 +20391,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "trader",
       "townsfolk"
@@ -20104,6 +20447,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "Szadi Art",
     "tags": [
       "trader",
       "townsfolk"
@@ -20111,7 +20455,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer black sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer black sheet.png",
     "base": "Archer",
     "variant": "Black",
     "width": 704,
@@ -20300,6 +20644,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -20309,7 +20654,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer blue sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer blue sheet.png",
     "base": "Archer",
     "variant": "Blue",
     "width": 704,
@@ -20498,6 +20843,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -20507,7 +20853,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer brown sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer brown sheet.png",
     "base": "Archer",
     "variant": "Brown",
     "width": 704,
@@ -20696,6 +21042,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -20705,7 +21052,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer green sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer green sheet.png",
     "base": "Archer",
     "variant": "Green",
     "width": 704,
@@ -20894,6 +21241,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -20903,7 +21251,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer purple sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer purple sheet.png",
     "base": "Archer",
     "variant": "Purple",
     "width": 704,
@@ -21092,6 +21440,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -21101,7 +21450,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer red sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer red sheet.png",
     "base": "Archer",
     "variant": "Red",
     "width": 704,
@@ -21290,6 +21639,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -21299,7 +21649,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer sheet.png",
     "base": "Archer",
     "variant": null,
     "width": 704,
@@ -21488,6 +21838,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -21497,7 +21848,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Archer yellow sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer yellow sheet.png",
     "base": "Archer",
     "variant": "Yellow",
     "width": 704,
@@ -21686,6 +22037,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -21695,7 +22047,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Warrior.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Warrior.png",
     "base": "Warrior",
     "variant": "Sword Sheathed",
     "width": 800,
@@ -21957,6 +22309,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "military",
@@ -21965,7 +22318,7 @@ export default [
   },
   {
     "category": "attack",
-    "relPath": "../assets/ASSORTED/characters/char_with_attack/GandalfHardcore Warrior.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_attack/Warrior.png",
     "base": "Warrior",
     "variant": "Sword Drawn",
     "width": 800,
@@ -22265,6 +22618,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -22274,7 +22628,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Angel/GandalfHardcore Angel.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Angel/Angel.png",
     "base": "Angel",
     "variant": null,
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Angel/portrait 64x64.png",
@@ -22626,6 +22980,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "portrait",
@@ -22635,990 +22990,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Queen",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 22,
-      "y": 15,
-      "w": 20,
-      "h": 49
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 8,
-            "col": 0
-          },
-          {
-            "row": 9,
-            "col": 0
-          },
-          {
-            "row": 10,
-            "col": 0
-          },
-          {
-            "row": 11,
-            "col": 0
-          },
-          {
-            "row": 12,
-            "col": 0
-          },
-          {
-            "row": 13,
-            "col": 0
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait1.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Lady Dryad",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 16,
-      "w": 21,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 1
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 7,
-            "col": 1
-          },
-          {
-            "row": 8,
-            "col": 1
-          },
-          {
-            "row": 9,
-            "col": 1
-          },
-          {
-            "row": 10,
-            "col": 1
-          },
-          {
-            "row": 11,
-            "col": 1
-          },
-          {
-            "row": 12,
-            "col": 1
-          },
-          {
-            "row": 13,
-            "col": 1
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait2.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Nun",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 23,
-      "y": 20,
-      "w": 20,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 2
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 8,
-            "col": 2
-          },
-          {
-            "row": 9,
-            "col": 2
-          },
-          {
-            "row": 10,
-            "col": 2
-          },
-          {
-            "row": 11,
-            "col": 2
-          },
-          {
-            "row": 12,
-            "col": 2
-          },
-          {
-            "row": 13,
-            "col": 2
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait3.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "christian",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Bar Lady Dancer",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 20,
-      "y": 20,
-      "w": 22,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 8,
-            "col": 3
-          },
-          {
-            "row": 9,
-            "col": 3
-          },
-          {
-            "row": 10,
-            "col": 3
-          },
-          {
-            "row": 11,
-            "col": 3
-          },
-          {
-            "row": 12,
-            "col": 3
-          },
-          {
-            "row": 13,
-            "col": 3
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait4.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "tavern",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Hood",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 19,
-      "y": 22,
-      "w": 25,
-      "h": 42
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 8,
-            "col": 4
-          },
-          {
-            "row": 9,
-            "col": 4
-          },
-          {
-            "row": 10,
-            "col": 4
-          },
-          {
-            "row": 11,
-            "col": 4
-          },
-          {
-            "row": 12,
-            "col": 4
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait5.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Knight Heavy Armor",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 16,
-      "w": 39,
-      "h": 48
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 8,
-            "col": 5
-          },
-          {
-            "row": 9,
-            "col": 5
-          },
-          {
-            "row": 10,
-            "col": 5
-          },
-          {
-            "row": 11,
-            "col": 5
-          },
-          {
-            "row": 12,
-            "col": 5
-          },
-          {
-            "row": 13,
-            "col": 5
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait6.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "military",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Vampire",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 8,
-      "y": 9,
-      "w": 35,
-      "h": 55
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 8,
-            "col": 6
-          },
-          {
-            "row": 9,
-            "col": 6
-          },
-          {
-            "row": 10,
-            "col": 6
-          },
-          {
-            "row": 11,
-            "col": 6
-          },
-          {
-            "row": 12,
-            "col": 6
-          },
-          {
-            "row": 13,
-            "col": 6
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait7.png",
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "undead",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Oriental Traveller",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 21,
-      "y": 19,
-      "w": 26,
-      "h": 45
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 8,
-            "col": 7
-          },
-          {
-            "row": 9,
-            "col": 7
-          },
-          {
-            "row": 10,
-            "col": 7
-          },
-          {
-            "row": 11,
-            "col": 7
-          },
-          {
-            "row": 12,
-            "col": 7
-          },
-          {
-            "row": 13,
-            "col": 7
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait8.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "oriental",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Succubus",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 128,
-      "h": 64
-    },
-    "crop": {
-      "x": 18,
-      "y": 1,
-      "w": 89,
-      "h": 63
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 8,
-            "col": 4
-          },
-          {
-            "row": 9,
-            "col": 4
-          },
-          {
-            "row": 10,
-            "col": 4
-          },
-          {
-            "row": 11,
-            "col": 4
-          },
-          {
-            "row": 12,
-            "col": 4
-          },
-          {
-            "row": 13,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait9.png",
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "hellish"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Goddess",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 0,
-      "y": 6,
-      "w": 64,
-      "h": 56
-    },
-    "animations": [
-      {
-        "key": "float",
-        "label": "Float",
-        "cells": [
-          {
-            "row": 6,
-            "col": 10
-          },
-          {
-            "row": 7,
-            "col": 10
-          },
-          {
-            "row": 8,
-            "col": 10
-          },
-          {
-            "row": 9,
-            "col": 10
-          },
-          {
-            "row": 10,
-            "col": 10
-          },
-          {
-            "row": 11,
-            "col": 10
-          },
-          {
-            "row": 12,
-            "col": 10
-          },
-          {
-            "row": 13,
-            "col": 10
-          }
-        ],
-        "tags": [
-          "flying"
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait10.png",
-    "being": "humanoid",
-    "tags": [
-      "flying",
-      "portrait",
-      "move"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
-    "base": "Female Maid",
-    "variant": null,
-    "width": 768,
-    "height": 896,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 25,
-      "y": 20,
-      "w": 17,
-      "h": 44
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 1,
-            "col": 11
-          },
-          {
-            "row": 2,
-            "col": 11
-          },
-          {
-            "row": 3,
-            "col": 11
-          },
-          {
-            "row": 4,
-            "col": 11
-          },
-          {
-            "row": 5,
-            "col": 11
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 6,
-            "col": 11
-          },
-          {
-            "row": 7,
-            "col": 11
-          },
-          {
-            "row": 8,
-            "col": 11
-          },
-          {
-            "row": 9,
-            "col": 11
-          },
-          {
-            "row": 10,
-            "col": 11
-          },
-          {
-            "row": 11,
-            "col": 11
-          },
-          {
-            "row": 12,
-            "col": 11
-          },
-          {
-            "row": 13,
-            "col": 11
-          }
-        ]
-      }
-    ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait11.png",
-    "being": "human",
-    "tags": [
-      "portrait",
-      "move",
-      "townsfolk"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Female Medieval Pixel Art character.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Female Medieval Pixel Art character.png",
     "base": "Female Medieval Pixel Art Character",
     "variant": "Normal",
     "width": 640,
@@ -23893,7 +23265,7 @@ export default [
             "col": 9
           }
         ],
-        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Lantern.png"
+        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Lantern.png"
       },
       {
         "key": "separateharp",
@@ -23904,10 +23276,11 @@ export default [
             "col": 0
           }
         ],
-        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Lantern.png"
+        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Lantern.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -23916,7 +23289,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Female Medieval Pixel Art character Lantern.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Female Medieval Pixel Art character Lantern.png",
     "base": "Female Medieval Pixel Art Character",
     "variant": "Lantern",
     "width": 576,
@@ -24187,8 +23560,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Female Medieval Pixel Art character.png",
-        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Lantern.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Female Medieval Pixel Art character.png",
+        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Lantern.png"
       },
       {
         "key": "separateharp",
@@ -24199,11 +23572,12 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Female Medieval Pixel Art character.png",
-        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Female Pixel Art Character/Lantern.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Female Medieval Pixel Art character.png",
+        "propRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Lantern.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -24212,10 +23586,1004 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy bright green sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Queen",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 15,
+      "w": 20,
+      "h": 49
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 0
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait1.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Lady Dryad",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 16,
+      "w": 21,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 1
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 1
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait2.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Nun",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 23,
+      "y": 20,
+      "w": 20,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 2
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 2
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait3.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "christian",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Bar Lady Dancer",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 20,
+      "y": 20,
+      "w": 22,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 8,
+            "col": 3
+          },
+          {
+            "row": 9,
+            "col": 3
+          },
+          {
+            "row": 10,
+            "col": 3
+          },
+          {
+            "row": 11,
+            "col": 3
+          },
+          {
+            "row": 12,
+            "col": 3
+          },
+          {
+            "row": 13,
+            "col": 3
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait4.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "tavern",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Hood",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 19,
+      "y": 22,
+      "w": 25,
+      "h": 42
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 8,
+            "col": 4
+          },
+          {
+            "row": 9,
+            "col": 4
+          },
+          {
+            "row": 10,
+            "col": 4
+          },
+          {
+            "row": 11,
+            "col": 4
+          },
+          {
+            "row": 12,
+            "col": 4
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait5.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Knight Heavy Armor",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 16,
+      "w": 39,
+      "h": 48
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 8,
+            "col": 5
+          },
+          {
+            "row": 9,
+            "col": 5
+          },
+          {
+            "row": 10,
+            "col": 5
+          },
+          {
+            "row": 11,
+            "col": 5
+          },
+          {
+            "row": 12,
+            "col": 5
+          },
+          {
+            "row": 13,
+            "col": 5
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait6.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "military",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Vampire",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 8,
+      "y": 9,
+      "w": 35,
+      "h": 55
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 8,
+            "col": 6
+          },
+          {
+            "row": 9,
+            "col": 6
+          },
+          {
+            "row": 10,
+            "col": 6
+          },
+          {
+            "row": 11,
+            "col": 6
+          },
+          {
+            "row": 12,
+            "col": 6
+          },
+          {
+            "row": 13,
+            "col": 6
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait7.png",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "undead",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Oriental Traveller",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 21,
+      "y": 19,
+      "w": 26,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 8,
+            "col": 7
+          },
+          {
+            "row": 9,
+            "col": 7
+          },
+          {
+            "row": 10,
+            "col": 7
+          },
+          {
+            "row": 11,
+            "col": 7
+          },
+          {
+            "row": 12,
+            "col": 7
+          },
+          {
+            "row": 13,
+            "col": 7
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait8.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "oriental",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Succubus",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 128,
+      "h": 64
+    },
+    "crop": {
+      "x": 18,
+      "y": 1,
+      "w": 89,
+      "h": 63
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 8,
+            "col": 4
+          },
+          {
+            "row": 9,
+            "col": 4
+          },
+          {
+            "row": 10,
+            "col": 4
+          },
+          {
+            "row": 11,
+            "col": 4
+          },
+          {
+            "row": 12,
+            "col": 4
+          },
+          {
+            "row": 13,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait9.png",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "hellish"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Goddess",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 0,
+      "y": 6,
+      "w": 64,
+      "h": 56
+    },
+    "animations": [
+      {
+        "key": "float",
+        "label": "Float",
+        "cells": [
+          {
+            "row": 6,
+            "col": 10
+          },
+          {
+            "row": 7,
+            "col": 10
+          },
+          {
+            "row": 8,
+            "col": 10
+          },
+          {
+            "row": 9,
+            "col": 10
+          },
+          {
+            "row": 10,
+            "col": 10
+          },
+          {
+            "row": 11,
+            "col": 10
+          },
+          {
+            "row": 12,
+            "col": 10
+          },
+          {
+            "row": 13,
+            "col": 10
+          }
+        ],
+        "tags": [
+          "flying"
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait10.png",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "flying",
+      "portrait",
+      "move"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art characters.png",
+    "base": "Female Maid",
+    "variant": null,
+    "width": 768,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 25,
+      "y": 20,
+      "w": 17,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 11
+          },
+          {
+            "row": 2,
+            "col": 11
+          },
+          {
+            "row": 3,
+            "col": 11
+          },
+          {
+            "row": 4,
+            "col": 11
+          },
+          {
+            "row": 5,
+            "col": 11
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 6,
+            "col": 11
+          },
+          {
+            "row": 7,
+            "col": 11
+          },
+          {
+            "row": 8,
+            "col": 11
+          },
+          {
+            "row": 9,
+            "col": 11
+          },
+          {
+            "row": 10,
+            "col": 11
+          },
+          {
+            "row": 11,
+            "col": 11
+          },
+          {
+            "row": 12,
+            "col": 11
+          },
+          {
+            "row": 13,
+            "col": 11
+          }
+        ]
+      }
+    ],
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait11.png",
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy bright green sheet.png",
     "base": "Goblin",
     "variant": "Bright Green",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x69.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x69.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -24513,6 +24881,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -24521,10 +24890,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy brown sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy brown sheet.png",
     "base": "Goblin",
     "variant": "Brown",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x67.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x67.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -24822,6 +25191,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -24830,10 +25200,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy dark green sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy dark green sheet.png",
     "base": "Goblin",
     "variant": "Dark Green",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x66.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x66.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -25131,6 +25501,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -25139,10 +25510,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy green sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy green sheet.png",
     "base": "Goblin",
     "variant": "Green",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x64.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -25440,6 +25811,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -25448,10 +25820,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy lime sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy lime sheet.png",
     "base": "Goblin",
     "variant": "Lime",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x65.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x65.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -25749,6 +26121,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -25757,10 +26130,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Goblin enemy red sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Goblin enemy red sheet.png",
     "base": "Goblin",
     "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Goblin sheet/Portrait 64x68.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goblin sheet/Portrait 64x68.png",
     "width": 504,
     "height": 640,
     "frame": {
@@ -26058,6 +26431,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -26066,3373 +26440,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/skeleton full white.png",
-    "base": "Skeleton",
-    "variant": "Full White",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
-    "portraitCell": {
-      "row": 0,
-      "col": 2
-    },
-    "portraitFrame": {
-      "w": 64,
-      "h": 64
-    },
-    "width": 640,
-    "height": 448,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 7,
-      "y": 18,
-      "w": 48,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkarmstretched",
-        "label": "Walk Arm Stretched",
-        "cells": [
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 1,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walkalt",
-        "label": "Walk Alt",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "glow",
-        "label": "Glow",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "resurrect",
-        "label": "Resurrect",
-        "cells": [
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#eeeeee",
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/skeleton ghost.png",
-    "base": "Skeleton",
-    "variant": "Ghost",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
-    "portraitCell": {
-      "row": 1,
-      "col": 2
-    },
-    "portraitFrame": {
-      "w": 64,
-      "h": 64
-    },
-    "width": 640,
-    "height": 448,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 7,
-      "y": 18,
-      "w": 48,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkarmstretched",
-        "label": "Walk Arm Stretched",
-        "cells": [
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 1,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walkalt",
-        "label": "Walk Alt",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "glow",
-        "label": "Glow",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "resurrect",
-        "label": "Resurrect",
-        "cells": [
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8fb8e0",
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/skeleton gold.png",
-    "base": "Skeleton",
-    "variant": "Gold",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
-    "portraitCell": {
-      "row": 1,
-      "col": 1
-    },
-    "portraitFrame": {
-      "w": 64,
-      "h": 64
-    },
-    "width": 640,
-    "height": 448,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 7,
-      "y": 18,
-      "w": 48,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkarmstretched",
-        "label": "Walk Arm Stretched",
-        "cells": [
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 1,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walkalt",
-        "label": "Walk Alt",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "glow",
-        "label": "Glow",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "resurrect",
-        "label": "Resurrect",
-        "cells": [
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/skeleton red.png",
-    "base": "Skeleton",
-    "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
-    "portraitCell": {
-      "row": 1,
-      "col": 0
-    },
-    "portraitFrame": {
-      "w": 64,
-      "h": 64
-    },
-    "width": 640,
-    "height": 448,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 7,
-      "y": 18,
-      "w": 48,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkarmstretched",
-        "label": "Walk Arm Stretched",
-        "cells": [
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 1,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walkalt",
-        "label": "Walk Alt",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "glow",
-        "label": "Glow",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "resurrect",
-        "label": "Resurrect",
-        "cells": [
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/skeleton sheet.png",
-    "base": "Skeleton",
-    "variant": "Grey",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
-    "portraitCell": {
-      "row": 0,
-      "col": 0
-    },
-    "portraitFrame": {
-      "w": 64,
-      "h": 64
-    },
-    "width": 640,
-    "height": 448,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 7,
-      "y": 18,
-      "w": 48,
-      "h": 46
-    },
-    "animations": [
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          },
-          {
-            "row": 0,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkarmstretched",
-        "label": "Walk Arm Stretched",
-        "cells": [
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          },
-          {
-            "row": 1,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "walkalt",
-        "label": "Walk Alt",
-        "cells": [
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          }
-        ]
-      },
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          },
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "glow",
-        "label": "Glow",
-        "cells": [
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          },
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 4,
-            "col": 0
-          },
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          },
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "resurrect",
-        "label": "Resurrect",
-        "cells": [
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          },
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/GandalfHardcore Zombie v1 sheet.png",
-    "base": "Zombie",
-    "variant": "Brown",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/64x64 Zombie Portrait.png",
-    "width": 640,
-    "height": 512,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 21,
-      "w": 53,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          }
-        ]
-      },
-      {
-        "key": "eating",
-        "label": "Eating",
-        "cells": [
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkattack",
-        "label": "Walk Attack",
-        "cells": [
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          },
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "takingdamage",
-        "label": "Taking Damage",
-        "cells": [
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          },
-          {
-            "row": 4,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "crawlidle",
-        "label": "Crawl Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "crawl",
-        "label": "Crawl",
-        "cells": [
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "crawleating",
-        "label": "Crawl Eating",
-        "cells": [
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          },
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          }
-        ]
-      },
-      {
-        "key": "crawldeath",
-        "label": "Crawl Death",
-        "cells": [
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/GandalfHardcore Zombie v2 sheet.png",
-    "base": "Zombie",
-    "variant": "Dark Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/64x64 Zombie Portrait.png",
-    "width": 640,
-    "height": 512,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 21,
-      "w": 53,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          }
-        ]
-      },
-      {
-        "key": "eating",
-        "label": "Eating",
-        "cells": [
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkattack",
-        "label": "Walk Attack",
-        "cells": [
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          },
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "takingdamage",
-        "label": "Taking Damage",
-        "cells": [
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          },
-          {
-            "row": 4,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "crawlidle",
-        "label": "Crawl Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "crawl",
-        "label": "Crawl",
-        "cells": [
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "crawleating",
-        "label": "Crawl Eating",
-        "cells": [
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          },
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          }
-        ]
-      },
-      {
-        "key": "crawldeath",
-        "label": "Crawl Death",
-        "cells": [
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          }
-        ]
-      }
-    ],
-    "swatchColor": "#8b0000",
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/GandalfHardcore Zombie v3 sheet.png",
-    "base": "Zombie",
-    "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/64x64 Zombie Portrait.png",
-    "width": 640,
-    "height": 512,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 21,
-      "w": 53,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          }
-        ]
-      },
-      {
-        "key": "eating",
-        "label": "Eating",
-        "cells": [
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkattack",
-        "label": "Walk Attack",
-        "cells": [
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          },
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "takingdamage",
-        "label": "Taking Damage",
-        "cells": [
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          },
-          {
-            "row": 4,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "crawlidle",
-        "label": "Crawl Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "crawl",
-        "label": "Crawl",
-        "cells": [
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "crawleating",
-        "label": "Crawl Eating",
-        "cells": [
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          },
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          }
-        ]
-      },
-      {
-        "key": "crawldeath",
-        "label": "Crawl Death",
-        "cells": [
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/GandalfHardcore Zombie v4 sheet.png",
-    "base": "Zombie",
-    "variant": "Yellow",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/GandalfHardcore Zombies/64x64 Zombie Portrait.png",
-    "width": 640,
-    "height": 512,
-    "frame": {
-      "w": 64,
-      "h": 64
-    },
-    "crop": {
-      "x": 11,
-      "y": 21,
-      "w": 53,
-      "h": 43
-    },
-    "animations": [
-      {
-        "key": "idle",
-        "label": "Idle",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          },
-          {
-            "row": 0,
-            "col": 5
-          },
-          {
-            "row": 0,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "walk",
-        "label": "Walk",
-        "cells": [
-          {
-            "row": 0,
-            "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "attack",
-        "label": "Attack",
-        "cells": [
-          {
-            "row": 1,
-            "col": 5
-          },
-          {
-            "row": 1,
-            "col": 6
-          },
-          {
-            "row": 1,
-            "col": 7
-          },
-          {
-            "row": 1,
-            "col": 8
-          },
-          {
-            "row": 1,
-            "col": 9
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          }
-        ]
-      },
-      {
-        "key": "eating",
-        "label": "Eating",
-        "cells": [
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "walkattack",
-        "label": "Walk Attack",
-        "cells": [
-          {
-            "row": 2,
-            "col": 8
-          },
-          {
-            "row": 2,
-            "col": 9
-          },
-          {
-            "row": 3,
-            "col": 0
-          },
-          {
-            "row": 3,
-            "col": 1
-          },
-          {
-            "row": 3,
-            "col": 2
-          },
-          {
-            "row": 3,
-            "col": 3
-          },
-          {
-            "row": 3,
-            "col": 4
-          },
-          {
-            "row": 3,
-            "col": 5
-          }
-        ]
-      },
-      {
-        "key": "takingdamage",
-        "label": "Taking Damage",
-        "cells": [
-          {
-            "row": 3,
-            "col": 6
-          },
-          {
-            "row": 3,
-            "col": 7
-          },
-          {
-            "row": 3,
-            "col": 8
-          },
-          {
-            "row": 3,
-            "col": 9
-          },
-          {
-            "row": 4,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
-            "row": 4,
-            "col": 1
-          },
-          {
-            "row": 4,
-            "col": 2
-          },
-          {
-            "row": 4,
-            "col": 3
-          },
-          {
-            "row": 4,
-            "col": 4
-          },
-          {
-            "row": 4,
-            "col": 5
-          },
-          {
-            "row": 4,
-            "col": 6
-          },
-          {
-            "row": 4,
-            "col": 7
-          },
-          {
-            "row": 4,
-            "col": 8
-          },
-          {
-            "row": 4,
-            "col": 9
-          },
-          {
-            "row": 5,
-            "col": 0
-          },
-          {
-            "row": 5,
-            "col": 1
-          },
-          {
-            "row": 5,
-            "col": 2
-          },
-          {
-            "row": 5,
-            "col": 3
-          },
-          {
-            "row": 5,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "crawlidle",
-        "label": "Crawl Idle",
-        "cells": [
-          {
-            "row": 5,
-            "col": 5
-          },
-          {
-            "row": 5,
-            "col": 6
-          },
-          {
-            "row": 5,
-            "col": 7
-          },
-          {
-            "row": 5,
-            "col": 8
-          },
-          {
-            "row": 5,
-            "col": 9
-          },
-          {
-            "row": 6,
-            "col": 0
-          }
-        ]
-      },
-      {
-        "key": "crawl",
-        "label": "Crawl",
-        "cells": [
-          {
-            "row": 6,
-            "col": 1
-          },
-          {
-            "row": 6,
-            "col": 2
-          },
-          {
-            "row": 6,
-            "col": 3
-          },
-          {
-            "row": 6,
-            "col": 4
-          },
-          {
-            "row": 6,
-            "col": 5
-          },
-          {
-            "row": 6,
-            "col": 6
-          }
-        ]
-      },
-      {
-        "key": "crawleating",
-        "label": "Crawl Eating",
-        "cells": [
-          {
-            "row": 6,
-            "col": 7
-          },
-          {
-            "row": 6,
-            "col": 8
-          },
-          {
-            "row": 6,
-            "col": 9
-          },
-          {
-            "row": 7,
-            "col": 0
-          },
-          {
-            "row": 7,
-            "col": 1
-          }
-        ]
-      },
-      {
-        "key": "crawldeath",
-        "label": "Crawl Death",
-        "cells": [
-          {
-            "row": 7,
-            "col": 2
-          },
-          {
-            "row": 7,
-            "col": 3
-          },
-          {
-            "row": 7,
-            "col": 4
-          },
-          {
-            "row": 7,
-            "col": 5
-          },
-          {
-            "row": 7,
-            "col": 6
-          },
-          {
-            "row": 7,
-            "col": 7
-          },
-          {
-            "row": 7,
-            "col": 8
-          }
-        ]
-      }
-    ],
-    "being": "humanoid",
-    "tags": [
-      "portrait",
-      "move",
-      "attack",
-      "undead"
-    ]
-  },
-  {
-    "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goddess/GandalfHardcore Goddess NPC.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Goddess/Goddess NPC.png",
     "base": "Goddess NPC",
     "variant": null,
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goddess/GandalfHardcore Goddess Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Goddess/Goddess Portrait 64x64.png",
     "width": 832,
     "height": 64,
     "frame": {
@@ -29512,6 +26523,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move"
@@ -29819,6 +26831,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -30128,6 +27141,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -30437,6 +27451,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -30746,6 +27761,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -31055,6 +28071,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -31364,6 +28381,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -31673,6 +28691,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -31982,6 +29001,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -31991,10 +29011,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 5/GandalfHardcore maid bathing.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 5/maid bathing.png",
     "base": "maid bathing",
     "variant": null,
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 5/Maid Portrait v2 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 5/Maid Portrait v2 64x64.png",
     "width": 640,
     "height": 128,
     "frame": {
@@ -32082,6 +29102,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -32175,6 +29196,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait1.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32267,6 +29289,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait2.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32358,6 +29381,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait3.png",
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32450,6 +29474,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait4.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32542,6 +29567,7 @@ export default [
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait5.png",
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32634,6 +29660,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait6.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32726,6 +29753,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait7.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32818,6 +29846,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait8.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -32909,6 +29938,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait9.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -33001,6 +30031,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait10.png",
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "townsfolk"
@@ -33091,6 +30122,7 @@ export default [
     ],
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Male Pixel Art characters/Male Pixel Art portrait11.png",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -33638,6 +30670,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -34186,6 +31219,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -34734,6 +31768,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -35282,6 +32317,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -35830,6 +32866,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -36378,6 +33415,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -36926,6 +33964,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -37474,6 +34513,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -37484,7 +34524,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Santa Claus/GandalfHardcore Santa Claus.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Santa Claus/Santa Claus.png",
     "base": "Santa Claus",
     "variant": null,
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Santa Claus/Santa Claus Portrait 64x64.png",
@@ -37567,6 +34607,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -37575,8 +34616,1735 @@ export default [
     ]
   },
   {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/skeleton full white.png",
+    "base": "Skeleton",
+    "variant": "Full White",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
+    "portraitCell": {
+      "row": 0,
+      "col": 2
+    },
+    "portraitFrame": {
+      "w": 64,
+      "h": 64
+    },
+    "width": 640,
+    "height": 448,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 18,
+      "w": 48,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkarmstretched",
+        "label": "Walk Arm Stretched",
+        "cells": [
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walkalt",
+        "label": "Walk Alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "glow",
+        "label": "Glow",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "resurrect",
+        "label": "Resurrect",
+        "cells": [
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#eeeeee",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/skeleton ghost.png",
+    "base": "Skeleton",
+    "variant": "Ghost",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
+    "portraitCell": {
+      "row": 1,
+      "col": 2
+    },
+    "portraitFrame": {
+      "w": 64,
+      "h": 64
+    },
+    "width": 640,
+    "height": 448,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 18,
+      "w": 48,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkarmstretched",
+        "label": "Walk Arm Stretched",
+        "cells": [
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walkalt",
+        "label": "Walk Alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "glow",
+        "label": "Glow",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "resurrect",
+        "label": "Resurrect",
+        "cells": [
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8fb8e0",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/skeleton gold.png",
+    "base": "Skeleton",
+    "variant": "Gold",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
+    "portraitCell": {
+      "row": 1,
+      "col": 1
+    },
+    "portraitFrame": {
+      "w": 64,
+      "h": 64
+    },
+    "width": 640,
+    "height": 448,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 18,
+      "w": 48,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkarmstretched",
+        "label": "Walk Arm Stretched",
+        "cells": [
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walkalt",
+        "label": "Walk Alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "glow",
+        "label": "Glow",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "resurrect",
+        "label": "Resurrect",
+        "cells": [
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/skeleton red.png",
+    "base": "Skeleton",
+    "variant": "Red",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
+    "portraitCell": {
+      "row": 1,
+      "col": 0
+    },
+    "portraitFrame": {
+      "w": 64,
+      "h": 64
+    },
+    "width": 640,
+    "height": 448,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 18,
+      "w": 48,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkarmstretched",
+        "label": "Walk Arm Stretched",
+        "cells": [
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walkalt",
+        "label": "Walk Alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "glow",
+        "label": "Glow",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "resurrect",
+        "label": "Resurrect",
+        "cells": [
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/skeleton sheet.png",
+    "base": "Skeleton",
+    "variant": "Grey",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Skeleton Enemy Sheet/Skeleton Portraits 64x64.png",
+    "portraitCell": {
+      "row": 0,
+      "col": 0
+    },
+    "portraitFrame": {
+      "w": 64,
+      "h": 64
+    },
+    "width": 640,
+    "height": 448,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 18,
+      "w": 48,
+      "h": 46
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkarmstretched",
+        "label": "Walk Arm Stretched",
+        "cells": [
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "walkalt",
+        "label": "Walk Alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          },
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "glow",
+        "label": "Glow",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 4,
+            "col": 0
+          },
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          },
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "resurrect",
+        "label": "Resurrect",
+        "cells": [
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Eisheth/GandalfHardcore Eisheth Bonus.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Eisheth/Eisheth Bonus.png",
     "base": "Eisheth",
     "variant": "Normal",
     "width": 576,
@@ -37700,6 +36468,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -37711,7 +36480,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Eisheth/GandalfHardcore Eisheth no bra.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Eisheth/Eisheth no bra.png",
     "base": "Eisheth",
     "variant": "Bare",
     "width": 576,
@@ -37835,6 +36604,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -37847,10 +36617,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilim/GandalfHardcore Bonus Succubus Lilim no bra.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilim/Bonus Succubus Lilim no bra.png",
     "base": "Lilim",
     "variant": "Bare",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilim/Lilim Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilim/Lilim Portrait 64x64.png",
     "width": 640,
     "height": 256,
     "frame": {
@@ -38050,6 +36820,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38062,10 +36833,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilim/GandalfHardcore Bonus Succubus Lilim.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilim/Bonus Succubus Lilim.png",
     "base": "Lilim",
     "variant": "Normal",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilim/Lilim Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilim/Lilim Portrait 64x64.png",
     "width": 640,
     "height": 256,
     "frame": {
@@ -38265,6 +37036,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -38276,7 +37048,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilith/GandalfHardcore Lilith Bonus.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilith/Lilith Bonus.png",
     "base": "Lilith",
     "variant": "Normal",
     "width": 640,
@@ -38340,6 +37112,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -38349,7 +37122,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Lilith/GandalfHardcore Lilith no bra.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Lilith/Lilith no bra.png",
     "base": "Lilith",
     "variant": "Bare",
     "width": 640,
@@ -38413,6 +37186,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38423,10 +37197,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Morgana/GandalfHardcore Morgana no bra.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Morgana/Morgana no bra.png",
     "base": "Morgana",
     "variant": "Bare",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Morgana/Morgana portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Morgana/Morgana portrait 64x64.png",
     "width": 768,
     "height": 80,
     "frame": {
@@ -38499,6 +37273,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -38511,10 +37286,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Morgana/GandalfHardcore Morgana.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Morgana/Morgana.png",
     "base": "Morgana",
     "variant": "Normal",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Morgana/Morgana portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Morgana/Morgana portrait 64x64.png",
     "width": 768,
     "height": 80,
     "frame": {
@@ -38587,6 +37362,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -38598,7 +37374,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Mother/GandalfHardcore Succubus Mother bare no wings.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Mother/Succubus Mother bare no wings.png",
     "base": "Succubus Mother",
     "variant": "Bare (No Wings)",
     "width": 640,
@@ -38662,6 +37438,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38671,7 +37448,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Mother/GandalfHardcore Succubus Mother bare.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Mother/Succubus Mother bare.png",
     "base": "Succubus Mother",
     "variant": "Bare",
     "width": 144,
@@ -38735,6 +37512,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38744,7 +37522,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Mother/GandalfHardcore Succubus Mother bare2 no wings.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Mother/Succubus Mother bare2 no wings.png",
     "base": "Succubus Mother",
     "variant": "Bare 2 (No Wings)",
     "width": 640,
@@ -38808,6 +37586,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38817,7 +37596,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Mother/GandalfHardcore Succubus Mother bare2.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Mother/Succubus Mother bare2.png",
     "base": "Succubus Mother",
     "variant": "Bare 2",
     "width": 144,
@@ -38881,6 +37660,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -38890,7 +37670,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Mother/GandalfHardcore Succubus Mother.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Mother/Succubus Mother.png",
     "base": "Succubus Mother",
     "variant": "Plain",
     "width": 144,
@@ -38954,6 +37734,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -38962,7 +37743,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Pair/GandalfHardcore Bonus Succubus pair no bra.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Pair/Bonus Succubus pair no bra.png",
     "base": "Pair",
     "variant": "Bare",
     "width": 640,
@@ -39124,6 +37905,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "bare",
@@ -39136,7 +37918,7 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Bonus Succubus Pair/GandalfHardcore Bonus Succubus pair.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Bonus Succubus Pair/Bonus Succubus pair.png",
     "base": "Pair",
     "variant": "Normal",
     "width": 640,
@@ -39298,6 +38080,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "mature",
       "portrait",
@@ -39309,10 +38092,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Pale Succubus/GandalfHardcore Succubus No Bra sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Pale Succubus/Succubus No Bra sheet.png",
     "base": "Succubus",
     "variant": "Pale (Bare)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Pale Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Pale Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -40510,6 +39293,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -40521,10 +39305,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Pale Succubus/GandalfHardcore Succubus.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Pale Succubus/Succubus.png",
     "base": "Succubus",
     "variant": "Pale",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Pale Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Pale Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -41722,6 +40506,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -41732,10 +40517,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus Human Form no Brasheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Human Form no Brasheet.png",
     "base": "Succubus",
     "variant": "Human Form (Bare)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2232,
     "frame": {
@@ -42685,6 +41470,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -42696,10 +41482,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus Human Form sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Human Form sheet.png",
     "base": "Succubus",
     "variant": "Human Form",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2232,
     "frame": {
@@ -43649,6 +42435,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -43659,10 +42446,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus No Bra sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus No Bra sheet.png",
     "base": "Succubus",
     "variant": "Plain (Bare)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -44860,6 +43647,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -44871,10 +43659,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus purple No Bra sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus purple No Bra sheet.png",
     "base": "Succubus",
     "variant": "Purple (Bare)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -46072,6 +44860,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -46083,10 +44872,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus purple.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus purple.png",
     "base": "Succubus",
     "variant": "Purple",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -47284,6 +46073,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -47294,10 +46084,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus red No Bra sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus red No Bra sheet.png",
     "base": "Succubus",
     "variant": "Red (Bare)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -48495,6 +47285,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -48506,10 +47297,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus red.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus red.png",
     "base": "Succubus",
     "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -49707,6 +48498,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -49717,10 +48509,10 @@ export default [
   },
   {
     "category": "mature",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/GandalfHardcore Succubus.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus.png",
     "base": "Succubus",
     "variant": "Plain",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/GandalfHardcore Succubus/Succubus Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Succubus/Succubus/Succubus Portrait 64x64.png",
     "width": 1248,
     "height": 2808,
     "frame": {
@@ -50918,6 +49710,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "mature",
@@ -50928,7 +49721,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Vampire Lady/GandalfHardcore Vampire Lady v2.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Vampire Lady/Vampire Lady v2.png",
     "base": "Vampire Lady v2",
     "variant": null,
     "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Vampire Lady/Vampire Lady portrait 64x64.png",
@@ -51011,6 +49804,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -51538,6 +50332,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -52066,6 +50861,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -52594,6 +51390,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -53122,6 +51919,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -53650,6 +52448,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -54178,6 +52977,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -54706,6 +53506,7 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -55234,12 +54035,1658 @@ export default [
     },
     "sidePortraitAnimCols": 6,
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
       "magical",
       "ranged",
       "townsfolk"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/Zombie v1 sheet.png",
+    "base": "Zombie",
+    "variant": "Brown",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/64x64 Zombie Portrait.png",
+    "width": 640,
+    "height": 512,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 21,
+      "w": 53,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          }
+        ]
+      },
+      {
+        "key": "eating",
+        "label": "Eating",
+        "cells": [
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkattack",
+        "label": "Walk Attack",
+        "cells": [
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "takingdamage",
+        "label": "Taking Damage",
+        "cells": [
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          },
+          {
+            "row": 4,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "crawlidle",
+        "label": "Crawl Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "crawl",
+        "label": "Crawl",
+        "cells": [
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "crawleating",
+        "label": "Crawl Eating",
+        "cells": [
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          }
+        ]
+      },
+      {
+        "key": "crawldeath",
+        "label": "Crawl Death",
+        "cells": [
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/Zombie v2 sheet.png",
+    "base": "Zombie",
+    "variant": "Dark Red",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/64x64 Zombie Portrait.png",
+    "width": 640,
+    "height": 512,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 21,
+      "w": 53,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          }
+        ]
+      },
+      {
+        "key": "eating",
+        "label": "Eating",
+        "cells": [
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkattack",
+        "label": "Walk Attack",
+        "cells": [
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "takingdamage",
+        "label": "Taking Damage",
+        "cells": [
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          },
+          {
+            "row": 4,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "crawlidle",
+        "label": "Crawl Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "crawl",
+        "label": "Crawl",
+        "cells": [
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "crawleating",
+        "label": "Crawl Eating",
+        "cells": [
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          }
+        ]
+      },
+      {
+        "key": "crawldeath",
+        "label": "Crawl Death",
+        "cells": [
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          }
+        ]
+      }
+    ],
+    "swatchColor": "#8b0000",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/Zombie v3 sheet.png",
+    "base": "Zombie",
+    "variant": "Red",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/64x64 Zombie Portrait.png",
+    "width": 640,
+    "height": 512,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 21,
+      "w": 53,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          }
+        ]
+      },
+      {
+        "key": "eating",
+        "label": "Eating",
+        "cells": [
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkattack",
+        "label": "Walk Attack",
+        "cells": [
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "takingdamage",
+        "label": "Taking Damage",
+        "cells": [
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          },
+          {
+            "row": 4,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "crawlidle",
+        "label": "Crawl Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "crawl",
+        "label": "Crawl",
+        "cells": [
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "crawleating",
+        "label": "Crawl Eating",
+        "cells": [
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          }
+        ]
+      },
+      {
+        "key": "crawldeath",
+        "label": "Crawl Death",
+        "cells": [
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/Zombie v4 sheet.png",
+    "base": "Zombie",
+    "variant": "Yellow",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Zombies/64x64 Zombie Portrait.png",
+    "width": 640,
+    "height": 512,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 11,
+      "y": 21,
+      "w": 53,
+      "h": 43
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "attack",
+        "label": "Attack",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          }
+        ]
+      },
+      {
+        "key": "eating",
+        "label": "Eating",
+        "cells": [
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "walkattack",
+        "label": "Walk Attack",
+        "cells": [
+          {
+            "row": 2,
+            "col": 8
+          },
+          {
+            "row": 2,
+            "col": 9
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "takingdamage",
+        "label": "Taking Damage",
+        "cells": [
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          },
+          {
+            "row": 3,
+            "col": 8
+          },
+          {
+            "row": 3,
+            "col": 9
+          },
+          {
+            "row": 4,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 4,
+            "col": 1
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 3
+          },
+          {
+            "row": 4,
+            "col": 4
+          },
+          {
+            "row": 4,
+            "col": 5
+          },
+          {
+            "row": 4,
+            "col": 6
+          },
+          {
+            "row": 4,
+            "col": 7
+          },
+          {
+            "row": 4,
+            "col": 8
+          },
+          {
+            "row": 4,
+            "col": 9
+          },
+          {
+            "row": 5,
+            "col": 0
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 3
+          },
+          {
+            "row": 5,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "crawlidle",
+        "label": "Crawl Idle",
+        "cells": [
+          {
+            "row": 5,
+            "col": 5
+          },
+          {
+            "row": 5,
+            "col": 6
+          },
+          {
+            "row": 5,
+            "col": 7
+          },
+          {
+            "row": 5,
+            "col": 8
+          },
+          {
+            "row": 5,
+            "col": 9
+          },
+          {
+            "row": 6,
+            "col": 0
+          }
+        ]
+      },
+      {
+        "key": "crawl",
+        "label": "Crawl",
+        "cells": [
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 3
+          },
+          {
+            "row": 6,
+            "col": 4
+          },
+          {
+            "row": 6,
+            "col": 5
+          },
+          {
+            "row": 6,
+            "col": 6
+          }
+        ]
+      },
+      {
+        "key": "crawleating",
+        "label": "Crawl Eating",
+        "cells": [
+          {
+            "row": 6,
+            "col": 7
+          },
+          {
+            "row": 6,
+            "col": 8
+          },
+          {
+            "row": 6,
+            "col": 9
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          }
+        ]
+      },
+      {
+        "key": "crawldeath",
+        "label": "Crawl Death",
+        "cells": [
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 3
+          },
+          {
+            "row": 7,
+            "col": 4
+          },
+          {
+            "row": 7,
+            "col": 5
+          },
+          {
+            "row": 7,
+            "col": 6
+          },
+          {
+            "row": 7,
+            "col": 7
+          },
+          {
+            "row": 7,
+            "col": 8
+          }
+        ]
+      }
+    ],
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "attack",
+      "undead"
     ]
   },
   {
@@ -55352,6 +55799,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -55442,6 +55890,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "magical",
@@ -55532,6 +55981,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "worker",
@@ -55652,6 +56102,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "hellish"
@@ -55805,6 +56256,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -55960,6 +56412,7 @@ export default [
     ],
     "swatchColor": "#ff9800",
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -56114,6 +56567,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -56268,6 +56722,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "move",
@@ -56423,6 +56878,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -56577,6 +57033,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "bare",
       "move",
@@ -56644,6 +57101,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "hellish"
     ]
@@ -56708,6 +57166,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "hellish"
     ]
@@ -56860,6 +57319,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -57026,6 +57486,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -57180,6 +57641,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -57339,6 +57801,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -57500,6 +57963,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -57551,6 +58015,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -57600,6 +58065,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "water",
@@ -57649,6 +58115,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "water",
@@ -57698,6 +58165,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -57747,10 +58215,11 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
-      "flying",
-      "nature"
+      "nature",
+      "water"
     ]
   },
   {
@@ -57796,9 +58265,9 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
-      "flying",
       "nature"
     ]
   },
@@ -57845,6 +58314,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -57894,6 +58364,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -57943,6 +58414,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -57992,6 +58464,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "water",
@@ -58041,6 +58514,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -58090,6 +58564,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -58137,6 +58612,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -58186,6 +58662,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -58233,6 +58710,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -58281,7 +58759,8 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "animal",
+    "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58330,6 +58809,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "magical",
       "hostile"
@@ -58378,6 +58858,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58426,6 +58907,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58474,6 +58956,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58522,6 +59005,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58573,6 +59057,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "flying",
       "critter",
@@ -58583,8 +59068,8 @@ export default [
   {
     "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters/basic magical animations/glowing wisp/GlowingWisp.png",
-    "base": "Glowing Wisp",
-    "variant": null,
+    "base": "Wisp",
+    "variant": "Plain",
     "width": 64,
     "height": 16,
     "frame": {
@@ -58599,8 +59084,8 @@ export default [
     },
     "animations": [
       {
-        "key": "idle",
-        "label": "Idle",
+        "key": "float",
+        "label": "Float",
         "cells": [
           {
             "row": 0,
@@ -58625,7 +59110,8 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "animal",
+    "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "flying",
       "critter",
@@ -58676,6 +59162,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58724,6 +59211,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58772,6 +59260,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58823,6 +59312,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "flying",
       "critter",
@@ -58873,6 +59363,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58921,6 +59412,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -58969,6 +59461,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "magical"
@@ -59017,6 +59510,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59066,6 +59560,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59115,6 +59610,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59164,6 +59660,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -59211,6 +59708,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -59258,6 +59756,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -59305,6 +59804,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -59352,6 +59852,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59401,6 +59902,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59453,6 +59955,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "flying",
       "critter",
@@ -59503,6 +60006,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59552,6 +60056,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
@@ -59604,6 +60109,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "flying",
       "critter",
@@ -59654,6 +60160,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter"
     ]
@@ -59701,10 +60208,118 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "DeepDiveGameStudios",
     "tags": [
       "critter",
       "ground",
       "nature"
+    ]
+  },
+  {
+    "category": "critters",
+    "relPath": "../assets/ASSORTED/characters/animals/critters/Bat_Sprite_Sheet.png",
+    "base": "Bat",
+    "variant": null,
+    "width": 80,
+    "height": 72,
+    "frame": {
+      "w": 16,
+      "h": 24
+    },
+    "crop": {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 24
+    },
+    "animations": [
+      {
+        "key": "Idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "Idle 2",
+        "label": "Idle 2",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "Death",
+        "label": "Death",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
+    "tags": [
+      "flying",
+      "night",
+      "critter"
     ]
   },
   {
@@ -59840,6 +60455,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -59970,6 +60586,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "critter"
     ]
@@ -60095,6 +60712,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -60244,6 +60862,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -60561,6 +61180,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -60750,6 +61370,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -60867,6 +61488,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -61008,6 +61630,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -61514,10 +62137,9 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
-      "move",
-      "attack",
-      "critter"
+      "move"
     ]
   },
   {
@@ -61652,6 +62274,7 @@ export default [
     "sidePortraitAnimCols": 4,
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -61979,6 +62602,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -62182,6 +62806,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -62345,6 +62970,7 @@ export default [
     "portraitAnimCols": 5,
     "portraitOscillate": true,
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "critter",
       "ranged"
@@ -62529,6 +63155,7 @@ export default [
     "facing": "right",
     "portraitAnimCols": 5,
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -62823,6 +63450,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -62995,6 +63623,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -63131,6 +63760,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -63176,6 +63806,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -63318,6 +63949,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "critter",
@@ -63431,6 +64063,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "critter"
     ]
@@ -63540,6 +64173,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -63892,7 +64526,8 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "animal",
+    "being": "human",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "critter"
@@ -64242,7 +64877,8 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "animal",
+    "being": "human",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "critter"
@@ -64592,7 +65228,8 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "animal",
+    "being": "human",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "critter"
@@ -65043,6 +65680,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -65259,11 +65897,13 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
       "hellish",
-      "hostile"
+      "hostile",
+      "critter"
     ]
   },
   {
@@ -65459,6 +66099,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -65631,8 +66272,8 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
-      "flying",
       "move",
       "attack",
       "critter",
@@ -65877,6 +66518,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -66092,6 +66734,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -66467,6 +67110,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -66687,6 +67331,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -66917,8 +67562,8 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
-      "flying",
       "move",
       "attack",
       "critter",
@@ -67149,6 +67794,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -67267,6 +67913,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "move",
@@ -67321,36 +67968,37 @@ export default [
         ]
       },
       {
-        "key": "move",
-        "label": "Move",
-        "cells": [
-          {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 1,
-            "col": 4
-          }
-        ]
-      },
-      {
-        "key": "attack",
+        "key": "Attack",
         "label": "Attack",
         "cells": [
           {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "Spikes",
+        "label": "Spikes",
+        "cells": [
+          {
             "row": 2,
             "col": 0
           },
@@ -67362,11 +68010,12 @@ export default [
             "row": 2,
             "col": 2
           }
-        ]
+        ],
+        "removed": false
       },
       {
-        "key": "death",
-        "label": "Death",
+        "key": "Move",
+        "label": "Move",
         "cells": [
           {
             "row": 3,
@@ -67388,11 +68037,12 @@ export default [
             "row": 3,
             "col": 4
           }
-        ]
+        ],
+        "removed": false
       },
       {
-        "key": "row 4",
-        "label": "Row 4",
+        "key": "Death",
+        "label": "Death",
         "cells": [
           {
             "row": 4,
@@ -67402,14 +68052,14 @@ export default [
             "row": 4,
             "col": 1
           }
-        ]
+        ],
+        "removed": false
       }
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
-      "move",
-      "attack",
       "critter",
       "ground",
       "nature"
@@ -67550,6 +68200,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "flying",
       "critter",
@@ -67739,6 +68390,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -67950,6 +68602,7 @@ export default [
     ],
     "facing": "right",
     "being": "humanoid",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -68006,78 +68659,80 @@ export default [
         ]
       },
       {
-        "key": "move",
+        "key": "Idle alt",
+        "label": "Idle alt",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "Move",
         "label": "Move",
         "cells": [
           {
-            "row": 1,
+            "row": 2,
             "col": 0
           },
           {
-            "row": 1,
+            "row": 2,
             "col": 1
           },
           {
-            "row": 1,
+            "row": 2,
             "col": 2
           },
           {
-            "row": 1,
+            "row": 2,
             "col": 3
           },
           {
-            "row": 1,
+            "row": 2,
             "col": 4
           },
           {
-            "row": 1,
+            "row": 2,
             "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
           }
-        ]
+        ],
+        "removed": false
       },
       {
-        "key": "attack",
+        "key": "Attack",
         "label": "Attack",
         "cells": [
           {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 4
-          },
-          {
-            "row": 2,
-            "col": 5
-          },
-          {
-            "row": 2,
-            "col": 6
-          },
-          {
-            "row": 2,
-            "col": 7
-          }
-        ]
-      },
-      {
-        "key": "death",
-        "label": "Death",
-        "cells": [
-          {
             "row": 3,
             "col": 0
           },
@@ -68109,7 +68764,8 @@ export default [
             "row": 3,
             "col": 7
           }
-        ]
+        ],
+        "removed": false
       },
       {
         "key": "row 4",
@@ -68216,9 +68872,8 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
-      "move",
-      "attack",
       "critter",
       "ground",
       "nature"
@@ -68255,6 +68910,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "critter"
     ]
@@ -68720,6 +69376,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -68927,6 +69584,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -69122,6 +69780,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -69234,6 +69893,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "critter",
       "townsfolk"
@@ -69402,6 +70062,7 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -69439,6 +70100,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69476,6 +70138,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69513,6 +70176,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69550,6 +70214,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69587,6 +70252,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69624,6 +70290,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69661,6 +70328,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69698,6 +70366,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69735,6 +70404,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69772,6 +70442,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -69809,6 +70480,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Estrella the Mustang",
     "tags": [
       "critter",
       "bird",
@@ -70036,6 +70708,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -70263,6 +70936,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "Elthen's Pixel Art Shop",
     "tags": [
       "move",
       "attack",
@@ -70335,6 +71009,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "nature"
@@ -70407,6 +71082,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70477,6 +71153,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70549,9 +71226,11 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
-      "nature"
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -70626,6 +71305,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "nature"
@@ -70699,6 +71379,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "nature"
@@ -70742,11 +71423,13 @@ export default [
     ],
     "swatchColor": "#c6e02c",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
       "lightsource",
-      "nature"
+      "nature",
+      "night"
     ]
   },
   {
@@ -70786,6 +71469,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70829,6 +71513,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70872,6 +71557,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70915,10 +71601,12 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
-      "nature"
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -70958,6 +71646,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -70976,14 +71665,74 @@ export default [
       "h": 32
     },
     "crop": {
-      "x": 7,
-      "y": 14,
-      "w": 21,
-      "h": 18
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32
     },
     "animations": [
       {
-        "key": "idle",
+        "key": "Eat",
+        "label": "Eat",
+        "cells": [
+          {
+            "row": 0,
+            "col": 14
+          },
+          {
+            "row": 0,
+            "col": 15
+          },
+          {
+            "row": 0,
+            "col": 16
+          },
+          {
+            "row": 0,
+            "col": 17
+          }
+        ]
+      },
+      {
+        "key": "Walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          }
+        ]
+      },
+      {
+        "key": "Idle",
         "label": "Idle",
         "cells": [
           {
@@ -71017,52 +71766,13 @@ export default [
           {
             "row": 0,
             "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 0,
-            "col": 10
-          },
-          {
-            "row": 0,
-            "col": 11
-          },
-          {
-            "row": 0,
-            "col": 12
-          },
-          {
-            "row": 0,
-            "col": 13
-          },
-          {
-            "row": 0,
-            "col": 14
-          },
-          {
-            "row": 0,
-            "col": 15
-          },
-          {
-            "row": 0,
-            "col": 16
-          },
-          {
-            "row": 0,
-            "col": 17
           }
         ]
       }
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -71079,14 +71789,74 @@ export default [
       "h": 32
     },
     "crop": {
-      "x": 7,
-      "y": 14,
-      "w": 21,
-      "h": 18
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32
     },
     "animations": [
       {
-        "key": "idle",
+        "key": "Eat",
+        "label": "Eat",
+        "cells": [
+          {
+            "row": 0,
+            "col": 14
+          },
+          {
+            "row": 0,
+            "col": 15
+          },
+          {
+            "row": 0,
+            "col": 16
+          },
+          {
+            "row": 0,
+            "col": 17
+          }
+        ]
+      },
+      {
+        "key": "Walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          }
+        ]
+      },
+      {
+        "key": "Idle",
         "label": "Idle",
         "cells": [
           {
@@ -71120,52 +71890,13 @@ export default [
           {
             "row": 0,
             "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 0,
-            "col": 10
-          },
-          {
-            "row": 0,
-            "col": 11
-          },
-          {
-            "row": 0,
-            "col": 12
-          },
-          {
-            "row": 0,
-            "col": 13
-          },
-          {
-            "row": 0,
-            "col": 14
-          },
-          {
-            "row": 0,
-            "col": 15
-          },
-          {
-            "row": 0,
-            "col": 16
-          },
-          {
-            "row": 0,
-            "col": 17
           }
         ]
       }
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -71182,14 +71913,74 @@ export default [
       "h": 32
     },
     "crop": {
-      "x": 7,
-      "y": 14,
-      "w": 21,
-      "h": 18
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32
     },
     "animations": [
       {
-        "key": "idle",
+        "key": "Eat",
+        "label": "Eat",
+        "cells": [
+          {
+            "row": 0,
+            "col": 14
+          },
+          {
+            "row": 0,
+            "col": 15
+          },
+          {
+            "row": 0,
+            "col": 16
+          },
+          {
+            "row": 0,
+            "col": 17
+          }
+        ]
+      },
+      {
+        "key": "Walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          }
+        ]
+      },
+      {
+        "key": "Idle",
         "label": "Idle",
         "cells": [
           {
@@ -71223,52 +72014,13 @@ export default [
           {
             "row": 0,
             "col": 7
-          },
-          {
-            "row": 0,
-            "col": 8
-          },
-          {
-            "row": 0,
-            "col": 9
-          },
-          {
-            "row": 0,
-            "col": 10
-          },
-          {
-            "row": 0,
-            "col": 11
-          },
-          {
-            "row": 0,
-            "col": 12
-          },
-          {
-            "row": 0,
-            "col": 13
-          },
-          {
-            "row": 0,
-            "col": 14
-          },
-          {
-            "row": 0,
-            "col": 15
-          },
-          {
-            "row": 0,
-            "col": 16
-          },
-          {
-            "row": 0,
-            "col": 17
           }
         ]
       }
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -71404,6 +72156,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -71542,6 +72295,7 @@ export default [
     "swatchColor": "#2b2b2b",
     "swatchColor2": "#eeeeee",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -71680,6 +72434,7 @@ export default [
     "swatchColor": "#e53935",
     "swatchColor2": "#eeeeee",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -71922,6 +72677,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72164,6 +72920,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72406,6 +73163,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72542,6 +73300,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72678,6 +73437,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72814,6 +73574,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "townsfolk"
@@ -72821,7 +73582,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy sheet 2.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy sheet 2.png",
     "base": "Doggy",
     "variant": "Style 1",
     "swatchColor": "#414152",
@@ -72897,6 +73658,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -72905,7 +73667,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy sheet 3.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy sheet 3.png",
     "base": "Doggy",
     "variant": "Style 2",
     "swatchColor": "#60554d",
@@ -72981,6 +73743,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -72989,7 +73752,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy sheet 4.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy sheet 4.png",
     "base": "Doggy",
     "variant": "Style 3",
     "swatchColor": "#6e6256",
@@ -73065,6 +73828,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -73073,7 +73837,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy sheet 5.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy sheet 5.png",
     "base": "Doggy",
     "variant": "Style 4",
     "swatchColor": "#353034",
@@ -73149,6 +73913,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -73157,7 +73922,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy sheet.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy sheet.png",
     "base": "Doggy",
     "variant": "Style 5",
     "swatchColor": "#604839",
@@ -73233,6 +73998,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -73241,7 +74007,7 @@ export default [
   },
   {
     "category": "animal",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore fox.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/fox.png",
     "base": "Fox (Small)",
     "variant": null,
     "width": 192,
@@ -73316,6 +74082,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "pet",
@@ -73324,63 +74091,7 @@ export default [
   },
   {
     "category": "air",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore Wisp.png",
-    "base": "Wisp",
-    "variant": "Plain",
-    "width": 160,
-    "height": 32,
-    "frame": {
-      "w": 32,
-      "h": 32
-    },
-    "crop": {
-      "x": 9,
-      "y": 5,
-      "w": 14,
-      "h": 22
-    },
-    "animations": [
-      {
-        "key": "float",
-        "label": "Float",
-        "cells": [
-          {
-            "row": 0,
-            "col": 0
-          },
-          {
-            "row": 0,
-            "col": 1
-          },
-          {
-            "row": 0,
-            "col": 2
-          },
-          {
-            "row": 0,
-            "col": 3
-          },
-          {
-            "row": 0,
-            "col": 4
-          }
-        ],
-        "tags": [
-          "flying"
-        ]
-      }
-    ],
-    "facing": "right",
-    "being": "other",
-    "tags": [
-      "flying",
-      "pet",
-      "move"
-    ]
-  },
-  {
-    "category": "air",
-    "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/Wisp with outline.png",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/Wisp with outline.png",
     "base": "Wisp",
     "variant": "Outline",
     "width": 160,
@@ -73428,10 +74139,70 @@ export default [
     ],
     "facing": "right",
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "pet",
-      "move"
+      "move",
+      "magical"
+    ]
+  },
+  {
+    "category": "air",
+    "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/Wisp.png",
+    "base": "Wisp",
+    "variant": "Plain",
+    "width": 160,
+    "height": 32,
+    "frame": {
+      "w": 32,
+      "h": 32
+    },
+    "crop": {
+      "x": 9,
+      "y": 5,
+      "w": 14,
+      "h": 22
+    },
+    "animations": [
+      {
+        "key": "float",
+        "label": "Float",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ],
+        "tags": [
+          "flying"
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "other",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "flying",
+      "pet",
+      "move",
+      "magical"
     ]
   },
   {
@@ -73543,7 +74314,8 @@ export default [
         ]
       }
     ],
-    "being": "animal"
+    "being": "animal",
+    "artist": "GandalfHardcore"
   },
   {
     "category": "animal",
@@ -73611,6 +74383,7 @@ export default [
       }
     ],
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "townsfolk"
     ]
@@ -73695,6 +74468,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -73783,6 +74557,7 @@ export default [
     ],
     "swatchColor": "#ff9800",
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -73877,6 +74652,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -73970,6 +74746,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
@@ -74047,9 +74824,11 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
-      "move"
+      "move",
+      "hostile"
     ]
   },
   {
@@ -74235,6 +75014,7 @@ export default [
     ],
     "facing": "right",
     "being": "animal",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack"
@@ -74290,6 +75070,7 @@ export default [
       }
     ],
     "being": "other",
+    "artist": "GandalfHardcore",
     "tags": [
       "ranged"
     ]
@@ -74483,11 +75264,13 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move",
       "hellish",
-      "hostile"
+      "hostile",
+      "critter"
     ]
   },
   {
@@ -74614,6 +75397,7 @@ export default [
     ],
     "facing": "right",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "flying",
       "move"
@@ -74684,7 +75468,11 @@ export default [
         ]
       }
     ],
-    "being": "humanoid"
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "mature"
+    ]
   },
   {
     "category": "other",
@@ -74751,7 +75539,11 @@ export default [
         ]
       }
     ],
-    "being": "humanoid"
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "hellish"
+    ]
   },
   {
     "category": "other",
@@ -74819,8 +75611,10 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
-      "bare"
+      "bare",
+      "hellish"
     ]
   },
   {
@@ -75021,6 +75815,7 @@ export default [
       }
     ],
     "being": "humanoid",
+    "artist": "GandalfHardcore",
     "tags": [
       "move",
       "attack",
@@ -75180,7 +75975,11 @@ export default [
         ]
       }
     ],
-    "being": "humanoid"
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "hellish"
+    ]
   },
   {
     "category": "portrait",
@@ -75627,6 +76426,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -76080,6 +76880,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -76533,6 +77334,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -76986,6 +77788,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -77439,6 +78242,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -77892,6 +78696,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -78345,6 +79150,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -78798,6 +79604,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -78811,7 +79618,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Black knight.png",
     "base": "Knight (Knighty)",
     "variant": "Black",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -79182,10 +79989,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Black Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Black Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -79199,7 +80007,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Blue knight.png",
     "base": "Knight (Knighty)",
     "variant": "Blue",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -79570,10 +80378,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Blue Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Blue Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -79587,7 +80396,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Brown knight.png",
     "base": "Knight (Knighty)",
     "variant": "Brown",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -79958,10 +80767,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Brown Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Brown Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -79975,7 +80785,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Green knight.png",
     "base": "Knight (Knighty)",
     "variant": "Green",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -80346,10 +81156,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Green Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Green Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -80363,7 +81174,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Purple knight.png",
     "base": "Knight (Knighty)",
     "variant": "Purple",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -80734,10 +81545,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Purple Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Purple Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -80751,7 +81563,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Red knight.png",
     "base": "Knight (Knighty)",
     "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -81122,10 +81934,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Red Knight Run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Red Knight Run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -81139,7 +81952,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/White knight.png",
     "base": "Knight (Knighty)",
     "variant": "White",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -81510,10 +82323,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/White Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/White Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -81527,7 +82341,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Yellow knight.png",
     "base": "Knight (Knighty)",
     "variant": "Yellow",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Knight Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Knight Portrait 64x64.png",
     "width": 345,
     "height": 812,
     "frame": {
@@ -81898,10 +82712,11 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/GandalfHardcore Knight Run and Portrait/Yellow Knight run.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Knight Knighty/Knight Run and Portrait/Yellow Knight run.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -81912,10 +82727,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character black.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character black.png",
     "base": "Maid",
     "variant": "Black",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -81966,7 +82781,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -82005,7 +82820,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -82044,7 +82859,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -82083,7 +82898,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -82110,7 +82925,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -82137,7 +82952,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -82164,7 +82979,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -82195,7 +83010,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -82226,7 +83041,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -82253,7 +83068,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -82292,7 +83107,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -82347,7 +83162,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -82406,8 +83221,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -82446,8 +83261,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -82478,8 +83293,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -82510,8 +83325,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -82538,8 +83353,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -82574,8 +83389,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -82602,8 +83417,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -82630,8 +83445,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82661,8 +83476,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82736,8 +83551,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82803,8 +83618,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82834,8 +83649,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82893,8 +83708,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82944,8 +83759,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -82999,8 +83814,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -83042,7 +83857,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet black.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet black.png",
         "tags": [
           "sword"
         ]
@@ -83051,6 +83866,7 @@ export default [
     "swatchColor": "#2b2b2b",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -83060,10 +83876,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character blue.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character blue.png",
     "base": "Maid",
     "variant": "Blue",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -83114,7 +83930,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -83153,7 +83969,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -83192,7 +84008,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -83231,7 +84047,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -83258,7 +84074,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -83285,7 +84101,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -83312,7 +84128,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -83343,7 +84159,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -83374,7 +84190,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -83401,7 +84217,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -83440,7 +84256,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -83495,7 +84311,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -83554,8 +84370,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -83594,8 +84410,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -83626,8 +84442,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -83658,8 +84474,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -83686,8 +84502,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -83722,8 +84538,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -83750,8 +84566,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -83778,8 +84594,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -83809,8 +84625,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -83884,8 +84700,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -83951,8 +84767,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -83982,8 +84798,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -84041,8 +84857,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -84092,8 +84908,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -84147,8 +84963,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -84190,7 +85006,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet blue.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet blue.png",
         "tags": [
           "sword"
         ]
@@ -84232,13 +85048,14 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       }
     ],
     "swatchColor": "#4a80e0",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -84248,10 +85065,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character brown.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character brown.png",
     "base": "Maid",
     "variant": "Brown",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -84302,7 +85119,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -84341,7 +85158,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -84380,7 +85197,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -84419,7 +85236,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -84446,7 +85263,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -84473,7 +85290,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -84500,7 +85317,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -84531,7 +85348,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -84562,7 +85379,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -84589,7 +85406,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -84628,7 +85445,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -84683,7 +85500,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -84742,8 +85559,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -84782,8 +85599,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -84814,8 +85631,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -84846,8 +85663,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -84874,8 +85691,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -84910,8 +85727,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -84938,8 +85755,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -84966,8 +85783,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -84997,8 +85814,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85072,8 +85889,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85139,8 +85956,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85170,8 +85987,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85229,8 +86046,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85280,8 +86097,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85335,8 +86152,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -85378,13 +86195,14 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       }
     ],
     "swatchColor": "#8a5a3b",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -85394,10 +86212,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full black.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full black.png",
     "base": "Maid",
     "variant": "Black (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -85448,7 +86266,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -85487,7 +86305,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -85526,7 +86344,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -85565,7 +86383,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -85592,7 +86410,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -85619,7 +86437,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -85646,7 +86464,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -85677,7 +86495,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -85708,7 +86526,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -85735,7 +86553,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -85774,7 +86592,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -85829,7 +86647,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -85888,8 +86706,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -85928,8 +86746,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -85960,8 +86778,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -85992,8 +86810,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -86020,8 +86838,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -86056,8 +86874,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -86084,8 +86902,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -86112,8 +86930,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86143,8 +86961,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86218,8 +87036,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86285,8 +87103,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86316,8 +87134,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86375,8 +87193,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86426,8 +87244,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86481,8 +87299,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full black.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full black.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -86490,6 +87308,7 @@ export default [
     ],
     "swatchColor": "#2b2b2b",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -86499,10 +87318,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full blue.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full blue.png",
     "base": "Maid",
     "variant": "Blue (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -86553,7 +87372,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -86592,7 +87411,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -86631,7 +87450,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -86670,7 +87489,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -86697,7 +87516,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -86724,7 +87543,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -86751,7 +87570,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -86782,7 +87601,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -86813,7 +87632,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -86840,7 +87659,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -86879,7 +87698,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -86934,7 +87753,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -86993,8 +87812,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -87033,8 +87852,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -87065,8 +87884,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -87097,8 +87916,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -87125,8 +87944,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -87161,8 +87980,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -87189,8 +88008,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -87217,8 +88036,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87248,8 +88067,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87323,8 +88142,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87390,8 +88209,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87421,8 +88240,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87480,8 +88299,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87531,8 +88350,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87586,8 +88405,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full blue.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full blue.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -87595,6 +88414,7 @@ export default [
     ],
     "swatchColor": "#4a80e0",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -87604,10 +88424,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full brown.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full brown.png",
     "base": "Maid",
     "variant": "Brown (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -87658,7 +88478,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -87697,7 +88517,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -87736,7 +88556,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -87775,7 +88595,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -87802,7 +88622,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -87829,7 +88649,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -87856,7 +88676,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -87887,7 +88707,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -87918,7 +88738,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -87945,7 +88765,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -87984,7 +88804,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -88039,7 +88859,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -88098,8 +88918,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -88138,8 +88958,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -88170,8 +88990,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -88202,8 +89022,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -88230,8 +89050,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -88266,8 +89086,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -88294,8 +89114,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -88322,8 +89142,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88353,8 +89173,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88428,8 +89248,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88495,8 +89315,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88526,8 +89346,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88585,8 +89405,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88636,8 +89456,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88691,8 +89511,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full brown.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full brown.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -88700,6 +89520,7 @@ export default [
     ],
     "swatchColor": "#8a5a3b",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -88709,10 +89530,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full green.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full green.png",
     "base": "Maid",
     "variant": "Green (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -88763,7 +89584,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -88802,7 +89623,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -88841,7 +89662,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -88880,7 +89701,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -88907,7 +89728,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -88934,7 +89755,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -88961,7 +89782,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -88992,7 +89813,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -89023,7 +89844,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -89050,7 +89871,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -89089,7 +89910,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -89144,7 +89965,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -89203,8 +90024,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -89243,8 +90064,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -89275,8 +90096,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -89307,8 +90128,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -89335,8 +90156,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -89371,8 +90192,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -89399,8 +90220,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -89427,8 +90248,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89458,8 +90279,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89533,8 +90354,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89600,8 +90421,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89631,8 +90452,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89690,8 +90511,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89741,8 +90562,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89796,8 +90617,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -89805,6 +90626,7 @@ export default [
     ],
     "swatchColor": "#4caf50",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -89814,10 +90636,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full purple.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full purple.png",
     "base": "Maid",
     "variant": "Purple (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -89868,7 +90690,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -89907,7 +90729,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -89946,7 +90768,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -89985,7 +90807,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -90012,7 +90834,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -90039,7 +90861,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -90066,7 +90888,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -90097,7 +90919,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -90128,7 +90950,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -90155,7 +90977,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -90194,7 +91016,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -90249,7 +91071,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -90308,8 +91130,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -90348,8 +91170,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -90380,8 +91202,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -90412,8 +91234,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -90440,8 +91262,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -90476,8 +91298,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -90504,8 +91326,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -90532,8 +91354,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90563,8 +91385,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90638,8 +91460,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90705,8 +91527,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90736,8 +91558,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90795,8 +91617,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90846,8 +91668,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90901,8 +91723,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -90910,6 +91732,7 @@ export default [
     ],
     "swatchColor": "#9c27b0",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -90919,10 +91742,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full red.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full red.png",
     "base": "Maid",
     "variant": "Red (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -90973,7 +91796,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -91012,7 +91835,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -91051,7 +91874,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -91090,7 +91913,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -91117,7 +91940,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -91144,7 +91967,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -91171,7 +91994,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -91202,7 +92025,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -91233,7 +92056,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -91260,7 +92083,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -91299,7 +92122,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -91354,7 +92177,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -91413,8 +92236,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -91453,8 +92276,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -91485,8 +92308,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -91517,8 +92340,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -91545,8 +92368,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -91581,8 +92404,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -91609,8 +92432,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -91637,8 +92460,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91668,8 +92491,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91743,8 +92566,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91810,8 +92633,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91841,8 +92664,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91900,8 +92723,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -91951,8 +92774,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92006,8 +92829,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92015,6 +92838,7 @@ export default [
     ],
     "swatchColor": "#e53935",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -92024,10 +92848,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character full yellow.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character full yellow.png",
     "base": "Maid",
     "variant": "Yellow (White Accent)",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -92078,7 +92902,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -92117,7 +92941,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -92156,7 +92980,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -92195,7 +93019,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -92222,7 +93046,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -92249,7 +93073,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -92276,7 +93100,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -92307,7 +93131,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -92338,7 +93162,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -92365,7 +93189,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -92404,7 +93228,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -92459,7 +93283,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -92518,8 +93342,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -92558,8 +93382,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -92590,8 +93414,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -92622,8 +93446,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -92650,8 +93474,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -92686,8 +93510,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -92714,8 +93538,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -92742,8 +93566,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92773,8 +93597,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92848,8 +93672,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92915,8 +93739,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -92946,8 +93770,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93005,8 +93829,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93056,8 +93880,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93111,8 +93935,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93120,6 +93944,7 @@ export default [
     ],
     "swatchColor": "#fdd835",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -93129,10 +93954,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character green.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character green.png",
     "base": "Maid",
     "variant": "Green",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -93183,7 +94008,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -93222,7 +94047,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -93261,7 +94086,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -93300,7 +94125,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -93327,7 +94152,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -93354,7 +94179,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -93381,7 +94206,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -93412,7 +94237,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -93443,7 +94268,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -93470,7 +94295,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -93509,7 +94334,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -93564,7 +94389,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -93623,8 +94448,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -93663,8 +94488,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -93695,8 +94520,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -93727,8 +94552,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -93755,8 +94580,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -93791,8 +94616,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -93819,8 +94644,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -93847,8 +94672,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93878,8 +94703,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -93953,8 +94778,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94020,8 +94845,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94051,8 +94876,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94110,8 +94935,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94161,8 +94986,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94216,8 +95041,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -94259,8 +95084,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full green.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full green.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleswordstill",
@@ -94299,7 +95124,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet green.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet green.png",
         "tags": [
           "sword"
         ]
@@ -94308,6 +95133,7 @@ export default [
     "swatchColor": "#4caf50",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -94317,10 +95143,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character purple.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character purple.png",
     "base": "Maid",
     "variant": "Purple",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -94371,7 +95197,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -94410,7 +95236,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -94449,7 +95275,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -94488,7 +95314,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -94515,7 +95341,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -94542,7 +95368,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -94569,7 +95395,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -94600,7 +95426,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -94631,7 +95457,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -94658,7 +95484,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -94697,7 +95523,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -94752,7 +95578,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -94811,8 +95637,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -94851,8 +95677,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -94883,8 +95709,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -94915,8 +95741,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -94943,8 +95769,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -94979,8 +95805,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -95007,8 +95833,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -95035,8 +95861,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95066,8 +95892,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95141,8 +95967,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95208,8 +96034,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95239,8 +96065,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95298,8 +96124,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95349,8 +96175,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95404,8 +96230,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -95447,8 +96273,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full purple.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full purple.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleswordstill",
@@ -95487,7 +96313,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet purple.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet purple.png",
         "tags": [
           "sword"
         ]
@@ -95496,6 +96322,7 @@ export default [
     "swatchColor": "#9c27b0",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -95505,10 +96332,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character red.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character red.png",
     "base": "Maid",
     "variant": "Red",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -95559,7 +96386,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -95598,7 +96425,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -95637,7 +96464,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -95676,7 +96503,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -95703,7 +96530,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -95730,7 +96557,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -95757,7 +96584,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -95788,7 +96615,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -95819,7 +96646,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -95846,7 +96673,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -95885,7 +96712,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -95940,7 +96767,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -95999,8 +96826,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -96039,8 +96866,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -96071,8 +96898,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -96103,8 +96930,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -96131,8 +96958,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -96167,8 +96994,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -96195,8 +97022,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -96223,8 +97050,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96254,8 +97081,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96329,8 +97156,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96396,8 +97223,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96427,8 +97254,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96486,8 +97313,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96537,8 +97364,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96592,8 +97419,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -96635,8 +97462,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full red.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full red.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleswordstill",
@@ -96675,7 +97502,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet red.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet red.png",
         "tags": [
           "sword"
         ]
@@ -96684,6 +97511,7 @@ export default [
     "swatchColor": "#e53935",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -96693,10 +97521,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character white.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character white.png",
     "base": "Maid",
     "variant": "White",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -96747,7 +97575,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -96786,7 +97614,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -96825,7 +97653,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -96864,7 +97692,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -96891,7 +97719,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -96918,7 +97746,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -96945,7 +97773,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -96976,7 +97804,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -97007,7 +97835,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -97034,7 +97862,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -97073,7 +97901,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -97128,7 +97956,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -97187,8 +98015,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -97227,8 +98055,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -97259,8 +98087,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -97291,8 +98119,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -97319,8 +98147,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -97355,8 +98183,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -97383,8 +98211,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -97411,8 +98239,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97442,8 +98270,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97517,8 +98345,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97584,8 +98412,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97615,8 +98443,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97674,8 +98502,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97725,8 +98553,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97780,8 +98608,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet white.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet white.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -97823,7 +98651,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet white.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet white.png",
         "tags": [
           "sword"
         ]
@@ -97832,6 +98660,7 @@ export default [
     "swatchColor": "#eeeeee",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -97841,10 +98670,10 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Character yellow.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Character yellow.png",
     "base": "Maid",
     "variant": "Yellow",
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character/Maid Portrait 64x64.png",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character/Maid Portrait 64x64.png",
     "width": 640,
     "height": 576,
     "frame": {
@@ -97895,7 +98724,7 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkbasket",
@@ -97934,7 +98763,7 @@ export default [
             "col": 5
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "walkclothing",
@@ -97973,7 +98802,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "run",
@@ -98012,7 +98841,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idle",
@@ -98039,7 +98868,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idlebasket",
@@ -98066,7 +98895,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleclothing",
@@ -98093,7 +98922,7 @@ export default [
             "col": 6
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "resting",
@@ -98124,7 +98953,7 @@ export default [
             "col": 2
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "jump",
@@ -98155,7 +98984,7 @@ export default [
             "col": 8
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor1",
@@ -98182,7 +99011,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "floor2",
@@ -98221,7 +99050,7 @@ export default [
             "col": 1
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "death",
@@ -98276,7 +99105,7 @@ export default [
             "col": 3
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "carrywater",
@@ -98335,8 +99164,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "washdishes",
@@ -98375,8 +99204,8 @@ export default [
             "col": 0
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "read",
@@ -98407,8 +99236,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sit",
@@ -98439,8 +99268,8 @@ export default [
             "col": 2
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "idlealt",
@@ -98467,8 +99296,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "sleep",
@@ -98503,8 +99332,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "carryclothes",
@@ -98531,8 +99360,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 2/Maid Character2 yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet2.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 2/Maid Character2 yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet2.png"
       },
       {
         "key": "combatstance1",
@@ -98559,8 +99388,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98590,8 +99419,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98665,8 +99494,8 @@ export default [
             "col": 5
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98732,8 +99561,8 @@ export default [
             "col": 9
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98763,8 +99592,8 @@ export default [
             "col": 4
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98822,8 +99651,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98873,8 +99702,8 @@ export default [
             "col": 6
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98928,8 +99757,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Combat Sheet yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Character 3 Combat/Maid Witch hat combat.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Combat Sheet yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 3 Combat/Maid Witch hat combat.png",
         "tags": [
           "sword"
         ]
@@ -98971,8 +99800,8 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet full yellow.png",
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet full yellow.png",
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       },
       {
         "key": "idleswordstill",
@@ -99011,7 +99840,7 @@ export default [
             "col": 7
           }
         ],
-        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet yellow.png",
+        "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet yellow.png",
         "tags": [
           "sword"
         ]
@@ -99020,6 +99849,7 @@ export default [
     "swatchColor": "#fdd835",
     "swatchColor2": "#eeeeee",
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "portrait",
       "move",
@@ -99029,7 +99859,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet hat.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet hat.png",
     "base": "Maid",
     "variant": "SwordDown (Hat)",
     "width": 512,
@@ -99088,6 +99918,7 @@ export default [
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "hat",
       "sword",
@@ -99097,7 +99928,7 @@ export default [
   },
   {
     "category": "portrait",
-    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Gandalfhardcore Maid Character 4/Maid Walk with sword down Sheet.png",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Character 4/Maid Walk with sword down Sheet.png",
     "base": "Maid",
     "variant": "SwordDown",
     "width": 512,
@@ -99150,10 +99981,11 @@ export default [
             "col": 7
           }
         ],
-        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/GandalfHardcore Maid Witch Hat/Maid Witch hat sheet1.png"
+        "hatRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Maid/Maid Witch Hat/Maid Witch hat sheet1.png"
       }
     ],
     "being": "human",
+    "artist": "GandalfHardcore",
     "tags": [
       "sword",
       "portrait",
@@ -99166,12 +99998,12 @@ export const ACCESSORIES = {
     {
       "key": "backpack",
       "label": "Backpack",
-      "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy backpack.png"
+      "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy backpack.png"
     },
     {
       "key": "hat",
       "label": "Hat",
-      "relPath": "../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore doggy hat.png"
+      "relPath": "../assets/ASSORTED/characters/animals/pets/Pet companion/doggy hat.png"
     }
   ]
 };

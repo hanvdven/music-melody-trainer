@@ -161,8 +161,19 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // akkoordenprogressie] in debug ook maar zien").
         // Level editor (Han 2026-08-06): `tracks.<name>.visible` overrides the debugOnlyLines-derived
         // default for that ONE track — see computeEyes below (shared with the live debug-mode effect).
+        // Bug fix (Han 2026-08-18, "na level 2 start level 3 niet... er moet een conflicterende
+        // leftover van vorig level zijn"): `handleLoadSong` (App.jsx, fired for a `songId` level right
+        // after this function returns — see begin() below) unconditionally PINS
+        // `playbackConfig.randomize.melody`/`.chords` to `false` so the loaded song plays verbatim.
+        // Nothing ever un-pinned it again for the NEXT level if that next level has no songId of its
+        // own — every level start UNTIL the app restarts would silently inherit "melody pinned" from
+        // whichever song-backed level last ran, however many levels ago. Explicit, unconditional reset
+        // here (same cross-level-leakage guard every other field in this function already uses) so a
+        // `songId` level's own pin (applied moments later by handleLoadSong, AFTER this commits) is the
+        // only way `randomize` ever stays pinned — never a leftover from a PREVIOUS level.
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,
+            randomize: { ...prev.randomize, melody: true, chords: true },
             oddRounds: { ...prev.oddRounds, ...computeEyes(lvl, debugMode) },
             evenRounds: { ...prev.evenRounds, ...computeEyes(lvl, debugMode) },
         }));

@@ -7,7 +7,7 @@ import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS } from '../../model/enemyAssets';
 // #955 (boot-slowness initiative, Han 2026-08-13): this file moved to public/ASSORTED (a plain
 // static-file server, not part of Vite's module graph) — a static `import` is no longer possible;
 // public/ URLs are just fixed strings, fetched only when the browser actually renders the <img>.
-const wispUrl = '/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore Wisp.png';
+const wispUrl = '/ASSORTED/characters/animals/pets/Pet companion/Wisp.png';
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world
 // Wisp NPC (RpgLevelBottomPanel.jsx), extracted into a reusable component so a second caller (LevelSplash

@@ -1,0 +1,442 @@
+{
+  "cow": {
+    "movement": {
+      "pxPerFrame": 4,
+      "frameWeights": null
+    }
+  },
+  "Plague Flies": {
+    "tagsAdd": [
+      "hostile"
+    ],
+    "tagsRemove": [],
+    "movement": {
+      "pxPerFrame": 4,
+      "frameWeights": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  "Cheeky Devil": {
+    "tagsAdd": [
+      "mature"
+    ],
+    "tagsRemove": []
+  },
+  "Leaping Frog": {
+    "tagsAdd": [],
+    "tagsRemove": [
+      "flying"
+    ]
+  },
+  "Jellyfish": {
+    "tagsAdd": [],
+    "tagsRemove": [
+      "flying"
+    ]
+  },
+  "Octopus": {
+    "tagsAdd": [],
+    "tagsRemove": [
+      "flying"
+    ]
+  },
+  "Firefly": {
+    "tagsAdd": [
+      "night"
+    ],
+    "tagsRemove": []
+  },
+  "Honking Goose": {
+    "tagsAdd": [
+      "water"
+    ],
+    "tagsRemove": [
+      "flying"
+    ]
+  },
+  "Wisp": {
+    "tagsAdd": [
+      "magical"
+    ],
+    "tagsRemove": []
+  },
+  "Slime": {
+    "displayName": "Slime",
+    "tagsAdd": [
+      "hostile"
+    ],
+    "tagsRemove": []
+  },
+  "Bishop": {
+    "facing": "left",
+    "displayName": "Bishop Staff"
+  },
+  "Cuman Sitting": {
+    "facing": "right"
+  },
+  "Drunk Dancing": {
+    "facing": "right"
+  },
+  "Lady Sitting": {
+    "facing": "right"
+  },
+  "Lady Relaxing 3": {
+    "facing": "left"
+  },
+  "Lady Reading": {
+    "facing": "right"
+  },
+  "Sleeping Dragon": {
+    "facing": "right"
+  },
+  "Mosquito": {
+    "tagsAdd": [
+      "hostile",
+      "flying"
+    ],
+    "tagsRemove": [],
+    "displayName": "Giant Mosquito"
+  },
+  "Flying Eye": {
+    "tagsAdd": [
+      "hostile"
+    ],
+    "tagsRemove": []
+  },
+  "Bat": {
+    "displayName": "Giant Bat",
+    "tagsAdd": [
+      "flying",
+      "night",
+      "critter"
+    ],
+    "tagsRemove": [
+      "hostile"
+    ],
+    "frame": {
+      "w": 16,
+      "h": 24
+    },
+    "animOverrides": {
+      "0": {
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ],
+        "newKey": "Idle"
+      },
+      "1": {
+        "newKey": "X1",
+        "removed": true
+      },
+      "2": {
+        "removed": true
+      }
+    },
+    "addedAnimations": [
+      {
+        "key": "Idle 2",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "Death",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          }
+        ]
+      }
+    ]
+  },
+  "Pumpkin": {
+    "facing": "right"
+  },
+  "Rat": {
+    "facing": "right",
+    "displayName": "Giant Rat",
+    "tagsAdd": [
+      "hostile"
+    ],
+    "tagsRemove": []
+  },
+  "Mushroom": {
+    "tagsAdd": [
+      "plant",
+      "hostile"
+    ],
+    "tagsRemove": [],
+    "displayName": "Giant Mushroom"
+  },
+  "Hell Giant": {
+    "tagsAdd": [
+      "hellish"
+    ],
+    "tagsRemove": []
+  },
+  "The Devil": {
+    "tagsAdd": [
+      "hellish"
+    ],
+    "tagsRemove": []
+  },
+  "Imp": {
+    "displayName": "Imp (small)",
+    "tagsAdd": [
+      "critter"
+    ],
+    "tagsRemove": []
+  },
+  "Fairy": {
+    "tagsAdd": [
+      "magical"
+    ],
+    "tagsRemove": []
+  },
+  "Panda": {
+    "displayName": "Red Panda",
+    "animOverrides": {
+      "1": {
+        "newKey": "Idle alt"
+      },
+      "2": {
+        "newKey": "Move"
+      },
+      "3": {
+        "newKey": "Attack"
+      }
+    }
+  },
+  "Porcupine": {
+    "animOverrides": {
+      "1": {
+        "newKey": "Attack"
+      },
+      "2": {
+        "newKey": "Spikes"
+      },
+      "3": {
+        "newKey": "Move"
+      },
+      "4": {
+        "newKey": "Death"
+      }
+    }
+  },
+  "chicken": {
+    "animOverrides": {
+      "0": {
+        "newKey": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          }
+        ],
+        "removed": true
+      }
+    },
+    "addedAnimations": [
+      {
+        "key": "Eat",
+        "cells": [
+          {
+            "row": 0,
+            "col": 14
+          },
+          {
+            "row": 0,
+            "col": 15
+          },
+          {
+            "row": 0,
+            "col": 16
+          },
+          {
+            "row": 0,
+            "col": 17
+          }
+        ]
+      },
+      {
+        "key": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          }
+        ]
+      },
+      {
+        "key": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          }
+        ]
+      }
+    ],
+    "frame": {
+      "w": 32,
+      "h": 32
+    }
+  },
+  "Dungeon Collectables": {
+    "tagsAdd": [],
+    "tagsRemove": [
+      "critter",
+      "attack"
+    ]
+  },
+  "Musketeer": {
+    "facing": "right"
+  },
+  "Violin": {
+    "facing": "right"
+  }
+}

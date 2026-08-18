@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
-import { CreatureSprite } from './BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
+import { CreatureSprite } from './CreatureSprite';
 import { frameMsForBpm } from '../sheet-music/SheetRpgLayer';
 import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl, findCreaturesByTags } from '../../model/bestiaryAssets';
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
@@ -43,11 +44,11 @@ const grassNormalR5C3Url = normalMapUrl('grass-normal-r5c3.png');
 const grassNormalR6C1Url = normalMapUrl('grass-normal-r6c1.png');
 const grassNormalR7C1Url = normalMapUrl('grass-normal-r7c1.png');
 const crateNormalUrl = normalMapUrl('crate-normal.png');
-import bgLayer1Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 1.png';
-import bgLayer2Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 2.png';
-import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 3.png';
-import bgLayer4Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 4.png';
-import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 5.png';
+import bgLayer1Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 1.png';
+import bgLayer2Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 2.png';
+import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 3.png';
+import bgLayer4Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 4.png';
+import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png';
 
 // #691/#693 (Han 2026-08-04, "maak een extra tab: 'rpg level'" + round-2 movement/pet/NPC follow-up +
 // round-7 world/camera/parallax rework): a dev/preview scene — like the Bestiary tab, NOT wired into
@@ -278,6 +279,13 @@ const HOVER_PX = TILE * ZOOM;
 // natively LEFT-facing; `variant.facing` — wired up in bestiaryAssets.js — says which). The actual mirror
 // applied is the caller's desired direction XOR the sprite's own native one, not the desired direction
 // taken at face value.
+// #995 (Han 2026-08-17, "jitter is vooral in overgang tussen rest en fly... dat komt waarschijnlijk door het
+// verschillende anker van de sprite"): confirmed — `hoverPx` used to be baked into the SAME transform as the
+// facing-flip `scaleX`, snapping instantly by a full tile the moment `isFlyingAnim` toggles (idle<->move
+// anim swap has no in-between frame). Split into two nested transforms: the OUTER div keeps the facing-flip
+// `scale` instant (unchanged — a direction change should still snap, not animate through a squash), the
+// INNER div carries only the vertical hover offset with its own CSS transition, so exactly the rest<->fly
+// anchor jump (and only that) becomes a smooth glide instead of a hard pop.
 function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
@@ -285,12 +293,16 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     const hoverPx = TILE * zoom;
     const nativeFlip = variant.facing === 'right' ? 1 : -1;
     const scaleX = facing * nativeFlip;
-    const transform = isFlyingAnim(anim, variant)
-        ? `translate(0px, ${-hoverPx}px) scale(${scaleX}, 1)`
-        : `scale(${scaleX}, 1)`;
+    const flying = isFlyingAnim(anim, variant);
     return (
-        <div style={{ width: cropW, height: cropH, transform }}>
-            <CreatureSprite variant={variant} anim={anim} frame={frame} scale={zoom} framed={false} />
+        <div style={{ width: cropW, height: cropH, transform: `scale(${scaleX}, 1)` }}>
+            <div style={{
+                width: '100%', height: '100%',
+                transform: flying ? `translateY(${-hoverPx}px)` : 'translateY(0px)',
+                transition: 'transform 200ms ease',
+            }}>
+                <CreatureSprite variant={variant} anim={anim} frame={frame} scale={zoom} framed={false} />
+            </div>
         </div>
     );
 }
@@ -305,12 +317,17 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 // soorten critters. night: spawn enkel critters met night"): reads the SAME `foliageParams.timeOfDay`
 // debug toggle (FoliageParamsPanel) the lighting tint already keys off (§141 round 27) — day excludes
 // 'night'-tagged creatures, night requires the 'night' tag, dusk-dawn has no restriction either way.
+// #995 (Han 2026-08-17, "kies uniform random variant"): two-stage pick — a random SPECIES from the pool
+// (uniform per species, unaffected by how many colours each has), then a random COLOUR variant within that
+// species (findCreaturesByTags now returns the whole creature, not one fixed representative variant).
 const randomTaggedVariant = (requiredTags, timeOfDay) => {
     const excludeTags = ['hostile'];
     if (timeOfDay === 'day') excludeTags.push('night');
-    let pool = findCreaturesByTags(requiredTags, { excludeTags, being: 'animal' });
-    if (timeOfDay === 'night') pool = pool.filter((v) => v.tags.includes('night'));
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    const tags = timeOfDay === 'night' ? [...requiredTags, 'night'] : requiredTags;
+    const pool = findCreaturesByTags(tags, { excludeTags, being: 'animal' });
+    if (!pool.length) return null;
+    const creature = pool[Math.floor(Math.random() * pool.length)];
+    return creature.variants[Math.floor(Math.random() * creature.variants.length)];
 };
 // #989 ("het level heeft 'water tiles'; ze mogen daarop heen en weer zwemmen, minimaal 16px van de rand,
 // geen verticale drift"): the contiguous run of 'water'-kind animated tiles at a swimmer's OWN row (world

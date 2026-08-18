@@ -6,7 +6,7 @@
   "scripts": {
     "test-chords": "node scripts/test-chords.mjs",
     "dev": "node --import ./scripts/patch-crypto.mjs ./node_modules/vite/bin/vite.js",
-    "build": "vite build",
+    "build": "node scripts/generate-bestiary-manifest.mjs && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx",
     "lint:fix": "eslint src --ext .js,.jsx --fix",

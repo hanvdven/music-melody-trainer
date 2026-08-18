@@ -61,6 +61,11 @@ function buildCreatures() {
             // signals — never hand-typed. Per-animation tags ride through automatically via `animations`'s
             // own `...a` spread above; this is the CREATURE/variant-level tag list.
             tags: m.tags || [],
+            // #1028 follow-up (Han 2026-08-17, "creator/artist tag, enkel zichtbaar in debug mode"): asset
+            // attribution — a SEPARATE field from `tags`, never shown in the normal filter UI, debug-mode
+            // only (BestiaryPanels.jsx). Generator-derived from relPath/name rosters (SSW/critters/ducks-
+            // geese/everything-else), same convention as `tags`/`being` above.
+            artist: m.artist || null,
             // #924 (Han 2026-08-12, "critters uit critter sheet kijken naar links... butterfly de verkeerde
             // kant op"): the generator has computed this since #870 ("markeer die naar rechts kijken" —
             // FACING_RIGHT_NAMES) but it was never actually copied onto the runtime variant object — "Purely
@@ -157,18 +162,24 @@ export function findCreatureByName(name) {
 
 // #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature + (flying/ground/water)"; round
 // 9: "the critters in the world should meet criteria: animal AND nature AND NOT hostile AND
-// (flying/ground/water)"): every classified creature (one per SCANNED_CREATURES entry, its own default
-// 'Plain'-or-first variant, same pick `findCreatureByName` uses) whose tag list contains ALL of
-// `requiredTags`, NONE of `excludeTags`, and (if given) matches `being` — the RPG-world wanderer spawner
-// picks a random ENTRY from this pool per spawn marker, so any bestiary tagging change automatically flows
-// through with no code change here (§6c).
+// (flying/ground/water)"): every classified creature (one per SCANNED_CREATURES entry) whose REPRESENTATIVE
+// variant ('Plain'-or-first, same pick `findCreatureByName` uses — tag matching is a species-level property,
+// colour variants of the same species always share the same tags in practice) has ALL of `requiredTags`,
+// NONE of `excludeTags`, and (if given) matches `being`.
+// #995 (Han 2026-08-17, "kies ook random varianten van dieren in het level... ik zie telkens alleen maar de
+// eerste variant"): used to return only that ONE representative variant per creature, so the caller's random
+// pick over the pool could pick a random SPECIES but never a random COLOUR within it (every spawned duck was
+// always the same duck). Now returns the whole CREATURE (with its full `.variants` list) — the caller
+// (`randomTaggedVariant`, RpgLevelPanel.jsx) does its own second random pick within the chosen creature's
+// variants, so species selection stays uniform-per-species regardless of how many colours each has.
 export function findCreaturesByTags(requiredTags, { excludeTags = [], being } = {}) {
-    return SCANNED_CREATURES
-        .map((c) => c.variants.find((v) => v.variant === 'Plain') || c.variants[0])
-        .filter((v) => v
-            && requiredTags.every((t) => v.tags.includes(t))
-            && !excludeTags.some((t) => v.tags.includes(t))
-            && (being == null || v.being === being));
+    return SCANNED_CREATURES.filter((c) => {
+        const rep = c.variants.find((v) => v.variant === 'Plain') || c.variants[0];
+        return rep
+            && requiredTags.every((t) => rep.tags.includes(t))
+            && !excludeTags.some((t) => rep.tags.includes(t))
+            && (being == null || rep.being === being);
+    });
 }
 
 // #790: like `findCreatureByName`, but for a creature classified with named COLOUR variants (e.g. the
@@ -192,7 +203,15 @@ export function findAnim(variant, key) {
 // from this ONE function reading the SAME manifest data the Bestiary tab itself uses. Priority order covers
 // every movement-animation key the manifest actually uses; whichever one a creature is classified with is
 // picked automatically, so re-classifying in the Bestiary editor needs no code change anywhere else.
-export const MOVE_ANIM_KEYS = ['walk', 'run', 'move', 'fly', 'float'];
+// #995 follow-up (Han 2026-08-17, "bird, bijvoorbeeld pigeon (rock dove) gebruikt geen fly animatie als die
+// vliegt"): confirmed — every dual-locomotion creature in the manifest (Angel/Succubus/Pigeon (Rock Dove)/
+// Imp/Scarab beetle — has BOTH a ground `walk`/`run`/`move` AND an airborne `fly`/`float` animation) is ALSO
+// tagged 'flying', and the only callers of `findMoveAnim` that matter for this priority (WorldWanderer's
+// flying-habitat spawns, SheetRpgLayer's scrolling Critter) are ALWAYS airborne while "moving" for those
+// creatures — so `fly`/`float` winning over `walk`/`run`/`move` is correct with no known counter-example.
+// `walk`/`run`/`move` moved after `fly`/`float` (was checked first, so a creature with both always showed
+// its GROUND pose while flying).
+export const MOVE_ANIM_KEYS = ['fly', 'float', 'walk', 'run', 'move'];
 export function findMoveAnim(variant) {
     for (const key of MOVE_ANIM_KEYS) {
         const a = variant.animations.find((x) => x.key === key);

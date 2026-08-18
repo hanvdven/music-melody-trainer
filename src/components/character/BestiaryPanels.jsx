@@ -1,49 +1,43 @@
-import React from 'react';
+﻿import React from 'react';
 import { variantColor } from '../../model/characterAssets';
-import { isFlyingAnim } from '../../model/bestiaryAssets';
+import { MOVE_ANIM_KEYS } from '../../model/bestiaryAssets';
 import { BESTIARY_BEINGS, BESTIARY_FILTER_TAG_ROWS, BESTIARY_TOWNSFOLK_ROW } from './useBestiaryEditor';
-import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
-import frame64Url from '../../assets/ASSORTED/icons/GandalfHardcore Pixel Art Game UI/64x64 frame.png';
+// `PortraitImage`'s own oscillation wobble (below) — separate from CreatureSprite's flying-hover wobble,
+// which moved to CreatureSprite.jsx along with its own oscillate import.
+import { oscillate } from '../../utils/oscillate';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): `CreatureSprite`/`Frame64Overlay`/`FRAME_SIZE` moved to
+// their own file so this file and `CharacterDoll.jsx` (which also needs `CreatureSprite`, for its pet
+// layer) can both import them without importing EACH OTHER — see CreatureSprite.jsx's header comment for
+// why the previous circular-import setup broke Vite Fast Refresh (an infinite HMR update loop).
+import { CreatureSprite, Frame64Overlay, FRAME_SIZE } from './CreatureSprite';
+import CharacterDoll from './CharacterDoll';
+// #1028 follow-up (Han 2026-08-17, "ik wil graag een grid, zoals in debug achter de hero, van 4x4 grijs/wit
+// blokken, achter de sprite"): reuses the EXACT canonical `.cc-checker` debug checkerboard (§6d,
+// CharacterCreator.css) the character creator's avatar/equipment slots already apply in debugMode
+// (CharacterAvatarPanel.jsx/CharacterOptionsPanel.jsx, via `characterEditorShared.js`'s `checker()` helper)
+// — not a second hand-rolled grid pattern. Only the CSS class is needed here (applied directly below), not
+// the helper function itself.
+import './CharacterCreator.css';
 
-// #693 (Han 2026-08-04, round 3: "voor de 64x64 frames, use icons/gandalfhardcore pixel art game ui/64x64
-// frame as an overlay to all 64x64 frames, with the appropriate scale"; round 4: "centreer center-center met
-// het 64x64 kader. zet het één laag achter het dier, en boven het kader"): a decorative pixel-art border,
-// native 64×64 scaled the SAME as the box itself so it always lines up with the box edge. Positioned via
-// explicit center-center (50%/50% + translate(-50%,-50%), not `inset:0`) so it's centred on the box
-// regardless of whether the box is exactly square in every call site. `pointerEvents: 'none'` so it never
-// blocks swatch/animation buttons layered around it. Rendered as the FIRST child at each call site (see
-// CreatureSprite/PortraitImage below) — paints BEHIND the creature/portrait content but ABOVE the box's own
-// `.cc-sprite-frame` background, i.e. "one layer behind the animal, above the frame".
-// #790 (Han 2026-08-09): exported so CharacterAvatarPanel's persona preview can reuse the identical 64×64
-// frame instead of a second copy of the frame image/positioning (§6d).
-export function Frame64Overlay({ box }) {
-    return <img src={frame64Url} alt="" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: box, height: box, imageRendering: 'pixelated', pointerEvents: 'none' }} />;
-}
-
-// #648 Bestiary sprite renderer + #667 TOP/BOTTOM split + #668 (Han 2026-08-03, "scan de map characters en
-// maak een bestiary met alle niet-hero personages ... voor beesten met varianten zoals de slime, zet in de
-// top-view een toggler ... in de bottom view, gebruik de bottom view selector [voor de 6 categorieën]"):
-// renders a `variant` (one sprite of a `creature`, which may have several colour variants) — shared by both
-// the curated (hand-animated) and the newly auto-scanned creatures via useBestiaryEditor's unified shape.
-// #671 (Han: "maak een toggler voor hat en backpack") — `overlayUrls` stacks additional sprite layers (same
-// frame/crop/cell alignment as the base — Doggy's hat/backpack sheets are drawn on the identical 32×32/6-
-// col/2-row grid) on top of the base sprite, mirroring how CharacterDoll layers hero equipment (§6d).
-// #682 (Han 2026-08-04, "maak de kaders achter karakters in de bestiary units 64x64, 'achter' de unit. anker
-// op midden onder... grote units mogen 'over het portret' heen. doe hetzelfde bij de previews onderaan —
-// anker op midden onder"): the sprite is now anchored bottom-CENTER inside a `FRAME_SIZE`-square box (top
-// view: a real visible 64×64 "kader", `framed=true`) instead of being clipped to exactly its own crop size —
-// a creature bigger than 64×64 simply overflows past the frame (never clipped) instead of being force-fit.
-// `framed=false` (bottom-view thumbnails) skips drawing its OWN frame — the parent `.cc-enemy-thumb` button
-// already IS the visual box/border — but keeps the identical bottom-center anchor + un-clipped overflow,
-// filling whatever size the parent gives it (100%) rather than a fixed 64px.
-const FRAME_SIZE = 64;
 // #870 (Han 2026-08-12, "toon ook de tags links van het portet boven in beeld") — small pill label shared
 // by the being tag and every subtractive tag shown next to the preview.
+// #1028 follow-up (Han 2026-08-17, "font size van debug tekst is echt klein... alle tekst mag wel 1,5x zo
+// groot. tags en filters graag zelfde stijl: sans serif, ronde hoeken"): 11px -> 16.5px (×1.5), serif ->
+// sans-serif (same `Arial, sans-serif` stack already used elsewhere in the app, e.g. renderMelodyNotes.jsx)
+// — deliberately NOT touching CLAUDE.md §1a's Georgia/serif rule for prose text elsewhere, this is Han's own
+// explicit choice for THIS specific control. `TAG_ROW_BUTTON_STYLE` below reuses these same rounded-corner/
+// sans-serif/font-size values so the filter-bar's tag chips (`.cc-toggle`, currently square-cornered/
+// inherited-font) visually match these preview pills — applied via scoped inline style on JUST the tag-row
+// buttons (TagRow), not the shared `.cc-toggle` CSS class itself, which CharacterOptionsPanel's unrelated
+// outfit-picker toggles also use and must stay untouched.
 const PILL_STYLE = {
-    fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '11px', padding: '2px 8px',
+    fontFamily: 'Arial, sans-serif', fontSize: '16.5px', padding: '2px 8px',
     borderRadius: '10px', border: '1px solid var(--text-secondary)', background: 'var(--panel-bg)',
     color: 'var(--text-primary)', whiteSpace: 'nowrap',
 };
+// Merged onto TagRow's `.cc-toggle` buttons (see PILL_STYLE comment above) — keeps `.cc-toggle-group`'s
+// shared layout/border chrome, only overrides the per-button radius/font to match the preview tag pills.
+const TAG_ROW_BUTTON_STYLE = { borderRadius: '10px', fontFamily: 'Arial, sans-serif', fontSize: '16.5px' };
 // #870 (Han 2026-08-12, "geef de tags kleuren (mature en flying consistent met de animatie/variant tags)"):
 // `flying`/`bare` MUST stay the exact hex already used elsewhere (the flying animation-button tint, the bare
 // swatch fill) — everything else is a fresh, thematically-grouped palette so the filter chips (and the
@@ -51,11 +45,15 @@ const PILL_STYLE = {
 // preview's tag-pill column below — one lookup, not two.
 export const TAG_COLOR = {
     flying: '#16306b', bare: '#ff5fa8', mature: '#8e1c4a',
-    magical: '#6a3fa0', hellish: '#8b0000', undead: '#3c5a4a',
+    // #1028 follow-up (Han 2026-08-17, "geef de nieuwe tags een kleurtje"): the new HABITAT row (flying
+    // above, moved here from the combat-trait row) — water/ground/on_water each get a distinct tone so the
+    // 4-chip row reads at a glance, not just 3 similar blues.
+    water: '#1e5a8a', ground: '#6b5637', on_water: '#0e7a7a',
+    magical: '#6a3fa0', hellish: '#8b0000', undead: '#3c5a4a', night: '#241454',
     musician: '#a0522d', worker: '#5c4630', trader: '#b8860b', tavern: '#c07a1e', military: '#3a5a78',
     bathhouse: '#1e8a8a',
     oriental: '#7a2e2e', seasonal: '#1e7a5a', roman: '#a05a2e', christian: '#8a7a1e',
-    pet: '#4a8a3a', critter: '#5a7a2e',
+    pet: '#4a8a3a', critter: '#5a7a2e', bird: '#c9a227',
     portrait: '#4a4a6a', move: '#2e6a8a', attack: '#a03a2e', ranged: '#c05a1e',
     // #870 (Han 2026-08-13): the townsfolk/hostile/nature group (own row, see BESTIARY_TOWNSFOLK_ROW).
     townsfolk: '#2e7ab8', hostile: '#a01e1e', nature: '#4a9c3a',
@@ -65,95 +63,227 @@ export const TAG_COLOR = {
     human: '#6b6b6b', humanoid: '#8a5a3b', animal: '#3a7a5a', other: '#7a5a1e',
 };
 const tagPillStyle = (tag) => (TAG_COLOR[tag] ? { ...PILL_STYLE, backgroundColor: TAG_COLOR[tag], color: '#fff', borderColor: TAG_COLOR[tag] } : PILL_STYLE);
-// #693 (Han 2026-08-04, round 7, "we put a lot of work into classifying sprites and animations; so make
-// use of that work when placing assets into the world"): exported so world-placement callers (e.g.
-// RpgLevelPanel's pet/NPC sprites) reuse this SAME canonical renderer (§6d) instead of hand-rolling their
-// own crop/animation-cell math — previously only used inside this file's own bestiary top/bottom panels.
-// #989 (Han 2026-08-14, "bestiary pass": "laat alle wezens uit de bestiary naar rechts kijken, zodat ik
-// meteen kan zien of ze correct georiënteerd zijn"): `mirror` — opt-in, defaults false — flips the WHOLE
-// rendered box horizontally around its own center. Deliberately a prop the CALLER passes, not baked into
-// this canonical renderer itself: CreatureSprite is also used by movement-direction-aware placements
-// (RpgLevelPanel's WorldCreature, which already computes its own facing flip from actual walk direction ×
-// the sprite's native orientation) where forcing "always right" would fight that logic. Only the Bestiary's
-// own top/bottom preview call sites (below) pass `mirror={variant.facing !== 'right'}` — every OTHER
-// consumer (persona preview, character doll, world placements) is unaffected, same prop, default off.
-export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], framed = true, mirror = false }) {
-    const { frame: f, crop, url } = variant;
-    // #687 (Han 2026-08-04, knight "green knight + green knight run als één set animaties"): an animation
-    // may be sourced from a DIFFERENT file than the variant's own (`anim.url`, resolved in
-    // bestiaryAssets.js) — falls back to the variant's own `url` for every other creature (unchanged).
-    const spriteUrl = anim.url || url;
-    // #669: steps through the animation's explicit `cells` list rather than a fixed row + frame%N — needed
-    // for animations stitched across row boundaries (the horse), and works identically for the simple
-    // single-row case (cells = that row's columns in order).
-    // #790 (Han 2026-08-09, crash at level start): `frame` can be NEGATIVE during a level's pre-roll (e.g.
-    // SheetRpgLayer's `gFrame`/`heroFrame`, documented at their own definition) — plain `%` in JS preserves
-    // the dividend's sign, so a negative frame produced a negative array index (`undefined`), crashing on
-    // `cell.col` below. Same fix pattern already used for the Wizard's own frame-index math in
-    // SheetRpgLayer.jsx: force a non-negative result via `((n % m) + m) % m`. Fixed HERE (the one canonical
-    // renderer, §6d) so every caller — WorldCreature, CharacterDoll's PetLayer, the Bestiary preview itself
-    // — is protected, not just whichever call site happened to trip over it first.
-    const cellIndex = ((frame % anim.cells.length) + anim.cells.length) % anim.cells.length;
-    const cell = anim.cells[cellIndex];
-    const layerStyle = (layerUrl) => ({
-        position: 'absolute', inset: 0, width: f.w, height: f.h,
-        backgroundImage: `url("${layerUrl}")`, backgroundRepeat: 'no-repeat',
-        backgroundPosition: `${-cell.col * f.w}px ${-cell.row * f.h}px`, backgroundSize: 'auto',
-        imageRendering: 'pixelated',
-    });
-    // #684 (Han 2026-08-04, "in 'preview' onderin beeld: als unit > 64 hoog of breed: schaal af tot het in
-    // het vak past"): the TOP view (`framed`) deliberately allows overflow (§682 — a big unit may spill past
-    // its 64×64 kader — Han 2026-08-09, round 5: "ok laat de allowance voor de top view dan maar staan!",
-    // confirming this stays after briefly considering a cap). The BOTTOM view has no such allowance: a
-    // creature that exceeds the FRAME_SIZE reference in either dimension is scaled DOWN so its larger
-    // dimension lands back at exactly `FRAME_SIZE * scale` instead of blowing past the thumbnail box.
-    const maxDim = Math.max(crop.w, crop.h);
-    const effectiveScale = (!framed && maxDim > FRAME_SIZE) ? scale * (FRAME_SIZE / maxDim) : scale;
-    const box = FRAME_SIZE * scale;
-    const cropW = crop.w * effectiveScale, cropH = crop.h * effectiveScale;
-    // #693 round 12 (Han: "i do not see the floating as required, e.g. in the bestiary: none of the animals
-    // with a fly/float are centered in the preview frame"): flying creatures get the SAME center-in-the-box
-    // + light oscillation treatment the RPG level's WorldCreature/Critter already apply — this is the ONE
-    // canonical renderer (§6d), so putting it here covers the bestiary preview AND every world placement at
-    // once, rather than re-deriving it per call site. Bottom-anchored sprites are unaffected.
-    const flying = isFlyingAnim(anim, variant);
-    const vPos = flying
-        ? { top: `calc(50% - ${cropH / 2}px)` }
-        : { bottom: 0 };
-    let flyTransform;
-    if (flying) {
-        const seed = crop.x * 31 + crop.y;
-        const tMs = frame * 120;
-        const dx = oscillate(seed, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
-        const dy = oscillate(seed + 1, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
-        flyTransform = `translate(${dx}px, ${dy}px)`;
+// #1028 follow-up (Han 2026-08-17, "haal de underscore overal weg", re: on_water showing as "On_water"):
+// DISPLAY-only formatting — the underlying tag STRING stays `on_water` everywhere else in the codebase
+// (RpgLevelPanel.jsx's habitat matching, the generator's ON_WATER_NAMES, etc. all key off the literal
+// value; renaming it would mean auditing every one of those call sites for zero functional benefit). Every
+// read-only tag label in this file routes through this one helper so a future multi-word tag never needs a
+// second fix.
+const formatTagLabel = (tag) => {
+    const s = tag.replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+};
+// #1028 (Han 2026-08-17, "bestiary clean up" part 2 — tags add/remove/rename in debug mode): one pill per
+// tag, click-to-rename (turns into a text input, commits on Enter/blur, Escape cancels) + an "x" to remove.
+// Own local `editing` state (a hook, so this MUST be a component, not inlined into the plain-JSX `tagsColumn`
+// expression in BestiaryTopPanel below).
+function EditableTagChip({ tag, onRemove, onRename }) {
+    const [editing, setEditing] = React.useState(false);
+    const [text, setText] = React.useState(tag);
+    if (editing) {
+        return (
+            <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+                onBlur={() => { setEditing(false); onRename(text); }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') { setEditing(false); onRename(text); }
+                    if (e.key === 'Escape') { setText(tag); setEditing(false); }
+                }}
+                style={{ ...PILL_STYLE, width: `${Math.max(text.length, 4)}ch` }} />
+        );
     }
     return (
-        <div className={framed ? 'cc-sprite-frame' : undefined}
-            style={framed
-                ? { width: box, height: box, transform: mirror ? 'scaleX(-1)' : undefined }
-                : { position: 'relative', width: '100%', height: '100%', transform: mirror ? 'scaleX(-1)' : undefined }}>
-            {framed && <Frame64Overlay box={box} />}
-            <div style={{ position: 'absolute', left: `calc(50% - ${cropW / 2}px)`, ...vPos, width: cropW, height: cropH, overflow: 'hidden', transform: flyTransform }}>
-                <div style={{ position: 'absolute', left: -crop.x * effectiveScale, top: -crop.y * effectiveScale, width: f.w, height: f.h, transform: `scale(${effectiveScale})`, transformOrigin: 'top left' }}>
-                    <div style={layerStyle(spriteUrl)} />
-                    {overlayUrls.map((u) => <div key={u} style={layerStyle(u)} />)}
-                </div>
-                {/* #689 (Han: "zet het lantern frame ook in beeld: dat is gewoon lantern.png") — a STATIC
-                    prop badge for the current animation (e.g. Medieval's harp animations showing the
-                    lantern set down beside her) — a fixed small icon, not per-cell-matched like overlayUrls
-                    above, so it's drawn once in a corner rather than tracking the sprite's own frame. */}
-                {anim.propUrl && (
-                    <img src={anim.propUrl} alt="" style={{
-                        position: 'absolute', left: 4, bottom: 4, width: 16 * effectiveScale, height: 16 * effectiveScale,
-                        imageRendering: 'pixelated', pointerEvents: 'none',
-                    }} />
+        <span style={{ ...tagPillStyle(tag), display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <span onClick={() => { setText(tag); setEditing(true); }} title="Klik om te hernoemen">{formatTagLabel(tag)}</span>
+            <span onClick={onRemove} title="Verwijder tag" style={{ cursor: 'pointer', fontWeight: 'bold' }}>×</span>
+        </span>
+    );
+}
+// New-tag input: free text (any string, incl. hidden tags like "flip l/r" that never appear in the filter
+// UI) with a `<datalist>` of every tag already used elsewhere in the roster as a convenience suggestion list.
+function AddTagControl({ knownTags, onAdd }) {
+    const [text, setText] = React.useState('');
+    const commit = () => { if (text.trim()) { onAdd(text); setText(''); } };
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+            <input list="bestiary-known-tags" value={text} placeholder="+ tag" onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+                style={{ ...PILL_STYLE, width: '9ch' }} />
+            <datalist id="bestiary-known-tags">{knownTags.map((t) => <option key={t} value={t} />)}</datalist>
+            <button onClick={commit} style={{ ...PILL_STYLE, cursor: 'pointer' }}>+</button>
+        </span>
+    );
+}
+// #1028 follow-up (Han 2026-08-17, "ik kan de naam niet aanpassen"): click-to-rename creature title, same
+// commit-on-Enter/blur/Escape pattern as EditableTagChip — keeps `.cc-enemy-name`'s existing bold/yellow
+// styling while editing (an `<input>` inheriting that className) rather than a visually different control.
+function EditableNameTitle({ name, onRename }) {
+    const [editing, setEditing] = React.useState(false);
+    const [text, setText] = React.useState(name);
+    if (editing) {
+        return (
+            <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+                onBlur={() => { setEditing(false); onRename(text); }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') { setEditing(false); onRename(text); }
+                    if (e.key === 'Escape') { setText(name); setEditing(false); }
+                }}
+                className="cc-enemy-name"
+                style={{ fontFamily: 'Arial, sans-serif', fontSize: '16.5px', width: `${Math.max(text.length, 4)}ch`, textAlign: 'center' }} />
+        );
+    }
+    return (
+        <div className="cc-enemy-name" style={{ cursor: 'pointer' }}
+            onClick={() => { setText(name); setEditing(true); }} title="Klik om te hernoemen">{name}</div>
+    );
+}
+// #1028 follow-up round 3 (Han 2026-08-17, "maak p x q frame ook aanpasbaar... ik wil dat ook in de
+// bestiary kunnen aanpassen"): click-to-edit the frame WxH, same commit-on-Enter/blur/Escape pattern as
+// every other inline editor here. Accepts "WxH" or "W,H" — `setFrameSize`'s own parser handles either.
+function FrameSizeText({ frame, onSetFrameSize }) {
+    const [editing, setEditing] = React.useState(false);
+    const [text, setText] = React.useState('');
+    if (editing) {
+        return (
+            <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+                onBlur={() => { setEditing(false); onSetFrameSize(text); }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') { setEditing(false); onSetFrameSize(text); }
+                    if (e.key === 'Escape') setEditing(false);
+                }}
+                style={{ width: '8ch', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '16.5px' }} />
+        );
+    }
+    return (
+        <span onClick={() => { setText(`${frame.w}x${frame.h}`); setEditing(true); }}
+            title="Klik om frame-grootte aan te passen" style={{ cursor: 'pointer' }}>
+            {frame.w}×{frame.h} frame
+        </span>
+    );
+}
+// #1028 follow-up (Han 2026-08-17, "de porcupine-animaties zijn mislabeld... chicken heeft alle animaties
+// onder 'idle'... geef me een manier, als is het via typen, de animatie labels aan te passen via de
+// bestiary. ik wil ook specifieke animaties het label 'flying' kunnen geven"; round 2, same day: "ik kan
+// niet de frames kiezen bij een animatie; of een animatie toevoegen/verwijderen... ik vind het prima om de
+// frames/cells comma seperated in te voeren in een soort terminal"): debug-mode replacement for the plain
+// `.cc-anim` selection button — label click still SELECTS the animation (unchanged behaviour), ✎ renames
+// the key (typed), ▦ edits the cell list (typed, `row:col,row:col,...` — a direct typed form of the
+// `cells:[{row,col}]` array every animation already is), ✈ toggles flying, × removes the animation. Outside
+// debugMode the caller renders the original plain `<button>` unchanged (see call site).
+function EditableAnimButton({ a, active, onSelect, onRename, onEditCells, formatCells, onToggleFlying, onRemove }) {
+    const [editMode, setEditMode] = React.useState(null); // null | 'key' | 'cells'
+    const [text, setText] = React.useState('');
+    const flying = !!a.tags?.includes('flying');
+    // #1028 follow-up (Han 2026-08-17, "maak ook de animatienamen sans serif, en maak alle info in de
+    // animatievakjes 2x zo groot"): `.cc-anim`'s own CSS (font-size 11px, no font-family override, i.e.
+    // ambient/serif) is untouched — this is a debug-mode-ONLY override, `EditableAnimButton` only ever
+    // renders when `debugMode` is true (see BestiaryTopPanel's call site), so the plain-mode `.cc-anim`
+    // buttons stay exactly as they were.
+    const baseStyle = {
+        fontFamily: 'Arial, sans-serif', fontSize: '22px',
+        ...(active ? { backgroundColor: 'var(--accent-yellow)', color: '#000' } : undefined),
+        ...(flying ? { backgroundColor: '#16306b', color: '#fff' } : undefined),
+    };
+    const commit = () => {
+        if (editMode === 'key') onRename(text);
+        if (editMode === 'cells') onEditCells(text);
+        setEditMode(null);
+    };
+    if (editMode) {
+        return (
+            <span className="cc-anim" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', ...baseStyle }}>
+                <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') commit();
+                        if (e.key === 'Escape') setEditMode(null);
+                    }}
+                    placeholder={editMode === 'cells' ? 'rij:kolom,rij:kolom,...' : undefined}
+                    style={{ width: `${Math.max(text.length, editMode === 'cells' ? 12 : 3)}ch`, fontFamily: 'Arial, sans-serif', fontSize: '22px' }} />
+            </span>
+        );
+    }
+    return (
+        <span className={`cc-anim${active ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', ...baseStyle }}>
+            <span onClick={onSelect}>{a.label}</span>
+            <span onClick={() => { setText(a.label); setEditMode('key'); }} title="Klik om te hernoemen" style={{ cursor: 'pointer' }}>✎</span>
+            <span onClick={() => { setText(formatCells(a.cells)); setEditMode('cells'); }} title="Frames/cells bewerken (rij:kolom,...)" style={{ cursor: 'pointer' }}>▦</span>
+            <span onClick={onToggleFlying} title="Vlieg-animatie aan/uit" style={{ cursor: 'pointer', opacity: flying ? 1 : 0.4 }}>✈</span>
+            <span onClick={onRemove} title="Animatie verwijderen" style={{ cursor: 'pointer', fontWeight: 'bold' }}>×</span>
+        </span>
+    );
+}
+// New-animation input: a key (typed) + a cells list (typed, same `row:col,row:col,...` format as the ▦
+// editor above) — the same "type it in a terminal" approach Han asked for, symmetric with `AddTagControl`.
+function AddAnimationControl({ onAdd }) {
+    const [key, setKey] = React.useState('');
+    const [cells, setCells] = React.useState('');
+    const commit = () => { if (key.trim() && cells.trim()) { onAdd(key, cells); setKey(''); setCells(''); } };
+    return (
+        <span className="cc-anim" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontFamily: 'Arial, sans-serif', fontSize: '22px' }}>
+            <input value={key} placeholder="naam" onChange={(e) => setKey(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} style={{ width: '6ch', fontFamily: 'Arial, sans-serif', fontSize: '22px' }} />
+            <input value={cells} placeholder="rij:kolom,..." onChange={(e) => setCells(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} style={{ width: '12ch', fontFamily: 'Arial, sans-serif', fontSize: '22px' }} />
+            <span onClick={commit} title="Animatie toevoegen" style={{ cursor: 'pointer', fontWeight: 'bold' }}>+</span>
+        </span>
+    );
+}
+// #1028 (Han 2026-08-17, "bestiary clean up" part 3 — "bij run/walk in edit mode bewegen de debug-blokken
+// opzij met constante snelheid. ik wil ook info kunnen aanpassen zoals snelheid: pixels/frame... ik zou
+// animaties zo fijn willen kunnen afstellen - constant of per frame"): the debug block used to just move at
+// an implicit fixed rate — now tunable, and (per-frame mode) able to express the SAME "pause on some frames,
+// move on others" shape the level's slime hop already has hardcoded elsewhere (SheetRpgLayer.jsx), so that
+// pattern becomes something Han can author/see here instead of only in code. `weights[i]` = how many
+// `pxPerFrame` units frame `i` advances (0 = stand still that frame). Purely editor-side for now — no
+// gameplay code reads this yet (§4b-approved phased migration, see docs/architecture.md).
+// #1028 follow-up round 3 (Han 2026-08-17, "bij move animaties, verwacht ik nog steeds dat de achtergrond
+// beweegt (checkerboard)"): factored out of `MovementDebugBlock` so `BestiaryTopPanel` can apply the SAME
+// weight-accumulation math to the checkerboard background's scroll offset (see that call site) — one
+// formula, two call sites, never duplicated.
+function movementWeights(movement, frameCount) {
+    return movement.frameWeights && movement.frameWeights.length === frameCount
+        ? movement.frameWeights : Array.from({ length: frameCount }, () => 1);
+}
+function computeMovementOffsetPx(movement, frameCount, frame) {
+    const weights = movementWeights(movement, frameCount);
+    const cyclePos = frame % frameCount;
+    return weights.slice(0, cyclePos).reduce((a, b) => a + b, 0) * movement.pxPerFrame;
+}
+function MovementDebugBlock({ movement, frameCount, frame, onSetPxPerFrame, onSetFrameWeight, onToggleMode }) {
+    const weights = movementWeights(movement, frameCount);
+    const offsetPx = computeMovementOffsetPx(movement, frameCount, frame);
+    const trackWidthPx = Math.max(1, weights.reduce((a, b) => a + b, 0)) * movement.pxPerFrame;
+    return (
+        <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '16.5px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Movement:</span>
+                <button onClick={onToggleMode} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+                    {movement.frameWeights ? 'per frame' : 'constant'}
+                </button>
+                {!movement.frameWeights && (
+                    <label>px/frame{' '}
+                        <input type="number" min="0" value={movement.pxPerFrame}
+                            onChange={(e) => onSetPxPerFrame(e.target.value)} style={{ width: '4ch' }} />
+                    </label>
                 )}
+            </div>
+            {movement.frameWeights && (
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {weights.map((w, i) => (
+                        <label key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '13.5px' }}>
+                            {i}
+                            <input type="number" min="0" value={w}
+                                onChange={(e) => onSetFrameWeight(i, e.target.value)} style={{ width: '3ch' }} />
+                        </label>
+                    ))}
+                </div>
+            )}
+            <div style={{ position: 'relative', height: '12px', width: `${trackWidthPx + 16}px`, border: '1px solid var(--text-secondary)' }}>
+                <div style={{ position: 'absolute', left: `${offsetPx}px`, top: '2px', width: '8px', height: '8px', background: 'var(--text-primary)' }} />
             </div>
         </div>
     );
 }
-
 // #790 (Han 2026-08-09, "het grote kader mag in lijn met de andere kaders (bestiary)"): exported so the
 // persona avatar preview (CharacterAvatarPanel) sizes its own hero/pet/frame at this SAME scale — one
 // visual scale for every 64×64 frame, not a second guessed one.
@@ -237,6 +367,12 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
         creature, variant, variantIndex, setVariantIndex, anim, frame, animKey, setAnimKey, visibleAnimations,
         activeAccessories, toggleAccessory, hasHatOverlay, hasSwordAnims, swordOn, toggleSword,
         colorVariants, hasBareToggle, bareOn, toggleBare,
+        displayTags, knownTags, addTag, removeTag, editTag,
+        avatarChar,
+        currentMovement, movementFrameCount, setMovementPxPerFrame, setFrameWeight, toggleMovementMode,
+        currentFacing, toggleFacing, displayName, setDisplayName,
+        setAnimKeyOverride, toggleAnimFlying,
+        formatCellsInput, setAnimCells, removeAnimation, addAnimation, setFrameSize,
     } = editor;
     // #671 (Han: "kan je de kleur samplen?"): Doggy's swatch colour is SAMPLED per-file (variant.swatchColor,
     // §671), not a named colour keyword — checked alongside variantColor so both sources light up the same
@@ -253,6 +389,16 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
         ...creature.accessories.filter((a) => activeAccessories[a.key]).map((a) => a.url),
         ...(activeAccessories.hat && anim.hatUrl ? [anim.hatUrl] : []),
     ];
+    // #1028 follow-up round 3 (Han 2026-08-17, "bij move animaties, verwacht ik nog steeds dat de
+    // achtergrond beweegt (checkerboard)"): the ORIGINAL ticket ask ("bij run/walk in edit mode bewegen de
+    // debug-blokken opzij") — `MovementDebugBlock`'s own small track (Follow-up 1) satisfied it literally
+    // but not what Han actually pictured: the big reference checkerboard BEHIND the sprite (added Follow-up
+    // 2) should itself scroll during a move-type animation, using the SAME speed/weights profile, so the
+    // creature visibly "walks across" it instead of a separate tiny widget moving elsewhere on screen. Only
+    // for move-type animations (`MOVE_ANIM_KEYS` — the same canonical list `findMoveAnim` uses, §6c) —
+    // idle/attack/death keep a static grid.
+    const checkerScrollPx = MOVE_ANIM_KEYS.includes(anim.key)
+        ? computeMovementOffsetPx(currentMovement, movementFrameCount, frame) : 0;
     // #870 (Han 2026-08-12, "verplaats de kleuren en togglers naar rechts van het portret... centreer het
     // portret... de tags links en de opties rechts mogen geen impact op de centrering hebben"): the colour
     // swatches + every toggler now render together in this ONE right-side column, gathered here so the JSX
@@ -267,7 +413,17 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                 variants show here now — Bare is its own toggle button below. */}
             {colorVariants.length > 1 && (
                 anyColor ? (
-                    <div className="cc-variants">
+                    // #1028 (Han 2026-08-17, part 4: "stapel de kleuren verticaal ipv horizontaal. als er twee
+                    // rijen kleuren nodig zijn, probeer dan door twee te delen zodat de kleuren netjes verdeeld
+                    // zijn"): `.cc-variants`' shared CSS (CharacterCreator.css) stays row/wrap — it's also used
+                    // by CharacterOptionsPanel's own (unrelated) variant chips — so this override is scoped
+                    // inline, here only. `flex-direction: column` + `flex-wrap: wrap` naturally stacks
+                    // vertically; capping `maxHeight` at ceil(n/2) rows once there are more than 6 swatches is
+                    // what makes a long list split into two EVEN columns instead of one tall one (n ≤ 6 gets no
+                    // cap at all, i.e. a single column — the common case for most creatures).
+                    <div className="cc-variants" style={colorVariants.length > 6
+                        ? { flexDirection: 'column', maxHeight: `${Math.ceil(colorVariants.length / 2) * 32}px`, alignContent: 'flex-start' }
+                        : { flexDirection: 'column' }}>
                         {colorVariants.map((v, i) => {
                             const col = colorOf(v);
                             // #690 (Han: "twee-kleuren vakje... diagonaal gesplitst links boven/rechts
@@ -324,18 +480,32 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
             )}
         </>
     );
-    const tagsColumn = (creature.being || variant.tags?.length) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+    // #1028 (Han 2026-08-17, part 2): `displayTags` (useBestiaryEditor) already layers this creature's
+    // add/remove/rename edits on top of the generator-derived `variant.tags` — read-only view uses it
+    // identically to the old `variant.tags`, debug mode additionally renders the ×/rename/+ controls.
+    // `being` (human/humanoid/animal/other) is NOT editable here — it's a required, mutually-exclusive
+    // classification driving other UI (BESTIARY_BEINGS filter row), out of scope for a free-text tag editor.
+    const tagsColumn = (creature.being || displayTags.length || debugMode) && (
+        // Right-aligned within its own column (see the justifySelf:'end' wrapper at the call site) — hugs
+        // the portrait, not the panel's outer edge.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
             {creature.being && <span style={tagPillStyle(creature.being)}>{creature.being}</span>}
-            {(variant.tags || []).filter((t) => t !== 'bare').map((t) => (
-                <span key={t} style={tagPillStyle(t)}>{t}</span>
+            {displayTags.filter((t) => t !== 'bare').map((t) => (
+                debugMode
+                    ? <EditableTagChip key={t} tag={t} onRemove={() => removeTag(t)} onRename={(nt) => editTag(t, nt)} />
+                    : <span key={t} style={tagPillStyle(t)}>{formatTagLabel(t)}</span>
             ))}
+            {debugMode && <AddTagControl knownTags={knownTags} onAdd={addTag} />}
         </div>
     );
     return (
         <div className="cc-enemy-preview" style={{ margin: '0 auto', width: '100%' }}>
             {/* #682 (Han 2026-08-04, "de titel / naam moet er boven staan") — moved above the frame(s). */}
-            <div className="cc-enemy-name">{creature.name}</div>
+            {/* #1028 follow-up (Han: "ik kan de naam niet aanpassen"): click-to-rename in debug mode, same
+                commit-on-Enter/blur pattern as EditableTagChip. Read-only outside debug mode. */}
+            {debugMode
+                ? <EditableNameTitle name={displayName} onRename={setDisplayName} />
+                : <div className="cc-enemy-name">{displayName}</div>}
             {/* #672/#675 (Han: "toon bij portrait characters links de avatar met animatievariaties, en
                 rechts het portret (groot)") — character sprite LEFT, portrait crop RIGHT, sized to roughly
                 match the avatar's own height so it reads as an equal-weight companion, not an afterthought.
@@ -352,14 +522,38 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                 without overflowing, and (b) putting tags/stage/options back in NORMAL flow as a wrapping flex
                 row instead of absolute — this can never overlap (worst case it wraps to its own line on an
                 extra-wide multi-box creature), trading Han's original "impact-free centering" guarantee for
-                robustness against content wider than any fixed pixel guess. */}
+                robustness against content wider than any fixed pixel guess.
+                #1028 (Han 2026-08-17, part 4, re-opening that tradeoff: "portret moet in het midden staan.
+                momenteel wordt positie van portret beinvloed door de breedte van tags links en kleuren
+                rechts"): the flex-row above only centers the STAGE relative to the leftover space after the
+                side columns — unequal tag/option widths visibly push it off-center, exactly what Han flagged.
+                A 3-column CSS GRID (`1fr auto stage-content 1fr`) fixes this for real: the two side columns
+                are FORCED equal width (both `1fr`) regardless of their own content, so the middle (`auto`)
+                column is always the true horizontal center of the row — not just "whatever's left over".
+                `minWidth: 0` on the side columns stops their content from blowing out the equal-fr sizing (the
+                default grid-item min-width is `auto`, which would otherwise let a wide tag list expand its
+                column past its `1fr` share). Wrapping is no longer needed for the overflow case §870 solved —
+                an extra-wide stage simply overflows its own `auto` column (same "never clipped" contract as
+                before), it just doesn't ALSO drag the grid's column widths out of sync anymore. */}
             <div style={{
-                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
                 gap: '12px', width: '100%', minHeight: FRAME_SIZE * PREVIEW_SCALE,
             }}>
-                {tagsColumn}
-                <div className="cc-enemy-stage" style={{ gap: '16px' }}>
-                    <CreatureSprite variant={variant} anim={anim} frame={frame} scale={PREVIEW_SCALE} overlayUrls={overlayUrls} mirror={variant.facing !== 'right'} />
+                {/* #1028 follow-up (Han 2026-08-17, "tags en kleuren zijn goed, maar mogen ipv aligned tegen
+                    de schermrand, strak tegen portret. (dus wissel rechts/links alignment van de tags en de
+                    kleuren om.)"): each side column now hugs the CENTER (the portrait), not its own outer
+                    grid-cell edge — tags right-align within their (left) cell, options left-align within
+                    theirs (right) — swapped from the original edge-hugging layout. */}
+                <div style={{ minWidth: 0, justifySelf: 'end' }}>{tagsColumn}</div>
+                <div className="cc-enemy-stage" style={{ gap: '16px', justifySelf: 'center' }}>
+                    {/* #1028 (part 3): avatar entries are a 13-layer paper doll, not a single spritesheet —
+                        CharacterDoll (the SAME renderer the character creator/hero-on-staff use, §6d) replaces
+                        CreatureSprite for exactly these two synthetic entries. `anim` here is already the
+                        `{row,frames}` shape CharacterDoll expects (avatarCreature's `animations: ANIMATIONS`,
+                        useBestiaryEditor.js — no `cells` conversion needed, unlike every other creature). */}
+                    {creature.isAvatar
+                        ? <CharacterDoll char={avatarChar} anim={anim} frame={frame} height={FRAME_SIZE * PREVIEW_SCALE} />
+                        : <CreatureSprite variant={variant} anim={anim} frame={frame} scale={PREVIEW_SCALE} overlayUrls={overlayUrls} mirror={currentFacing !== 'right'} debugMode={debugMode} checkerScrollPx={checkerScrollPx} />}
                     {variant.portraitUrl && (
                         <PortraitImage url={variant.portraitUrl} cell={variant.portraitCell} frame={variant.portraitFrame}
                             size={64 * PREVIEW_SCALE} animCols={variant.portraitAnimCols || 1} tick={frame}
@@ -378,16 +572,35 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                             oscillateSeed={creature.id} flip />
                     )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>{optionsColumn}</div>
+                {/* Left-aligned within its own column, mirroring tagsColumn's swap above — hugs the
+                    portrait from the right side instead of the panel's outer edge. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start', minWidth: 0, justifySelf: 'start' }}>{optionsColumn}</div>
             </div>
             {/* #668 debug width×height overlay (Han: "toon de hxb van de spritesheet zodat ik kan checken")
                 — the auto-scanned frame/crop guess is a PROPOSAL (no per-sheet hand measurement was
                 possible for 289 files); this lets Han visually sanity-check it against the real sheet. */}
             {debugMode && (
-                <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '16.5px', color: 'var(--text-secondary)' }}>
                     {variant.width ? `${variant.width}×${variant.height}px sheet, ` : ''}
-                    {variant.frame.w}×{variant.frame.h} frame
+                    {/* #1028 follow-up (Han: "maak p x q frame ook aanpasbaar... voor giant bat staat er
+                        72x72, moet zijn 16x24"): click the WxH text to type a corrected frame size —
+                        same click-to-edit pattern as the name title/tags above. */}
+                    <FrameSizeText frame={variant.frame} onSetFrameSize={setFrameSize} />
+                    {/* #1028 follow-up (Han: "creator/artist tag, enkel zichtbaar in debug mode") — asset
+                        attribution, debug-only, never part of the tags/filter system. */}
+                    {variant.artist ? ` — art: ${variant.artist}` : ''}
                 </div>
+            )}
+            {/* #1028 follow-up (Han: "ik kan de kijkrichting niet aanpassen" — "een simpele links/rechts-
+                mirror toggle per creature"). */}
+            {debugMode && (
+                <button onClick={toggleFacing} style={{ ...PILL_STYLE, cursor: 'pointer', alignSelf: 'center' }}>
+                    Facing: {currentFacing === 'right' ? 'Right' : 'Left'}
+                </button>
+            )}
+            {debugMode && (
+                <MovementDebugBlock movement={currentMovement} frameCount={movementFrameCount} frame={frame}
+                    onSetPxPerFrame={setMovementPxPerFrame} onSetFrameWeight={setFrameWeight} onToggleMode={toggleMovementMode} />
             )}
             {creature.blurb && <div className="cc-enemy-blurb">{creature.blurb}</div>}
             {/* #870 (Han 2026-08-12, "laat de animatie eronder staan, maar gebruik de volledige beschikbare
@@ -397,12 +610,23 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                     a `flying`-tagged animation (generator-derived) gets a dark-blue tint so it reads as
                     "this one hovers/oscillates" at a glance, independent of which one is currently active. */}
                 {visibleAnimations.map((a) => (
-                    <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
-                        onClick={() => setAnimKey(a.key)}
-                        style={a.tags?.includes('flying') ? { backgroundColor: '#16306b', color: '#fff' } : undefined}>
-                        {a.label}
-                    </button>
+                    debugMode
+                        ? <EditableAnimButton key={a.key} a={a} active={animKey === a.key}
+                            onSelect={() => setAnimKey(a.key)}
+                            onRename={(newKey) => setAnimKeyOverride(a, newKey)}
+                            onEditCells={(cellsStr) => setAnimCells(a, cellsStr)}
+                            formatCells={formatCellsInput}
+                            onToggleFlying={() => toggleAnimFlying(a)}
+                            onRemove={() => removeAnimation(a)} />
+                        : (
+                            <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
+                                onClick={() => setAnimKey(a.key)}
+                                style={a.tags?.includes('flying') ? { backgroundColor: '#16306b', color: '#fff' } : undefined}>
+                                {a.label}
+                            </button>
+                        )
                 ))}
+                {debugMode && <AddAnimationControl onAdd={addAnimation} />}
             </div>
         </div>
     );
@@ -445,16 +669,17 @@ function TagRow({ row, editor }) {
                         className={`cc-toggle${active ? ' active' : ''}`}
                         onClick={() => (available ? toggleTagFilter(tag) : selectOnlyTag(tag))}
                         style={{
+                            ...TAG_ROW_BUTTON_STYLE,
                             ...(active ? { backgroundColor: TAG_COLOR[tag], borderColor: TAG_COLOR[tag], color: '#fff' } : undefined),
                             ...(available ? undefined : { opacity: 0.35 }),
                         }}>
-                        {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                        {formatTagLabel(tag)}
                     </button>
                 );
             })}
             {/* Han: "voeg aan het eind van elke rij een knopje 'all' toe, die alle tags uitzet, en de
                 filtergroep afzet (want de groepen zijn niet exhaustief)" — clears just THIS row. */}
-            <button className={`cc-toggle${rowActive ? '' : ' active'}`}
+            <button className={`cc-toggle${rowActive ? '' : ' active'}`} style={TAG_ROW_BUTTON_STYLE}
                 onClick={() => clearTagRow(row)}>All</button>
         </div>
     );
@@ -464,10 +689,14 @@ function BestiaryFilterBar({ editor }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', marginBottom: '10px' }}>
             <div className="cc-toggle-group">
+                {/* #1028 follow-up (Han 2026-08-17, "kijk eens goed naar hoe de labels eruit zien, maak
+                    consistent"): the being row and Mature button below were still plain `.cc-toggle`
+                    (square corners, smaller/serif-inherited text) while every tag-row chip now gets
+                    `TAG_ROW_BUTTON_STYLE` — the whole filter bar reads as one cohesive control now. */}
                 {BESTIARY_BEINGS.map((being) => (
                     <button key={being} className={`cc-toggle${activeBeings.has(being) ? ' active' : ''}`}
                         onClick={() => toggleBeing(being)}
-                        style={activeBeings.has(being) ? { backgroundColor: TAG_COLOR[being], borderColor: TAG_COLOR[being], color: '#fff' } : undefined}>
+                        style={{ ...TAG_ROW_BUTTON_STYLE, ...(activeBeings.has(being) ? { backgroundColor: TAG_COLOR[being], borderColor: TAG_COLOR[being], color: '#fff' } : undefined) }}>
                         {being.charAt(0).toUpperCase() + being.slice(1)}
                     </button>
                 ))}
@@ -475,14 +704,14 @@ function BestiaryFilterBar({ editor }) {
             <TagRow row={BESTIARY_TOWNSFOLK_ROW} editor={editor} />
             {BESTIARY_FILTER_TAG_ROWS.map((row, i) => <TagRow key={i} row={row} editor={editor} />)}
             <div className="cc-toggle-group">
-                <button className={`cc-toggle${matureMode !== 'off' ? ' active' : ''}`}
+                <button className={`cc-toggle${matureMode !== 'off' ? ' active' : ''}`} style={TAG_ROW_BUTTON_STYLE}
                     onClick={cycleMatureMode}>{MATURE_MODE_LABEL[matureMode]}</button>
             </div>
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search…" className="cc-search-input"
                 style={{
-                    fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', padding: '4px 10px',
-                    borderRadius: '6px', border: '1px solid var(--text-secondary)', background: 'var(--panel-bg)',
+                    fontFamily: 'Arial, sans-serif', fontSize: '16.5px', padding: '4px 10px',
+                    borderRadius: '10px', border: '1px solid var(--text-secondary)', background: 'var(--panel-bg)',
                     color: 'var(--text-primary)', width: '220px',
                 }} />
         </div>
@@ -502,7 +731,13 @@ export function BestiaryBottomPanel({ editor }) {
                         <button key={c.id} title={c.name}
                             className={`cc-thumb cc-enemy-thumb${c.id === selId ? ' active' : ''}`}
                             onClick={() => selectCreature(c.id)}>
-                            <CreatureSprite variant={rep} anim={idle} frame={0} scale={THUMB_SCALE} framed={false} mirror={rep.facing !== 'right'} />
+                            {/* #1028 (part 3): avatar entries carry `{row,frames}` animations (CharacterDoll's
+                                shape), not the `{cells}` shape every other creature's CreatureSprite expects —
+                                same branch as BestiaryTopPanel, needed here too since this grid renders EVERY
+                                visible creature's thumbnail, avatars included. */}
+                            {c.isAvatar
+                                ? <CharacterDoll char={{ gender: c.avatarGender, layers: { skin: rep.skinLayer } }} anim={idle} frame={0} height={FRAME_SIZE * THUMB_SCALE} />
+                                : <CreatureSprite variant={rep} anim={idle} frame={0} scale={THUMB_SCALE} framed={false} mirror={rep.facing !== 'right'} />}
                         </button>
                     );
                 })}

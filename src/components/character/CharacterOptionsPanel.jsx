@@ -1,7 +1,8 @@
 import React from 'react';
 import { ANIMATIONS, CATEGORIES, variantColor, skinSwatchColor, earForSkin } from '../../model/characterAssets';
 import { checker, thumbStyle, catByKeyLabel, catByRequired } from './characterEditorShared';
-import { CreatureSprite } from './BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
+import { CreatureSprite } from './CreatureSprite';
 import { findVariantByUrl, findIdleAnim } from '../../model/bestiaryAssets';
 
 // #790 (Han 2026-08-09, "zorg in de avatar view en equipment view de 'pet' ook uit de bestiary komt"): the

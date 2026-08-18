@@ -1,7 +1,9 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import { CreatureSprite } from '../BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): CreatureSprite moved to its own file — see
+// CreatureSprite.jsx's header comment for why (broke a circular-import Fast Refresh loop).
+import { CreatureSprite } from '../CreatureSprite';
 
 // #790 (Han 2026-08-09, crash reported at level start: "Cannot read properties of undefined (reading
 // 'col')" in CreatureSprite/layerStyle): `frame` can be NEGATIVE during a level's pre-roll (e.g.

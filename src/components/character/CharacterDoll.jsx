@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 import { CATEGORIES, BODY_FRAME, frameOf, urlOfLayer } from '../../model/characterAssets';
-import { CreatureSprite } from './BestiaryPanels';
+// #1028 follow-up (Han 2026-08-17, HMR bug fix): imports from `CreatureSprite.jsx` now, not
+// `BestiaryPanels.jsx` — that used to create an ES module cycle once BestiaryPanels.jsx also needed
+// CharacterDoll (avatar-as-bestiary-entry, §245), which broke Vite Fast Refresh (infinite HMR loop). See
+// CreatureSprite.jsx's header comment for the full story.
+import { CreatureSprite } from './CreatureSprite';
 import { findVariantByUrl, findMoveAnim, findIdleAnim } from '../../model/bestiaryAssets';
 
 // #647 Shared paper-doll renderer — the SINGLE source of the layered character (§6d). Used by the character
