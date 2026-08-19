@@ -11,7 +11,7 @@ import {
 import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
 import { WATER_SOUND_LAYERS } from '../model/waterSoundsManifest.generated';
 import { VOL_STEPS } from '../components/sheet-music/overlays/SettingsOverlay';
-import { generateHh } from '../generation/generateBackbeat';
+import { generateHh, HH_NOTES_PER_MEASURE_BY_DENOM } from '../generation/generateBackbeat';
 import { createFreePatsPercussionInstrument, KIT_NOTE_MAPPINGS } from '../audio/drumKits';
 
 // #925 round 2 (Han 2026-08-17, "maak een json die je bijwerkt om dit soort info up to date te houden"):
@@ -82,8 +82,9 @@ const WATER_GLOCKENSPIEL_MAX_SILENCE_SEC = 12;
 // below) — one continuous note, no natural release — just a fixed note/gain instead of manifest-
 // sourced velocity, since this isn't real MIDI content like the hum/glockenspiel are.
 const WATER_PERCUSSION_NOTE = 'C4';
-// Han 2026-08-19 UAT: "applause is a bit too loud" — dropped one VOL_STEPS dynamic level, mp -> p.
-const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'piano').value;   // 'p'
+// Han 2026-08-19 UAT round 1: "applause is a bit too loud" (mp -> p). Round 2: "make the applause even
+// softer" — one more VOL_STEPS dynamic level down, p -> pp.
+const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').value;   // 'pp'
 
 // #1091 follow-up (Han 2026-08-19, "percussion cannot be heard in the RPG-level, the aforementioned
 // loop (hh, eights, with cymbal accents) should sound at the water"): water's FOURTH voice — the real
@@ -92,10 +93,13 @@ const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'piano').value; 
 // 'FreePats Percussion' local sample kit the practice-mode percussion instrument defaults to
 // (createFreePatsPercussionInstrument, drumKits.js §8/§6d) — a dedicated instance, never the user's
 // own configured percussion track, same "own dedicated instrument" rule every other voice in this file
-// follows. 30% variability matches Han's original #1091 spec; smallestNoteDenom=8 matches both that
-// spec and defaultPercussionInstrumentSettings' own default.
-const WATER_HH_VARIABILITY = 30;
-const WATER_HH_SMALLEST_NOTE_DENOM = 8;
+// follows.
+// #1091 UAT round 2 (Han: "I LOF the percussion. every 2 measures randomize percussion. randomly
+// select 1,2,4,8,16 as the smallest note denum"): each 2-measure block re-rolls smallestNoteDenom from
+// this pool; `HH_NOTES_PER_MEASURE_BY_DENOM` (generateBackbeat.js, Han's own explicit density table)
+// supplies the matching notesPerMeasure for whichever denom gets drawn.
+const WATER_HH_BLOCK_MEASURES = 2;
+const WATER_HH_DENOM_CHOICES = [1, 2, 4, 8, 16];
 const FREEPATS_MAPPING = KIT_NOTE_MAPPINGS['FreePats Percussion'];
 
 // Plain StereoPannerNode + GainNode per voice (Han: "doe dan maar gewone stereo pan + volume, als dat
@@ -354,13 +358,16 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             triggerOnce();
         };
 
-        // #1091 follow-up: repeating generated `hh` block (§266's generateHh — hi-hat every beat,
-        // randomised open-hihat/pedal/rest/ride-bell on the off-beats) — a JIT block loop like the
-        // ambient piano's own (generateWorldAmbientBlock.js), but self-gating on water range the SAME
-        // way scheduleGlockenspiel does, since (unlike the piano) this must only sound near water.
-        // `.volumes` scaled by MF_VOLUME here (matching every other manually-triggered layer in this
-        // file); `.velocities` (on-beat 100 / off-beat 80 or 100 when substituted) already comes
-        // straight out of generateHh and multiplies on top via playMelodies' new #1091 velocity axis.
+        // #1091 follow-up: repeating generated `hh` block (§266/§267's generateHh) — a JIT block loop
+        // like the ambient piano's own (generateWorldAmbientBlock.js), but self-gating on water range
+        // the SAME way scheduleGlockenspiel does, since (unlike the piano) this must only sound near
+        // water. `.volumes` scaled by MF_VOLUME here (matching every other manually-triggered layer in
+        // this file); `.velocities` (on-beat/off-beat/off-off-beat, §267 round 2) already comes
+        // straight out of generateHh and multiplies on top via playMelodies' #1091 velocity axis.
+        // Round 2 (Han: "every 2 measures randomize percussion... randomly select 1,2,4,8,16 as the
+        // smallest note denum"): EACH block re-rolls its own smallestNoteDenom, with the matching
+        // notesPerMeasure looked up from Han's own density table — not a fixed pattern repeating
+        // forever like round 1 was.
         const scheduleHh = () => {
             if (hhScheduling) return;
             hhScheduling = true;
@@ -372,11 +379,13 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                     hhScheduling = false;
                     return;   // the main reconcile interval below restarts this once water is back in range
                 }
-                const block = generateHh(WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_NUM_MEASURES, WATER_HH_SMALLEST_NOTE_DENOM, WATER_HH_VARIABILITY);
+                const smallestNoteDenom = WATER_HH_DENOM_CHOICES[Math.floor(Math.random() * WATER_HH_DENOM_CHOICES.length)];
+                const notesPerMeasure = HH_NOTES_PER_MEASURE_BY_DENOM[smallestNoteDenom];
+                const block = generateHh(WORLD_AMBIENT_TIME_SIGNATURE, WATER_HH_BLOCK_MEASURES, smallestNoteDenom, notesPerMeasure);
                 block.volumes = block.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
                 playMelodies([block], [hhInstrument], context, WORLD_AMBIENT_BPM, startTime, null, null, null, FREEPATS_MAPPING);
-                const blockDurationSec = WORLD_AMBIENT_NUM_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
+                const blockDurationSec = WATER_HH_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
                 const waitSec = (startTime - context.currentTime) + blockDurationSec;
                 setTimeout(triggerOnce, waitSec * 1000);
             };

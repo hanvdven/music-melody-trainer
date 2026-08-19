@@ -5098,3 +5098,22 @@ sound at the water" + "Birds should only perch on 'bird slots'".
 
 Geverifieerd: `npm run test:run` (825 passed, 1 nieuwe mock nodig voor de Sampler-constructor in
 jsdom), `npm run lint` (0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §267.
+
+## 2026-08-19 — ✅ "I LOF the percussion" — round 2: echte variatie per 2 maten + applause nog zachter
+
+Han, enthousiast over §267's water-hh-loop: elke 2 maten random smallestNoteDenom uit {1,2,4,8,16},
+regenereer die 2 maten met dezelfde regels (hh + uniform random cymbals), notesPerMeasure vast per
+denom (1,1,2,3,4), en voor 16: de "off-off beats" op velocity 60. Applause nog een stap zachter.
+
+1. **✅ `generateHh` herbouwd** — `slotsPerMeasure` gebruikt nu de LETTERLIJKE smallestNoteDenom (niet
+   meer geplafonneerd op de maatsoort-noemer), dus 1/2 (hele/halve noot) geven echt 1/2 slots per maat
+   i.p.v. hetzelfde als 4. Metrische hiërarchie (`hhMetricLevel`) generaliseert on/off/off-off puur uit
+   `slotsPerBeat` (geen tabel per maatsoort). Substitutie is nu een EXACT aantal per maat
+   (`notesPerMeasure`), niet meer een kans — Han's eigen dichtheidstabel `HH_NOTES_PER_MEASURE_BY_DENOM`
+   gedeeld tussen practice-mode en de water-loop.
+2. **✅ Water-loop randomiseert nu echt** — blokgrootte naar 2 maten, elk blok trekt zijn eigen
+   smallestNoteDenom + bijbehorende notesPerMeasure.
+3. **✅ Applause nog zachter** — p → pp.
+
+Geverifieerd: `npm run test:run` (829 passed, generateHh.test.js herschreven), `npm run lint`
+(0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §268.

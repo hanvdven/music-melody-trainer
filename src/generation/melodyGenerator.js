@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateBackbeat2, generateSwing, generateHh, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing, generateHh, generateMetronome, filterPercussionByEnabledPads, HH_NOTES_PER_MEASURE_BY_DENOM } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
 // #435: percussion overlap-hierarchy resolver (drumKits = percussion-pad SSOT, §8) —
@@ -110,12 +110,13 @@ class MelodyGenerator {
             );
         }
         if (randomizationRule === 'hh') {
-            // #1091 (Han 2026-08-19): hi-hat-only pattern — no notesPerMeasure/notePool params, every
-            // slot is always active (see generateHh's own doc comment in generateBackbeat.js).
+            // #1091 (Han 2026-08-19, round 2): every slot is always active (hi-hat base layer), so
+            // unlike the other percussion patterns `notesPerMeasure` here means an exact per-measure
+            // SUBSTITUTION COUNT, not a note-onset budget — see generateHh's own doc comment.
             return generateHh(
                 timeSignature, numMeasures,
                 smallestNoteDenom || 8,
-                rhythmVariability || 0
+                notesPerMeasure || HH_NOTES_PER_MEASURE_BY_DENOM[smallestNoteDenom || 8]
             );
         }
         if (randomizationRule === 'metronome') {

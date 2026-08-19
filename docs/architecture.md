@@ -17923,3 +17923,61 @@ until Han actually places `X_bird_slot` markers in the LDtk editor.
 `src/hooks/useInstruments.js` (reuses the new helper), `src/components/character/RpgLevelPanel.jsx`
 (`birdSlots`, `birdSlotClaimsRef`, `nearestFreeBirdSlot`, `WorldWanderer`'s `perchTargetRef`/
 `claimedSlotIndexRef`), `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new mock).
+
+### §268. `generateHh` round 2 — literal (not beat-floored) resolution, per-measure substitution count, on/off/off-off velocity hierarchy, per-2-measure randomized denom at the water (#1091, Han 2026-08-19)
+
+**Purpose.** Han, enjoying §267's water `hh` loop ("I LOF the percussion"), asked for real variety:
+(1) every 2 measures, re-roll `smallestNoteDenom` randomly from {1,2,4,8,16}; (2) regenerate those 2
+measures with "the same rules (hh + uniform random cymbals)", with an explicit density table — notes
+per measure = 1,1,2,3,4 for denom 1,2,4,8,16 respectively; (3) for denom=16 specifically, the
+finest-subdivision slots ("off-off beats") get velocity 60. Applause dropped one more `VOL_STEPS`
+level too (p → pp — "make the applause even softer").
+
+**`generateHh` reworked (`generateBackbeat.js`) — three real changes, not just new parameters:**
+
+1. **Literal `smallestNoteDenom`, not floored at the beat.** §266's `slotsPerMeasure` used
+   `Math.max(timeSignature[1], smallestNoteDenom)` — appropriate for backbeat/swing (never coarser than
+   the beat) but WRONG for round 2's denom=1/2 (whole/half notes, genuinely coarser than a 4/4 quarter
+   beat): the floor would collapse them all to the SAME 4-slots-per-measure pattern as denom=4, instead
+   of 1 or 2 slots. Now `slotsPerMeasure = round(numerator * smallestNoteDenom / denominator)` — the
+   literal value, giving 1/2/4/8/16 slots per measure in 4/4 for the five choices, exactly matching
+   their note-value names. Tick duration changed to match: `TICKS_PER_WHOLE / smallestNoteDenom`
+   directly (not the shared `slotTicks` helper, which has the same beat-floor assumption baked in).
+
+2. **Metrical hierarchy, not a binary on/off split.** New `hhMetricLevel(slotIndexInMeasure,
+   slotsPerBeat)`: `slotsPerBeat <= 1` (denom no finer than the beat) → every slot `'on'` (nothing finer
+   exists to call "off-beat"); `slotsPerBeat === 2` → classic on/off; `slotsPerBeat === 4` → on / off (the
+   "&") / off-off (the "e"/"a"), generalized so finer-still resolutions collapse into the `'off-off'`
+   tier rather than inventing an unrequested 4th level. Purely a function of `slotsPerBeat`
+   (`slotsPerMeasure / numerator`) — no numerator-specific table (CLAUDE.md §6c/§6b), works for any
+   time signature. Velocities: on=100 (unchanged since round 1), off=80 (unchanged), off-off=60 (new).
+
+3. **Substitution is now an exact per-measure COUNT, not a probability.** Round 1 gave each off-beat
+   slot an independent `variability`% chance of substitution. Round 2 instead picks EXACTLY
+   `notesPerMeasure` distinct slots per measure (uniformly at random, from ALL slots — on-beat included
+   now, not off-beat-only) and substitutes each from the same `HH_SUBSTITUTION_POOL`
+   (ho/hp/r/cr_bell) — a substituted slot always plays at velocity 100 regardless of which metrical
+   tier it was (unchanged rule from round 1). `HH_NOTES_PER_MEASURE_BY_DENOM = { 1:1, 2:1, 4:2, 8:3,
+   16:4 }` is Han's own explicit density curve — dictated verbatim, not derived (§6c: a formula only
+   replaces a table when the value CAN be derived; this is a creative choice, same class as `GM_PROGRAM`
+   being a fixed external table). Exported so both callers (practice-mode `melodyGenerator.js`'s
+   `notesPerMeasure || HH_NOTES_PER_MEASURE_BY_DENOM[...]` fallback, and the water loop below) share ONE
+   table.
+
+**Water loop (`useWorldAmbientMusic.js`) — real per-block variety.** `scheduleHh`'s block size dropped
+from the shared 4-measure ambient-piano block to a dedicated `WATER_HH_BLOCK_MEASURES = 2`; each block
+now draws its own `smallestNoteDenom` from `WATER_HH_DENOM_CHOICES = [1,2,4,8,16]` and looks up the
+matching `notesPerMeasure` from `HH_NOTES_PER_MEASURE_BY_DENOM` — so consecutive 2-measure blocks
+genuinely differ in density/resolution, not the same fixed 8th-note pattern repeating (round 1's
+behaviour). `WATER_PERCUSSION_GAIN` (applause) dropped one more `VOL_STEPS` level, piano → pianissimo.
+
+**Verified:** `npm run test:run` (829 passed, 4 new in `generateHh.test.js` covering the literal-denom
+slot counts, the 3-tier velocity hierarchy at denom=16, the exact-count substitution, and 5/4
+generalisation), `npm run lint` (0 errors), `npm run build` (clean). Not verified live in a real
+browser this session.
+
+**Files:** `src/generation/generateBackbeat.js` (`generateHh` rewrite, `hhMetricLevel`,
+`HH_NOTES_PER_MEASURE_BY_DENOM`, `HH_SUBSTITUTION_POOL` renamed from `HH_OFFBEAT_POOL`),
+`src/generation/melodyGenerator.js` (`notesPerMeasure` instead of `rhythmVariability` for the `'hh'`
+branch), `src/hooks/useWorldAmbientMusic.js` (`WATER_HH_BLOCK_MEASURES`/`WATER_HH_DENOM_CHOICES`,
+`WATER_PERCUSSION_GAIN` → pianissimo), `src/generation/__tests__/generateHh.test.js` (rewritten).

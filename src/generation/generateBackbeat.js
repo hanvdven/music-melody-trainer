@@ -428,52 +428,89 @@ export function generateSwing(
     return generatePercussionFromDNA('swing', timeSignature, numMeasures, smallestNoteDenom, variability, variability, notesPerMeasure, notePool);
 }
 
-// #1091 (Han 2026-08-19): the off-beat substitution pool for `generateHh` — "randomize dan met note
-// pool: ho/hp/r/rb" (rb confirmed by Han as the existing `cr_bell` pad, not a new one). Fixed to the
-// hh type itself (not exposed via InstrumentSettings.notePool, unlike PERC_POOLS above) — Han
-// specified this exact pool as part of what "hh" IS, not a separate configurable style knob.
-const HH_OFFBEAT_POOL = ['ho', 'hp', 'r', 'cr_bell'];
+// #1091 (Han 2026-08-19): the substitution pool for `generateHh` — "randomize dan met note pool:
+// ho/hp/r/rb" (rb confirmed by Han as the existing `cr_bell` pad, not a new one). Fixed to the hh type
+// itself (not exposed via InstrumentSettings.notePool, unlike PERC_POOLS above) — Han specified this
+// exact pool as part of what "hh" IS, not a separate configurable style knob.
+const HH_SUBSTITUTION_POOL = ['ho', 'hp', 'r', 'cr_bell'];
+
+// #1091 UAT round 2 (Han 2026-08-19, "I LOF the percussion... every 2 measures randomize percussion,
+// randomly select 1,2,4,8,16 as the smallest note denum... set notes per measure to 1,1,2,3,4
+// respectively"): the water env-audio caller (useWorldAmbientMusic.js) draws BOTH values from this
+// table each block — Han's own explicit density curve, one entry per resolution choice. Not a
+// derivable formula (§6c only asks for one when a value CAN be derived; this is Han's own creative
+// density choice, dictated verbatim, the same class of "fixed external spec" as GM_PROGRAM above), and
+// also the fallback used by melodyGenerator.js's `notesPerMeasure || …` for the practice-mode carousel.
+export const HH_NOTES_PER_MEASURE_BY_DENOM = { 1: 1, 2: 1, 4: 2, 8: 3, 16: 4 };
+
+/**
+ * A slot's metrical strength within one measure, as a hierarchy of nested beat subdivisions — NOT a
+ * numerator-specific lookup table (CLAUDE.md §6c/§6b): purely a function of how many measure-slots
+ * fall within one time-signature beat (`slotsPerBeat`), so it works for any numerator/smallestNoteDenom
+ * combination, not just 4/4.
+ *   slotsPerBeat <= 1 (smallestNoteDenom no finer than the beat, e.g. whole/half/quarter notes in 4/4)
+ *     -> every slot 'on' (there is nothing finer to distinguish an off-beat from).
+ *   slotsPerBeat === 2 (eighth notes in 4/4) -> classic on-beat / off-beat (the "&") split.
+ *   slotsPerBeat === 4 (sixteenth notes in 4/4) -> on-beat / off-beat / off-off-beat (the "e"/"a").
+ *   anything finer collapses into the 'off-off' tier rather than inventing a 4th no one asked for.
+ */
+function hhMetricLevel(slotIndexInMeasure, slotsPerBeat) {
+    if (slotsPerBeat <= 1 || !Number.isInteger(slotsPerBeat)) return 'on';
+    const withinBeat = slotIndexInMeasure % slotsPerBeat;
+    if (withinBeat === 0) return 'on';
+    if (slotsPerBeat === 2) return 'off';
+    return withinBeat === slotsPerBeat / 2 ? 'off' : 'off-off';
+}
+
+// Han: on-beat stays velocity 100 (unchanged since round 1); off-beat 80 ("zet hh op tellen 2,4,6,8
+// op velocity 80"); off-off-beat 60, new in round 2, "for 16: the off-off beats should have velocity
+// 60". A substituted slot always plays at velocity 100 regardless of its metrical level (round 1:
+// "als er een ho/hp/r/rb wordt getrokken, gebruik dan gewoon weer velocity 100") — applied separately
+// below, after this base assignment.
+const HH_VELOCITY_BY_LEVEL = { on: 100, off: 80, 'off-off': 60 };
 
 /**
  * Generate a hi-hat-only percussion pattern (#1091, Han: "elke tel heeft een hh (net als backbeat,
- * maar dan zonder de kick en snare)"). Every ON-beat slot (the start of each denominator-beat) is a
- * closed hi-hat at velocity 100. Every OFF-beat slot (any other subdivision — the "&" of each beat at
- * the default smallestNoteDenom=8) is independently, randomly substituted from HH_OFFBEAT_POOL at
- * `variability` probability; substituted notes play at velocity 100 ("als er een ho/hp/r/rb wordt
- * getrokken, gebruik dan gewoon weer velocity 100"), while an unsubstituted off-beat hh plays softer,
- * at velocity 80 ("zet hh op tellen 2,4,6,8 op velocity 80") — the accent that actually distinguishes
- * on- from off-beat hits once the pool draw itself doesn't.
+ * maar dan zonder de kick en snare)"). Base layer: closed hi-hat on every slot, velocity per
+ * `hhMetricLevel`. Then exactly `notesPerMeasure` DISTINCT, uniformly-random slots PER MEASURE
+ * (independently per measure, not per whole block) are substituted with a uniformly-random pick from
+ * `HH_SUBSTITUTION_POOL` — round 2 (Han): "randomize de 2 measures according to the same rules (hh +
+ * uniform random cymbals). Set notes per measure to 1,1,2,3,4 respectively" — replacing round 1's
+ * off-beat-only substitution PROBABILITY with an exact per-measure COUNT, drawn from any slot
+ * (on-beat included) rather than off-beat slots only.
  *
- * Generalises to any time signature/smallestNoteDenom via slotsPerBeat (same derivation
- * `generateBackbeat2` already uses for its own hihat-every-slot fill) — no numerator-specific table
- * (CLAUDE.md §6c/§6b): a slot is "on-beat" iff it's the first subdivision within its beat.
+ * `smallestNoteDenom` is used LITERALLY here (not floored against the time signature's own
+ * denominator the way `generatePercussionFromDNA`'s slot math is) — round 2 needs genuinely
+ * COARSER-than-the-beat resolutions (whole/half notes) to produce fewer, not equal, slots per measure.
+ * Tick duration is therefore `TICKS_PER_WHOLE / smallestNoteDenom` directly rather than the shared
+ * `slotTicks` helper (which assumes at-least-beat resolution, true for backbeat/swing but not here).
  *
  * No kick/snare, no DNA-driven placement (every slot is always active) — unlike `generatePercussionFromDNA`,
  * this pattern doesn't need `generateRankedRhythm`'s slot-priority ranking at all.
  */
 export function generateHh(
     timeSignature, numMeasures,
-    smallestNoteDenom = 8, variability = 0
+    smallestNoteDenom = 8, notesPerMeasure = HH_NOTES_PER_MEASURE_BY_DENOM[8]
 ) {
-    const v = Math.max(0, Math.min(100, variability)) / 100;
-    const measureNoteResolution = Math.max(timeSignature[1], smallestNoteDenom);
-    const slotsPerMeasure = (measureNoteResolution * timeSignature[0]) / timeSignature[1];
-    const slotsPerBeat = measureNoteResolution / timeSignature[1];
+    const [numerator, denominator] = timeSignature;
+    const slotsPerMeasure = Math.max(1, Math.round((numerator * smallestNoteDenom) / denominator));
+    const slotsPerBeat = slotsPerMeasure / numerator;
     const totalSlots = slotsPerMeasure * numMeasures;
 
-    const rawNotes = new Array(totalSlots);
+    const rawNotes = new Array(totalSlots).fill('hh');
     const velocities = new Array(totalSlots);
-
     for (let s = 0; s < totalSlots; s++) {
-        if (s % slotsPerBeat === 0) {
-            rawNotes[s] = 'hh';
-            velocities[s] = 100;
-        } else if (v > 0 && Math.random() < v) {
-            rawNotes[s] = HH_OFFBEAT_POOL[Math.floor(Math.random() * HH_OFFBEAT_POOL.length)];
-            velocities[s] = 100;
-        } else {
-            rawNotes[s] = 'hh';
-            velocities[s] = 80;
+        velocities[s] = HH_VELOCITY_BY_LEVEL[hhMetricLevel(s % slotsPerMeasure, slotsPerBeat)];
+    }
+
+    const substitutionsPerMeasure = Math.max(0, Math.min(notesPerMeasure, slotsPerMeasure));
+    for (let m = 0; m < numMeasures; m++) {
+        const measureStart = m * slotsPerMeasure;
+        const candidates = Array.from({ length: slotsPerMeasure }, (_, i) => measureStart + i);
+        for (let picked = 0; picked < substitutionsPerMeasure; picked++) {
+            const [slot] = candidates.splice(Math.floor(Math.random() * candidates.length), 1);
+            rawNotes[slot] = HH_SUBSTITUTION_POOL[Math.floor(Math.random() * HH_SUBSTITUTION_POOL.length)];
+            velocities[slot] = 100;
         }
     }
 
@@ -483,7 +520,7 @@ export function generateHh(
     // should a future change ever stack notes within one hh slot.
     const finalNotes = rawNotes.map(slot => resolvePercussionChord(slot));
 
-    const tickDur = slotTicks(timeSignature, smallestNoteDenom);
+    const tickDur = TICKS_PER_WHOLE / smallestNoteDenom;
     const durations = finalNotes.map(() => tickDur);
     const offsets = finalNotes.map((_, i) => i * tickDur);
 
