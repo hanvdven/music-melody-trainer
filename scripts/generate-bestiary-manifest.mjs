@@ -2231,6 +2231,14 @@ for (const entry of manifest) {
     // stay the default left-facing.
     if (entry.category === 'critters' && !/critters sheet\.png$/i.test(entry.relPath)) entry.facing = 'right';
     if (FACING_RIGHT_NAMES.has(entry.base)) entry.facing = 'right';
+    // #1091 follow-up (Han 2026-08-20, "sommige dieren kijken de verkeerde kant op, zoals de bumble bee...
+    // Gebruik altijd de bestiary als referentie"): the blanket "every non-sheet critter faces right" rule
+    // above was a category-level GUESS, not per-sprite verification — Han's own bestiary-preview QA found
+    // exceptions. This override corrects those specific names back to the (default) left-facing native
+    // orientation. Add more names here if Han flags further ones — do not widen/narrow the blanket rule
+    // itself without more evidence, since it's still correct for every OTHER non-sheet critter.
+    const FACING_LEFT_OVERRIDE_NAMES = new Set(['Bumble Bee']);
+    if (FACING_LEFT_OVERRIDE_NAMES.has(entry.base)) entry.facing = 'left';
     // #870 (Han 2026-08-11/12): merge each already-mature "Bare"/"Plain" singleton with its new
     // covered-sheet counterpart above by giving it a matching {base, variant:'Bare'} pair. (Lady Dryad
     // Flowers had one too — removed 2026-08-12, "haal de bare variant weg", see the file-skip above.)

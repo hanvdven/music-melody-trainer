@@ -401,7 +401,11 @@ function waterSpanNear(spawnX, spawnY, world) {
 // `RETURN_DURATION_MS` along a quadratic bezier (control point offset PERPENDICULAR to the straight
 // start->spawn line, "dynamically built" per-return since the start point is wherever wandering stopped)
 // instead of a straight cut — continuous motion the whole way, curved rather than linear.
-const RETURN_DURATION_MS = 1200;
+// #1092 follow-up (Han 2026-08-20, "bird animaties: overgang is OK, mooi lineair, maar nog niet
+// perfect, maak de overgang iets trager tussen stijgen en vliegen, 3x zo traag"): "mooi lineair"
+// confirms this IS the transition Han means — `t` progresses at a constant rate (no easing), matching
+// his description exactly. Tripled: 1200ms -> 3600ms.
+const RETURN_DURATION_MS = 1200 * 3;
 // #989 ("zwemmen mag behoorlijk langzaam ~4 px per seconde (px is altijd game pixels)"): swimmers use a
 // separate, much simpler ping-pong motion (no oscillate/bezier — a real world-space back-and-forth,
 // horizontal only) between the water tile span's own edges (`waterSpan`, computed in `waterSpanNear`).

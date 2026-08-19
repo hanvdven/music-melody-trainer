@@ -5186,3 +5186,24 @@ mechaniek "rol elk blok van 2 maten voor 20% kans om een hoos te starten, een ho
 
 Geverifieerd: `npm run test:run` (846 passed, 2 nieuw), `npm run lint` (0 errors), `npm run build`
 (clean). Niet live getest. Zie architecture.md §272.
+
+## 2026-08-20 — ✅ Bird-fixes (los van audio, zelfde bericht): return-transitie 3x trager + bumblebee facing
+
+Han (mid-turn tijdens het windvlaag-werk): "bird animaties: overgang is OK, mooi lineair, maar nog
+niet perfect, maak de overgang iets trager tussen stijgen en vliegen, 3x zo traag." + "sommige dieren
+kijken de verkeerde kant op, zoals de bumble bee; in de bestiary (na eventuele flip) kijken alle
+entiteiten naar rechts. Gebruik altijd de bestiary als referentie."
+
+1. **✅ `RETURN_DURATION_MS`** (RpgLevelPanel.jsx, WorldWanderer) 1200 -> 3600ms — de enige bestaande
+   tunable transitie-duur in het bird-systeem, eigen comment beschrijft 'm al als tijd-lineair, matcht
+   Han's "mooi lineair" exact.
+2. **✅ Bumblebee facing-tag** — WorldCreature's flip-logica en de bestiary's eigen mirror-logica lezen
+   dezelfde `facing`-tag en zijn intern consistent; de bug zat in de DATA (generator's category-brede
+   "alle non-sheet critters = right" gok, nooit per-sprite geverifieerd). Nieuwe
+   `FACING_LEFT_OVERRIDE_NAMES`-set in generate-bestiary-manifest.mjs corrigeert Bumble Bee terug naar
+   'left'; manifest geregenereerd (diff bevestigd tot enkel dat ene veld beperkt). Han noemde "sommige
+   dieren" (meervoud) maar gaf alleen bumblebee als concreet voorbeeld -- geen andere gegokt/aangepast.
+
+Geverifieerd: `npm run test:run` (846 passed; één onafhankelijke, pre-existing flaky test faalde één
+keer in de volledige suite, slaagde bij isolatie EN bij een herhaalde volledige run), `npm run lint`
+(0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §273.

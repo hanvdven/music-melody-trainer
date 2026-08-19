@@ -18169,3 +18169,46 @@ nothing fires on a miss, both with `Math.random` mocked for determinism), `npm r
 `useEffect`, `WIND_GUST_*` constants), `src/hooks/__tests__/useWorldAmbientMusic.test.js`
 (`makeAudioContext` helper, `start` mock, 2 new tests), `src/model/envAudioRegistry.json` (new
 `level_wind_gust` entry).
+
+### §273. Bird return-to-perch transition tripled in duration; bumblebee facing corrected via bestiary reference (#1092 follow-up, Han 2026-08-20)
+
+**Purpose.** Two small `WorldWanderer`/bestiary bugfixes, unrelated to the audio work above. (1) Han:
+"bird animaties: overgang is OK, mooi lineair, maar nog niet perfect, maak de overgang iets trager
+tussen stijgen en vliegen, 3x zo traag." (2) Han: "sommige dieren kijken de verkeerde kant op, zoals de
+bumble bee; in de bestiary (na eventuele flip) kijken alle entiteiten naar rechts. Gebruik altijd de
+bestiary als referentie."
+
+**1. Return-to-perch duration tripled.** Identified `RETURN_DURATION_MS` (`RpgLevelPanel.jsx`,
+`WorldWanderer`) as the target: it's the ONLY tunable transition-duration constant in the bird/critter
+system, and its own existing comment already describes the motion as time-linear ("`t` progresses at a
+constant rate, curved PATH but linear TIME") — matching Han's "mooi lineair" description exactly.
+`1200 * 3 = 3600`ms.
+
+**2. Bumblebee facing tag corrected.** `WorldCreature`'s flip math (`nativeFlip = variant.facing ===
+'right' ? 1 : -1`) and the Bestiary's own preview mirror (`mirror={rep.facing !== 'right'}`,
+`BestiaryPanels.jsx`) already read the SAME `facing` tag and are mathematically consistent with each
+other by construction — the bug isn't in either rendering path, it's in the underlying DATA. The
+generator's blanket heuristic ("alle critters behalve die uit de critter sheet" — every non-sheet
+critter defaults to `facing: 'right'`, `generate-bestiary-manifest.mjs`) was a category-level GUESS,
+never verified per-sprite; Bumble Bee's own separate sheet was swept into it incorrectly. New
+`FACING_LEFT_OVERRIDE_NAMES` set (currently `['Bumble Bee']`) applied right after that blanket rule,
+correcting it back to `'left'` — Han already confirmed the current direction is wrong, so the fix is a
+straight flip of the binary tag, not a re-derivation (visually verifying tiny pixel-art sprite
+orientation from a 32×32 sheet is unreliable — trusting Han's own bestiary-preview QA instead, per
+"Gebruik altijd de bestiary als referentie"). Manifest regenerated (`node
+scripts/generate-bestiary-manifest.mjs`) — diff confirmed to touch ONLY the Bumble Bee entry's
+`facing` field.
+
+**Not fixed:** Han said "some animals" (plural) but only named bumblebee as a confirmed example — no
+other mistagged creature was identified or guessed at (the blanket rule is still correct for every
+other non-sheet critter as far as this session could verify). Flag any others you spot the same way.
+
+**Verified:** `npm run test:run` (846 passed — no new tests needed, neither constant nor the facing
+tag has existing test coverage; one unrelated pre-existing flaky test —
+`generateLevel9CallResponseBlock.test.js`, unseeded-Math.random-dependent — failed once in the full
+suite then passed on rerun, confirmed unrelated to these changes), `npm run lint` (0 errors),
+`npm run build` (clean). Not verified live in a real browser this session.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`RETURN_DURATION_MS`),
+`scripts/generate-bestiary-manifest.mjs` (`FACING_LEFT_OVERRIDE_NAMES`),
+`src/model/bestiaryManifest.generated.js` (regenerated).

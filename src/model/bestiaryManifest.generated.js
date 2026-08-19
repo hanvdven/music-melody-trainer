@@ -60710,7 +60710,7 @@ export default [
         ]
       }
     ],
-    "facing": "right",
+    "facing": "left",
     "being": "animal",
     "artist": "Elthen's Pixel Art Shop",
     "tags": [
