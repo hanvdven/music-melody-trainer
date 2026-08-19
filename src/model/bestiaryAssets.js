@@ -154,9 +154,18 @@ export function findVariantByUrl(url) {
 
 // #790: moved here from RpgLevelPanel's local `findCreature` (§693 round 7) — looks up a creature by its
 // bestiary NAME (used for the Wisp NPC, which has no equippable "pet file" URL to match by).
-export function findCreatureByName(name) {
+// #1088 (Han 2026-08-19, "gebruik ook dezelfde kleurvariant" — the Wizard's black/green portrait never
+// matched the level's actual black/green in-level sprite): optional `variant` arg, generic across every
+// creature (not Wizard-specific) — when given and a matching `v.variant === variant` exists, that colour
+// wins; otherwise falls back to the ORIGINAL 'Plain'-or-first behaviour unchanged, so every existing call
+// site (none of which pass a variant) is completely unaffected.
+export function findCreatureByName(name, variant = null) {
     const c = SCANNED_CREATURES.find((c) => c.name === name);
     if (!c) return null;
+    if (variant) {
+        const match = c.variants.find((v) => v.variant === variant);
+        if (match) return match;
+    }
     return c.variants.find((v) => v.variant === 'Plain') || c.variants[0] || null;
 }
 

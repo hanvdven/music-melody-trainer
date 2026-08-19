@@ -17599,3 +17599,88 @@ SheetMusic.jsx` (`levelResult` prop + overlay mount point), `src/components/leve
 `src/components/levels/LevelSplash.css` (dead rules removed), `src/App.jsx` (`levelResultRows` memo,
 merged `SheetMusic`/result rendering, relocated Replay/Close/legend, `useLevelBackingStream` gating fix),
 deleted `src/components/levels/LevelSplash.jsx` + its test.
+
+### §264. Post-combat DialogueBox: wizard portrait colour bug root-caused + fixed, static fallback portraits animated, text-wrap regression fixed (Han 2026-08-19, #1088)
+
+**Purpose.** Follow-up bug report from #867: (1) a dedicated portrait, when one exists, must match the
+level's actual colour variant (Han's example: Level 11's green decorative wizard was showing a black
+portrait); (2) the no-dedicated-portrait fallback (a raw sprite crop — the `npc`/slime cases) should
+animate its idle loop instead of freezing on one frame, and must always resolve via the bestiary, never a
+"random other NPC"; (3) with no enemy at all, fall back to an animated slime; (4) long dialogue text has
+overflowed the box on one line since #1027 (no wrapping).
+
+**1. Wizard portrait colour bug — root cause found and fixed.** `App.jsx`'s `wizardDedicatedPortrait`
+looked up the bestiary NAME `'Wizard'` — but that name belongs to an UNRELATED auto-scanned passive roster
+NPC (`generate-bestiary-manifest.mjs`'s `ROSTER_SHEETS_SPACED` row 13, `char_passive/characters sheet
+N.png` — nothing to do with the combat Wizard). The Wizard's REAL dedicated portrait entry is named
+`'Wizard (Portrait)'` specifically *because* of this collision (generator comment, §675: "disambiguate
+from §673's roster 'Wizard'"), with a genuine 8-colour grid (`WIZARD_PORTRAIT_ORDER`, `portraitCell`/
+`portraitFrame`). The old lookup silently resolved to the roster NPC (which has no `portraitUrl` at all),
+so `dedicatedPortraitUrl` was always `undefined`, and `DialogueBox` silently fell through to the
+sprite-crop fallback — which hardcoded the black `WIZARD_URL`, `SheetRpgLayer`'s own combat sprite,
+regardless of `decorativeWizard`. Verified end-to-end: cropped both the black (`row:1,col:2`) and green
+(`row:0,col:2`) portrait cells from the real PNG and visually confirmed they render as genuinely different
+colours (not just different coordinates).
+
+**Fix — generic, not Wizard-specific (Han's interview answer 2026-08-19):**
+`bestiaryAssets.js`'s `findCreatureByName(name, variant = null)` gained an optional `variant` arg —
+prefers an exact `v.variant === variant` match, falls back to the original 'Plain'-or-first behaviour
+when omitted, so every pre-existing call site (none of which pass a variant) is unaffected. The Wizard's
+own colour (`wizardColorName` in `App.jsx`, `decorativeWizard ? 'Green' : 'Black'`) is derived from
+EXISTING level data — the SAME check `SheetRpgLayer` already uses for its own in-level `WIZARD_URL`/
+`WIZARD_GREEN_URL` pick (§6d single source of truth) — no new level field needed for the Wizard case. A
+new OPTIONAL `npcColorVariant` field on a level's config (undefined today, on every level) threads through
+to `findCreatureByName(npcName, lv?.npcColorVariant)` for future arbitrary-creature colour choice.
+
+**2/3. Animated idle fallback.** `DialogueBox.jsx`'s `SpeakerPortrait` used to hand-roll a STATIC
+single-cell crop (no frame animation) — a second, slightly different re-implementation of what the
+canonical `CreatureSprite` (§6d) already does everywhere else. Now a thin wrapper: builds the `anim`
+CreatureSprite expects from `variant.animations` (prefers the `'idle'` key) and drives it off a simple
+always-running `useIdleFrame()` counter (`setInterval`, 200ms — not tempo-synced, this is a static
+conversation screen). `App.jsx`'s `levelResultPortrait` now produces a bestiary-variant-shaped object
+(`{frame, crop, url, animations}`) for ALL THREE speaker kinds — the `npc` case already IS a real bestiary
+variant (from `findCreatureByName`); `wizard`/`slime` are `enemyAssets.js` constants reshaped into the
+same contract, reusing their OWN existing idle-cell data (`WIZARD_IDLE_CELLS`, `SLIME_IDLE`) rather than
+inventing new ones (§6c). `RpgLevelBottomPanel.jsx` (the open-world Wisp/Slime conversation, DialogueBox's
+OTHER caller) updated the same way — the Wisp's variant is now resolved via `findVariantByUrl` (the same
+match `CharacterDoll`'s `PetLayer` already uses for the equipped-pet preview), falling back to a static
+1-frame shape only if that lookup somehow misses. `DialogueBox`'s prop contract changed from flat
+`portraitUrl`/`portraitCrop`/`portraitCellW`/`portraitCellH` to a single `portraitVariant` object — both
+callers updated.
+
+**4. Text-wrap regression fixed.** `OscillatingText.jsx`'s per-character-span container had
+`whiteSpace: 'pre'` — this NEVER wraps (only breaks on literal `\n`), which is why a long sentence ran
+straight past the fixed-width dialogue box since #1027 introduced the per-character oscillation spans.
+Changed to `'pre-wrap'` — same whitespace-preserving behaviour, but now wraps at the container's width.
+
+**Investigated, not fixed — flagged for live confirmation, not guessed:**
+- **"Cook shows Lady Bar" (Scarborough Fair, `npc: 'Cook'`).** Deeply investigated at the DATA layer:
+  cropped the actual `'Cook'` (roster row 14) and `'Lady Bar'` (roster row 1) pixels straight from the
+  source PNG (`characters sheet1.png`) and confirmed BOTH are correct, distinct, non-colliding sprites —
+  `findCreatureByName('Cook')` resolves to the real chef sprite, not Lady Bar. The generator's roster
+  tables (`ROSTER_SHEETS_UNSPACED`) and `expandRosterSheet`'s row math are correct. The bug must be at
+  RUNTIME, not in the scanned data — `App.jsx`'s `levelResultSpeaker` `useMemo` depends ONLY on
+  `[level.current?.id]`, which is a plausible stale-closure suspect (every level does have a unique `id`
+  in `levels.json` today, so this wasn't confirmed, only flagged) but no live browser was available this
+  session to reproduce and pin down the actual mechanism. Needs a live repro (which level was ACTUALLY
+  showing, in what sequence) before a confident fix.
+- **Facing direction (in-level).** Han: enemy should face LEFT in-level (currently reported as facing
+  right); conversation portrait facing right is already correct. Investigated `SheetRpgLayer.jsx`'s
+  decorative-NPC `Critter` call site: `flip={npc !== 'Japanese Musician'}`, and `Critter`'s own code
+  comment states `shouldFlip=true` → "face left, matches Slime". For `npc: 'Cook'` this already evaluates
+  to `flip=true` — i.e., per the code as written, Cook should ALREADY face left in-level today. This
+  directly contradicts Han's report. Rather than guess-flip a boolean that might already be correct (CLAUDE.md
+  §9k: never guess a direction/layout call), left UNCHANGED pending live confirmation — likely the same
+  underlying runtime issue as the Cook/Lady-Bar mismatch above (wrong NPC being resolved would also explain
+  an apparently-wrong facing, since it'd be a different creature's native orientation under the same flip).
+
+**Verified:** `npm run test:run` (819 passed), `npm run lint` (0 errors), `npm run build` (clean). Wizard
+colour-cell fix visually verified against the real portrait PNG (see above). Cook/Lady Bar roster crop
+data visually verified correct. **Not verified live in a real browser** — same tooling constraint as §263;
+items 5/6 above specifically need it.
+
+**Files:** `src/model/bestiaryAssets.js` (`findCreatureByName` variant arg), `src/App.jsx`
+(`wizardColorName`, `levelResultPortrait`/`wizardDedicatedPortrait` rebuilt, `npcColorVariant` pass-
+through), `src/components/character/DialogueBox.jsx` (`SpeakerPortrait` → `CreatureSprite`, `useIdleFrame`,
+`portraitVariant` prop), `src/components/character/RpgLevelBottomPanel.jsx` (same prop contract, Wisp
+`findVariantByUrl`), `src/components/character/OscillatingText.jsx` (`pre` → `pre-wrap`).

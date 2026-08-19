@@ -34,7 +34,7 @@ import AvatarSubHeader from './components/layout/AvatarSubHeader';
 import { computeAccuracyPercent, TimingLegend } from './components/levels/LevelStatsCharts';
 import TwoHandedKeyboardPanel from './components/levels/TwoHandedKeyboardPanel';
 import DialogueBox from './components/character/DialogueBox';
-import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_FRAME } from './model/enemyAssets';
+import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, SLIME_IDLE, WIZARD_URL, WIZARD_GREEN_URL, WIZARD_CROP, WIZARD_FRAME, WIZARD_IDLE_CELLS } from './model/enemyAssets';
 import { findCreatureByName } from './model/bestiaryAssets';
 import useConversationInstruments from './hooks/useConversationInstruments';
 import useConversationDialogue from './hooks/useConversationDialogue';
@@ -1654,27 +1654,61 @@ const App = () => {
     // (a green wizard standing beside, even though the actual combat `enemyType` might still be Slime —
     // Level 11). Priority: named npc > decorativeWizard/Wizard enemyType > default green slime (no real or
     // decorative NPC at all).
+    // #1088 (Han 2026-08-19): the Wizard's actual COLOUR (black = real combat boss, green = Level 11's
+    // decorative-only wizard) is already fully determined by existing level data — SheetRpgLayer's OWN
+    // in-level sprite pick uses this exact same decorativeWizard check (WIZARD_URL vs WIZARD_GREEN_URL,
+    // §6d single source of truth) — no new level field needed for the Wizard case specifically.
+    const wizardColorName = level.current?.decorativeWizard ? 'Green' : 'Black';
     const levelResultSpeaker = useMemo(() => {
         const lv = level.current;
         const npcName = lv?.npc;
         if (npcName) {
-            const variant = findCreatureByName(npcName);
+            // #1088 — optional generic colour-variant selector for future arbitrary creatures (undefined
+            // for every level today, falls back to findCreatureByName's original Plain-or-first pick).
+            const variant = findCreatureByName(npcName, lv?.npcColorVariant || null);
             if (variant) return { kind: 'npc', entity: npcName, variant };
         }
         if (lv?.decorativeWizard || lv?.enemyType === 'Wizard') return { kind: 'wizard', entity: 'wizard' };
         return { kind: 'slime', entity: 'slime' };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [level.current?.id]);
+    // #1088 (Han 2026-08-19, "als geen portret bestaat, gebruik de unit zelf, met idle animatie"): shaped
+    // exactly like a bestiary variant (frame/crop/url/animations) so DialogueBox's SpeakerPortrait can feed
+    // it straight into the canonical `CreatureSprite` renderer (§6d) instead of a static hand-rolled crop —
+    // the SAME idle-cycling every world placement already gets. The npc case already IS a real bestiary
+    // variant (from findCreatureByName); wizard/slime are hand-curated enemyAssets.js constants reshaped
+    // into the same variant contract (their own existing idle-cell data — WIZARD_IDLE_CELLS/SLIME_IDLE —
+    // reused as-is, §6c, not reinvented).
     const levelResultPortrait = levelResultSpeaker.kind === 'npc'
-        ? { url: levelResultSpeaker.variant.url, crop: levelResultSpeaker.variant.crop, cellW: levelResultSpeaker.variant.frame.w, cellH: levelResultSpeaker.variant.frame.h }
+        ? levelResultSpeaker.variant
         : levelResultSpeaker.kind === 'wizard'
-            ? { url: WIZARD_URL, crop: WIZARD_CROP, cellW: WIZARD_FRAME.w, cellH: WIZARD_FRAME.h }
-            : { url: SLIME_COLORS.green, crop: SLIME_CROP, cellW: SLIME_FRAME.w, cellH: SLIME_FRAME.h };
+            // #1088 fix: this used to ALWAYS use the black WIZARD_URL, even for Level 11's green decorative
+            // wizard — see wizardColorName above.
+            ? {
+                url: wizardColorName === 'Green' ? WIZARD_GREEN_URL : WIZARD_URL, crop: WIZARD_CROP, frame: WIZARD_FRAME,
+                animations: [{ key: 'idle', cells: WIZARD_IDLE_CELLS }],
+            }
+            : {
+                url: SLIME_COLORS.green, crop: SLIME_CROP, frame: SLIME_FRAME,
+                animations: [{ key: 'idle', cells: Array.from({ length: SLIME_IDLE.frames }, (_, i) => ({ row: SLIME_IDLE.row, col: i })) }],
+            };
     // #922 (Han 2026-08-12, "de wizard heeft een portret, toon het portret niet de sprite"): the Wizard's
     // OWN dedicated Bestiary portrait (a DIFFERENT asset than the in-combat sprite crop above), shown
     // instead of the sprite for the post-combat conversation. Neither the slime nor Sakura's Japanese
     // Musician has a dedicated portrait, so both keep using their sprite crop (`levelResultPortrait` above).
-    const wizardDedicatedPortrait = useMemo(() => (levelResultSpeaker.kind === 'wizard' ? findCreatureByName('Wizard') : null), [levelResultSpeaker.kind]);
+    //
+    // #1088 fix (Han 2026-08-19, "gebruik ook dezelfde kleurvariant" + the black/green mismatch bug): this
+    // was looking up the bestiary NAME 'Wizard' — but that name belongs to an UNRELATED roster-scanned
+    // passive NPC (generate-bestiary-manifest.mjs §673's roster row 13, "characters sheet N.png" — nothing
+    // to do with the combat Wizard at all). The Wizard's REAL dedicated portrait entry is separately named
+    // 'Wizard (Portrait)' (generator §675, an 8-colour grid) precisely BECAUSE of this name collision — so
+    // the lookup here silently found a portrait-less roster entry, `dedicatedPortraitUrl` came out
+    // undefined, and DialogueBox fell through to the sprite-crop fallback above (hence it always looked
+    // like the black WIZARD_URL sprite regardless of colour). Fixed to the correct name + colour variant.
+    const wizardDedicatedPortrait = useMemo(
+        () => (levelResultSpeaker.kind === 'wizard' ? findCreatureByName('Wizard (Portrait)', wizardColorName) : null),
+        [levelResultSpeaker.kind, wizardColorName]
+    );
     // #922 round 2 (Han: "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou die op de
     // slime van de RPG-wereld"): post-combat now gets a short line per speaker kind — the full lorem ipsum
     // moved to the open-world slime (useRpgLevelState.js's `clickSlime`). Memoized on the level id so a
@@ -3085,10 +3119,7 @@ const App = () => {
                     // occupies the top-view slot above (§189/§191's `characterScreen === 'levelResult'`).
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 }}>
                         <DialogueBox
-                            portraitUrl={levelResultPortrait.url}
-                            portraitCrop={levelResultPortrait.crop}
-                            portraitCellW={levelResultPortrait.cellW}
-                            portraitCellH={levelResultPortrait.cellH}
+                            portraitVariant={levelResultPortrait}
                             dedicatedPortraitUrl={wizardDedicatedPortrait?.portraitUrl}
                             dedicatedPortraitCell={wizardDedicatedPortrait?.portraitCell}
                             dedicatedPortraitFrame={wizardDedicatedPortrait?.portraitFrame}

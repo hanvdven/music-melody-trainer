@@ -1,8 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import bitfantasyFontUrl from '../../assets/fonts/pixel_fonts/Bitfantasy.ttf';
 // #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
-import { Frame64Overlay } from './CreatureSprite';
+import { Frame64Overlay, CreatureSprite } from './CreatureSprite';
 import OscillatingText from './OscillatingText';
+
+// #1088 (Han 2026-08-19, "als geen portret bestaat, gebruik de unit zelf, met idle animatie"): a simple,
+// always-running frame counter driving every fallback-sprite portrait's idle loop — not tempo-synced
+// (this is a static conversation screen, not gameplay), just a steady pixel-art idle cadence. Matches the
+// interval-driven idle-frame convention RpgLevelPanel.jsx already uses for its own world sprites (§6c),
+// scaled down since a conversation portrait has no BPM to sync to.
+const IDLE_FRAME_INTERVAL_MS = 200;
+function useIdleFrame() {
+    const [frame, setFrame] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setFrame((f) => f + 1), IDLE_FRAME_INTERVAL_MS);
+        return () => clearInterval(id);
+    }, []);
+    return frame;
+}
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world
 // Wisp NPC (RpgLevelBottomPanel.jsx), extracted into a reusable component so a second caller (LevelSplash
@@ -53,20 +68,19 @@ const FONT_SIZE = ((CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER
 // Centering a sprite crop instead of bottom-anchoring it is exactly the kind of category mix-up §6d warns
 // about: two different content types (portrait vs. sprite) need their OWN matching Bestiary convention, not
 // one convention borrowed for both. Fixed to bottom-center, matching `CreatureSprite` exactly.
-export function SpeakerPortrait({ url, crop, cellW = 32, cellH = 32, row = 0, col = 0 }) {
-    const trueScale = PORTRAIT_SIZE / 64;
-    const cropW = crop.w * trueScale, cropH = crop.h * trueScale;
+// #1088 fix (Han 2026-08-19): used to draw a STATIC single-cell crop by hand — no animation, and a second,
+// slightly different re-implementation of the exact same "true-size, bottom-anchored sprite crop"
+// rendering `CreatureSprite` (the canonical renderer, §6d) already does everywhere else in the Bestiary/
+// world. Now a thin wrapper: builds the `anim` CreatureSprite expects from `variant.animations` (falls
+// back to whichever animation is first if there's no 'idle' key) and drives it off the shared idle-frame
+// counter, so every fallback portrait (npc sprite AND the no-enemy slime) animates instead of freezing on
+// one frame.
+export function SpeakerPortrait({ variant }) {
+    const idleFrame = useIdleFrame();
+    const anim = variant.animations?.find((a) => a.key === 'idle') || variant.animations?.[0] || { cells: [{ row: 0, col: 0 }] };
     return (
         <div style={{ position: 'relative', width: PORTRAIT_SIZE, height: PORTRAIT_SIZE, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
-            <div style={{ position: 'absolute', left: `calc(50% - ${cropW / 2}px)`, bottom: 0, width: cropW, height: cropH, overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', left: -crop.x * trueScale, top: -crop.y * trueScale, width: cellW * trueScale, height: cellH * trueScale, overflow: 'hidden' }}>
-                    <div style={{
-                        width: cellW, height: cellH, transform: `scale(${trueScale})`, transformOrigin: 'top left',
-                        backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat', backgroundSize: 'auto',
-                        backgroundPosition: `${-col * cellW}px ${-row * cellH}px`, imageRendering: 'pixelated',
-                    }} />
-                </div>
-            </div>
+            <CreatureSprite variant={variant} anim={anim} frame={idleFrame} scale={PORTRAIT_SIZE / 64} framed={false} />
             <Frame64Overlay box={PORTRAIT_SIZE} />
         </div>
     );
@@ -140,7 +154,7 @@ function MorePagesIndicator() {
 }
 
 export default function DialogueBox({
-    portraitUrl, portraitCrop, portraitCellW, portraitCellH, portraitRow, portraitCol,
+    portraitVariant,
     dedicatedPortraitUrl, dedicatedPortraitCell, dedicatedPortraitFrame, text, onClick,
     autoContinue, onToggleAutoContinue, hasMorePages,
 }) {
@@ -158,7 +172,7 @@ export default function DialogueBox({
                 }}>
                     {dedicatedPortraitUrl
                         ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
-                        : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
+                        : <SpeakerPortrait variant={portraitVariant} />}
                     <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
                         {/* #922 round 6 ("regelafstand mag iets kleiner", 1.4->1.15) + round 7 ("regelafstand
                             mag 20% kleiner", 1.15->0.92). */}
