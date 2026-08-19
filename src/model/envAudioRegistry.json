@@ -30,9 +30,17 @@
       "instrument": "applause",
       "sourceType": "fixed note, not MIDI-sourced",
       "source": "GM Sound Effects program 126 ('Applause'), locally extracted (scripts/extract-soundfont-samples.mjs) -- held indefinitely at C4, same 'no natural release' mechanism as water_hum. The real MIDI drum pattern in waterSoundsManifest.generated.js's waterPercussion layer is NOT used by this -- Han (2026-08-19): 'je mag de midi negeren'.",
-      "status": "implemented (interim substitute) -- Han (2026-08-19): 'voeg nog een extra laag toe (net als cello), op mp: applause, op c4 (eindeloos)'",
-      "notes": "Replaces the earlier 'blocked, no GM percussion kit' state. Real long-term plan (still open, separate tickets): import Han's FreePats percussion sample kit (asset drop) and add a generated 'hh' (hi-hat) melody type to the core rhythm generator (note pool ho/hp/r/rb, substitution rule hh+ho->ho, same pattern as the existing backbeat type) to drive a real generated percussion track instead of this fixed note.",
-      "ticket": "#993 (this layer), #1037 (superseded by this for now), see new FreePats-import and hh-generation tickets"
+      "status": "implemented (interim substitute), stays water-only",
+      "notes": "Interim substitute for real GM percussion, quieted twice on UAT (mp -> p -> pp, Han: 'a bit too loud' / 'even softer'). The REAL generated percussion (see level_hh_percussion below) was ALSO briefly a water voice (#1091 rounds 2-3) but round 4 decoupled it into its own level-wide loop -- applause remains water's own dedicated interim layer, unrelated to that now.",
+      "ticket": "#993 (this layer)"
+    },
+    "level_hh_percussion": {
+      "instrument": "MuldjordKit HihatClosed (29 velocity-layered samples) + FreePats Percussion's other pads",
+      "sourceType": "generated (not MIDI-sourced)",
+      "source": "generateHh (generateBackbeat.js) -- hi-hat every subdivision, cymbal-pool substitution, played through 'FreePats Percussion' (createFreePatsPercussionInstrument, drumKits.js). hh's own samples come from MuldjordKit's HihatClosed folder (scripts/extract-muldjord-hihat.mjs), the other substitution-pool pads (ho/hp/r/cr_bell) from the original FreePats set.",
+      "status": "implemented -- level-wide (#1091 round 4, Han: 'Zorg dat percussie door het hele level te horen is, niet enkel bij water'), NOT gated to water proximity",
+      "notes": "Own top-level ambient effect in useWorldAmbientMusic.js (same 'unconditional while active' shape as the ambient piano loop, no spatial pan/bus) -- was one of water's voices in rounds 2-3, moved out entirely in round 4. Every HH_BLOCK_MEASURES(4)-measure block re-rolls smallestNoteDenom uniformly from {1,2,4,8,16} (Han confirmed keeping this uniform, not weighted) and looks up notesPerMeasure from generateHh's own HH_NOTES_PER_MEASURE_BY_DENOM table. Percussion sample playback also uses the new 'humanization' mechanism (drumKits.js humanizePercussionSample) -- a velocity-window sample pick with a compensating gain jitter, applied to every array-valued percussion pad, not hh-specific.",
+      "ticket": "#1091"
     }
   }
 }

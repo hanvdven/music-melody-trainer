@@ -18043,3 +18043,43 @@ in a real browser this session.
 `public/samples/Percussion/HihatClosedMuldjord/` (new, 29 files), `CLAUDE.md` (routing checklist),
 `src/audio/__tests__/drumKits.test.js` (new), `src/audio/__tests__/playSound.test.js` (new),
 `src/audio/__tests__/playMelodies.test.js` (new case).
+
+### §270. `hh` percussion loop decoupled from water — level-wide, not proximity-gated (#1091 round 4, Han 2026-08-19)
+
+**Purpose.** Han: "maak de blokken 4 maten lang, voor iets duidelijker variatie. Zorg dat percussie
+door het hele level te horen is, niet enkel bij water." Two changes: (1) block length up from 2 to 4
+measures for clearer variety between draws; (2) the generated `hh` loop no longer belongs to water at
+all — it moved OUT of water's proximity-gated voice group into its own always-on, level-wide effect.
+
+**Why this was a real move, not a parameter tweak.** §267/§268 wired `hh` in as one of water's voices —
+spatially panned toward the nearest water tile, silenced once nothing was within `AUDIBLE_CHUNKS`
+(`useWorldAmbientMusic.js`'s water `useEffect`, sharing `humBus`/`glockenspielBus`/`percussionBus`'s
+`createSpatialBus` + `computeSpatialPanVolume` pattern). Han's ask ("throughout the whole level, not
+just near water") isn't a gain/pan tweak on that mechanism, it's "this voice shouldn't be gated at all"
+— structurally the SAME shape as the ambient piano's own loop (unconditional while `active`, plays
+regardless of player position), not water's chunk-based one.
+
+**Implementation.** A new, third top-level `useEffect` in `useWorldAmbientMusic.js` — placed right
+after the ambient piano loop, since both are now "level-wide, unconditional" as opposed to the
+bird/water effects' "position-gated" shape. `createFreePatsPercussionInstrument` connects straight to
+`context.destination` (no `createSpatialBus`, no panner — there's no world position to pan toward
+anymore). Otherwise unchanged: `HH_BLOCK_MEASURES` (now 4, was `WATER_HH_BLOCK_MEASURES = 2`) measures
+per block, `HH_DENOM_CHOICES` re-rolled every block, `HH_NOTES_PER_MEASURE_BY_DENOM` lookup, `.volumes`
+scaled by `MF_VOLUME * musicVolumeMultiplier`. The water `useEffect` reverted to its pre-§267 shape
+(THREE voices — hum/glockenspiel/applause), its own comment updated to point at the new effect instead
+of describing `hh` as one of its own.
+
+**Test fix.** `useWorldAmbientMusic.test.js`'s `vi.mock('../../audio/drumKits', ...)` replaces that
+WHOLE module for every consumer in the test's module graph — `generateHh` (`generateBackbeat.js`) also
+imports `resolvePercussionChord` from the same module, which the mock had been silently omitting
+(harmless before, since `hh` only ran inside the gated, harder-to-trigger water effect in tests; now it
+runs unconditionally whenever the hook mounts). Added a passthrough `resolvePercussionChord: (chord) =>
+chord` to the mock.
+
+**Verified:** `npm run test:run` (842 passed, no new tests needed — existing `generateHh`/
+`useWorldAmbientMusic` coverage already exercises the moved logic; one mock fix), `npm run lint`
+(0 errors), `npm run build` (clean). Not verified live in a real browser this session.
+
+**Files:** `src/hooks/useWorldAmbientMusic.js` (`hh` loop moved to its own effect, water effect reverted
+to 3 voices, `HH_BLOCK_MEASURES`/`HH_DENOM_CHOICES` renamed from `WATER_HH_*`),
+`src/hooks/__tests__/useWorldAmbientMusic.test.js` (`resolvePercussionChord` mock fix).

@@ -86,20 +86,16 @@ const WATER_PERCUSSION_NOTE = 'C4';
 // softer" — one more VOL_STEPS dynamic level down, p -> pp.
 const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').value;   // 'pp'
 
-// #1091 follow-up (Han 2026-08-19, "percussion cannot be heard in the RPG-level, the aforementioned
-// loop (hh, eights, with cymbal accents) should sound at the water"): water's FOURTH voice — the real
-// generated `hh` pattern (§266), playing ALONGSIDE the applause drone (Han's own choice: add, don't
-// replace) rather than through the practice-mode-only path #1091 shipped with. Uses the SAME
-// 'FreePats Percussion' local sample kit the practice-mode percussion instrument defaults to
+// #1091 follow-up (Han 2026-08-19): the generated `hh` pattern (§266/§268) — was briefly one of
+// water's voices, but round 4 (Han: "Zorg dat percussie door het hele level te horen is, niet enkel
+// bij water") decoupled it entirely into its own level-wide ambient loop below (mirrors the piano
+// loop's unconditional-while-active shape, not water's proximity-gated one). Uses the SAME 'FreePats
+// Percussion' local sample kit the practice-mode percussion instrument defaults to
 // (createFreePatsPercussionInstrument, drumKits.js §8/§6d) — a dedicated instance, never the user's
-// own configured percussion track, same "own dedicated instrument" rule every other voice in this file
-// follows.
-// #1091 UAT round 2 (Han: "I LOF the percussion. every 2 measures randomize percussion. randomly
-// select 1,2,4,8,16 as the smallest note denum"): each 2-measure block re-rolls smallestNoteDenom from
-// this pool; `HH_NOTES_PER_MEASURE_BY_DENOM` (generateBackbeat.js, Han's own explicit density table)
-// supplies the matching notesPerMeasure for whichever denom gets drawn.
-const WATER_HH_BLOCK_MEASURES = 2;
-const WATER_HH_DENOM_CHOICES = [1, 2, 4, 8, 16];
+// own configured percussion track, same "own dedicated instrument" rule every voice in this file
+// follows. Block length 4 measures ("voor iets duidelijker variatie", round 4 — was 2 in round 2).
+const HH_BLOCK_MEASURES = 4;
+const HH_DENOM_CHOICES = [1, 2, 4, 8, 16];
 const FREEPATS_MAPPING = KIT_NOTE_MAPPINGS['FreePats Percussion'];
 
 // Plain StereoPannerNode + GainNode per voice (Han: "doe dan maar gewone stereo pan + volume, als dat
@@ -180,6 +176,44 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
         // bird/water effects below which build a fresh instrument every mount) — `stop()`, not
         // `disconnect()`, so the cached instance stays usable if this effect re-mounts later.
         return () => { cancelled = true; clearTimeout(timeoutId); treblePiano.stop(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, context]);
+
+    // #1091 round 4 (Han 2026-08-19, "Zorg dat percussie door het hele level te horen is, niet enkel
+    // bij water"): the generated `hh` loop, level-wide — same JIT block-loop SHAPE as the ambient piano
+    // above (unconditional while `active`, no proximity gating, no spatial pan/bus — straight to
+    // `context.destination`), not water's chunk-based gating the earlier rounds used. Each
+    // `HH_BLOCK_MEASURES`-measure block re-rolls its own `smallestNoteDenom` from `HH_DENOM_CHOICES`
+    // (round 2: "every 2 measures randomize percussion... randomly select 1,2,4,8,16"; round 3 left the
+    // distribution uniform on Han's own confirmation), with the matching `notesPerMeasure` looked up
+    // from `HH_NOTES_PER_MEASURE_BY_DENOM` (generateBackbeat.js, Han's own density table). `.volumes`
+    // scaled by MF_VOLUME/musicVolumeMultiplier, matching the piano loop; `.velocities` (on/off/off-off,
+    // §268) already comes straight out of generateHh.
+    useEffect(() => {
+        if (!active || !context) return undefined;
+        const hhInstrument = createFreePatsPercussionInstrument(context, context.destination);
+        let cancelled = false;
+        let timeoutId;
+        hhInstrument.load.then(() => {
+            if (cancelled) return;
+            const scheduleNextBlock = () => {
+                if (cancelled) return;
+                const smallestNoteDenom = HH_DENOM_CHOICES[Math.floor(Math.random() * HH_DENOM_CHOICES.length)];
+                const notesPerMeasure = HH_NOTES_PER_MEASURE_BY_DENOM[smallestNoteDenom];
+                const block = generateHh(WORLD_AMBIENT_TIME_SIGNATURE, HH_BLOCK_MEASURES, smallestNoteDenom, notesPerMeasure);
+                block.volumes = block.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
+                const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
+                playMelodies([block], [hhInstrument], context, WORLD_AMBIENT_BPM, startTime, null, null, null, FREEPATS_MAPPING);
+                const blockDurationSec = (startTime - context.currentTime)
+                    + HH_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
+                timeoutId = setTimeout(scheduleNextBlock, blockDurationSec * 1000);
+            };
+            scheduleNextBlock();
+        });
+        // #1038 (Han: "bij level sluiten; unload/stop alle geluid"): brand-new instance every mount
+        // (never cached in instrumentsRef, unlike treblePiano above), so disconnect() — not stop() — is
+        // the right teardown, same reasoning as the bird/water voices below.
+        return () => { cancelled = true; clearTimeout(timeoutId); hhInstrument.disconnect(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 
@@ -287,16 +321,16 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
     // actief zijn... de water cello is gewoon een hele lange noot, dus zonder release") + round 2 (Han
     // 2026-08-17, chunk-based pan/volume + "ik hoor wel de cello, maar niet de belletjes. Water heeft 3
     // lagen: cello, belletjes, en percussie") + round 3 (Han: real "water sounds.mid" export — viola
-    // "hum" + real glockenspiel, replacing the earlier cello/tubular_bells placeholders): FOUR water
+    // "hum" + real glockenspiel, replacing the earlier cello/tubular_bells placeholders): THREE water
     // voices — the hum (viola) and percussion (applause, #993 rework) each hold ONE continuous note
     // indefinitely (relying on the sample's own real loop points already extracted by
     // `createMelodicInstrument`/`buildLocalSmplrJson` for sustain — CLAUDE.md §6c, no new looping
     // mechanism invented); the glockenspiel plays the real composed phrase periodically while water is
-    // in range; the `hh` generated pattern (#1091 follow-up, Han: "should sound at the water") is a
-    // repeating JIT block loop, played ALONGSIDE (not replacing) applause per Han's own choice. All
-    // independent voices/buses, panned/faded by the SAME chunk model the birds use, toward whichever
-    // water tile is nearest the listener; the held notes are genuinely stopped ("unloaded") once
-    // nothing is within `AUDIBLE_CHUNKS`.
+    // in range. All independent voices/buses, panned/faded by the SAME chunk model the birds use,
+    // toward whichever water tile is nearest the listener; the held notes are genuinely stopped
+    // ("unloaded") once nothing is within `AUDIBLE_CHUNKS`. The generated `hh` pattern briefly lived
+    // here too (#1091 rounds 2-3) but round 4 moved it to its own level-wide effect above (Han: "Zorg
+    // dat percussie door het hele level te horen is, niet enkel bij water") — see that effect instead.
     useEffect(() => {
         if (!active || !context) return undefined;
         let cancelled = false;
@@ -310,9 +344,6 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
         const percussionBus = createSpatialBus(context);
         const percussionInstrument = createMelodicInstrument(context, 'applause', { destination: percussionBus.input });
         let percussionStopFn = null;
-        const hhBus = createSpatialBus(context);
-        const hhInstrument = createFreePatsPercussionInstrument(context, hhBus.input);
-        let hhScheduling = false;
 
         const nearestWaterX = (env) => {
             const tiles = env?.waterTiles;
@@ -358,41 +389,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             triggerOnce();
         };
 
-        // #1091 follow-up: repeating generated `hh` block (§266/§267's generateHh) — a JIT block loop
-        // like the ambient piano's own (generateWorldAmbientBlock.js), but self-gating on water range
-        // the SAME way scheduleGlockenspiel does, since (unlike the piano) this must only sound near
-        // water. `.volumes` scaled by MF_VOLUME here (matching every other manually-triggered layer in
-        // this file); `.velocities` (on-beat/off-beat/off-off-beat, §267 round 2) already comes
-        // straight out of generateHh and multiplies on top via playMelodies' #1091 velocity axis.
-        // Round 2 (Han: "every 2 measures randomize percussion... randomly select 1,2,4,8,16 as the
-        // smallest note denum"): EACH block re-rolls its own smallestNoteDenom, with the matching
-        // notesPerMeasure looked up from Han's own density table — not a fixed pattern repeating
-        // forever like round 1 was.
-        const scheduleHh = () => {
-            if (hhScheduling) return;
-            hhScheduling = true;
-            const triggerOnce = () => {
-                if (cancelled) return;
-                const env = envAudioRef?.current;
-                const waterX = env ? nearestWaterX(env) : null;
-                if (waterX == null || Math.abs(waterX - env.listenerX) / CHUNK_PX >= AUDIBLE_CHUNKS) {
-                    hhScheduling = false;
-                    return;   // the main reconcile interval below restarts this once water is back in range
-                }
-                const smallestNoteDenom = WATER_HH_DENOM_CHOICES[Math.floor(Math.random() * WATER_HH_DENOM_CHOICES.length)];
-                const notesPerMeasure = HH_NOTES_PER_MEASURE_BY_DENOM[smallestNoteDenom];
-                const block = generateHh(WORLD_AMBIENT_TIME_SIGNATURE, WATER_HH_BLOCK_MEASURES, smallestNoteDenom, notesPerMeasure);
-                block.volumes = block.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
-                const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                playMelodies([block], [hhInstrument], context, WORLD_AMBIENT_BPM, startTime, null, null, null, FREEPATS_MAPPING);
-                const blockDurationSec = WATER_HH_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
-                const waitSec = (startTime - context.currentTime) + blockDurationSec;
-                setTimeout(triggerOnce, waitSec * 1000);
-            };
-            triggerOnce();
-        };
-
-        Promise.all([humInstrument.load, glockenspiel.load, percussionInstrument.load, hhInstrument.load]).then(() => {
+        Promise.all([humInstrument.load, glockenspiel.load, percussionInstrument.load]).then(() => {
             if (cancelled) return;
             intervalId = setInterval(() => {
                 const env = envAudioRef?.current;
@@ -403,7 +400,6 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                     rampParam(humBus.gain.gain, 0, context);
                     rampParam(glockenspielBus.gain.gain, 0, context);
                     rampParam(percussionBus.gain.gain, 0, context);
-                    rampParam(hhBus.gain.gain, 0, context);
                     return;
                 }
                 const { pan, gain } = computeSpatialPanVolume(waterX, env.listenerX);
@@ -413,13 +409,10 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                 rampParam(glockenspielBus.gain.gain, gain, context);
                 rampParam(percussionBus.panner.pan, pan, context);
                 rampParam(percussionBus.gain.gain, gain * WATER_PERCUSSION_GAIN, context);
-                rampParam(hhBus.panner.pan, pan, context);
-                rampParam(hhBus.gain.gain, gain, context);
                 if (gain <= 0) {
                     if (humStopFn) { humStopFn(); humStopFn = null; }
                     if (percussionStopFn) { percussionStopFn(); percussionStopFn = null; }
                 } else {
-                    scheduleHh();
                     if (!humStopFn) {
                         // #925: "een hele lange noot, dus zonder release" — a large fixed duration, not the
                         // sample's own natural (finite) length; relies on the instrument's real loop points to
@@ -449,7 +442,6 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
             humInstrument.disconnect();
             glockenspiel.disconnect();
             percussionInstrument.disconnect();
-            hhInstrument.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);

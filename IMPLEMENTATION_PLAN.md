@@ -5138,3 +5138,21 @@ gain-jitter die de velocity-deviatie compenseert, niet onafhankelijk random).
 
 Geverifieerd: `npm run test:run` (842 passed, 12 nieuw), `npm run lint` (0 errors), `npm run build`
 (clean). Niet live getest. Zie architecture.md §269.
+
+## 2026-08-19 — ✅ Round 5: blokken 4 maten + percussie los van water (level-breed)
+
+Han: "maak de blokken 4 maten lang, voor iets duidelijker variatie. Zorg dat percussie door het hele
+level te horen is, niet enkel bij water."
+
+1. **✅ Blokgrootte 2 -> 4 maten.**
+2. **✅ `hh`-loop losgekoppeld van water** — verplaatst naar een eigen, altijd-actieve effect (zelfde
+   vorm als de ambient piano-loop: geen proximity-gating, geen spatial pan/bus meer, gewoon rechtstreeks
+   naar `context.destination`). De water-useEffect terug naar zijn oorspronkelijke 3 stemmen
+   (hum/glockenspiel/applause). `envAudioRegistry.json` bijgewerkt (nieuwe `level_hh_percussion` entry,
+   los van `water_percussion`).
+
+Test-fix nodig: `useWorldAmbientMusic.test.js`'s drumKits-mock miste `resolvePercussionChord` (harmless
+zolang hh nog binnen de water-gate zat, nu breekt het omdat de hh-loop altijd draait) -- toegevoegd.
+
+Geverifieerd: `npm run test:run` (842 passed), `npm run lint` (0 errors), `npm run build` (clean).
+Niet live getest. Zie architecture.md §270.
