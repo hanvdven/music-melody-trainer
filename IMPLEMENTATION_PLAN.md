@@ -5207,3 +5207,18 @@ entiteiten naar rechts. Gebruik altijd de bestiary als referentie."
 Geverifieerd: `npm run test:run` (846 passed; één onafhankelijke, pre-existing flaky test faalde één
 keer in de volledige suite, slaagde bij isolatie EN bij een herhaalde volledige run), `npm run lint`
 (0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §273.
+
+## 2026-08-20 — ✅ Round 8: applause = ppp (genoemd), windvlaag = mp
+
+Han: "noem het volume dat je voor applaus gebruikte ppp. de windvlaag mag volume mp zijn."
+
+1. **✅ Applause "ppp"** — de anonieme 0.5x-multiplier op pianissimo is nu `PPP_VOLUME` (zelfde
+   waarde, 0.1), bewust NIET toegevoegd aan de gedeelde `VOL_STEPS`-tabel zelf (die stuurt echte
+   volume-dials elders aan; Han vroeg om deze env-audio-specifieke waarde te NOEMEN, niet om een
+   nieuwe selecteerbare stap app-breed toe te voegen).
+2. **✅ Windvlaag = mp** — vervangt round 7's "hergebruik het zeer-zachte applause-niveau" met een
+   eigen, echte `VOL_STEPS`-stap (mezzo piano, 0.6) — windvlagen klinken nu duidelijk luider dan de
+   applause-drone.
+
+Geverifieerd: `npm run test:run` (846 passed), `npm run lint` (0 errors), `npm run build` (clean).
+Niet live getest. Zie architecture.md §274.

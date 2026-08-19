@@ -31,7 +31,7 @@
       "sourceType": "fixed note, not MIDI-sourced",
       "source": "GM Sound Effects program 126 ('Applause'), locally extracted (scripts/extract-soundfont-samples.mjs) -- held indefinitely at C4, same 'no natural release' mechanism as water_hum. The real MIDI drum pattern in waterSoundsManifest.generated.js's waterPercussion layer is NOT used by this -- Han (2026-08-19): 'je mag de midi negeren'.",
       "status": "implemented (interim substitute), stays water-only",
-      "notes": "Interim substitute for real GM percussion, quieted twice on UAT (mp -> p -> pp, Han: 'a bit too loud' / 'even softer'). The REAL generated percussion (see level_hh_percussion below) was ALSO briefly a water voice (#1091 rounds 2-3) but round 4 decoupled it into its own level-wide loop -- applause remains water's own dedicated interim layer, unrelated to that now.",
+      "notes": "Interim substitute for real GM percussion, quieted three times on UAT (mp -> p -> pp -> ppp, Han: 'a bit too loud' / 'even softer' / 'noem het volume dat je gebruikte ppp'). Round 8: this level is now a proper named constant (PPP_VOLUME, useWorldAmbientMusic.js) instead of an anonymous multiplier -- 0.5x pianissimo, deliberately NOT added as a real rung to the shared VOL_STEPS table (that drives actual user-facing volume dials elsewhere; Han asked to NAME this env-audio-only level, not add a new selectable step app-wide). The REAL generated percussion (see level_hh_percussion below) was ALSO briefly a water voice (#1091 rounds 2-3) but round 4 decoupled it into its own level-wide loop -- applause remains water's own dedicated interim layer, unrelated to that now.",
       "ticket": "#993 (this layer)"
     },
     "level_wind_gust": {
@@ -39,7 +39,7 @@
       "sourceType": "generated envelope, not MIDI-sourced",
       "source": "Own dedicated createMelodicInstrument('applause') instance (separate from water_percussion's own applause instance) -> a plain GainNode automated with native Web Audio ramps (setValueAtTime/linearRampToValueAtTime), NOT playMelodies/.volumes like every other voice.",
       "status": "implemented -- level-wide, random trigger only (Han 2026-08-20: 'Trigger het voorlopig random - later wil ik dat ook plaatsgebonden maken')",
-      "notes": "Every 2-measure cycle independently rolls a 20% chance to start a gust; on a hit, applause plays for the full 2-measure cycle under a 0->peak(midpoint)->0 fade envelope, peak reusing water_percussion's own (very low) gain. Separate voice from water_percussion (Han: 'keep both'), not a replacement. Future work (Han's own words): tie triggering to location instead of pure randomness.",
+      "notes": "Every 2-measure cycle independently rolls a 20% chance to start a gust; on a hit, applause plays for the full 2-measure cycle under a 0->peak(midpoint)->0 fade envelope. Round 8 (Han: 'de windvlaag mag volume mp zijn'): peak gain is now WIND_GUST_PEAK_GAIN = VOL_STEPS mezzo piano (0.6), its own real named rung, superseding round 7's initial 'reuse water_percussion's very-low level' -- gusts are audibly louder than the applause drone now, a deliberate change from the first cut. Separate voice from water_percussion (Han: 'keep both'), not a replacement. Future work (Han's own words): tie triggering to location instead of pure randomness.",
       "ticket": "#1091"
     },
     "level_hh_percussion": {

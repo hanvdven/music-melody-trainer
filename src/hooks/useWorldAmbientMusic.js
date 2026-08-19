@@ -85,10 +85,15 @@ const WATER_PERCUSSION_NOTE = 'C4';
 // Han 2026-08-19 UAT round 1: "applause is a bit too loud" (mp -> p). Round 2: "make the applause even
 // softer" — one more VOL_STEPS dynamic level down, p -> pp. Round 7 ("kan het applaus nog zachter?"):
 // pianissimo is already VOL_STEPS' lowest non-silent rung, so there's no further named step to drop to
-// — an extra multiplier on top instead, same pattern BIRD_VOLUME_MULTIPLIER already uses for going
-// quieter than a VOL_STEPS/MF_VOLUME base without inventing a new dynamics-marking scale.
-const WATER_PERCUSSION_QUIETER_MULTIPLIER = 0.5;
-const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').value * WATER_PERCUSSION_QUIETER_MULTIPLIER;   // 'pp' * 0.5
+// — halved on top instead (round 8, Han: "noem het volume dat je voor applaus gebruikte ppp" — names
+// that halved level properly rather than leaving it an anonymous multiplier). Not added to the shared
+// VOL_STEPS table itself — that array drives real user-facing volume dials elsewhere (SettingsOverlay's
+// dynamics stepper, the RPG fx/music volume setters) and Han asked to NAME this level, not add a new
+// selectable notch to those unrelated UI controls. VOL_STEPS' own steps are evenly spaced 0.2 apart, so
+// halving pp (not subtracting another 0.2, which would land exactly on 0/silent) is the only sensible
+// way to place a "quieter than pianissimo" rung.
+const PPP_VOLUME = VOL_STEPS.find((s) => s.label === 'pianissimo').value / 2;   // 'ppp' (pianississimo) = 0.1
+const WATER_PERCUSSION_GAIN = PPP_VOLUME;
 
 // #1091 round 7 (Han 2026-08-20, "nieuwe feature: af en toe wil ik een 'windvlaag'... fade in fade out
 // van applaus... ook op zeer laag volume. Trigger het voorlopig random - later wil ik dat ook
@@ -98,10 +103,13 @@ const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').va
 // held drone, and level-wide (not gated to water — Han: "location-bound" is an explicit LATER step).
 // Cadence is Han's own exact mechanic: "rol elk blok van 2 maten voor 20% kans om een hoos te starten.
 // een hoos duurt 2 maten" — every 2-measure cycle independently rolls a 20% chance to start a gust;
-// when one starts, it spans the FULL 2 measures, silent otherwise. Peak volume reuses
-// WATER_PERCUSSION_GAIN directly ("ook op zeer laag volume" — the same very-low level just set above).
+// when one starts, it spans the FULL 2 measures, silent otherwise. Peak volume: round 8 (Han, "de
+// windvlaag mag volume mp zijn") supersedes round 7's initial "reuse the very-low applause level" —
+// gusts are now audibly louder (mezzo piano) than the applause drone (ppp), a real named VOL_STEPS
+// rung of their own rather than sharing water_percussion's.
 const WIND_GUST_BLOCK_MEASURES = 2;
 const WIND_GUST_TRIGGER_CHANCE = 0.2;
+const WIND_GUST_PEAK_GAIN = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;   // 'mp'
 const WIND_GUST_NOTE = WATER_PERCUSSION_NOTE;
 
 // #1091 follow-up (Han 2026-08-19): the generated `hh` pattern (§266/§268) — was briefly one of
@@ -257,7 +265,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
                 const gustDurationSec = WIND_GUST_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
                 if (Math.random() < WIND_GUST_TRIGGER_CHANCE) {
-                    const peakGain = WATER_PERCUSSION_GAIN * musicVolumeMultiplierRef.current;
+                    const peakGain = WIND_GUST_PEAK_GAIN * musicVolumeMultiplierRef.current;
                     const midTime = startTime + gustDurationSec / 2;
                     const endTime = startTime + gustDurationSec;
                     // Explicit Web Audio ramp scheduling (not `rampParam`'s setTargetAtTime — that's

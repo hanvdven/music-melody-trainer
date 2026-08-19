@@ -18212,3 +18212,31 @@ suite then passed on rerun, confirmed unrelated to these changes), `npm run lint
 **Files:** `src/components/character/RpgLevelPanel.jsx` (`RETURN_DURATION_MS`),
 `scripts/generate-bestiary-manifest.mjs` (`FACING_LEFT_OVERRIDE_NAMES`),
 `src/model/bestiaryManifest.generated.js` (regenerated).
+
+### §274. Named env-audio volume levels: applause = ppp, wind gust = mp (#1091 round 8, Han 2026-08-20)
+
+**Purpose.** Han: "noem het volume dat je voor applaus gebruikte ppp. de windvlaag mag volume mp
+zijn." Two small, purely-nominal-plus-one-real-value changes in `useWorldAmbientMusic.js`.
+
+**Applause named, not re-derived.** §272's `WATER_PERCUSSION_QUIETER_MULTIPLIER = 0.5` (an anonymous
+multiplier on top of `VOL_STEPS`' pianissimo) is now `PPP_VOLUME = VOL_STEPS.find(pianissimo).value /
+2` — same numeric result (0.1), properly named "ppp" (pianississimo) per Han's request. Deliberately
+NOT added as a real new rung to the shared `VOL_STEPS` array itself — that table drives actual
+user-facing volume dials elsewhere (`SettingsOverlay`'s dynamics stepper, the RPG fx/music volume
+setters), and adding a step there would silently add a new notch to those UNRELATED controls, which
+Han didn't ask for; he asked to NAME this env-audio-only level, not to expose it as a selectable
+dynamic marking app-wide. Halved (not `VOL_STEPS`' own -0.2 spacing) because subtracting another 0.2
+from pianissimo's 0.2 lands exactly on 0/silent.
+
+**Wind gust's peak volume changed to mp.** §272 initially had the gust reuse `WATER_PERCUSSION_GAIN`
+directly (matching Han's "ook op zeer laag volume" framing at the time). Round 8 supersedes that with
+a concrete, much louder target — `WIND_GUST_PEAK_GAIN = VOL_STEPS.find(mezzo piano).value` (0.6) — a
+real, already-existing `VOL_STEPS` rung, own dedicated constant rather than sharing
+`water_percussion`'s.
+
+**Verified:** `npm run test:run` (846 passed, no new tests needed — neither change alters observable
+behavior the existing gust/applause tests already cover, beyond the numeric gain value itself, which
+those tests don't assert exact numbers for), `npm run lint` (0 errors), `npm run build` (clean). Not
+verified live in a real browser this session.
+
+**Files:** `src/hooks/useWorldAmbientMusic.js` (`PPP_VOLUME`, `WIND_GUST_PEAK_GAIN`).
