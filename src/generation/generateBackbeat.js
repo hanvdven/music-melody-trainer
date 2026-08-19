@@ -462,12 +462,20 @@ function hhMetricLevel(slotIndexInMeasure, slotsPerBeat) {
     return withinBeat === slotsPerBeat / 2 ? 'off' : 'off-off';
 }
 
-// Han: on-beat stays velocity 100 (unchanged since round 1); off-beat 80 ("zet hh op tellen 2,4,6,8
-// op velocity 80"); off-off-beat 60, new in round 2, "for 16: the off-off beats should have velocity
-// 60". A substituted slot always plays at velocity 100 regardless of its metrical level (round 1:
-// "als er een ho/hp/r/rb wordt getrokken, gebruik dan gewoon weer velocity 100") — applied separately
-// below, after this base assignment.
-const HH_VELOCITY_BY_LEVEL = { on: 100, off: 80, 'off-off': 60 };
+// Han round 1/2: on-beat 100, off-beat 80, off-off-beat 60. Round 6 (Han: "bring the velocities a bit
+// closer together: 75-90-100"): narrowed the spread — on stays 100, off 90, off-off 75. A substituted
+// slot always plays at velocity 100 regardless of its metrical level (round 1: "als er een ho/hp/r/rb
+// wordt getrokken, gebruik dan gewoon weer velocity 100") — applied separately below, after this base
+// assignment.
+const HH_VELOCITY_BY_LEVEL = { on: 100, off: 90, 'off-off': 75 };
+
+// #1091 round 6 (Han 2026-08-19, "when a 1 is rolled for the smallestnotedenum, force a crash or ride
+// for the first note of the 4 measure block"): at the coarsest resolution (smallestNoteDenom=1 -> one
+// slot per measure), the very first slot of the whole generated block is forced to a crash or ride
+// cymbal instead of the normal random pool substitution — a deliberate opening accent, not a variety
+// pick. Reuses the SAME pad ids `resolvePercussionChord`/PERC_POOLS already know (cc = crash, cr =
+// ride) rather than inventing a new pool.
+const HH_FORCED_FIRST_NOTE_POOL = ['cc', 'cr'];
 
 /**
  * Generate a hi-hat-only percussion pattern (#1091, Han: "elke tel heeft een hh (net als backbeat,
@@ -487,6 +495,9 @@ const HH_VELOCITY_BY_LEVEL = { on: 100, off: 80, 'off-off': 60 };
  *
  * No kick/snare, no DNA-driven placement (every slot is always active) — unlike `generatePercussionFromDNA`,
  * this pattern doesn't need `generateRankedRhythm`'s slot-priority ranking at all.
+ *
+ * Round 6: `smallestNoteDenom === 1` forces the block's very first slot to a crash/ride opening accent
+ * (`HH_FORCED_FIRST_NOTE_POOL`) instead of the normal random pool pick — see that constant's comment.
  */
 export function generateHh(
     timeSignature, numMeasures,
@@ -512,6 +523,14 @@ export function generateHh(
             rawNotes[slot] = HH_SUBSTITUTION_POOL[Math.floor(Math.random() * HH_SUBSTITUTION_POOL.length)];
             velocities[slot] = 100;
         }
+    }
+
+    // Round 6: forced crash/ride opening accent at smallestNoteDenom=1 — overrides whatever the
+    // substitution loop above already put in slot 0 (at denom=1 that's every measure's only slot, so
+    // slot 0 was always going to be substituted anyway; this just picks WHAT it becomes).
+    if (smallestNoteDenom === 1 && totalSlots > 0) {
+        rawNotes[0] = HH_FORCED_FIRST_NOTE_POOL[Math.floor(Math.random() * HH_FORCED_FIRST_NOTE_POOL.length)];
+        velocities[0] = 100;
     }
 
     // Same collision-hierarchy cleanup every percussion generator applies (Han: "gebruik

@@ -18083,3 +18083,31 @@ chord` to the mock.
 **Files:** `src/hooks/useWorldAmbientMusic.js` (`hh` loop moved to its own effect, water effect reverted
 to 3 voices, `HH_BLOCK_MEASURES`/`HH_DENOM_CHOICES` renamed from `WATER_HH_*`),
 `src/hooks/__tests__/useWorldAmbientMusic.test.js` (`resolvePercussionChord` mock fix).
+
+### §271. `hh` velocity spread narrowed, forced crash/ride opener at smallestNoteDenom=1 (#1091 round 6, Han 2026-08-19)
+
+**Purpose.** Two small refinements to `generateHh` (`generateBackbeat.js`): (1) Han: "bring the
+velocities a bit closer together: 75-90-100" — the on/off/off-off hierarchy (§268) was 100/80/60,
+now 100/90/75, same ordering (on strongest, off-off weakest) just a narrower dynamic range. (2) Han:
+"when a 1 is rolled for the smallestnotedenum, force a crash or ride for the first note of the 4
+measure block" — at the coarsest resolution (one slot per measure), the very first slot of the whole
+generated block is now forced to a crash (`cc`) or ride (`cr`) cymbal at velocity 100, instead of
+whatever the normal substitution pool would have picked.
+
+**Implementation.** `HH_VELOCITY_BY_LEVEL` updated to `{ on: 100, off: 90, 'off-off': 75 }`. A new
+`HH_FORCED_FIRST_NOTE_POOL = ['cc', 'cr']` constant, applied as a small override AFTER the normal
+per-measure substitution loop runs: `if (smallestNoteDenom === 1 && totalSlots > 0) { rawNotes[0] =
+random(cc|cr); velocities[0] = 100; }` — global slot index 0 (the block's first note overall, not
+"first note of each measure"), so it fires exactly once per generated block regardless of
+`numMeasures`. At `smallestNoteDenom=1`, `HH_NOTES_PER_MEASURE_BY_DENOM[1] = 1` already means every
+measure's single slot gets substituted from the regular pool anyway — this override just decides WHAT
+slot 0 specifically becomes (crash/ride, not a regular pool draw), leaving every other measure's slot
+on the normal substitution path.
+
+**Verified:** `npm run test:run` (844 passed — `generateHh.test.js` updated velocity assertions for
+100/90/75, two new cases covering the forced first note both with and without normal substitution
+active), `npm run lint` (0 errors), `npm run build` (clean). Not verified live in a real browser this
+session.
+
+**Files:** `src/generation/generateBackbeat.js` (`HH_VELOCITY_BY_LEVEL`, `HH_FORCED_FIRST_NOTE_POOL`),
+`src/generation/__tests__/generateHh.test.js`.

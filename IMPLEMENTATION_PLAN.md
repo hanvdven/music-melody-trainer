@@ -5156,3 +5156,15 @@ zolang hh nog binnen de water-gate zat, nu breekt het omdat de hh-loop altijd dr
 
 Geverifieerd: `npm run test:run` (842 passed), `npm run lint` (0 errors), `npm run build` (clean).
 Niet live getest. Zie architecture.md §270.
+
+## 2026-08-19 — ✅ Round 6: velocity-spread smaller (75-90-100) + forced crash/ride bij denum=1
+
+Han: "smallestnotedenum: bring the velocities a bit closer together: 75-90-100. when a 1 is rolled for
+the smalelstnotedenum, force a crash or ride for the first note of the 4 measure block."
+
+1. **✅ `HH_VELOCITY_BY_LEVEL`** 100/80/60 -> 100/90/75 (zelfde volgorde, kleinere spreiding).
+2. **✅ Forced crash/ride opener** — bij smallestNoteDenom=1 wordt slot 0 van het HELE blok (niet per
+   maat) geforceerd naar 'cc' (crash) of 'cr' (ride) op velocity 100, i.p.v. de normale pool-substitutie.
+
+Geverifieerd: `npm run test:run` (844 passed, 2 nieuw), `npm run lint` (0 errors), `npm run build`
+(clean). Niet live getest. Zie architecture.md §271.

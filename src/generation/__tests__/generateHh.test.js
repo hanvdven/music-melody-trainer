@@ -16,37 +16,52 @@ describe('generateHh (#1091)', () => {
         melody.velocities.forEach((v) => expect(v).toBe(100));
     });
 
-    it('smallestNoteDenom=8: on-beat (0,2,4,6) velocity 100, off-beat (1,3,5,7) velocity 80 when unsubstituted', () => {
+    it('smallestNoteDenom=8: on-beat (0,2,4,6) velocity 100, off-beat (1,3,5,7) velocity 90 when unsubstituted', () => {
         const melody = generateHh([4, 4], 1, 8, 0);
         expect(melody.notes).toHaveLength(8);
         [0, 2, 4, 6].forEach((i) => expect(melody.velocities[i]).toBe(100));
         [1, 3, 5, 7].forEach((i) => {
             expect(melody.notes[i]).toBe('hh');
-            expect(melody.velocities[i]).toBe(80);
+            expect(melody.velocities[i]).toBe(90);
         });
     });
 
-    it('smallestNoteDenom=16: on-beat/off-beat/off-off-beat three-tier hierarchy (velocity 100/80/60)', () => {
+    it('smallestNoteDenom=16: on-beat/off-beat/off-off-beat three-tier hierarchy (velocity 100/90/75)', () => {
         const melody = generateHh([4, 4], 1, 16, 0);
         expect(melody.notes).toHaveLength(16);
         // Within each 4-slot beat group: slot 0 = on, slot 2 = off, slots 1 & 3 = off-off.
         for (let beat = 0; beat < 4; beat++) {
             const base = beat * 4;
             expect(melody.velocities[base]).toBe(100);
-            expect(melody.velocities[base + 2]).toBe(80);
-            expect(melody.velocities[base + 1]).toBe(60);
-            expect(melody.velocities[base + 3]).toBe(60);
+            expect(melody.velocities[base + 2]).toBe(90);
+            expect(melody.velocities[base + 1]).toBe(75);
+            expect(melody.velocities[base + 3]).toBe(75);
         }
     });
 
-    it('smallestNoteDenom=1/2 (coarser than the beat): one/two slots per measure, all velocity 100', () => {
-        const whole = generateHh([4, 4], 1, 1, 0);
-        expect(whole.notes).toHaveLength(1);
-        expect(whole.velocities[0]).toBe(100);
-
+    it('smallestNoteDenom=2 (coarser than the beat): two slots per measure, all velocity 100', () => {
         const half = generateHh([4, 4], 1, 2, 0);
         expect(half.notes).toHaveLength(2);
         half.velocities.forEach((v) => expect(v).toBe(100));
+    });
+
+    it('smallestNoteDenom=1: forces a crash or ride at velocity 100 for the block\'s first note only', () => {
+        // 4-measure block -> 4 slots (1/measure); real notesPerMeasure=1 (HH_NOTES_PER_MEASURE_BY_DENOM[1])
+        // means every measure's single slot is ALSO always substituted from the regular pool — the
+        // round-6 rule overrides ONLY slot 0's outcome (crash/ride instead of the pool), same velocity.
+        const melody = generateHh([4, 4], 4, 1, HH_NOTES_PER_MEASURE_BY_DENOM[1]);
+        expect(melody.notes).toHaveLength(4);
+        expect(['cc', 'cr']).toContain(melody.notes[0]);
+        expect(melody.velocities[0]).toBe(100);
+        const pool = ['ho', 'hp', 'r', 'cr_bell'];
+        melody.notes.slice(1).forEach((n) => expect(pool).toContain(n));
+    });
+
+    it('smallestNoteDenom=1 with notesPerMeasure=0: still forces the crash/ride first note, rest stay plain hh', () => {
+        const melody = generateHh([4, 4], 4, 1, 0);
+        expect(['cc', 'cr']).toContain(melody.notes[0]);
+        expect(melody.velocities[0]).toBe(100);
+        expect(melody.notes.slice(1)).toEqual(['hh', 'hh', 'hh']);
     });
 
     it('substitutes exactly notesPerMeasure distinct slots per measure from the pool, always at velocity 100', () => {
