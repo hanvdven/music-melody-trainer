@@ -406,7 +406,22 @@ const RETURN_DURATION_MS = 1200;
 // separate, much simpler ping-pong motion (no oscillate/bezier — a real world-space back-and-forth,
 // horizontal only) between the water tile span's own edges (`waterSpan`, computed in `waterSpanNear`).
 const SWIM_SPEED = 4;
-function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, onGround, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef, globalIllumination = 1 }) {
+// #1092 (Han 2026-08-19, "Birds should only perch on 'bird slots'"): nearest-free-slot search — a
+// bird claims whichever authored `X_bird_slot` marker (see `birdSlots` above) is closest to its
+// CURRENT position among those not already claimed by another bird (`claimedSet`, shared across every
+// WorldWanderer instance). Returns -1 when every slot is taken (or none exist), so the caller can fall
+// back to the bird's own spawn point — never two birds on one slot, never a bird stuck unable to perch.
+function nearestFreeBirdSlot(slots, claimedSet, fromX, fromY) {
+    let bestIndex = -1, bestDist = Infinity;
+    for (let i = 0; i < slots.length; i++) {
+        if (claimedSet.has(i)) continue;
+        const dist = Math.hypot(slots[i].x - fromX, slots[i].y - fromY);
+        if (dist < bestDist) { bestDist = dist; bestIndex = i; }
+    }
+    return bestIndex;
+}
+
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, onGround, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef, birdSlots, birdSlotClaimsRef, globalIllumination = 1 }) {
     const elRef = useRef(null);
     const facingRef = useRef(1);
     const posRef = useRef({ x: spawnX, y: spawnY });
@@ -423,6 +438,12 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
     // perch. `perchedRef` gives `tick` a live value to read/write; `setPerched` is still called (only on
     // actual transitions) purely to trigger the render that flips `moving`/the animation clip.
     const perchedRef = useRef(false);
+    // #1092: where THIS bird is actually headed/pinned while returning/perched — its own spawn point
+    // by default (unchanged behaviour for non-birds and for levels with no X_bird_slot markers yet),
+    // or a claimed slot position when `birdSlots` has entries. `claimedSlotIndexRef` remembers WHICH
+    // slot (by index into `birdSlots`) this instance owns, so it releases the exact right one later.
+    const perchTargetRef = useRef({ x: spawnX, y: spawnY });
+    const claimedSlotIndexRef = useRef(null);
     const worldToScreenXRef = useRef(worldToScreenX); worldToScreenXRef.current = worldToScreenX;
     // Stable per-instance seeds so each of several same-type wanderers moves independently, not in lockstep.
     const seedX = useMemo(() => Math.random() * 10000, []);
@@ -437,6 +458,8 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
         posRef.current = { x: spawnX, y: spawnY };
         stateRef.current = 'wander';
         perchedRef.current = false;
+        perchTargetRef.current = { x: spawnX, y: spawnY };
+        claimedSlotIndexRef.current = null;
         const tick = () => {
             const now = performance.now();
             if (swim && waterSpan) {
@@ -456,25 +479,46 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                     stateRef.current = 'return';
                     stateSinceRef.current = now;
                     returnFromRef.current = { ...posRef.current };
+                    // #1092: decide (and claim) THIS return trip's perch target. Birds with authored
+                    // slots try to claim the nearest free one; everyone else (non-birds, or birds when
+                    // no slots exist yet) keeps the original own-spawn-point behaviour.
+                    if (isBird && birdSlots && birdSlots.length > 0 && birdSlotClaimsRef) {
+                        const idx = nearestFreeBirdSlot(birdSlots, birdSlotClaimsRef.current, posRef.current.x, posRef.current.y);
+                        if (idx !== -1) {
+                            birdSlotClaimsRef.current.add(idx);
+                            claimedSlotIndexRef.current = idx;
+                            perchTargetRef.current = { x: birdSlots[idx].x, y: birdSlots[idx].y };
+                        } else {
+                            perchTargetRef.current = { x: spawnX, y: spawnY };
+                        }
+                    } else {
+                        perchTargetRef.current = { x: spawnX, y: spawnY };
+                    }
                 } else if (!isDutyPerch && stateRef.current !== 'wander') {
                     stateRef.current = 'wander';
+                    // #1092: release the claimed slot back to the shared pool on leaving.
+                    if (claimedSlotIndexRef.current != null && birdSlotClaimsRef) {
+                        birdSlotClaimsRef.current.delete(claimedSlotIndexRef.current);
+                        claimedSlotIndexRef.current = null;
+                    }
                 }
                 if (stateRef.current === 'return') {
                     const t = Math.min(1, (now - stateSinceRef.current) / RETURN_DURATION_MS);
                     const from = returnFromRef.current;
-                    const dxTotal = spawnX - from.x, dyTotal = spawnY - from.y;
+                    const target = perchTargetRef.current;
+                    const dxTotal = target.x - from.x, dyTotal = target.y - from.y;
                     const dist = Math.hypot(dxTotal, dyTotal) || 1;
                     const bow = Math.min(40, dist * 0.35);
-                    const ctrl = { x: (from.x + spawnX) / 2 - (dyTotal / dist) * bow, y: (from.y + spawnY) / 2 + (dxTotal / dist) * bow };
+                    const ctrl = { x: (from.x + target.x) / 2 - (dyTotal / dist) * bow, y: (from.y + target.y) / 2 + (dxTotal / dist) * bow };
                     const u = 1 - t;
-                    const nx = u * u * from.x + 2 * u * t * ctrl.x + t * t * spawnX;
-                    const ny = u * u * from.y + 2 * u * t * ctrl.y + t * t * spawnY;
+                    const nx = u * u * from.x + 2 * u * t * ctrl.x + t * t * target.x;
+                    const ny = u * u * from.y + 2 * u * t * ctrl.y + t * t * target.y;
                     if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
                     posRef.current = { x: nx, y: ny };
                     if (t >= 1) stateRef.current = 'perch';
                     if (perchedRef.current) { perchedRef.current = false; setPerched(false); }
                 } else if (stateRef.current === 'perch') {
-                    posRef.current = { x: spawnX, y: spawnY };
+                    posRef.current = { x: perchTargetRef.current.x, y: perchTargetRef.current.y };
                     if (!perchedRef.current) { perchedRef.current = true; setPerched(true); }
                 } else {
                     const dx = oscillate(seedX, now, rangeX / 2, WANDER_SPEED);
@@ -509,6 +553,11 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
         return () => {
             cancelAnimationFrame(raf);
             if (isBird && birdPositionsRef) birdPositionsRef.current.delete(birdId);
+            // #1092: release a held slot claim on unmount too, or it would stay permanently locked
+            // (e.g. the level closing while this bird happened to be perched).
+            if (claimedSlotIndexRef.current != null && birdSlotClaimsRef) {
+                birdSlotClaimsRef.current.delete(claimedSlotIndexRef.current);
+            }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom]);
@@ -616,6 +665,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // comment) — read by useWorldAmbientMusic below to gate/pan bird audio by actual on-screen position,
     // not just a static spawn point. Plain ref (not React state) since it's written up to 60x/sec.
     const birdPositionsRef = useRef(new Map());
+    // #1092 (Han 2026-08-19, "Birds should only perch on 'bird slots'"): a shared claim registry so
+    // multiple bird WorldWanderer instances don't perch on the SAME `X_bird_slot` marker at once — a
+    // bird claims the nearest free slot index when it starts returning to perch, releases it when it
+    // flies off again (see WorldWanderer's own perch-target logic). Plain ref (not React state), same
+    // "written by an rAF loop, never triggers a render" reasoning as birdPositionsRef above.
+    const birdSlotClaimsRef = useRef(new Set());
     // #925 follow-up: see the useWorldAmbientMusic call further down (after localWorldToScreenX/water
     // tiles are computed) for what this ref actually holds each render.
     const envAudioRef = useRef(null);
@@ -936,6 +991,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // and on-water"): `onGround` marks the ONE habitat that should follow Collision_mask's terrain height
     // as it wanders, same as the hero/pet/NPC/Slime (`standAnchorFor`) — flying critters keep their own
     // spawnY+oscillate height, swim critters keep the fixed WATER_STAND_HEIGHT_PX anchor.
+    // #1092 (Han 2026-08-19, "Birds should only perch on 'bird slots'"): a NEW LDtk marker type,
+    // authored by Han in the level editor (same `X_<criteria>` convention as X_bird_flying etc.) —
+    // ENTITY_INSTANCES already reads any `__identifier` generically (ldtkWorld.js), so no parser
+    // change was needed, only this lookup. Empty until Han places any (existing levels are
+    // unaffected — WorldWanderer falls back to a bird's own spawn point when `birdSlots` is empty).
+    const birdSlots = ENTITY_INSTANCES['X_bird_slot'] ?? [];
     const HABITAT_CONFIG = {
         X_bird_flying: { tags: ['bird', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false, onGround: false },
         X_critter_flying: { tags: ['critter', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false, onGround: false },
@@ -1465,6 +1526,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
                     frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
                     isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
+                    birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
                 />
             ))}
 

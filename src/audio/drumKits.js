@@ -3,6 +3,7 @@
  * Single source of truth for all drum-related constants shared across
  * DrumPad.jsx, playSound.js, and the Sequencer.
  */
+import { Sampler } from 'smplr';
 
 /**
  * Valid smplr DrumMachine instrument IDs mapped from display name.
@@ -198,6 +199,21 @@ export const LOCAL_PERCUSSION_BUFFERS = {
     'Clap_06': '/samples/Percussion/HandClap/02_02.wav',
     'Clap_07': '/samples/Percussion/HandClap/02_05.wav',
 };
+
+// #1091 follow-up (Han 2026-08-19, "percussion cannot be heard in the RPG-level... should sound at the
+// water"): the 'FreePats Percussion' Sampler construction (buffers/detune/decayTime/lpfCutoffHz) was
+// hand-rolled twice already in useInstruments.js (the manual + auto fader instances) — extracted here,
+// the percussion SSOT (§8), as a single canonical constructor (§6d) instead of copying that options
+// object a third time for useWorldAmbientMusic.js's new water percussion voice.
+export function createFreePatsPercussionInstrument(context, destination) {
+    return new Sampler(context, {
+        destination,
+        buffers: LOCAL_PERCUSSION_BUFFERS,
+        detune: 0,
+        decayTime: 0.3,
+        lpfCutoffHz: 20000,
+    });
+}
 
 /**
  * Default pad → smplr sample path or MIDI note number mapping.

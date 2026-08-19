@@ -5075,3 +5075,26 @@ hardcoded patroon, geen generator-hook), en `rb` = de bestaande `cr_bell` pad.
 Geverifieerd: `npm run test:run` (825 passed, 6 nieuw), `npm run lint` (0 errors), `npm run build`
 (clean). Niet live getest — #1091 naar `test` (UAT) gezet met concrete acceptance criteria, Han moet
 zelf percussie → stylized → hh selecteren en beoordelen. Zie architecture.md §266.
+
+## 2026-08-19 — ✅ UAT-bounce op #1091/#993: applause zachter, echte hh-loop bij het water, bird slots
+
+Han's UAT-feedback in één bericht: "applause is a bit too loud, make it less loud" + "percussion
+cannot be heard in the RPG-level, the aforementioned loop (hh, eights, with cymbal accents) should
+sound at the water" + "Birds should only perch on 'bird slots'".
+
+1. **✅ Applause volume** — één VOL_STEPS-niveau zachter (mp → p).
+2. **✅ Echte `hh`-loop bij het water** — de §266 `generateHh` generator was alleen aan de
+   practice-mode percussie gekoppeld; nu ook een 4e water-stem in `useWorldAmbientMusic.js`
+   (`hhBus`/`hhInstrument`, JIT block-loop net als de piano, maar self-gating op waterbereik zoals
+   de glockenspiel). Han's keuze: ERBIJ, niet i.p.v. applause. Onderzoek vooraf: 'FreePats Percussion'
+   bleek al de bestaande standaard-percussiekit met echte samples voor elke hh-pad — geen afhankelijkheid
+   van de losse #1090 asset-drop ticket nodig. Nieuwe gedeelde constructor
+   `createFreePatsPercussionInstrument` (drumKits.js), ook hergebruikt door `useInstruments.js` (was
+   dubbel gecodeerd).
+3. **✅ Bird slots** — eerst onderzocht (geen bestaand concept, moest nieuw zijn); interview met Han:
+   nieuw `X_bird_slot` LDtk-merkertype (door Han zelf te plaatsen in de editor), vogels claimen de
+   dichtstbijzijnde vrije slot uit een gedeelde pool (i.p.v. 1:1). Geen effect zichtbaar totdat Han
+   daadwerkelijk slots plaatst — bestaande levels ongewijzigd.
+
+Geverifieerd: `npm run test:run` (825 passed, 1 nieuwe mock nodig voor de Sampler-constructor in
+jsdom), `npm run lint` (0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §267.

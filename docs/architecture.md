@@ -17848,3 +17848,78 @@ live in a real browser — same tooling constraint as §263–§265.
 `src/constants/instrumentRules.js`, `src/constants/generationFields.js`, `src/utils/labelUtils.js`,
 `src/components/sheet-music/overlays/GenerationSetterOverlay.jsx`,
 `src/generation/__tests__/generateHh.test.js` (new), `src/audio/__tests__/playMelodies.test.js`.
+
+### §267. Water's real `hh` percussion loop, applause volume tweak, and bird-slot perching (#1091/#1092, Han 2026-08-19)
+
+**1. Applause volume.** Han's UAT: "applause is a bit too loud". `WATER_PERCUSSION_GAIN`
+(`useWorldAmbientMusic.js`) dropped one `VOL_STEPS` dynamic level, mezzo piano (0.6) → piano (0.4).
+
+**2. Water's real generated `hh` percussion loop (#1091 follow-up).** Han: "percussion cannot be heard
+in the RPG-level, the aforementioned loop (hh, eights, with cymbal accents) should sound at the water."
+§266 shipped `generateHh` but only wired it into the PRACTICE-mode percussion instrument, per that
+round's own interview answer ("test via the practice-mode carousel, not a level track"). This round
+adds it to water's env audio too — Han's explicit choice: **alongside** applause, not replacing it
+("Add hh loop alongside applause").
+
+- **New canonical percussion-instrument constructor**: `createFreePatsPercussionInstrument(context,
+  destination)` (`drumKits.js`, the percussion SSOT, §8/§6d) — extracted from `useInstruments.js`'s own
+  `isLocalKit` branch (which had the `Sampler(context, { buffers: LOCAL_PERCUSSION_BUFFERS, detune: 0,
+  decayTime: 0.3, lpfCutoffHz: 20000 })` options object hand-rolled twice already, for the auto-fader
+  and manual-preview instances) — `useInstruments.js` now calls the SAME helper instead of a third copy.
+  Investigation before implementing found `'FreePats Percussion'` is ALREADY the app's default local
+  percussion kit (`defaultPercussionInstrumentSettings()`), with real WAV samples and a complete
+  `KIT_NOTE_MAPPINGS['FreePats Percussion']` covering every pad `generateHh` uses (hh/ho/hp/cr_bell/r) —
+  so this needed NO dependency on the separate, still-pending #1090 FreePats asset-drop ticket.
+- **A fourth water voice** (`useWorldAmbientMusic.js`'s water `useEffect`): `hhBus`/`hhInstrument`
+  (own dedicated `createFreePatsPercussionInstrument` instance, own `createSpatialBus`, same pattern as
+  every other voice in this file — never the user's own practice-mode percussion instrument/kit choice).
+- **`scheduleHh()`**: a repeating JIT block loop — calls `generateHh(WORLD_AMBIENT_TIME_SIGNATURE,
+  WORLD_AMBIENT_NUM_MEASURES, 8, 30)` (Han's own #1091 defaults: smallestNoteDenom 8, variability 30%)
+  per block, scaling `.volumes` by `MF_VOLUME * musicVolumeMultiplierRef.current` (same convention every
+  manually-triggered layer in this file already follows) and playing it via `playMelodies(...,
+  FREEPATS_MAPPING)` — `.velocities` (on-beat 100 / off-beat 80-or-100, §266) flows straight through
+  unmodified, so the loop's own accent pattern is audible for free. Self-gates on water range the SAME
+  way `scheduleGlockenspiel` already does (not the piano's unconditional loop) — only sounds near water,
+  restarted by the shared reconcile interval once back in range. Same "hh + ho -> ho" collision handling,
+  same everything — this is genuinely THE SAME generator as the practice-mode one, no duplication, no
+  per-context special-casing (CLAUDE.md §6b/§6c: one generation function, only its call site differs).
+
+**3. Bird slots (#1092, Han: "Birds should only perch on 'bird slots'").** Investigated first (research
+agent): NO existing "bird slot" concept anywhere — every `canPerch` flying critter (bird or otherwise)
+has always perched back at its own `X_bird_flying`/`X_critter_flying` spawn point, LDtk has no marker
+type resembling a distinct landing spot. Confirmed with Han via interview: a NEW `X_bird_slot` LDtk
+marker type (same `X_<criteria>` convention as the existing habitat markers, `RpgLevelPanel.jsx`'s
+`HABITAT_CONFIG` comment) that HAN authors/places in the level editor — needs no `ldtkWorld.js` parser
+change at all, since `ENTITY_INSTANCES` already reads any `__identifier` generically. Birds pick
+**"nearest free slot from a shared pool"** (Han's choice over 1:1 fixed assignment, which would've
+needed extra LDtk linking data with no natural home in the schema):
+
+- `RpgLevelPanel.jsx`: `birdSlots = ENTITY_INSTANCES['X_bird_slot'] ?? []` (empty today — existing
+  levels are unaffected until Han places markers) and a new shared `birdSlotClaimsRef = useRef(new
+  Set())` (claimed slot INDEXES, same "written by an rAF loop, plain ref not state" reasoning as the
+  existing `birdPositionsRef`), both passed into every `WorldWanderer` instance as new props.
+- `WorldWanderer`: on the `wander → return` transition (the moment a bird decides to head home), it
+  (bird-only, `isBird` gated — non-bird flying critters like butterflies are UNCHANGED, still perch at
+  their own spawn) claims the nearest unclaimed slot via `nearestFreeBirdSlot(slots, claimedSet, fromX,
+  fromY)` (a plain distance search, no ranking machinery needed for a handful of slots) and stores the
+  claimed index in a per-instance `claimedSlotIndexRef`; `perchTargetRef` (new — replaces the bezier's
+  and the `'perch'` state's previously-hardcoded `spawnX`/`spawnY` targets) becomes that slot's position.
+  Falls back to the bird's own spawn point when `birdSlots` is empty OR every slot is currently claimed
+  by another bird (never two birds sharing one slot, never a bird stuck unable to perch at all). The
+  slot is released (`birdSlotClaimsRef.current.delete`) on the `perch/return → wander` transition (the
+  §265 stale-closure fix from the previous round is what makes that transition reliable now) AND on
+  unmount, so a bird despawning mid-perch (e.g. level close) never permanently locks a slot.
+
+**Verified:** `npm run test:run` (825 passed — `useWorldAmbientMusic.test.js` needed a new
+`createFreePatsPercussionInstrument` mock, same pattern as its existing `createMelodicInstrument` mock,
+since a real smplr `Sampler` throws `AudioBuffer is not defined` in jsdom), `npm run lint` (0 errors;
+`birdSlots`/`birdSlotClaimsRef` add prop-types warnings consistent with this component's existing
+untyped-props baseline, not a new category), `npm run build` (clean). Not verified live in a real
+browser (no browser tooling this session) — in particular, bird-slot perching has NO visible effect
+until Han actually places `X_bird_slot` markers in the LDtk editor.
+
+**Files:** `src/hooks/useWorldAmbientMusic.js` (`hhBus`/`hhInstrument`/`scheduleHh`,
+`WATER_PERCUSSION_GAIN` tweak), `src/audio/drumKits.js` (`createFreePatsPercussionInstrument`),
+`src/hooks/useInstruments.js` (reuses the new helper), `src/components/character/RpgLevelPanel.jsx`
+(`birdSlots`, `birdSlotClaimsRef`, `nearestFreeBirdSlot`, `WorldWanderer`'s `perchTargetRef`/
+`claimedSlotIndexRef`), `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new mock).

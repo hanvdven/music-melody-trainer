@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Soundfont, Reverb, DrumMachine, Sampler, getDrumMachineNames } from 'smplr';
+import { Soundfont, Reverb, DrumMachine, getDrumMachineNames } from 'smplr';
 import InstrumentSettings from '../model/InstrumentSettings';
-import { LOCAL_PERCUSSION_BUFFERS } from '../audio/drumKits';
+import { createFreePatsPercussionInstrument } from '../audio/drumKits';
 import { createMelodicInstrument } from '../audio/localInstruments';
 import { createChorus } from '../audio/chorusEffect';
 import { createTremolo } from '../audio/tremoloEffect';
@@ -101,9 +101,8 @@ const useInstruments = (context) => {
           const isLocalKit = settings.instrument === 'FreePats Percussion';
 
           if (isLocalKit) {
-            const percSamplerOpts = { destination: dest, buffers: LOCAL_PERCUSSION_BUFFERS, detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
-            newInst = new Sampler(context, percSamplerOpts);
-            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: context.destination });
+            newInst = createFreePatsPercussionInstrument(context, dest);
+            newManualInst = createFreePatsPercussionInstrument(context, context.destination);
           } else if (isGMKit) {
             newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
             newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });

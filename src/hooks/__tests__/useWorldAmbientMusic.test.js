@@ -11,6 +11,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../audio/localInstruments', () => ({
     createMelodicInstrument: vi.fn(() => ({ load: Promise.resolve(), stop: vi.fn(), disconnect: vi.fn() })),
 }));
+// #1091 follow-up (water's new `hh` loop voice): a real smplr Sampler tries to decode WAV ArrayBuffers
+// on construction, which throws "AudioBuffer is not defined" in jsdom — stubbed the same way
+// createMelodicInstrument already is above.
+vi.mock('../../audio/drumKits', () => ({
+    createFreePatsPercussionInstrument: vi.fn(() => ({ load: Promise.resolve(), stop: vi.fn(), disconnect: vi.fn() })),
+    KIT_NOTE_MAPPINGS: { 'FreePats Percussion': {} },
+}));
 vi.mock('../../audio/playMelodies', () => ({ default: vi.fn() }));
 vi.mock('../../audio/worldClock', () => ({ nextMeasureStartTime: vi.fn(() => 10) }));
 vi.mock('../../generation/generateWorldAmbientBlock', () => ({
