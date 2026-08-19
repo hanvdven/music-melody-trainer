@@ -1,5 +1,5 @@
 import generateAllNotesArray from '../theory/allNotesArray';
-import { DEFAULT_NOTE_MAPPING } from './drumKits';
+import { DEFAULT_NOTE_MAPPING, humanizePercussionSample } from './drumKits';
 
 const allNotesArray = generateAllNotesArray();
 
@@ -65,6 +65,32 @@ const resolveNotePitch = (note, customMapping = null) => {
 };
 
 /**
+ * Like `resolveNotePitch`, but for percussion pads whose mapping is an ARRAY of sample variants:
+ * applies velocity-window "humanization" (`drumKits.js` `humanizePercussionSample`) instead of a flat
+ * uniform-random pick, and returns a compensating gain multiplier alongside the resolved pitch.
+ *
+ * #1091 round 3 (Han: "add 'humanization'... for percussion specifically"). Falls back to plain
+ * `resolveNotePitch` (gainMultiplier 1) for every other case — non-array mappings, melodic piano
+ * notes, or when no target velocity is available — so this is a safe drop-in wherever `resolveNotePitch`
+ * was called for a note that MIGHT be a percussion pad (playMelodies.js, `playSound` below), not a
+ * second parallel pitch-resolution system (CLAUDE.md §6c). Deliberately does NOT change
+ * `resolveNotePitch`'s own signature/return shape — that function has several unrelated melodic-only
+ * callers (PianoView.jsx, ChordGrid.jsx, App.jsx, useDebugMetronome.js) that never need humanization
+ * and shouldn't have to change to accommodate it.
+ * @returns {{ pitch: number|string|null, gainMultiplier: number }}
+ */
+const resolvePercussionPitch = (note, customMapping = null, velocity = null) => {
+  if (note == null || note === 'r') return { pitch: null, gainMultiplier: 1 };
+  const mapped = (customMapping && note in customMapping) ? customMapping[note]
+    : (note in DEFAULT_NOTE_MAPPING) ? DEFAULT_NOTE_MAPPING[note] : undefined;
+  if (Array.isArray(mapped)) {
+    const { sample, gainMultiplier } = humanizePercussionSample(mapped, velocity);
+    return { pitch: sample, gainMultiplier };
+  }
+  return { pitch: resolveNotePitch(note, customMapping), gainMultiplier: 1 };
+};
+
+/**
  * Highly optimized, synchronous playSound function.
  * Avoids repeated lookups and async overhead during critical playback.
  */
@@ -84,20 +110,25 @@ const playSound = (
 ) => {
   if (!instrument) return;
 
-  const resolvedPitch = resolveNotePitch(note, customMapping);
+  // #1091 round 3: the combined gain (volume x velocity accent) doubles as the TARGET velocity fed
+  // into percussion sample-selection humanization below, same "one number drives both gain and
+  // smplr velocity" convention playMelodies.js already uses.
+  const combinedGain = _volume !== undefined ? _volume * (velocity / 100) : undefined;
+  const targetVelocity = combinedGain !== undefined ? Math.floor(combinedGain * 127) : null;
+  const { pitch: resolvedPitch, gainMultiplier } = resolvePercussionPitch(note, customMapping, targetVelocity);
   if (resolvedPitch !== null) {
     const startOpts = {
       note: resolvedPitch,
       time: time,
       duration: duration,
     };
-    if (_volume !== undefined) {
-      startOpts.velocity = Math.floor(_volume * (velocity / 100) * 127);
+    if (combinedGain !== undefined) {
+      startOpts.velocity = Math.floor(combinedGain * gainMultiplier * 127);
     }
     return instrument.start(startOpts);
   }
   return null;
 };
 
-export { playSound, resolveNotePitch };
+export { playSound, resolveNotePitch, resolvePercussionPitch };
 export default playSound;

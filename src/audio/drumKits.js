@@ -126,14 +126,14 @@ export const LOCAL_PERCUSSION_BUFFERS = {
     'Snare_HV7': '/samples/Percussion/AcousticSnare/HV7.wav',
     'Snare_LV1': '/samples/Percussion/AcousticSnare/LV1.wav',
     'Snare_LV2': '/samples/Percussion/AcousticSnare/LV2.wav',
-    // Closed Hi-Hat variants
-    'Hihat_01': '/samples/Percussion/ClosedHiHat/01.wav',
-    'Hihat_02': '/samples/Percussion/ClosedHiHat/02.wav',
-    'Hihat_03': '/samples/Percussion/ClosedHiHat/03.wav',
-    'Hihat_04': '/samples/Percussion/ClosedHiHat/04.wav',
-    'Hihat_05': '/samples/Percussion/ClosedHiHat/05.wav',
-    'Hihat_06': '/samples/Percussion/ClosedHiHat/06.wav',
-    'Hihat_07': '/samples/Percussion/ClosedHiHat/07.wav',
+    // #1091 round 3 (Han: "for hh percussion, take the different samples from the hh-closed in the
+    // muldjordKit"): replaces the old 7-sample, velocity-blind `Hihat_0X` set with all 29 of
+    // MuldjordKit's real velocity-layered closed-hihat recordings (scripts/extract-muldjord-hihat.mjs
+    // — sample 1 = softest, 29 = loudest, confirmed against the kit's own SFZ lovel/hivel groups).
+    // `MULDJORD_HIHAT_CLOSED_KEYS` below is generated from this SAME range — keep the two in sync.
+    ...Object.fromEntries(Array.from({ length: 29 }, (_, i) => [
+        `HihatClosedMuldjord_${i + 1}`, `/samples/Percussion/HihatClosedMuldjord/${i + 1}.wav`,
+    ])),
     // Open Hi-Hat variants
     'OpenHihat_01': '/samples/Percussion/OpenHiHat/01.wav',
     'OpenHihat_02': '/samples/Percussion/OpenHiHat/02.wav',
@@ -213,6 +213,39 @@ export function createFreePatsPercussionInstrument(context, destination) {
         decayTime: 0.3,
         lpfCutoffHz: 20000,
     });
+}
+
+// #1091 round 3 (Han 2026-08-19): ordered LOW -> HIGH velocity, matching MuldjordKit's own SFZ
+// lovel/hivel groups (verified: sample 1's group is lovel=0/hivel=8, sample 29's is the highest) —
+// `humanizePercussionSample` below assumes this array is genuinely velocity-ordered.
+export const MULDJORD_HIHAT_CLOSED_KEYS = Array.from({ length: 29 }, (_, i) => `HihatClosedMuldjord_${i + 1}`);
+
+// #1091 round 3 (Han: "add 'humanization': you may randomly take a sample from within 30 velocity;
+// and very gently quieten/louden it so that there is a bit more variation in the samples used... it
+// should offset the velocity humanization"): applies to any array-valued percussion sample set (not
+// hh-specific — every pad already relies on the SAME "array = multiple recordings of one hit"
+// convention, so one mechanism covers all of them, CLAUDE.md §6b/§6c, no per-pad special-casing).
+//
+// `samples` is assumed LINEARLY distributed across 0-127 by array index (Han's own explicit
+// simplifying assumption — MuldjordKit's real SFZ velocity groups aren't evenly spaced/round-robin
+// shuffled, but re-deriving that exactly wasn't asked for). Picks a random "search velocity" within
+// +/-15 of the real target (a 30-wide window centred on it), maps that to the nearest sample index,
+// then computes a small compensating gain multiplier (+/-8% max) so a sample picked LOUDER than
+// intended plays a touch quieter and vice versa — variation in WHICH recording plays, without the
+// perceived loudness drifting far from the note's actual velocity.
+const PERCUSSION_HUMANIZE_VELOCITY_WINDOW = 15;   // +/- around the target -> 30-wide band (Han's "within 30")
+const PERCUSSION_HUMANIZE_GAIN_JITTER = 0.08;     // +/-8%, offsetting the velocity-window deviation
+export function humanizePercussionSample(samples, velocity) {
+    if (!Array.isArray(samples) || samples.length === 0) return { sample: undefined, gainMultiplier: 1 };
+    if (samples.length === 1 || velocity == null) {
+        return { sample: samples[Math.floor(Math.random() * samples.length)], gainMultiplier: 1 };
+    }
+    const offset = (Math.random() * 2 - 1) * PERCUSSION_HUMANIZE_VELOCITY_WINDOW;
+    const searchVelocity = Math.max(0, Math.min(127, velocity + offset));
+    const index = Math.round((searchVelocity / 127) * (samples.length - 1));
+    // Compensating gain: offset > 0 (picked a louder-than-intended sample) -> quieten; offset < 0 -> louden.
+    const gainMultiplier = 1 - (offset / PERCUSSION_HUMANIZE_VELOCITY_WINDOW) * PERCUSSION_HUMANIZE_GAIN_JITTER;
+    return { sample: samples[index], gainMultiplier };
 }
 
 /**
@@ -402,7 +435,7 @@ export const KIT_NOTE_MAPPINGS = {
         sg: ['Snare_LV1', 'Snare_LV2'],  // Ghost snare — low velocity only
         sr: ['RimClick_01', 'RimClick_02', 'RimClick_03', 'RimClick_04'],  // Rim click
         b: ['TomMid_01', 'TomMid_02', 'TomMid_03'],
-        hh: ['Hihat_01', 'Hihat_02', 'Hihat_03', 'Hihat_04', 'Hihat_05', 'Hihat_06', 'Hihat_07'],
+        hh: MULDJORD_HIHAT_CLOSED_KEYS,
         ho: ['OpenHihat_01', 'OpenHihat_02', 'OpenHihat_03', 'OpenHihat_04'],
         hp: ['PedalHihat_01'],
         cr: ['Ride1_HV1', 'Ride1_HV2'],

@@ -63,3 +63,22 @@ describe('playMelodies — per-note velocity (#1091)', () => {
         expect(instrument.start.mock.calls[0][0].velocity).toBe(Math.floor(1 * 0.8 * 127));
     });
 });
+
+// #1091 round 3 (Han: percussion "humanization"): an array-valued customMapping entry should be
+// resolved through resolvePercussionPitch (velocity-window pick + compensating gain), not a flat
+// uniform-random one, when the note actually flows through playMelodies.
+describe('playMelodies — percussion sample humanization (#1091 round 3)', () => {
+    it('picks from the array-valued mapping and applies its gainMultiplier to the final velocity', () => {
+        vi.spyOn(Math, 'random').mockReturnValue(1); // max +15 offset -> gainMultiplier < 1
+        const instrument = makeInstrument();
+        const melody = makeMelody(['hh'], [0], [12]);
+        const customMapping = { hh: ['soft', 'mid', 'loud'] };
+
+        playMelodies([melody], [instrument], { currentTime: 0, destination: {} }, 120, 0, null, null, null, customMapping);
+
+        const startOpts = instrument.start.mock.calls[0][0];
+        expect(customMapping.hh).toContain(startOpts.note);
+        expect(startOpts.velocity).toBeLessThan(127); // compensating gain pulled it below the un-humanized max
+        vi.restoreAllMocks();
+    });
+});

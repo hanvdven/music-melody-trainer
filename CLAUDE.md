@@ -314,7 +314,7 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 
 1. **Read `src/audio/playMelodies.js`** — it is the canonical example of how percussion routing works.
 2. **Use `METRONOME_NOTE_IDS`** from `src/audio/drumKits.js` to decide whether a note goes to `instruments.metronome` or `instruments.percussion`. Import it; never redefine inline.
-3. **Use `resolveNotePitch(note, customMapping)`** from `src/audio/playSound.js` — it already handles `DEFAULT_NOTE_MAPPING`, kit-specific overrides, and MIDI number resolution.
+3. **Use `resolveNotePitch(note, customMapping)`** from `src/audio/playSound.js` — it already handles `DEFAULT_NOTE_MAPPING`, kit-specific overrides, and MIDI number resolution. If you have a target velocity available (0-127) and the caller is percussion-focused (not one of `resolveNotePitch`'s melodic-only callers like PianoView/ChordGrid), use **`resolvePercussionPitch(note, customMapping, velocity)`** instead (#1091, Han 2026-08-19) — it applies velocity-window "humanization" (`drumKits.js` `humanizePercussionSample`) to array-valued pad mappings and returns `{ pitch, gainMultiplier }`; falls back to `resolveNotePitch` (gainMultiplier 1) for everything else, so it's a safe drop-in.
 4. **Use `customPercussionMappingRef.current`** for the `customMapping` arg so user kit remaps apply.
 5. **Ask before adding a new routing special-case**: "Does this routing already exist in `playMelodies.js` or `drumKits.js`?"
 

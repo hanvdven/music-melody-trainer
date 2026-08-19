@@ -5117,3 +5117,24 @@ denom (1,1,2,3,4), en voor 16: de "off-off beats" op velocity 60. Applause nog e
 
 Geverifieerd: `npm run test:run` (829 passed, generateHh.test.js herschreven), `npm run lint`
 (0 errors), `npm run build` (clean). Niet live getest. Zie architecture.md §268.
+
+## 2026-08-19 — ✅ MuldjordKit hh-closed samples + percussie-humanisatie (round 3)
+
+Han (mid-turn, tijdens round 2): "take the different samples from the hh-closed in the muldjordKit -
+assume linearly distributed... add 'humanization': random sample binnen 30 velocity + zachte
+volume-jitter die de velocity-humanisatie compenseert." Eerst geïnventariseerd (381MB kit, 29
+velocity-gelaagde HihatClosed samples, sfz bevestigt low->high volgorde), toen geïnterviewd (scope: nu
+alleen HihatClosed niet de hele kit; window ±15; toepassen op ALLE percussie-pads, niet enkel hh; ±8%
+gain-jitter die de velocity-deviatie compenseert, niet onafhankelijk random).
+
+1. **✅ `scripts/extract-muldjord-hihat.mjs`** — kopieert de 29 samples naar
+   `public/samples/Percussion/HihatClosedMuldjord/`, verving de oude 7-sample velocity-blinde
+   `Hihat_0X`-set.
+2. **✅ `humanizePercussionSample`** (drumKits.js, percussie-SSOT) — generiek voor elke array-pad, niet
+   hh-specifiek. Velocity-window sample-pick + compenserende gain.
+3. **✅ `resolvePercussionPitch`** (playSound.js) — NIEUWE functie i.p.v. `resolveNotePitch` te wijzigen
+   (die heeft te veel ongerelateerde melodische callers). `playMelodies.js`/`playSound` herordend zodat
+   gain vóór pitch-resolutie bekend is.
+
+Geverifieerd: `npm run test:run` (842 passed, 12 nieuw), `npm run lint` (0 errors), `npm run build`
+(clean). Niet live getest. Zie architecture.md §269.

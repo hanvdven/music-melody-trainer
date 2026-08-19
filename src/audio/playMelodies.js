@@ -1,4 +1,4 @@
-import { resolveNotePitch } from './playSound';
+import { resolvePercussionPitch } from './playSound';
 import { PERCUSSION_INTERRUPT_GROUP, METRONOME_NOTE_IDS } from './drumKits';
 import { secondsPerTick } from '../constants/timing.js';
 import { LET_RING_INSTRUMENTS } from '../constants/instruments.jsx';
@@ -103,17 +103,6 @@ const playMelodies = (
         const strumDelay = 0.02; // 20ms stagger between notes in a chord
 
         items.forEach((id, pitchIdx) => {
-          const pitch = resolveNotePitch(id, customMapping);
-          if (pitch === null) return;
-
-          // ROUTING: woodblock/metronome notes (METRONOME_NOTE_IDS) resolve to MIDI numbers and must
-          // go to the metronome Soundfont. Fall back to defaultInstrument for tracks like 'claves'.
-          const noteInstrument = (namedInstruments && namedInstruments.metronome && METRONOME_NOTE_IDS.has(id))
-            ? namedInstruments.metronome
-            : defaultInstrument;
-
-          if (!noteInstrument) return;
-
           const stagger = melody.strummingEnabled ? pitchIdx * strumDelay : 0;
           let gain = (melody.volumes && melody.volumes[i] != null) ? melody.volumes[i] : (melody.gain ?? 1);
           // Apply track round multiplier
@@ -127,6 +116,24 @@ const playMelodies = (
           // existing caller (`velocity/100 === 1`).
           const velocity = (melody.velocities && melody.velocities[i] != null) ? melody.velocities[i] : 100;
           gain = gain * (velocity / 100);
+
+          // #1091 round 3 (Han: percussion "humanization" — a random sample within a velocity window,
+          // gain-compensated so the pick doesn't drift far from the note's real loudness). Needs the
+          // FINAL gain (computed above) as the target MIDI velocity for sample selection, so pitch
+          // resolution moved after gain instead of before it. `gainMultiplier` is 1 for every
+          // non-array-mapped note (melodic pitches, single-sample pads) — see drumKits.js
+          // `humanizePercussionSample`.
+          const { pitch, gainMultiplier } = resolvePercussionPitch(id, customMapping, Math.floor(gain * 127));
+          if (pitch === null) return;
+          gain = gain * gainMultiplier;
+
+          // ROUTING: woodblock/metronome notes (METRONOME_NOTE_IDS) resolve to MIDI numbers and must
+          // go to the metronome Soundfont. Fall back to defaultInstrument for tracks like 'claves'.
+          const noteInstrument = (namedInstruments && namedInstruments.metronome && METRONOME_NOTE_IDS.has(id))
+            ? namedInstruments.metronome
+            : defaultInstrument;
+
+          if (!noteInstrument) return;
 
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
           // #889 follow-up (Han 2026-08-14, "laat percussieinstrumenten altijd volledig uitspelen

@@ -17981,3 +17981,65 @@ browser this session.
 `src/generation/melodyGenerator.js` (`notesPerMeasure` instead of `rhythmVariability` for the `'hh'`
 branch), `src/hooks/useWorldAmbientMusic.js` (`WATER_HH_BLOCK_MEASURES`/`WATER_HH_DENOM_CHOICES`,
 `WATER_PERCUSSION_GAIN` → pianissimo), `src/generation/__tests__/generateHh.test.js` (rewritten).
+
+### §269. MuldjordKit closed-hihat samples + percussion sample "humanization" (#1091 round 3, Han 2026-08-19)
+
+**Purpose.** Han: "for hh percussion, take the different samples from the hh-closed in the muldjordKit
+- assume the velocities are linearly distributed across the samples. for percussion specifically: add
+'humanization': you may randomly take a sample from within 30 velocity; and very gently quieten/louden
+it so that there is a bit more variation in the samples used." Interviewed first (scope/semantics were
+genuinely ambiguous, and this touches the shared `resolveNotePitch`/`playMelodies` sample-resolution
+path every percussion sound in the app goes through): HihatClosed only for now (not the full 381MB
+MuldjordKit — the rest is a future ticket, same split as the earlier FreePats import), a ±15 velocity
+window ("within 30" = a 30-wide band centred on the target), applies to ALL percussion pads (not
+hh-only), ±8% gain jitter that Han specified should **offset** (compensate) the velocity-window
+deviation rather than being independently random.
+
+**1. Asset extraction (`scripts/extract-muldjord-hihat.mjs`, new).** Copies MuldjordKit's 29
+velocity-layered `HihatClosed` WAVs (`src/assets/ASSET DROP/MuldjordKit SFZ+WAV-20201018/`) into
+`public/samples/Percussion/HihatClosedMuldjord/{1..29}.wav` (4.5MB — small, self-contained, unlike the
+still-pending full-kit import). Verified against the kit's own `.sfz` file that sample 1 sits in the
+LOWEST `lovel`/`hivel` region and sample 29 in the highest, confirming "assume linearly distributed" is
+safe without parsing the SFZ's own (round-robin-shuffled) velocity groups. `LOCAL_PERCUSSION_BUFFERS`
+(`drumKits.js`) gained all 29 (`HihatClosedMuldjord_1..29`), replacing the old 7-sample, velocity-blind
+`Hihat_0X` set — `KIT_NOTE_MAPPINGS['FreePats Percussion'].hh` now points at
+`MULDJORD_HIHAT_CLOSED_KEYS` (ordered low→high velocity) instead.
+
+**2. `humanizePercussionSample(samples, velocity)` (`drumKits.js`, the percussion SSOT, §8) — generic,
+not hh-specific.** Applies to ANY array-valued pad mapping (kick/snare/toms/cymbals/hh — every pad
+already uses the SAME "array = several recordings of one hit" convention, so one mechanism covers all
+of them, CLAUDE.md §6b/§6c, no per-pad branching): picks a random "search velocity" within
+`PERCUSSION_HUMANIZE_VELOCITY_WINDOW = 15` of the real target (a 30-wide band), maps it linearly to a
+sample index (`round((searchVelocity/127) * (length-1))`), then computes a compensating
+`gainMultiplier` — `1 - (offset/15) * PERCUSSION_HUMANIZE_GAIN_JITTER(0.08)` — so a sample picked
+LOUDER than intended plays a touch quieter and vice versa (Han: "it should offset the velocity
+humanization"). Falls back to a plain uniform-random pick (gainMultiplier 1) when velocity is omitted
+or the array has only one element — same old behaviour, unaffected.
+
+**3. Wiring (`playSound.js`, `playMelodies.js`) — deliberately NOT a change to `resolveNotePitch`.**
+`resolveNotePitch` has several unrelated MELODIC-only callers (`PianoView.jsx`, `ChordGrid.jsx`,
+`App.jsx`, `useDebugMetronome.js`) that would all need touching for zero behavioural benefit if its
+return shape changed. Instead, a new `resolvePercussionPitch(note, customMapping, velocity)` (same
+file) peeks at the raw mapped value; if it's an array, humanizes it and returns `{ pitch,
+gainMultiplier }`; otherwise delegates straight to `resolveNotePitch` (`gainMultiplier: 1`) — a safe
+drop-in wherever a caller resolves a note that MIGHT be a percussion pad. `playMelodies.js` and
+`playSound`'s own note-resolution call sites switched to it: gain computation (existing `.volumes` ×
+track gain × `.velocities`/100, §266) now happens BEFORE pitch resolution instead of after, so the
+final combined gain (as a 0-127 MIDI value) can be passed in as the humanization target, and the
+returned `gainMultiplier` is applied back onto `gain` before the final `startOpts.velocity` conversion.
+CLAUDE.md's percussion routing checklist (§6c) updated to reference the new function.
+
+**Verified:** `npm run test:run` (842 passed — 12 new: `drumKits.test.js` for
+`humanizePercussionSample`'s window/clamping/gain-offset math and the key ordering, `playSound.test.js`
+for `resolvePercussionPitch` matching `resolveNotePitch` exactly on every non-array case, a new
+`playMelodies.test.js` case confirming the humanized gain actually reaches `instrument.start`),
+`npm run lint` (0 errors, same warning count — no new ones), `npm run build` (clean). Not verified live
+in a real browser this session.
+
+**Files:** `scripts/extract-muldjord-hihat.mjs` (new), `src/audio/drumKits.js`
+(`humanizePercussionSample`, `MULDJORD_HIHAT_CLOSED_KEYS`, `LOCAL_PERCUSSION_BUFFERS`/
+`KIT_NOTE_MAPPINGS['FreePats Percussion'].hh`), `src/audio/playSound.js` (`resolvePercussionPitch`,
+`playSound` reordered), `src/audio/playMelodies.js` (reordered, `resolvePercussionPitch`),
+`public/samples/Percussion/HihatClosedMuldjord/` (new, 29 files), `CLAUDE.md` (routing checklist),
+`src/audio/__tests__/drumKits.test.js` (new), `src/audio/__tests__/playSound.test.js` (new),
+`src/audio/__tests__/playMelodies.test.js` (new case).
