@@ -83,8 +83,26 @@ const WATER_GLOCKENSPIEL_MAX_SILENCE_SEC = 12;
 // sourced velocity, since this isn't real MIDI content like the hum/glockenspiel are.
 const WATER_PERCUSSION_NOTE = 'C4';
 // Han 2026-08-19 UAT round 1: "applause is a bit too loud" (mp -> p). Round 2: "make the applause even
-// softer" — one more VOL_STEPS dynamic level down, p -> pp.
-const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').value;   // 'pp'
+// softer" — one more VOL_STEPS dynamic level down, p -> pp. Round 7 ("kan het applaus nog zachter?"):
+// pianissimo is already VOL_STEPS' lowest non-silent rung, so there's no further named step to drop to
+// — an extra multiplier on top instead, same pattern BIRD_VOLUME_MULTIPLIER already uses for going
+// quieter than a VOL_STEPS/MF_VOLUME base without inventing a new dynamics-marking scale.
+const WATER_PERCUSSION_QUIETER_MULTIPLIER = 0.5;
+const WATER_PERCUSSION_GAIN = VOL_STEPS.find((s) => s.label === 'pianissimo').value * WATER_PERCUSSION_QUIETER_MULTIPLIER;   // 'pp' * 0.5
+
+// #1091 round 7 (Han 2026-08-20, "nieuwe feature: af en toe wil ik een 'windvlaag'... fade in fade out
+// van applaus... ook op zeer laag volume. Trigger het voorlopig random - later wil ik dat ook
+// plaatsgebonden maken"): a NEW, separate voice — NOT a replacement for the water applause drone above
+// (Han's own choice: "keep both") — reusing the SAME 'applause' sample as a stand-in for wind noise
+// (its broadband/rustling texture reads as wind), but with a fade-in/fade-out envelope instead of a
+// held drone, and level-wide (not gated to water — Han: "location-bound" is an explicit LATER step).
+// Cadence is Han's own exact mechanic: "rol elk blok van 2 maten voor 20% kans om een hoos te starten.
+// een hoos duurt 2 maten" — every 2-measure cycle independently rolls a 20% chance to start a gust;
+// when one starts, it spans the FULL 2 measures, silent otherwise. Peak volume reuses
+// WATER_PERCUSSION_GAIN directly ("ook op zeer laag volume" — the same very-low level just set above).
+const WIND_GUST_BLOCK_MEASURES = 2;
+const WIND_GUST_TRIGGER_CHANCE = 0.2;
+const WIND_GUST_NOTE = WATER_PERCUSSION_NOTE;
 
 // #1091 follow-up (Han 2026-08-19): the generated `hh` pattern (§266/§268) — was briefly one of
 // water's voices, but round 4 (Han: "Zorg dat percussie door het hele level te horen is, niet enkel
@@ -214,6 +232,51 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
         // (never cached in instrumentsRef, unlike treblePiano above), so disconnect() — not stop() — is
         // the right teardown, same reasoning as the bird/water voices below.
         return () => { cancelled = true; clearTimeout(timeoutId); hhInstrument.disconnect(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, context]);
+
+    // #1091 round 7 (Han 2026-08-20, "windvlaag"): level-wide, intermittent wind-gust voice — a JIT
+    // block loop (same shape as the hh loop above) that rolls WIND_GUST_TRIGGER_CHANCE every
+    // WIND_GUST_BLOCK_MEASURES-measure cycle; on a hit, the 'applause' sample plays for the FULL cycle
+    // duration under a linear fade-in-to-midpoint-then-fade-out-to-end gain envelope (Han: "fade in fade
+    // out"). Needs a real GainNode with native Web Audio ramp automation — unlike every other voice in
+    // this file, whose loudness is a single per-note value baked into `.volumes`/`velocity` at trigger
+    // time, this ramps CONTINUOUSLY while the note is sounding, which only a live AudioParam can do.
+    useEffect(() => {
+        if (!active || !context) return undefined;
+        const gustGain = context.createGain();
+        gustGain.gain.value = 0;
+        gustGain.connect(context.destination);
+        const gustInstrument = createMelodicInstrument(context, 'applause', { destination: gustGain });
+        let cancelled = false;
+        let timeoutId;
+        gustInstrument.load.then(() => {
+            if (cancelled) return;
+            const scheduleNextBlock = () => {
+                if (cancelled) return;
+                const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
+                const gustDurationSec = WIND_GUST_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
+                if (Math.random() < WIND_GUST_TRIGGER_CHANCE) {
+                    const peakGain = WATER_PERCUSSION_GAIN * musicVolumeMultiplierRef.current;
+                    const midTime = startTime + gustDurationSec / 2;
+                    const endTime = startTime + gustDurationSec;
+                    // Explicit Web Audio ramp scheduling (not `rampParam`'s setTargetAtTime — that's
+                    // tuned for the file's own quick pan/gain smoothing, PARAM_SMOOTH_TIME_CONSTANT is
+                    // far too fast for a multi-second gust envelope). Cancel first in case a PREVIOUS
+                    // gust's tail-end ramp is still scheduled (shouldn't happen — a cycle always waits
+                    // the full gustDurationSec before rolling again — but defensive against clock drift.
+                    gustGain.gain.cancelScheduledValues(context.currentTime);
+                    gustGain.gain.setValueAtTime(0, startTime);
+                    gustGain.gain.linearRampToValueAtTime(peakGain, midTime);
+                    gustGain.gain.linearRampToValueAtTime(0, endTime);
+                    gustInstrument.start({ note: WIND_GUST_NOTE, time: startTime, duration: gustDurationSec });
+                }
+                const blockDurationSec = (startTime - context.currentTime) + gustDurationSec;
+                timeoutId = setTimeout(scheduleNextBlock, blockDurationSec * 1000);
+            };
+            scheduleNextBlock();
+        });
+        return () => { cancelled = true; clearTimeout(timeoutId); gustInstrument.disconnect(); gustGain.disconnect(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 

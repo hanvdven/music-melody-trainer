@@ -5168,3 +5168,21 @@ the smalelstnotedenum, force a crash or ride for the first note of the 4 measure
 
 Geverifieerd: `npm run test:run` (844 passed, 2 nieuw), `npm run lint` (0 errors), `npm run build`
 (clean). Niet live getest. Zie architecture.md §271.
+
+## 2026-08-20 — ✅ Round 7: applause nog zachter + nieuwe feature 'windvlaag'
+
+Han: "kan het applaus nog zachter? nieuwe feature: af en toe wil ik een 'windvlaag'. kan je fade in
+fade out van applaus maken, ook op zeer laag volume. Trigger het voorlopig random - later wil ik dat
+ook plaatsgebonden maken." Eerst geïnventariseerd (geen bestaand wind-geluid; wel al genoemd in het
+originele #993-spec: "alle audio moet de metronoom volgen, dus ook wind"), toen geïnterviewd
+(vervangt vs. erbij: "keep both"; scope: level-breed, niet water-gated; timing: Han's eigen exacte
+mechaniek "rol elk blok van 2 maten voor 20% kans om een hoos te starten, een hoos duurt 2 maten").
+
+1. **✅ Applause nog zachter** — pianissimo (al de laagste VOL_STEPS-trap) x 0.5 extra.
+2. **✅ Windvlaag** — nieuwe, aparte level-brede `useEffect`, JIT-blok-loop van 2 maten, 20% kans per
+   cyclus, fade-in-naar-piek-op-midpoint-fade-out-envelope via echte Web Audio ramp-automation (niet
+   `rampParam`, die is te snel getuned voor een meerdere-secondes envelope). Hergebruikt het
+   applause-sample, eigen instrument-instantie (niet die van de water-drone).
+
+Geverifieerd: `npm run test:run` (846 passed, 2 nieuw), `npm run lint` (0 errors), `npm run build`
+(clean). Niet live getest. Zie architecture.md §272.

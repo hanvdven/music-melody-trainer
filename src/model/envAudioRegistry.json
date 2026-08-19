@@ -34,6 +34,14 @@
       "notes": "Interim substitute for real GM percussion, quieted twice on UAT (mp -> p -> pp, Han: 'a bit too loud' / 'even softer'). The REAL generated percussion (see level_hh_percussion below) was ALSO briefly a water voice (#1091 rounds 2-3) but round 4 decoupled it into its own level-wide loop -- applause remains water's own dedicated interim layer, unrelated to that now.",
       "ticket": "#993 (this layer)"
     },
+    "level_wind_gust": {
+      "instrument": "applause",
+      "sourceType": "generated envelope, not MIDI-sourced",
+      "source": "Own dedicated createMelodicInstrument('applause') instance (separate from water_percussion's own applause instance) -> a plain GainNode automated with native Web Audio ramps (setValueAtTime/linearRampToValueAtTime), NOT playMelodies/.volumes like every other voice.",
+      "status": "implemented -- level-wide, random trigger only (Han 2026-08-20: 'Trigger het voorlopig random - later wil ik dat ook plaatsgebonden maken')",
+      "notes": "Every 2-measure cycle independently rolls a 20% chance to start a gust; on a hit, applause plays for the full 2-measure cycle under a 0->peak(midpoint)->0 fade envelope, peak reusing water_percussion's own (very low) gain. Separate voice from water_percussion (Han: 'keep both'), not a replacement. Future work (Han's own words): tie triggering to location instead of pure randomness.",
+      "ticket": "#1091"
+    },
     "level_hh_percussion": {
       "instrument": "MuldjordKit HihatClosed (29 velocity-layered samples) + FreePats Percussion's other pads",
       "sourceType": "generated (not MIDI-sourced)",

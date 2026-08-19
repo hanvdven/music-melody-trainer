@@ -18111,3 +18111,61 @@ session.
 
 **Files:** `src/generation/generateBackbeat.js` (`HH_VELOCITY_BY_LEVEL`, `HH_FORCED_FIRST_NOTE_POOL`),
 `src/generation/__tests__/generateHh.test.js`.
+
+### §272. Wind gust — level-wide intermittent fade-in/fade-out voice (#1091 round 7, Han 2026-08-20)
+
+**Purpose.** Han: "kan het applaus nog zachter? nieuwe feature: af en toe wil ik een 'windvlaag'. kan
+je fade in fade out van applaus maken, ook op zeer laag volume. Trigger het voorlopig random - later
+wil ik dat ook plaatsgebonden maken." Two things: (1) the water applause drone one notch quieter still;
+(2) a NEW, separate voice reusing the 'applause' sample as a stand-in for wind noise, with a fade-in/
+fade-out envelope instead of a held drone, level-wide (not gated to any position) for now.
+
+**Interview first** (real ambiguity: replace-vs-add the existing drone, scope, and exact timing) —
+Han's answers: keep the water drone AND add the gust as a separate voice ("keep both"); level-wide, not
+water-gated ("location-bound" is an explicit future step); and his own exact cadence mechanic: "rol elk
+blok van 2 maten voor 20% kans om een hoos te starten. een hoos duurt 2 maten."
+
+**1. Applause, quieter still.** `WATER_PERCUSSION_GAIN` was already at `VOL_STEPS`' lowest non-silent
+rung (pianissimo) after two earlier rounds — no further named dynamics step to drop to, so a
+`WATER_PERCUSSION_QUIETER_MULTIPLIER = 0.5` now multiplies on top (`pianissimo * 0.5`), same pattern
+`BIRD_VOLUME_MULTIPLIER` already uses for going quieter than a `VOL_STEPS`/`MF_VOLUME` base without
+inventing a new dynamics scale.
+
+**2. Wind gust — a new top-level `useEffect`** in `useWorldAmbientMusic.js`, placed after the `hh` loop
+(both level-wide/unconditional-while-active now). A JIT block loop, same shape as the `hh` loop's, but:
+- Every `WIND_GUST_BLOCK_MEASURES` (2) measure cycle independently rolls `WIND_GUST_TRIGGER_CHANCE`
+  (0.2) — Han's own exact numbers, dictated verbatim (§6c: not derivable, a creative choice).
+- On a hit, the SAME `applause` instrument (own dedicated `createMelodicInstrument` instance, per this
+  file's "never the user's own instrument" rule) plays for the full 2-measure cycle duration, under a
+  gain envelope: 0 → peak at the cycle's midpoint → 0 at the cycle's end (Han: "fade in fade out";
+  midpoint peak chosen as the simplest symmetric shape since no explicit fade/hold split was given).
+- On a miss, silent for that cycle — no note scheduled at all.
+- Peak gain reuses `WATER_PERCUSSION_GAIN` directly (Han: "ook op zeer laag volume" — the SAME
+  very-low level just set for applause above, not a separately invented quietness constant).
+
+**Needed real Web Audio ramp automation, not `rampParam`.** Every other voice in this file expresses
+loudness as a single per-note value baked into `.volumes`/`velocity` at trigger time (§266). A gust
+needs its gain to change CONTINUOUSLY while the note is already sounding, which only a live `AudioParam`
+can do — `gustGain.gain.setValueAtTime(0, startTime)` /
+`.linearRampToValueAtTime(peakGain, midTime)` / `.linearRampToValueAtTime(0, endTime)`, on a plain
+`GainNode` (`context.createGain()`, no panner — nothing to pan toward, this voice has no world
+position). `rampParam`'s `setTargetAtTime` (this file's existing pan/gain smoothing helper) is tuned
+for QUICK convergence (`PARAM_SMOOTH_TIME_CONSTANT = 0.15`s) — far too fast for a multi-second
+envelope, so explicit ramp scheduling was used instead, not that helper.
+
+**Test fixes.** `useWorldAmbientMusic.test.js`'s minimal mock `context` needed `disconnect()` on
+`createGain()`'s returned node, and `setValueAtTime`/`linearRampToValueAtTime`/`cancelScheduledValues`
+on its `gain` param (native ramp automation the file's existing pan/gain smoothing never needed) —
+extracted into a shared `makeAudioContext()` helper (was duplicated per-test before). Also added
+`start: vi.fn()` to the `createMelodicInstrument` mock — the gust's own `.start()` call is reachable
+from Math.random() alone (no envAudioRef/water-tile gating like the water voices' direct `.start()`
+calls), so it was previously flaky (~20% chance of throwing per test run).
+
+**Verified:** `npm run test:run` (846 passed — 2 new gust-specific cases: envelope ramps fire on a hit,
+nothing fires on a miss, both with `Math.random` mocked for determinism), `npm run lint` (0 errors),
+`npm run build` (clean). Not verified live in a real browser this session.
+
+**Files:** `src/hooks/useWorldAmbientMusic.js` (`WATER_PERCUSSION_QUIETER_MULTIPLIER`, new wind-gust
+`useEffect`, `WIND_GUST_*` constants), `src/hooks/__tests__/useWorldAmbientMusic.test.js`
+(`makeAudioContext` helper, `start` mock, 2 new tests), `src/model/envAudioRegistry.json` (new
+`level_wind_gust` entry).
