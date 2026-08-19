@@ -44,6 +44,7 @@ export const getPlayStyleLabel = (val) => {
         'backbeat': 'Backbeat',
         'backbeat_2': 'Backbeat 2',
         'swing': 'Jazz Swing',
+        'hh': 'Hi-Hat',
         'walking_bass': 'Walking Bass',
         'fixed': 'Fixed',
     };

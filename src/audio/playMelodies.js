@@ -120,6 +120,13 @@ const playMelodies = (
           gain = gain * baseTrackGain;
           // Ghost snare plays at 49% of the current track volume (70% baseline, −30%)
           if (id === 'sg') gain = gain * 0.49;
+          // #1091 (Han: "playSound heeft dan nu twee variabelen: velocity en volume"): per-note MIDI
+          // velocity accent (0-127, default 100 = neutral) multiplies ON TOP of the volume/gain above —
+          // the two are independent axes now, not the same number (see Melody.js's `velocities` doc
+          // comment). Default 100 everywhere a Melody doesn't set it, so this is a no-op for every
+          // existing caller (`velocity/100 === 1`).
+          const velocity = (melody.velocities && melody.velocities[i] != null) ? melody.velocities[i] : 100;
+          gain = gain * (velocity / 100);
 
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
           // #889 follow-up (Han 2026-08-14, "laat percussieinstrumenten altijd volledig uitspelen

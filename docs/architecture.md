@@ -179,7 +179,9 @@ Walks the ranked array and assigns notes to active slots:
 - **Null slots:** inactive slots remain `null`; they become continuation ticks in `Melody.fromFlattenedNotes` (see 4f).
 
 **Early-exit special cases** (before convertRankedArrayToMelody):
-- `backbeat` / `backbeat_2` / `swing`: percussion-specific generators, return a `Melody` directly.
+- `backbeat` / `backbeat_2` / `swing` / `hh`: percussion-specific generators, return a `Melody` directly.
+  `hh` (#1091, §266) is the simplest of the four — no DNA/ranked-array involvement at all, since every
+  slot is always active (no "which slots get notes" decision to make).
 - `fullchord` / `pairedchord`: chord-voicing modes that replace note strings with `string[]` arrays.
 
 #### 4f — Rest insertion & melody construction (`melodyGenerator.js` → `Melody.fromFlattenedNotes`)
@@ -17760,3 +17762,89 @@ constraint as §263/§264.
 `scripts/extract-soundfont-samples.mjs` (`applause: 126`), `src/audio/localInstrumentBuffers.generated.js`
 (regenerated), `src/hooks/useWorldAmbientMusic.js` (`percussionBus`/`percussionInstrument`,
 `WATER_PERCUSSION_NOTE`/`WATER_PERCUSSION_GAIN`), `src/model/envAudioRegistry.json`.
+
+### §266. Per-note MIDI velocity (independent of volume) + `hh` hi-hat generation type (#1091, Han 2026-08-19)
+
+**Purpose.** Two related additions, both from the #1090/#1091 interview that split off #993's water-
+percussion rework: (1) a real generated hi-hat percussion pattern, the long-term replacement for the
+"applause" placeholder (§265); (2) the per-note **velocity** accent that pattern needs to distinguish
+on-beat from off-beat hits, as a genuinely new, independent axis from the app's existing **volume**
+(pp/p/mp/mf/f dynamics-level) system — Han: "Laat alles afspelen op velocity 100 tenzij anders vermeld
+(play sound). play sound heeft dan nu twee variabelen: velocity en volume (colloquiaal pp p mp mf f)."
+
+**Why this needed a real interview (CLAUDE.md §4b/§9c), not a quick patch.** Investigation before
+writing any code found that `playSound`/`playMelodies` had exactly ONE per-note number
+(`melody.volumes[i]`, a 0–1 fraction) that was **already** functioning as both "gain" and MIDI velocity
+— `startOpts.velocity = Math.floor(gain * 127)` is the only thing smplr's `NoteEvent` type actually
+reads (confirmed against `node_modules/smplr/dist/index.d.ts`: there is no `gain` field on `NoteEvent`
+at all; `startOpts.gain = item.gain` in `playMelodies.js` is inert). So "add velocity" meant introducing
+a genuinely new concept into a core data model (`Melody`) used by EVERY sound the app makes — bird/water
+env-audio layers, the ambient piano, level backing, and every practice-mode melody — not a small,
+contained tweak. Interview outcome (Han's own choices): velocity is 0–127, real MIDI scale (matches
+smplr's own documented default of 100); implemented as a NEW, ADDITIVE mechanism only (default 100 =
+neutral everywhere unset, so nothing already-tuned changes sound); tested via the existing practice-mode
+percussion carousel (a level's percussion track is still the hardcoded `timpaniPattern.js`, not
+generator-driven — wiring a level to use a generated pattern is explicitly out of scope, a separate,
+bigger ticket if ever wanted); `rb` in Han's note pool = the existing `cr_bell` pad (not a new pad).
+
+**1. Velocity, additive.** `Melody`'s constructor (`src/model/Melody.js`) gained a 6th param,
+`velocities = new Array(notes.length).fill(100)` — parallel to the existing `volumes` array, same
+"always present, sane default" shape. `playMelodies.js`'s gain computation gained one line:
+`gain = gain * (velocity / 100)`, where `velocity = melody.velocities?.[i] ?? 100` — multiplies ON TOP
+of the existing `.volumes`/track-gain/ghost-snare chain, not replacing any of it. At the default value
+100, `velocity / 100 === 1`, so every existing caller (none of which set `.velocities`) is
+byte-identical to before. `playSound.js` (the single-note, non-Melody path) gained a matching trailing
+optional `velocity = 100` param, combined the same way (`_volume * (velocity / 100)`) before the same
+`× 127` smplr conversion — purely additive, no existing positional call site affected.
+
+**2. `generateHh` — hi-hat-only percussion pattern** (`src/generation/generateBackbeat.js`, alongside
+`generateBackbeat`/`generateBackbeat2`/`generateSwing`/`generateMetronome`, same file per existing
+convention). Unlike those, it needs no `generateRankedRhythm`/DNA involvement at all — Han's spec is
+"every slot always has SOMETHING", so there's no "which slots get notes" decision to rank. Per slot:
+
+- **On-beat** (the first subdivision of each denominator-beat, `slot % slotsPerBeat === 0` — the same
+  `slotsPerBeat = measureNoteResolution / timeSignature[1]` derivation `generateBackbeat2` already uses
+  for its own hihat-every-slot fill): always `'hh'` at velocity 100.
+- **Off-beat** (every other slot): independently, at `rhythmVariability`% probability, substituted from
+  a fixed pool `HH_OFFBEAT_POOL = ['ho', 'hp', 'r', 'cr_bell']` — velocity 100 ("als er een ho/hp/r/rb
+  wordt getrokken, gebruik dan gewoon weer velocity 100"). Otherwise stays `'hh'` at velocity 80 ("zet hh
+  op tellen 2,4,6,8 op velocity 80") — the accent that distinguishes on- from off-beat once the pool
+  draw itself doesn't.
+- Every slot still passes through `resolvePercussionChord` (the same `ho` kills `hh` collision-hierarchy
+  resolver `backbeat`/`backbeat_2` already share, `drumKits.js`) — a no-op for hh's own single-value
+  slots today (substitution REPLACES rather than stacks), kept for consistency with the other percussion
+  generators per Han's explicit "gebruik substitutieregels" ask, and future-proofing.
+
+Generalises to any time signature/`smallestNoteDenom` — no numerator-specific lookup table (CLAUDE.md
+§6b/§6c): `smallestNoteDenom` isn't hardcoded to 8 inside the generator either, it's read from
+`InstrumentSettings.smallestNoteDenom` same as every other percussion type (`melodyGenerator.js`'s new
+`randomizationRule === 'hh'` branch, `smallestNoteDenom || 8` fallback identical to `swing`'s own) — 8
+is already `defaultPercussionInstrumentSettings()`'s existing default, so Han's "zet smallestnotedenom =
+8 voor die percussielijn" is satisfied without any new hardcoding.
+
+**3. UI wiring** (so `hh` is selectable/testable exactly like `backbeat`/`swing` today, both in the
+in-sheet `GenerationSetterOverlay` carousel and the bottom-view `PlayStyleSelector` — the latter reads
+`PERC_FAMILIES` generically, `Object.values(families).flat()`, so it needed no direct edit): added
+`'hh'` to `PERC_FAMILIES.stylized` (`src/constants/instrumentRules.js`) and `PERC_FAMILY_OF`/
+`FIELD_ITEM_ICONS.rule` (`src/constants/generationFields.js`, reusing the same `Drum` lucide glyph every
+perc-stylized rule already uses), a label in `labelUtils.js` ("Hi-Hat"), and an icons8 basename in
+`GenerationSetterOverlay.jsx`'s `RULE_ICON8` map — `'cymbals'` (no dedicated hi-hat asset exists;
+closest existing bundled icon, not a new asset).
+
+**Known gap, NOT introduced by this change:** `filterPercussionByEnabledPads` (the user's pad-pool
+selector) is imported into `melodyGenerator.js` but never actually called there (pre-existing
+`no-unused-vars` lint warning, confirmed unrelated to #1091) — every percussion pattern's notes,
+including `hh`'s pool draws, currently reach playback unfiltered regardless of the user's
+BASIC/STANDARD/FULL pad selection. Flagging, not fixing — out of scope for this ticket.
+
+**Verified:** `npm run test:run` (825 passed, 6 new — `generateHh.test.js` covers on-beat/off-beat/
+generalisation to 5/4; `playMelodies.test.js` covers the new velocity multiplier default and an explicit
+value), `npm run lint` (0 errors, same pre-existing warning count), `npm run build` (clean). Not verified
+live in a real browser — same tooling constraint as §263–§265.
+
+**Files:** `src/model/Melody.js` (`velocities` param), `src/audio/playMelodies.js` (velocity multiplier),
+`src/audio/playSound.js` (`velocity` param), `src/generation/generateBackbeat.js` (`generateHh`,
+`HH_OFFBEAT_POOL`, `GROOVE_PATTERNS`), `src/generation/melodyGenerator.js` (`'hh'` early-exit branch),
+`src/constants/instrumentRules.js`, `src/constants/generationFields.js`, `src/utils/labelUtils.js`,
+`src/components/sheet-music/overlays/GenerationSetterOverlay.jsx`,
+`src/generation/__tests__/generateHh.test.js` (new), `src/audio/__tests__/playMelodies.test.js`.

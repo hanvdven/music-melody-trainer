@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing, generateHh, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
 // #435: percussion overlap-hierarchy resolver (drumKits = percussion-pad SSOT, §8) —
@@ -107,6 +107,15 @@ class MelodyGenerator {
                 rhythmVariability || 0,
                 notesPerMeasure,
                 randomizationNotes
+            );
+        }
+        if (randomizationRule === 'hh') {
+            // #1091 (Han 2026-08-19): hi-hat-only pattern — no notesPerMeasure/notePool params, every
+            // slot is always active (see generateHh's own doc comment in generateBackbeat.js).
+            return generateHh(
+                timeSignature, numMeasures,
+                smallestNoteDenom || 8,
+                rhythmVariability || 0
             );
         }
         if (randomizationRule === 'metronome') {

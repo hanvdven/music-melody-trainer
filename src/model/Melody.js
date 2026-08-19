@@ -9,13 +9,23 @@ class Melody {
     durations,
     offsets,
     displayNotes = notes,
-    volumes = new Array(notes.length).fill(1)
+    volumes = new Array(notes.length).fill(1),
+    // #1091 (Han 2026-08-19, "playSound heeft dan nu twee variabelen: velocity en volume"): a NEW,
+    // additive per-note MIDI velocity (0-127, real-MIDI scale — matches smplr's own default of 100,
+    // see NoteEvent.velocity in smplr's types), separate from `volumes` (the existing pp/p/mp/mf/f
+    // dynamics-level gain). Defaults to 100 ("neutral") everywhere it isn't explicitly set, so every
+    // pre-existing caller that never passes this — bird/water layers, ambient piano, main practice
+    // melodies, level backing — is byte-identical to before (playMelodies.js multiplies by
+    // velocity/100, which is 1 at the default). The hh percussion generator (generateBackbeat.js) is
+    // the first real user, accenting on-beat vs. off-beat hi-hat hits.
+    velocities = new Array(notes.length).fill(100)
   ) {
     this.notes = notes;
     this.durations = durations; // duration = how many 48th notes (smallest); e.g.q = 12
     this.offsets = offsets;
     this.displayNotes = displayNotes;
     this.volumes = volumes;
+    this.velocities = velocities;
   }
 
   static defaultTrebleMelody() {

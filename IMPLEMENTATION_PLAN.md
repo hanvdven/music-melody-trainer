@@ -5050,3 +5050,28 @@ gelogd (Han: "maak een apart ticket... mag ook in apart ticket"):
 
 Geverifieerd: `npm run test:run` (819 passed), `npm run lint` (0 errors), `npm run build` (clean). Niet
 live in browser getest (geen browser-tooling deze sessie, zelfde beperking als §263/§264).
+
+## 2026-08-19 — ✅ #1091 meteen geïmplementeerd + nieuwe velocity/volume-architectuur
+
+Han: "doe 1091 maar meteen :D zou het willen kunnen testen in het level." + losse FR's erbovenop
+(smallestnotedenom=8, velocity op de off-beat hh, en een app-brede velocity/volume-scheiding in
+`playSound`). Interview eerst (CLAUDE.md §4b/§9c — architecturale impact: nieuw veld op `Melody`,
+gedeeld door alle audio in de app): Han koos 0-127 (echte MIDI-schaal), een additive/geen-regressie
+aanpak (nieuw mechanisme, default 100 = geen verandering overal waar het niet expliciet gezet wordt),
+testen via de bestaande percussie-carousel (niet in een level — levels' percussie is nog een
+hardcoded patroon, geen generator-hook), en `rb` = de bestaande `cr_bell` pad.
+
+1. **✅ `Melody.velocities`** (nieuw, additief veld, default 100 overal) + `playMelodies.js`/
+   `playSound.js` vermenigvuldigen er nu mee bovenop de bestaande volume/gain-keten. Niets bestaands
+   verandert van geluid (velocity/100 = 1 op de default).
+2. **✅ `generateHh`** (`generateBackbeat.js`) — hi-hat op elke tel (velocity 100), off-beat tellen
+   (2,4,6,8 in 4/4 @ 8e-noten) willekeurig vervangen door ho/hp/r/cr_bell (velocity 100) op
+   `rhythmVariability`% kans, anders hh op velocity 80. Generaliseert naar elke maatsoort (geen
+   hardcoded tabel). `smallestNoteDenom=8` komt al uit de bestaande percussie-default, geen nieuwe
+   hardcoding nodig.
+3. **✅ UI-koppeling** zodat `hh` te selecteren is in zowel de bottom-view als de in-staff carousel,
+   net als backbeat/swing.
+
+Geverifieerd: `npm run test:run` (825 passed, 6 nieuw), `npm run lint` (0 errors), `npm run build`
+(clean). Niet live getest — #1091 naar `test` (UAT) gezet met concrete acceptance criteria, Han moet
+zelf percussie → stylized → hh selecteren en beoordelen. Zie architecture.md §266.

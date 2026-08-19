@@ -428,9 +428,71 @@ export function generateSwing(
     return generatePercussionFromDNA('swing', timeSignature, numMeasures, smallestNoteDenom, variability, variability, notesPerMeasure, notePool);
 }
 
+// #1091 (Han 2026-08-19): the off-beat substitution pool for `generateHh` — "randomize dan met note
+// pool: ho/hp/r/rb" (rb confirmed by Han as the existing `cr_bell` pad, not a new one). Fixed to the
+// hh type itself (not exposed via InstrumentSettings.notePool, unlike PERC_POOLS above) — Han
+// specified this exact pool as part of what "hh" IS, not a separate configurable style knob.
+const HH_OFFBEAT_POOL = ['ho', 'hp', 'r', 'cr_bell'];
+
+/**
+ * Generate a hi-hat-only percussion pattern (#1091, Han: "elke tel heeft een hh (net als backbeat,
+ * maar dan zonder de kick en snare)"). Every ON-beat slot (the start of each denominator-beat) is a
+ * closed hi-hat at velocity 100. Every OFF-beat slot (any other subdivision — the "&" of each beat at
+ * the default smallestNoteDenom=8) is independently, randomly substituted from HH_OFFBEAT_POOL at
+ * `variability` probability; substituted notes play at velocity 100 ("als er een ho/hp/r/rb wordt
+ * getrokken, gebruik dan gewoon weer velocity 100"), while an unsubstituted off-beat hh plays softer,
+ * at velocity 80 ("zet hh op tellen 2,4,6,8 op velocity 80") — the accent that actually distinguishes
+ * on- from off-beat hits once the pool draw itself doesn't.
+ *
+ * Generalises to any time signature/smallestNoteDenom via slotsPerBeat (same derivation
+ * `generateBackbeat2` already uses for its own hihat-every-slot fill) — no numerator-specific table
+ * (CLAUDE.md §6c/§6b): a slot is "on-beat" iff it's the first subdivision within its beat.
+ *
+ * No kick/snare, no DNA-driven placement (every slot is always active) — unlike `generatePercussionFromDNA`,
+ * this pattern doesn't need `generateRankedRhythm`'s slot-priority ranking at all.
+ */
+export function generateHh(
+    timeSignature, numMeasures,
+    smallestNoteDenom = 8, variability = 0
+) {
+    const v = Math.max(0, Math.min(100, variability)) / 100;
+    const measureNoteResolution = Math.max(timeSignature[1], smallestNoteDenom);
+    const slotsPerMeasure = (measureNoteResolution * timeSignature[0]) / timeSignature[1];
+    const slotsPerBeat = measureNoteResolution / timeSignature[1];
+    const totalSlots = slotsPerMeasure * numMeasures;
+
+    const rawNotes = new Array(totalSlots);
+    const velocities = new Array(totalSlots);
+
+    for (let s = 0; s < totalSlots; s++) {
+        if (s % slotsPerBeat === 0) {
+            rawNotes[s] = 'hh';
+            velocities[s] = 100;
+        } else if (v > 0 && Math.random() < v) {
+            rawNotes[s] = HH_OFFBEAT_POOL[Math.floor(Math.random() * HH_OFFBEAT_POOL.length)];
+            velocities[s] = 100;
+        } else {
+            rawNotes[s] = 'hh';
+            velocities[s] = 80;
+        }
+    }
+
+    // Same collision-hierarchy cleanup every percussion generator applies (Han: "gebruik
+    // substitutieregels: hh + ho -> ho", already `resolvePercussionChord`'s rule) — a no-op for these
+    // single-value slots today, but keeps this generator consistent with backbeat/swing/backbeat_2
+    // should a future change ever stack notes within one hh slot.
+    const finalNotes = rawNotes.map(slot => resolvePercussionChord(slot));
+
+    const tickDur = slotTicks(timeSignature, smallestNoteDenom);
+    const durations = finalNotes.map(() => tickDur);
+    const offsets = finalNotes.map((_, i) => i * tickDur);
+
+    return new Melody(finalNotes, durations, offsets, finalNotes, undefined, velocities);
+}
+
 /**
  * Registry of all available deterministic pattern names.
  */
-export const GROOVE_PATTERNS = ['backbeat', 'backbeat_2', 'swing'];
+export const GROOVE_PATTERNS = ['backbeat', 'backbeat_2', 'swing', 'hh'];
 
 

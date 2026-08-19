@@ -170,6 +170,7 @@ const RULE_ICON8 = {
   // percussion rules
   backbeat: 'snare-drum', backbeat_2: 'snare-drum',
   swing: 'jazz',                // jazz swing
+  hh: 'cymbals',                 // #1091: hi-hat-only — no dedicated hi-hat icon asset, cymbals is the closest existing icons8 basename
 };
 
 // Build the carousel item list for a rule ring: { value, label, Icon, iconUrl, family }.

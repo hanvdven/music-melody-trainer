@@ -171,7 +171,7 @@ export const FIELD_ITEM_ICONS = {
     // fixed family
     fixed: PenLine,
     // perc stylized
-    backbeat: Drum, backbeat_2: Drum, swing: Drum,
+    backbeat: Drum, backbeat_2: Drum, swing: Drum, hh: Drum,
   },
   // chord strategies → one distinct mnemonic glyph each.
   strategy: {
@@ -228,7 +228,7 @@ export const MELODIC_FAMILY_OF = {
 };
 export const PERC_FAMILY_OF = {
   uniform: 'random',
-  backbeat: 'stylized', backbeat_2: 'stylized', swing: 'stylized',
+  backbeat: 'stylized', backbeat_2: 'stylized', swing: 'stylized', hh: 'stylized',
   fixed: 'fixed',
 };
 export const FAMILY_DISPLAY_NAMES = {

@@ -75,7 +75,12 @@ const playSound = (
   time = context.currentTime,
   duration = 0.25,
   _volume = 1,
-  customMapping = null
+  customMapping = null,
+  // #1091 (Han: "playSound heeft dan nu twee variabelen: velocity en volume"): a new, independent
+  // per-note MIDI velocity accent (0-127, default 100 = smplr's own neutral default) — see
+  // Melody.js's `velocities` doc comment for the full rationale. Appended as a trailing optional
+  // param so every existing call site (positional, none pass a 8th arg) is unaffected.
+  velocity = 100
 ) => {
   if (!instrument) return;
 
@@ -87,7 +92,7 @@ const playSound = (
       duration: duration,
     };
     if (_volume !== undefined) {
-      startOpts.velocity = Math.floor(_volume * 127);
+      startOpts.velocity = Math.floor(_volume * (velocity / 100) * 127);
     }
     return instrument.start(startOpts);
   }
