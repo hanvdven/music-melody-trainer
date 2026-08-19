@@ -112,6 +112,13 @@ const GM_PROGRAM = {
   // Not in the instrument picker — used by App.jsx's own dedicated one-off Soundfont instances
   // (level percussion/bass backing, timpaniRef/celloRef) that bypass useInstruments.js entirely.
   timpani: 47,
+  // #993 rework (Han: water's 3rd env-audio layer, "op mp: applause, op c4, eindeloos") — GM Sound
+  // Effects bank, "Applause" (program 126). Interim substitute for real GM percussion (#1037, blocked
+  // on no percussion bank being available); Han: "applause does not need pitch" — it's only ever
+  // triggered at one fixed note (C4, see useWorldAmbientMusic.js), so extracting it across the full
+  // MIN_KEY-MAX_KEY range like a tuned instrument is unnecessary but harmless (the loop below already
+  // dedupes by underlying sample identity, so a single-sample effect patch just yields one file).
+  applause: 126,
 };
 
 // Practical playable span this app actually uses (matches the sheet-music range settings —

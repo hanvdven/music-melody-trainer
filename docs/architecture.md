@@ -17684,3 +17684,79 @@ items 5/6 above specifically need it.
 through), `src/components/character/DialogueBox.jsx` (`SpeakerPortrait` → `CreatureSprite`, `useIdleFrame`,
 `portraitVariant` prop), `src/components/character/RpgLevelBottomPanel.jsx` (same prop contract, Wisp
 `findVariantByUrl`), `src/components/character/OscillatingText.jsx` (`pre` → `pre-wrap`).
+
+### §265. #993 rework round: flying critter stuck in idle pose after leaving its nest (stale closure) + water percussion "applause" layer (Han 2026-08-19)
+
+**Bug: flying critter (bird/duck/butterfly) never resumes its fly animation after perching once.**
+
+**Symptom:** the first time a `canPerch` flying critter (`WorldWanderer`, `RpgLevelPanel.jsx`) reaches its
+nest and plays its idle/perch pose, that's correct — but every time afterward that it flies off again, its
+SCREEN POSITION resumes moving (the `wander`/`return`/`perch` `stateRef` state machine transitions fine)
+while the SPRITE keeps showing the idle clip, as if frozen mid-flight-path in a sitting pose. Han: "de
+vlieg-animatie [moet] terug opstart[en]" after the bird leaves the nest.
+
+**Root cause — stale closure, not a missing state transition.** `WorldWanderer`'s position/animation tick
+loop lives inside a `useEffect` whose dependency array (`[variant, spawnX, spawnY, rangeX, rangeY,
+canPerch, swim, waterSpan, zoom]`) deliberately excludes the `perched` React state — an
+`eslint-disable-next-line react-hooks/exhaustive-deps` keeps the rAF loop from being torn down and
+recreated every render. But the `tick` closure created ONCE at mount read the closed-over `perched`
+variable directly at all three of its transition points (`if (perched) setPerched(false)` ×2, `if
+(!perched) setPerched(true)` ×1) — that variable is frozen forever at its `useState(false)` MOUNT-TIME
+value, never the live current state, no matter how many times `setPerched` is actually called. Net effect:
+`if (!perched)` (`= if (!false)`) is always true, so the "arriving at nest" transition (`setPerched(true)`)
+keeps firing correctly every tick — but `if (perched)` (`= if (false)`) is always false, so BOTH "leaving
+the nest" transitions (`setPerched(false)`) are dead code after the very first perch. `WorldCreature`
+(same file) picks its animation clip from `moving={!perched}` (`findMoveAnim` vs `findIdleAnim`,
+`bestiaryAssets.js`) — once `perched` is stuck `true`, the idle clip renders forever regardless of the
+critter's actual (correctly-updating) position.
+
+**Fix:** a `perchedRef` mirrors `perched` for the tick loop to read/write (same pattern the file already
+uses for `worldToScreenXRef`/`zoomRef` to avoid this exact class of stale-closure bug in the same rAF
+loop) — `setPerched` is still called, but only to trigger the render that actually flips `moving`; the
+ref is what the closure reads for its own transition guards. Reset alongside `stateRef`/`posRef` on effect
+mount. Fixed generically in `WorldWanderer` itself (not bird-specific) — it's the one shared component
+every `canPerch` flying critter (birds, and any future duck/butterfly perching pool) goes through.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`WorldWanderer`).
+
+**Water's third env-audio layer — "applause" percussion substitute (#993, #1037).**
+
+**Purpose:** Han: "water percussie werkt nog niet... voeg nog een extra laag toe (net als cello), op mp:
+applause, op c4. (eindeloos)." — an interim, Han-picked substitute for the real GM percussion kit #1037
+has been blocked on since 2026-08-16 (no percussion bank available in this app's loaded soundfonts).
+
+**How it works:** GM Sound Effects program 126 ("Applause") added to `GM_PROGRAM`
+(`scripts/extract-soundfont-samples.mjs`) and extracted the same way every other local instrument is —
+one sample, labelled `C4`, that happens to carry real SF2 loop points (`SampleModes` 1/3), same as the
+`viola` hum's own sample. `useWorldAmbientMusic.js`'s water effect gained a third bus/instrument/held-note
+(`percussionBus`/`percussionInstrument`/`percussionStopFn`), driven through the EXACT SAME
+start/stop/pan/gain gating as the existing hum layer (`humStopFn`, same `duration: 3600` "hold
+indefinitely, rely on the sample's real loop points, no natural release" mechanism, same
+`nearestWaterX`/`computeSpatialPanVolume` chunk-based panning) — a fixed note (`WATER_PERCUSSION_NOTE =
+'C4'`) and a fixed gain (`WATER_PERCUSSION_GAIN`, derived from `VOL_STEPS.find(s => s.label === 'mezzo
+piano').value`, i.e. "mp" — same derive-don't-hardcode pattern `App.jsx`'s `LEVEL_BACKING_VOLUME` already
+uses) rather than manifest-sourced MIDI velocity, since — unlike the hum/glockenspiel — this isn't real
+composed MIDI content.
+
+**NOT used:** the real 2-measure GM drum pattern already sitting in
+`waterSoundsManifest.generated.js`'s `waterPercussion` layer (extracted from `water sounds.mid`'s
+"percussion-standard" track) — Han (2026-08-19): "je mag de midi negeren, en een percussie track
+genereren" (you may ignore the midi, and generate a percussion track instead). The real long-term plan is
+a NEW generated melody type (`hh`, modeled on `generateBackbeat.js` but hi-hat-only, note pool
+`ho`/`hp`/`r`/`rb`, substitution rule `hh + ho -> ho`) playing through real FreePats percussion samples
+Han is dropping in separately — both split into their own tickets (#1090 FreePats import, #1091 `hh`
+generation type) rather than implemented here, since both need their own design interview (CLAUDE.md §4b/
+§6b) once the asset drop actually lands and the note-pool abbreviations are confirmed. Ticket #1037
+itself parked `on_hold`, superseded by this interim fix + #1090/#1091.
+
+**Invariant:** `src/model/envAudioRegistry.json` stays the source of truth for which
+instrument/sample backs each env-audio entity — updated alongside this change (`water_percussion` entry).
+
+**Verified:** `npm run test:run` (819 passed, 0 new failures), `npm run lint` (0 errors, pre-existing
+warning count unchanged), `npm run build` (clean). Not verified live in a real browser — same tooling
+constraint as §263/§264.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (bird fix, see above),
+`scripts/extract-soundfont-samples.mjs` (`applause: 126`), `src/audio/localInstrumentBuffers.generated.js`
+(regenerated), `src/hooks/useWorldAmbientMusic.js` (`percussionBus`/`percussionInstrument`,
+`WATER_PERCUSSION_NOTE`/`WATER_PERCUSSION_GAIN`), `src/model/envAudioRegistry.json`.

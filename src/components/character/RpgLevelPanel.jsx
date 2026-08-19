@@ -415,6 +415,14 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
     const stateSinceRef = useRef(0);
     const returnFromRef = useRef({ x: spawnX, y: spawnY });
     const [perched, setPerched] = useState(false);
+    // #993 rework (Han: bird keeps showing its idle/perch pose after flying off the nest again): `tick`
+    // below lives inside a `useEffect` whose deps deliberately omit `perched` (kept stable so the rAF loop
+    // isn't torn down/recreated every render) — reading the closed-over `perched` STATE var inside that
+    // one-time closure means it's forever frozen at its `useState(false)` mount-time value, so the
+    // `if (perched) setPerched(false)` "leaving the nest" transitions below were dead code after the first
+    // perch. `perchedRef` gives `tick` a live value to read/write; `setPerched` is still called (only on
+    // actual transitions) purely to trigger the render that flips `moving`/the animation clip.
+    const perchedRef = useRef(false);
     const worldToScreenXRef = useRef(worldToScreenX); worldToScreenXRef.current = worldToScreenX;
     // Stable per-instance seeds so each of several same-type wanderers moves independently, not in lockstep.
     const seedX = useMemo(() => Math.random() * 10000, []);
@@ -428,6 +436,7 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
         let raf;
         posRef.current = { x: spawnX, y: spawnY };
         stateRef.current = 'wander';
+        perchedRef.current = false;
         const tick = () => {
             const now = performance.now();
             if (swim && waterSpan) {
@@ -463,10 +472,10 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                     if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
                     posRef.current = { x: nx, y: ny };
                     if (t >= 1) stateRef.current = 'perch';
-                    if (perched) setPerched(false);
+                    if (perchedRef.current) { perchedRef.current = false; setPerched(false); }
                 } else if (stateRef.current === 'perch') {
                     posRef.current = { x: spawnX, y: spawnY };
-                    if (!perched) setPerched(true);
+                    if (!perchedRef.current) { perchedRef.current = true; setPerched(true); }
                 } else {
                     const dx = oscillate(seedX, now, rangeX / 2, WANDER_SPEED);
                     const dy = rangeY > 0 ? oscillate(seedY, now, rangeY / 2, WANDER_SPEED) : 0;
@@ -476,7 +485,7 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                     const ny = onGround ? LEVEL_PX_HEIGHT - groundHeightAt(nx - LEVEL_MIN_X) : spawnY - dy;
                     if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
                     posRef.current = { x: nx, y: ny };
-                    if (perched) setPerched(false);
+                    if (perchedRef.current) { perchedRef.current = false; setPerched(false); }
                 }
             }
             if (elRef.current) {

@@ -5016,3 +5016,37 @@ Han's frustratie "we talked about this") krijgen voorrang, dan de critter-anchor
 mechanisch), dan de cello/timpani-herontwerp (architecturaal, punt 4+5 hangen samen — de "hangt bij lang
 wachten"-bug is vermoedelijk DEZELFDE onderliggende oorzaak als de niet-rubato-cello), dan de layout-
 tweaks en de nieuwe glow-key-feature.
+
+## 2026-08-19 — #993 rework loop (needs_reanalysis, 2 items) + 2 nieuwe FR's afgesplitst
+
+Han's rework_feedback op #993 (umbrella-tracker), opgepikt via "pak 993 op - de twee rework items":
+
+1. **✅🐞 Vogel blijft idle-pose tonen nadat die van het nest terug wegvliegt.** Root cause:
+   `WorldWanderer` (`RpgLevelPanel.jsx`) leest `perched` (React state) binnen een `useEffect`-closure
+   die met opzet GEEN `perched` in de deps heeft (voorkomt dat de rAF-loop elke render herstart) — dus
+   de closure's `perched` staat voor altijd vast op de mount-waarde `false`, waardoor de "verlaat het
+   nest"-transities (`setPerched(false)`) nooit meer vuurden na de eerste keer landen. Fix: `perchedRef`
+   toegevoegd zodat de tick-loop een LEVENDE waarde leest (zelfde patroon als `worldToScreenXRef`);
+   `setPerched` blijft alleen de render triggeren. Generiek gefixt (elke `canPerch` vliegende critter,
+   niet vogel-specifiek — Han's interview-antwoord). §265 architecture.md.
+2. **✅ Water-percussielaag ("op mp: applause, op c4, eindeloos").** GM-programma 126 ("Applause")
+   toegevoegd aan de lokale extractie (`scripts/extract-soundfont-samples.mjs`), derde `useWorldAmbientMusic`
+   water-stem toegevoegd — zelfde "hold indefinitely" mechanisme als de hum (viola), vast op C4/mp i.p.v.
+   MIDI-velocity. Interim-vervanger voor #1037 (geblokkeerd op "geen GM percussie-kit"); #1037 op `on_hold`
+   gezet, note toegevoegd die verwijst naar de 2 nieuwe tickets hieronder. §265 architecture.md,
+   `envAudioRegistry.json` bijgewerkt.
+
+Bij Q2 (interview) gaf Han spontaan twee nieuwe FR's — **niet** geïmplementeerd, wél meteen als ticket
+gelogd (Han: "maak een apart ticket... mag ook in apart ticket"):
+
+3. **⏳ #1090 — FreePats percussie-samplekit importeren** (asset drop, bestand is "gigantisch"). Wacht op
+   Han's file-drop; eigen design-interview nodig zodra het bestand er is (format/routing TBD).
+4. **⏳ #1091 — nieuw melody-type `hh` (hi-hat) voor gegenereerde percussie**, i.p.v. de echte
+   percussie-MIDI te gebruiken ("je mag de midi negeren, en een percussie track genereren"). Elke tel een
+   `hh` (zoals backbeat, zonder kick/snare), randomize met note pool `ho/hp/r/rb`, 4 noten/maat,
+   30% variability, substitutieregel `hh + ho -> ho`. Raakt de gedeelde generation-pipeline (CLAUDE.md
+   §6b — architecture.md §3 herlezen vóór design) — eigen interview nodig (o.a. exacte betekenis
+   `ho`/`hp`/`rb` bevestigen).
+
+Geverifieerd: `npm run test:run` (819 passed), `npm run lint` (0 errors), `npm run build` (clean). Niet
+live in browser getest (geen browser-tooling deze sessie, zelfde beperking als §263/§264).

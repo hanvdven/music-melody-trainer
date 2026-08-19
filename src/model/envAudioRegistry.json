@@ -27,12 +27,12 @@
       "ticket": "#1025"
     },
     "water_percussion": {
-      "instrument": null,
-      "sourceType": "real MIDI, no instrument available yet",
-      "source": "src/songs/world_midis/water sounds.mid (track 'water (percussion-standard)') -- a real 2-measure GM drum pattern (kick/hihat/ride/conga/cabasa note numbers) is now in src/model/waterSoundsManifest.generated.js's waterPercussion layer, just not wired to any instrument/voice yet.",
-      "status": "blocked -- no GM percussion kit available in this app's loaded soundfonts",
-      "notes": "Han (2026-08-16): 'er is een percussie-instrument. Gebruik perc standard uit de sf2.' drumKits.js's GM_ACOUSTIC_KITS are hard-flagged available:false -- no pad-to-GM-MIDI mapping exists yet. Han (2026-08-17): 'gebruik maar gewoon freepats' -- waiting on Han to supply the specific FreePats file/URL (an agent should not guess/fetch an unconfirmed external audio source).",
-      "ticket": "#1037"
+      "instrument": "applause",
+      "sourceType": "fixed note, not MIDI-sourced",
+      "source": "GM Sound Effects program 126 ('Applause'), locally extracted (scripts/extract-soundfont-samples.mjs) -- held indefinitely at C4, same 'no natural release' mechanism as water_hum. The real MIDI drum pattern in waterSoundsManifest.generated.js's waterPercussion layer is NOT used by this -- Han (2026-08-19): 'je mag de midi negeren'.",
+      "status": "implemented (interim substitute) -- Han (2026-08-19): 'voeg nog een extra laag toe (net als cello), op mp: applause, op c4 (eindeloos)'",
+      "notes": "Replaces the earlier 'blocked, no GM percussion kit' state. Real long-term plan (still open, separate tickets): import Han's FreePats percussion sample kit (asset drop) and add a generated 'hh' (hi-hat) melody type to the core rhythm generator (note pool ho/hp/r/rb, substitution rule hh+ho->ho, same pattern as the existing backbeat type) to drive a real generated percussion track instead of this fixed note.",
+      "ticket": "#993 (this layer), #1037 (superseded by this for now), see new FreePats-import and hh-generation tickets"
     }
   }
 }

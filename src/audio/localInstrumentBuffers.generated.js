@@ -1875,5 +1875,12 @@ export const EXTRACTED_INSTRUMENT_BUFFERS = {
     "G2": {
       "file": "G2"
     }
+  },
+  "applause": {
+    "C4": {
+      "file": "C4",
+      "loopStart": 1.6370068027210884,
+      "loopEnd": 2.9141950113378683
+    }
   }
 };
