@@ -44,6 +44,7 @@
     "jsdom": "^24.0.0",
     "midi-file": "^1.2.4",
     "ogg-opus-decoder": "^1.7.3",
+    "playwright": "^1.62.1",
     "pngjs": "^7.0.0",
     "prettier": "^3.2.5",
     "soundfont2": "^0.5.0",
