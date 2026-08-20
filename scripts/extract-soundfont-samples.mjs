@@ -50,7 +50,10 @@ const ALWAYS_LOOP_WHOLE_SAMPLE = new Set([
 // Duplicated here (not imported) because this is a standalone dev-only Node script and
 // instruments.jsx has JSX-adjacent tooling assumptions a plain `node scripts/...` invocation
 // doesn't have — keep this list in sync with LET_RING_INSTRUMENTS by hand if either changes.
-const NEVER_LOOP_LOCAL = new Set(['marimba', 'xylophone', 'koto', 'woodblock']);
+// #1093 (Han 2026-08-20, worker-NPC hit sounds): tubular_bells is a struck bell that rings out and
+// decays naturally (like woodblock/marimba/xylophone above), not a sustained pad — added here so a
+// held/scheduled note plays its raw recording through to its own natural end instead of looping.
+const NEVER_LOOP_LOCAL = new Set(['marimba', 'xylophone', 'koto', 'woodblock', 'tubular_bells']);
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -105,6 +108,7 @@ const GM_PROGRAM = {
   koto: 104,
   shamisen: 106,
   glockenspiel: 9,   // #1025: water track ("water (glockenspiel)")
+  tubular_bells: 14,   // #1093: worker-NPC beat-synced hit sounds (blacksmith slow/fast, town crier)
   vibraphone: 11,
   marimba: 12,
   xylophone: 13,

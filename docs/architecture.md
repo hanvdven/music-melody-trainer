@@ -18240,3 +18240,121 @@ those tests don't assert exact numbers for), `npm run lint` (0 errors), `npm run
 verified live in a real browser this session.
 
 **Files:** `src/hooks/useWorldAmbientMusic.js` (`PPP_VOLUME`, `WIND_GUST_PEAK_GAIN`).
+
+### §275. Open-world worker NPCs — beat-synced idle/hit animation + tubular-bells hit sounds (#1093, Han 2026-08-20)
+
+**Purpose.** Six stationary "worker" NPCs (blacksmith slow/fast, lumberjack, town crier, lady potions,
+steampunker) now stand at Level_1's own anonymous LDtk "NPC" markers, each looping its bestiary `idle`
+animation tempo-locked to the app's bpm (5 frames/beat, the same convention Wisp/pet/Slime already use).
+Three of the six (blacksmith slow, blacksmith fast, town crier) additionally play a `tubular_bells` note
+at specific points in their animation cycle, per Han's exact spec.
+
+**Renames + tag (generator-level, `scripts/generate-bestiary-manifest.mjs`).** `Blacksmith` -> `Blacksmith
+Slow`, `Man Blacksmith` -> `Blacksmith Fast` (a new 2-line rename block, same pattern as the existing
+`Pigeon`/`Pidgeon` disambiguation rename — runs BEFORE the `bestiaryMetadata.json` override lookup and the
+tag-derivation regexes, so both must key off the NEW names). `steampunker` added to the existing `worker`
+tag regex (it already had `trader`) — kept the tag singular (`worker`), matching every other tag in this
+file, even though Han wrote "workers" (plural) — a one-off plural tag would be inconsistent with the
+established convention.
+
+**Blacksmith Slow's two new animations (`src/model/bestiaryMetadata.json`).** Its native sheet
+(`SSW/Blacksmith.png`) is exactly a 4x3 = 12-cell grid, which maps EXACTLY onto Han's 1-based cell
+numbering (cell 1 = row0/col0 ... cell 12 = row2/col3) — confirmed arithmetically, not guessed. `idle`
+(`animOverrides.0.cells`, replacing the old auto-detected 12-cell scan) = cells [12,1,2,3,4]. A new `hit`
+animation (`addedAnimations`) = cells [5,6,7,8,9,10,11,12,1,2], with the "hit" moment (Han: cell 8) at
+array index 3 (0-based) — verified by cropping the actual grid from the source PNG and visually confirming
+it reads as a plausible hammering-at-an-anvil loop.
+
+**Blacksmith Fast's hit position — resolved without re-asking Han.** Han only said "de hit staat op de 1"
+for this one (no new idle/hit cell lists, unlike Slow). Investigation: `Blacksmith Fast`'s native asset
+(`char_passive/characters sheet 4.png`, a roster sheet, §673) already has an `idle` animation of exactly 5
+cells (row1, col5-9) — its ENTIRE allotted roster slot (`FRAMES_PER_CHAR = 5`), with no room for a
+separate 12-cell hammering cycle like Slow has. This means "cell 1" cannot use Slow's whole-sheet 1-12
+numbering; it must mean the first frame of Fast's own existing (and only) 5-frame idle loop — i.e. no new
+animation needed, just a hit-trigger marker at that idle's array index 0. This reading was inferred from
+the asset geometry itself, not guessed blind (CLAUDE.md §9k/§6d) — flagged to Han as an assumption to
+correct if wrong.
+
+**Town crier — asset discrepancy, used the existing (already-swapped) asset.** Han said a NEW "town
+crier-sheet" file existed in `src/assets/ASSET DROP/` to replace the old one — none was found there (or
+anywhere) this session. The current `Town crier` bestiary entry (`char_passive/Town crier.png`, 640x64 =
+10 single-row cells) was ALREADY swapped once before (§234, 2026-08-14). Proceeded using this existing
+asset — its `idle` animation already has all 10 cells; "frame 3 en 8" (Han, 1-based) map to array indices
+2 and 7 of that EXISTING idle, no new animation needed (same reasoning as Blacksmith Fast). If Han's file
+genuinely hasn't been dropped yet, this needs revisiting once it lands.
+
+**Beat-synced animation + hit-audio architecture (new files).**
+- `src/hooks/useWorkerHitState.js` — the per-NPC idle/hit state machine + audio-trigger effect, called
+  ONCE per NPC by the parent (critical: see below for why). Two `hitConfig.mode`s: `'idle-triggers'`
+  (Blacksmith Fast, Town crier) fires a note whenever the shared `petFrame` counter's position within the
+  EXISTING idle loop passes through one of `frameIndices` — no animation switching. `'random'` (Blacksmith
+  Slow only) normally shows `idle`; at each idle-loop beat boundary, rolls `chancePerBeat` (default 0.125,
+  Han said "mag random zijn" with no exact frequency — an easy-to-retune constant) to switch to the `hit`
+  animation instead, always STARTING it at a beat boundary (never mid-frame) so it stays tempo-locked per
+  Han's "die moet op de tel landen" even though the trigger itself is randomized — fires the note at
+  `hitFrameIndex`, then returns to `idle`.
+- `src/hooks/useWorkerNpcAudio.js` — ONE shared, lazily-created `tubular_bells` `createMelodicInstrument`
+  instance (§6c, same low-level API `useWorldAmbientMusic.js`'s glockenspiel/viola/etc. already use) for
+  ALL worker NPCs — not one instrument per NPC. This is why the "up to 20 audio channels" question (Han's
+  original concern) turned out to be moot once he confirmed "one of each NPC, hand-placed": it's one
+  polyphonic instrument playing a handful of one-shot notes, trivial for the existing audio stack.
+- `src/components/character/WorkerNpc.jsx` — PURE render component (`{variant, anim, frame, facing,
+  zoom}` -> `CreatureSprite`), deliberately stateless, mirroring `WorldCreature`'s own shape.
+- `WorkerNpcSlot` (new, `RpgLevelPanel.jsx`, MODULE-level not inline) — glues the two together: calls
+  `useWorkerHitState` once, renders `WorkerNpc` TWICE from that single resolved `{anim, frame}` (main
+  sprite + `EntityReflection` water-mirror copy, same pattern Wisp/Slime already use).
+
+**Bug caught and fixed before shipping (real, not hypothetical).** The first draft put
+`useWorkerHitState`'s logic directly INSIDE `WorkerNpc` and rendered `<WorkerNpc>` twice per NPC (main +
+reflection) — each copy would have run its OWN independent state machine and OWN independent
+`Math.random()` roll, double-firing the audio trigger every cycle and letting the reflection's hit
+animation visually diverge from the main sprite's. Fixed by extracting the state machine into
+`useWorkerHitState`, called exactly once per NPC (in the new `WorkerNpcSlot`), with `WorkerNpc` reduced to
+a pure render of already-resolved state — the same "compute once, render twice" shape `WorldCreature`/
+`WorldSlime` already use successfully for Wisp/Slime (their `moving`/`frame` props are pre-resolved by the
+parent, not internally stateful). Also required making `WorkerNpcSlot` a MODULE-level (not inline-in-
+render-body) component — an inline component redefined every RpgLevelPanel render would get a new React
+identity each time, force-remounting it and silently resetting `useWorkerHitState`'s state every render.
+
+**Placement.** `ENTITY_INSTANCES.NPC` (`ldtkWorld.js`) returns exactly 6 world-space `{x,y}` positions —
+Level_1's 6 anonymous "NPC" markers; Level_2's own 6 (a different, unreachable `worldY`, confirmed via
+`ldtkWorld.js`'s own `REACHABLE_LEVELS` filter — Level_2 has no door/stairs mechanism to reach it yet, per
+that file's existing §925 comment) are automatically excluded, no extra filtering needed. Han confirmed
+(interview): assign the 6 workers to these 6 markers in x-sorted order (blacksmith slow, lumberjack, town
+crier, blacksmith fast, lady potions, steampunker) — purely positional, easy to rearrange later by moving
+markers in the LDtk editor since nothing hardcodes a marker id.
+
+**tubular_bells instrument extraction (`scripts/extract-soundfont-samples.mjs`).** Added `tubular_bells:
+14` (GM program 14, 0-indexed) to `GM_PROGRAM` and to `NEVER_LOOP_LOCAL` (a struck bell rings out and
+decays naturally, like the existing woodblock/marimba/xylophone entries — not a sustained pad). Extracted
+1 sample from Han's local `FluidR3_GM.sf2` (a sparse GM patch — same single-sample outcome as `woodblock`/
+`applause`, both already working in the app; not a bug). Notably, `useWorldAmbientMusic.js`'s own history
+(§1025) already tried and ABANDONED a `tubular_bells` water-chime idea specifically because it was "never
+even locally extracted" — this ticket is the first time it actually gets extracted for real use.
+
+**Not built this round (flagged, not guessed):** lumberjack/lady potions/steampunker sound cues — Han's
+interview answer said all 6 should eventually get sound, but only gave frame/note specs for the 3 above;
+`hitConfig: null` for these 3 renders them as silent idle loops. Adding sound for them just needs their
+own `hitConfig` entry in `RpgLevelPanel.jsx`'s `workerNpcs` roster once Han specifies frames/notes — no
+architecture change needed, the system already supports it generically.
+
+**Spatial audio — deliberately skipped.** `useWorldAmbientMusic.js`'s ambient layers pan/attenuate by
+player distance (`createSpatialBus`); worker-NPC bells currently play at a flat volume through
+`context.destination` regardless of player position. Han asked for "altijd hoorbaar" (always audible), not
+distance-based panning — the spatial bus mechanism is private to `useWorldAmbientMusic.js` and wasn't
+duplicated here to keep scope down; a reasonable follow-up, not a regression against what was asked.
+
+**Verified:** `npm run test:run` (846 passed), `npm run lint` (0 errors), `npm run build` (clean). All 6
+`findCreatureByName` lookups + the LDtk marker count/positions verified via a standalone script (exact
+animation cell counts matched what was authored: Blacksmith Slow idle(5)/hit(10), the other 5 idle(5) or
+idle(10) as expected). Blacksmith Slow's full 12-cell sprite sheet visually inspected (cropped from the
+real PNG) and confirmed as a plausible hammering-at-anvil sequence. **Not verified live in a real
+browser** — no browser-automation tool available this session; the beat-sync timing, actual audio
+audibility, and visual placement specifically need Han's own in-game check.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (renames, worker tag), `src/model/bestiaryMetadata.json`
+(Blacksmith Slow idle/hit), `src/model/bestiaryManifest.generated.js` (regenerated), `scripts/extract-
+soundfont-samples.mjs` (`tubular_bells` GM program + never-loop), `src/audio/localInstrumentBuffers.generated.js`
+(regenerated), `src/hooks/useWorkerHitState.js` (new), `src/hooks/useWorkerNpcAudio.js` (new),
+`src/components/character/WorkerNpc.jsx` (new), `src/components/character/RpgLevelPanel.jsx`
+(`WorkerNpcSlot`, `workerNpcs` roster, render wiring).

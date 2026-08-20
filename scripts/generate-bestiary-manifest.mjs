@@ -2225,6 +2225,13 @@ for (const entry of manifest) {
     // updated to the new ones (this rename runs before the tag-derivation checks further down the loop).
     if (entry.base === 'Pigeon') entry.base = 'Pigeon (Collared Dove)';
     if (entry.base === 'Pidgeon') entry.base = 'Pigeon (Rock Dove)';
+    // #1093 (Han 2026-08-20, open-world worker NPCs): "Blacksmith" (SSW/Blacksmith.png, 4x3 hammering
+    // sheet) and "Man Blacksmith" (the char_passive roster's 5-frame idle) are visually a slow and a fast
+    // hammering animation respectively — renamed so both are identifiable at a glance in the bestiary list.
+    // Runs before the metadata-override lookup (line ~2492) and the tag-derivation checks below, so
+    // `bestiaryMetadata.json` and the worker-tag regex must key off these NEW names, not the old ones.
+    if (entry.base === 'Blacksmith') entry.base = 'Blacksmith Slow';
+    if (entry.base === 'Man Blacksmith') entry.base = 'Blacksmith Fast';
     // "alle critters (behalve die uit de critter sheet)" — category-level rule (not a name list): every
     // 'critters'-category entry faces right EXCEPT the ones sourced from critters sheet.png (Frog/Pigeon/
     // Blue Jay/Rat/Snail/Turtle/Firefly/Ladybird/Fly/Butterfly/Mosquito/the CRITTER_ROWS Dragonfly), which
@@ -2563,7 +2570,10 @@ for (const entry of manifest) {
     if (/\bmonk\b|\bnun\b|bishop|crusader|inquisition/i.test(entry.base)) tags.push('christian');
     if (/wanderer dark/i.test(entry.base)) tags.push('hellish');
     if (/knight|mad butcher|warrior|\bguard\b|barbarian|marquise|musketeer|\borc\b|pirate|samurai|archer|crusader/i.test(entry.base)) tags.push('military');
-    if (/lumberjack|blacksmith|gravedigger|grave digger|man rake|man pickaxe|man sharpening|woman laundry|woman basket|\bcook\b|lady sweeping|\bnurse\b|\bscribe\b|seemstress|executioner|plague doctor|medieval servant|armorer|artist painter|artist statue|\bdwarf\b|lady basket|town crier|meat vendor/i.test(entry.base)) tags.push('worker');
+    // #1093 (Han 2026-08-20, "geef steampunker ook tag workers"): added alongside the existing worker
+    // roster — Han said "workers" (plural) but every tag in this file is singular (see 'worker' throughout
+    // this function); kept singular for consistency rather than introducing a one-off plural tag.
+    if (/lumberjack|blacksmith|gravedigger|grave digger|man rake|man pickaxe|man sharpening|woman laundry|woman basket|\bcook\b|lady sweeping|\bnurse\b|\bscribe\b|seemstress|executioner|plague doctor|medieval servant|armorer|artist painter|artist statue|\bdwarf\b|lady basket|town crier|meat vendor|steampunker/i.test(entry.base)) tags.push('worker');
     if (/snowman|santa|christmas|bavarian/i.test(entry.base)) tags.push('seasonal');
     // /Succubus/ folder catches Eisheth/Lilim/Lilith/Morgana/Pair too (bonus succubus-family characters whose
     // own base name doesn't literally contain "succub").

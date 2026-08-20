@@ -7143,7 +7143,7 @@ export default [
   {
     "category": "passive",
     "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
-    "base": "Man Blacksmith",
+    "base": "Blacksmith Fast",
     "variant": null,
     "width": 640,
     "height": 896,
@@ -19106,6 +19106,7 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "trader",
+      "worker",
       "townsfolk"
     ]
   },
@@ -19726,7 +19727,7 @@ export default [
   {
     "category": "passive",
     "relPath": "../assets/ASSORTED/characters/SSW/Blacksmith.png",
-    "base": "Blacksmith",
+    "base": "Blacksmith Slow",
     "variant": null,
     "width": 256,
     "height": 192,
@@ -19746,6 +19747,10 @@ export default [
         "label": "Idle",
         "cells": [
           {
+            "row": 2,
+            "col": 3
+          },
+          {
             "row": 0,
             "col": 0
           },
@@ -19760,7 +19765,14 @@ export default [
           {
             "row": 0,
             "col": 3
-          },
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "hit",
+        "label": "Hit",
+        "cells": [
           {
             "row": 1,
             "col": 0
@@ -19792,6 +19804,14 @@ export default [
           {
             "row": 2,
             "col": 3
+          },
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
           }
         ]
       }

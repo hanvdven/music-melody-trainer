@@ -1762,6 +1762,11 @@ export const EXTRACTED_INSTRUMENT_BUFFERS = {
       "loopEnd": 0.8163492063492064
     }
   },
+  "tubular_bells": {
+    "C6": {
+      "file": "C6"
+    }
+  },
   "vibraphone": {
     "A3": {
       "file": "A3",

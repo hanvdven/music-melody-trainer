@@ -8,6 +8,9 @@ import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVaria
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_COLS, SLIME_ROWS, SLIME_COLORS } from '../../model/enemyAssets';
 import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalMap';
+import WorkerNpc from './WorkerNpc';
+import useWorkerNpcAudio from '../../hooks/useWorkerNpcAudio';
+import useWorkerHitState from '../../hooks/useWorkerHitState';
 import { LEVEL_MIN_X, LEVEL_MAX_X } from '../../hooks/useRpgLevelState';
 import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
 import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
@@ -304,6 +307,28 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
                 <CreatureSprite variant={variant} anim={anim} frame={frame} scale={zoom} framed={false} />
             </div>
         </div>
+    );
+}
+
+// #1093 (Han 2026-08-20, open-world worker NPCs): a MODULE-level component (not defined inline inside
+// RpgLevelPanel's render body, unlike the local `EntityReflection` below) — `useWorkerHitState` holds
+// real state (hitActive) across renders; a function redefined every render would give React a new
+// component identity each time and force-remount this, silently resetting the hit/idle state machine on
+// every RpgLevelPanel re-render. `EntityReflection` (which has no state of its own) is passed in as a
+// prop specifically so this can still use the parent's ponds-aware reflection logic without needing to
+// live inside the parent's closure itself.
+function WorkerNpcSlot({ variant, hitConfig, petFrame, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection }) {
+    const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell);
+    if (!variant || !anim) return null;
+    return (
+        <>
+            <div style={{ position: 'absolute', left: worldToScreenX(worldX), bottom: standAnchorFor(worldX), transform: 'translateX(-50%)' }}>
+                <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
+            </div>
+            <EntityReflection worldX={worldX}>
+                <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
+            </EntityReflection>
+        </>
     );
 }
 
@@ -972,6 +997,31 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     }, []);
 
     const wispVariant = useMemo(() => findCreatureByName('Wisp'), []);
+    // #1093 (Han 2026-08-20, "gebruik de 5 NPC entities uit LDtk"): Level_1's 6 anonymous "NPC" markers
+    // (the LDtk entity type carries no per-instance identifying field, confirmed via the .ldtk file's own
+    // entity defs) get Han's 6 workers assigned in x-order — Han's own confirmed default, adjustable later
+    // by moving markers in the LDtk editor since the assignment is purely positional, not hardcoded per
+    // marker id. Every worker's `idle` plays via the SAME shared `petFrame` counter Wisp/pet/Slime already
+    // tick (§6c — 5 frames/beat, tempo-locked, no new interval). `hitConfig` is null for the 3 NPCs Han
+    // gave no sound spec for (lumberjack/lady potions/steampunker) — WorkerNpc renders them silently.
+    const workerNpcAudio = useWorkerNpcAudio(context);
+    const workerNpcs = useMemo(() => {
+        const markers = [...(ENTITY_INSTANCES.NPC || [])].sort((a, b) => a.x - b.x);
+        const roster = [
+            { name: 'Blacksmith Slow', hitConfig: { mode: 'random', chancePerBeat: 0.125, hitFrameIndex: 3, note: 'C6' } },
+            { name: 'Lumberjack', hitConfig: null },
+            { name: 'Town crier', hitConfig: { mode: 'idle-triggers', frameIndices: [2, 7], note: 'G5' } },
+            { name: 'Blacksmith Fast', hitConfig: { mode: 'idle-triggers', frameIndices: [0], note: 'G6' } },
+            { name: 'Lady Potions', hitConfig: null },
+            { name: 'Steampunker', hitConfig: null },
+        ];
+        return roster.map((w, i) => ({
+            ...w,
+            variant: findCreatureByName(w.name),
+            x: markers[i]?.x,
+        })).filter((w) => w.variant && w.x != null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     // #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"): a purely visual
     // Slime, standing at the `.ldtk` file's own Slime entity marker — same treatment as the Wisp NPC
     // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
@@ -1518,6 +1568,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     </EntityReflection>
                 </>
             )}
+
+            {/* #1093 (Han 2026-08-20, open-world worker NPCs): 6 stationary workers standing at Level_1's
+                own "NPC" LDtk markers (workerNpcs above) — same stand-anchor/reflection treatment as
+                Wisp/Slime, no click handler (decorative only, no dialogue). Each gets its OWN
+                WorkerNpcSlot instance (one useWorkerHitState hook call per NPC, React's normal
+                one-component-per-list-item pattern — see that component's header for why the state
+                machine must NOT live inside the twice-rendered WorkerNpc itself). */}
+            {sceneryMode === 'LDtk' && workerNpcs.map((w) => (
+                <WorkerNpcSlot
+                    key={w.name}
+                    variant={w.variant} hitConfig={w.hitConfig} petFrame={petFrame}
+                    context={context} triggerBell={workerNpcAudio} zoom={zoom}
+                    worldX={w.x} worldToScreenX={worldToScreenX} standAnchorFor={standAnchorFor}
+                    EntityReflection={EntityReflection}
+                />
+            ))}
 
             {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
                 (flying/ground/water)"): one WorldWanderer per spawned Critter_* marker (see
