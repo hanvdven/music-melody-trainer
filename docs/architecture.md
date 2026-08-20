@@ -18358,3 +18358,48 @@ soundfont-samples.mjs` (`tubular_bells` GM program + never-loop), `src/audio/loc
 (regenerated), `src/hooks/useWorkerHitState.js` (new), `src/hooks/useWorkerNpcAudio.js` (new),
 `src/components/character/WorkerNpc.jsx` (new), `src/components/character/RpgLevelPanel.jsx`
 (`WorkerNpcSlot`, `workerNpcs` roster, render wiring).
+
+### §276. Worker-NPC audio made distance-bound; wind gust envelope gets a real sustain plateau (#1094, Han 2026-08-20)
+
+**Worker-NPC spatial audio.** §275's `useWorkerNpcAudio` played every `tubular_bells` hit at a flat
+volume through `context.destination` — Han: "NPC-geluid is niet afstandsgebonden." Fixed by reusing the
+app's EXISTING spatial-audio primitives instead of inventing a second mechanism (§6c): `createSpatialBus`
+(a `StereoPannerNode` -> `GainNode` -> destination chain, previously private to `useWorldAmbientMusic.js`,
+now exported) and `computeSpatialPanVolume(sourceX, listenerX)` (`src/audio/spatialPan.js`) — the SAME
+pure distance-to-pan/gain formula birds and water already use (full volume/centered at 0px, linearly down
+to silent at `AUDIBLE_CHUNKS * CHUNK_PX` = 768px, sign of the offset gives left/right).
+
+Unlike birds/water (long, continuous sounds whose pan/gain is re-computed every tick via a `setInterval`
+as the player walks past), a worker's hit is a single short one-shot: pan/gain is computed ONCE, right
+before `.start()`, from the player's position AT THAT EXACT MOMENT (`useWorkerHitState`'s `fire()` helper
+reads `getListenerX()` fresh at fire time, not a value captured when the effect was scheduled) — no
+continuous update loop needed. All worker NPCs share ONE spatial bus (not one each), since their hits
+practically never overlap closely enough for a shared instantaneous pan/gain value to be a real problem —
+an accepted trade-off that keeps the "one shared `tubular_bells` instrument" design from §275 intact.
+
+`RpgLevelPanel.jsx` already tracked the player's live world X in `playerXRef` (for camera-follow) — passed
+into `WorkerNpcSlot` as `getListenerX={() => playerXRef.current}`, threaded through `useWorkerHitState`
+into `triggerBell(note, time, npcWorldX, listenerX)`.
+
+**Wind gust envelope: fade-in / sustain / fade-out.** §272-274's wind gust (`useWorldAmbientMusic.js`,
+prior session) ran a 2-measure block: a linear fade-in to the exact midpoint immediately followed by a
+linear fade-out — no sustain plateau at all. Han: "Wind mag 3 maten: 1 maat fade in, 1 maat sustain, 1
+maat fade out." `WIND_GUST_BLOCK_MEASURES` changed 2 -> 3; the envelope gained a third
+`linearRampToValueAtTime` call — a ramp to the SAME value (`peakGain`) it's already at, the standard Web
+Audio idiom for an explicit held-flat plateau (there's no separate "hold" API) — using the same
+`measures * numerator * (60/bpm)` duration formula already idiomatic throughout this file (piano block,
+hh block, and the gust's own original envelope). `WIND_GUST_TRIGGER_CHANCE`/`WIND_GUST_PEAK_GAIN` are
+unchanged.
+
+**Verified:** `npm run test:run` (846 passed — updated the existing wind-gust test's assertion from 2 to 3
+`linearRampToValueAtTime` calls to match the new envelope shape, rather than leaving it silently
+mismatched), `npm run lint` (0 errors), `npm run build` (clean). The `computeSpatialPanVolume` reuse was
+sanity-checked against sample distances (co-located -> pan 0/gain 1, 768px+ away -> gain 0, correct
+left/right sign). **Not verified live in a real browser** — no browser-automation tool available this
+session; actual audibility/panning-by-ear and the wind envelope's felt timing need Han's own in-game check.
+
+**Files:** `src/audio/spatialPan.js` (unchanged, reused), `src/hooks/useWorldAmbientMusic.js`
+(`createSpatialBus` exported, `WIND_GUST_BLOCK_MEASURES` = 3, 3-stage envelope), `src/hooks/
+useWorkerNpcAudio.js` (spatial bus + per-trigger pan/gain), `src/hooks/useWorkerHitState.js`
+(`npcWorldX`/`getListenerX` threaded through), `src/components/character/RpgLevelPanel.jsx`
+(`getListenerX` prop wiring), `src/hooks/__tests__/useWorldAmbientMusic.test.js` (updated assertion).

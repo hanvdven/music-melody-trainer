@@ -91,7 +91,7 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
 describe('useWorldAmbientMusic — wind gust (#1091 round 7)', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it('starts the gust and ramps its own GainNode through a fade-in/fade-out envelope when the 20% roll hits', async () => {
+    it('starts the gust and ramps its own GainNode through a fade-in/sustain/fade-out envelope when the 20% roll hits', async () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);   // 0 < 0.2 -> always triggers
         const context = makeAudioContext();
         const { unmount } = renderHook(() => useWorldAmbientMusic({ active: true, context }));
@@ -106,7 +106,9 @@ describe('useWorldAmbientMusic — wind gust (#1091 round 7)', () => {
             .find((node) => node.gain.setValueAtTime.mock.calls.length > 0);
         expect(gustGainNode).toBeDefined();
         expect(gustGainNode.gain.setValueAtTime).toHaveBeenCalledWith(0, expect.any(Number));
-        expect(gustGainNode.gain.linearRampToValueAtTime).toHaveBeenCalledTimes(2);   // up to peak, back to 0
+        // #1094 (Han: "Wind mag 3 maten: 1 maat fade in, 1 maat sustain, 1 maat fade out"): 3 ramp calls —
+        // up to peak, held flat at peak (a ramp to the same value doubles as the sustain plateau), back to 0.
+        expect(gustGainNode.gain.linearRampToValueAtTime).toHaveBeenCalledTimes(3);
         unmount();
         vi.restoreAllMocks();
     });

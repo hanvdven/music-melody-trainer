@@ -24,6 +24,11 @@ import { useState, useRef, useEffect } from 'react';
 //     RpgLevelPanel.jsx's `workerNpcs` table for the 1-based-sprite-cell -> array-index conversion),
 //     then the worker returns to idle.
 //
+// #1094 (Han 2026-08-20, "NPC-geluid is niet afstandsgebonden"): `npcWorldX` (this NPC's fixed world
+// position) and `getListenerX` (a function returning the player's LIVE world X, read fresh at fire time —
+// see `fire()` below) are threaded straight through to `triggerBell`, which pans/attenuates the note by
+// distance (useWorkerNpcAudio.js). Neither is used for anything else in this hook.
+//
 // Note-scheduling precision: fires at `context.currentTime` from a React effect reacting to `petFrame` —
 // the SAME setInterval-driven cadence Wisp/pet/Slime idle already uses, not Web-Audio-clock-scheduled
 // like the Sequencer/level-backing-stream (CLAUDE.md §6's "never setTimeout for setCurrentMeasureIndex"
@@ -33,7 +38,7 @@ const CHANCE_PER_BEAT_DEFAULT = 0.125;   // Han said "mag random zijn" with no e
 // one hit-swing every 8 beats on average, an "occasional, not constant" hammering cadence; a single
 // easy-to-retune constant once Han hears it in-game.
 
-export default function useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell) {
+export default function useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell, npcWorldX, getListenerX) {
     const [hitActive, setHitActive] = useState(false);
     const hitStartFrameRef = useRef(0);
     const idleAnim = variant?.animations?.find((a) => a.key === 'idle') || variant?.animations?.[0];
@@ -41,11 +46,15 @@ export default function useWorkerHitState(variant, hitConfig, petFrame, context,
 
     useEffect(() => {
         if (!variant || !hitConfig) return;
+        // #1094 (Han 2026-08-20, "NPC-geluid is niet afstandsgebonden"): read the player's position fresh
+        // at the exact moment a note actually fires (not a value captured when the effect was scheduled),
+        // so a hit that lands while the player is mid-stride still pans/attenuates correctly.
+        const fire = (note) => triggerBell(note, context?.currentTime ?? 0, npcWorldX, getListenerX());
         if (hitConfig.mode === 'idle-triggers') {
             const len = idleAnim?.cells.length || 1;
             const localFrame = petFrame % len;
             if (hitConfig.frameIndices.includes(localFrame)) {
-                triggerBell(hitConfig.note, context?.currentTime ?? 0);
+                fire(hitConfig.note);
             }
             return;
         }
@@ -65,7 +74,7 @@ export default function useWorkerHitState(variant, hitConfig, petFrame, context,
                 return;
             }
             if (elapsed === hitConfig.hitFrameIndex) {
-                triggerBell(hitConfig.note, context?.currentTime ?? 0);
+                fire(hitConfig.note);
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps

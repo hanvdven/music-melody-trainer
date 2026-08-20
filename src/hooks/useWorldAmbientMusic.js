@@ -103,11 +103,14 @@ const WATER_PERCUSSION_GAIN = PPP_VOLUME;
 // held drone, and level-wide (not gated to water — Han: "location-bound" is an explicit LATER step).
 // Cadence is Han's own exact mechanic: "rol elk blok van 2 maten voor 20% kans om een hoos te starten.
 // een hoos duurt 2 maten" — every 2-measure cycle independently rolls a 20% chance to start a gust;
-// when one starts, it spans the FULL 2 measures, silent otherwise. Peak volume: round 8 (Han, "de
+// when one starts, it spans the FULL 3 measures, silent otherwise. Peak volume: round 8 (Han, "de
 // windvlaag mag volume mp zijn") supersedes round 7's initial "reuse the very-low applause level" —
 // gusts are now audibly louder (mezzo piano) than the applause drone (ppp), a real named VOL_STEPS
 // rung of their own rather than sharing water_percussion's.
-const WIND_GUST_BLOCK_MEASURES = 2;
+// #1094 (Han 2026-08-20, "Wind mag 3 maten: 1 maat fade in, 1 maat sustain, 1 maat fade out"): was 2
+// measures (fade-in to the midpoint, immediately fade back out — no sustain plateau at all). Now 3, with
+// an explicit held-flat measure in the middle — see the envelope build below.
+const WIND_GUST_BLOCK_MEASURES = 3;
 const WIND_GUST_TRIGGER_CHANCE = 0.2;
 const WIND_GUST_PEAK_GAIN = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;   // 'mp'
 const WIND_GUST_NOTE = WATER_PERCUSSION_NOTE;
@@ -128,7 +131,10 @@ const FREEPATS_MAPPING = KIT_NOTE_MAPPINGS['FreePats Percussion'];
 // simpeler is" — simpler than round 2's first draft, which used independent left/right GainNodes to let
 // both channels reach 100% simultaneously; a standard constant-power panner can't do that, but Han opted
 // for the simpler, standard approach instead once he saw the alternative).
-function createSpatialBus(context) {
+// #1094 (Han 2026-08-20, "NPC-geluid is niet afstandsgebonden"): exported so useWorkerNpcAudio.js can
+// reuse this EXACT bus shape for worker-NPC hit sounds instead of hand-rolling a second panner+gain
+// chain (§6c — one spatial-bus construction, not two that could drift).
+export function createSpatialBus(context) {
     const panner = context.createStereoPanner();
     const gain = context.createGain();
     panner.connect(gain);
@@ -266,7 +272,11 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                 const gustDurationSec = WIND_GUST_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
                 if (Math.random() < WIND_GUST_TRIGGER_CHANCE) {
                     const peakGain = WIND_GUST_PEAK_GAIN * musicVolumeMultiplierRef.current;
-                    const midTime = startTime + gustDurationSec / 2;
+                    // #1094: 1 measure fade-in, 1 measure held flat at peak (a `linearRampToValueAtTime`
+                    // to the SAME value it's already at is the standard Web Audio idiom for an explicit
+                    // sustain plateau — no separate "hold" API exists), 1 measure fade-out.
+                    const oneMeasureSec = WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
+                    const sustainEndTime = startTime + oneMeasureSec * 2;
                     const endTime = startTime + gustDurationSec;
                     // Explicit Web Audio ramp scheduling (not `rampParam`'s setTargetAtTime — that's
                     // tuned for the file's own quick pan/gain smoothing, PARAM_SMOOTH_TIME_CONSTANT is
@@ -275,7 +285,8 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                     // the full gustDurationSec before rolling again — but defensive against clock drift.
                     gustGain.gain.cancelScheduledValues(context.currentTime);
                     gustGain.gain.setValueAtTime(0, startTime);
-                    gustGain.gain.linearRampToValueAtTime(peakGain, midTime);
+                    gustGain.gain.linearRampToValueAtTime(peakGain, startTime + oneMeasureSec);
+                    gustGain.gain.linearRampToValueAtTime(peakGain, sustainEndTime);
                     gustGain.gain.linearRampToValueAtTime(0, endTime);
                     gustInstrument.start({ note: WIND_GUST_NOTE, time: startTime, duration: gustDurationSec });
                 }

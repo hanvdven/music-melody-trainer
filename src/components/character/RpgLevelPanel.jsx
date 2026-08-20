@@ -317,8 +317,8 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 // every RpgLevelPanel re-render. `EntityReflection` (which has no state of its own) is passed in as a
 // prop specifically so this can still use the parent's ponds-aware reflection logic without needing to
 // live inside the parent's closure itself.
-function WorkerNpcSlot({ variant, hitConfig, petFrame, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection }) {
-    const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell);
+function WorkerNpcSlot({ variant, hitConfig, petFrame, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX }) {
+    const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell, worldX, getListenerX);
     if (!variant || !anim) return null;
     return (
         <>
@@ -1582,6 +1582,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     context={context} triggerBell={workerNpcAudio} zoom={zoom}
                     worldX={w.x} worldToScreenX={worldToScreenX} standAnchorFor={standAnchorFor}
                     EntityReflection={EntityReflection}
+                    getListenerX={() => playerXRef.current}
                 />
             ))}
 
