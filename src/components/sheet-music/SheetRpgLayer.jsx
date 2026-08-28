@@ -23,14 +23,17 @@ import { DEFAULT_RPG_FX_VOLUME, rpgVolumeMultiplier } from '../../audio/dynamics
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
+import { computeCallResponseLabel } from '../../utils/repeatNumbering';
 import ChordLabelsLayer from './ChordLabelsLayer';
 import LyricsLayer from './LyricsLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
+import { freshTempoAnchor, tempoNormalizedMs } from './tempoScrollAnchor';
 import { StaffQuarterNote } from './staffNoteGlyph';
 import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 import { blockTypeAt } from '../../hooks/useLevelMixedStream';
+import useFrameLoop from '../../hooks/useFrameLoop';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -271,7 +274,13 @@ function critterDraw(variant, x, y, frame, preferIdle = false, scale = CRITTER_S
     let drawX = x, drawY = y + SLIME_VIEW_H - variant.crop.h * scale;   // bottom-anchored — see this fn's own comment
     if (isFlyingAnim(anim, variant)) {
         const seed = variant.crop.x * 31 + variant.crop.y;
-        const tMs = frame * 120;
+        // #1097 (Han 2026-08-22, "critters lijken tragere framerate te hebben dan de hero"): `frame` used
+        // to advance at 1/4 the slime/hero idle cadence (an intentional "gentle" slowdown), and this literal
+        // was tuned as its compensating multiplier (~4x the real per-frame ms) so the wobble read at the
+        // right real-world speed. Now that `frame` advances at the SAME cadence as slime/hero (see the two
+        // `gFrame`/`gF` call sites below), the multiplier is divided by the same factor (120/4=30) so this
+        // flying-critter hover wobble's speed is unchanged — only the idle-cycle catch-up bug is fixed.
+        const tMs = frame * 30;
         drawX += oscillate(seed, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
         drawY += oscillate(seed + 1, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED) - CRITTER_HOVER_PX;
     }
@@ -646,9 +655,30 @@ function ensureVisible(char) {
 }
 
 export default function SheetRpgLayer({
+    // #1096 follow-up (Han 2026-08-21, "als ik een instellingen-overlay open tijdens een actief level,
+    // moet het level pauzeren en hervatten waar het gebleven was" — confirmed via interview, NOT unmount):
+    // true while the level is active but SheetMusic is showing some OTHER in-staff overlay (RANGE/CLEF/…)
+    // on top (see SheetMusic.jsx's `paused={overlayEditMode}` — never true at the same time the level is
+    // genuinely done, since `levelResultEditMode` unmounts this component entirely instead, see its own
+    // comment there). Freezes the SAME shared clock (`tRawMs`, tick loop below) that gated-freeze already
+    // uses — every downstream consumer (slime position, spawn gating, hit/miss judging window,
+    // `gatedElapsedMsRef`-driven rubato audio) already reacts to a frozen `tRawMs` correctly, so pausing
+    // needs no new freeze machinery, only a second source that can hold it (§6c/§6d: reuse, don't
+    // reinvent, see the `externalPauseAccumMsRef` mechanism in the loop below).
+    paused = false,
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm, timeSignature,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onSongEnd, onHit, onMiss, onCritterKilled,
     onEnemyTotal, onCritterTotal, combatNote,
+    // #1096 (Han 2026-08-20, rubato cello/timpani note-hold synced to the gate, not a fixed clock): a ref
+    // this component writes the CURRENT frozen-aware elapsed ms (`tRawMs` below — real elapsed time since
+    // the level's audio anchor, MINUS however long the gate has spent frozen so far) into, every rAF
+    // frame — same convention as `hittableNotesRef` (a ref the caller owns, populated imperatively, never
+    // React state, since this updates far too often for a re-render). `tRawMs` is ALREADY exactly the
+    // "gated virtual clock" this ticket needs — it's the same value driving the visual scroll freeze/
+    // resume, just also exposed here so audio triggering (useLevelGatedRubatoAudio.js) can react to it
+    // without a second, independent freeze-tracking mechanism (§6c — reuses `gatedPauseAccumMsRef`'s own
+    // math, does not duplicate it).
+    gatedElapsedMsRef = null,
     // #990 (Han 2026-08-14, RPG-level wrong-note feedback): a ref this component populates with a
     // FUNCTION returning "which note name(s) would currently count as a hit" — the exact same
     // inWindow/next-slime logic the combatNote effect below already uses to judge a played note,
@@ -670,6 +700,19 @@ export default function SheetRpgLayer({
     // only resolves the matching visual slime off the event, it never re-derives hit/miss itself (§6c).
     bassMelody = null, bassCombatEvent = null,
     sideScroll = false, gatedScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
+    // #867 rework round 4 (Han 2026-08-20, "na maat 2... begint het level te verspringen"): which wave
+    // is currently active (App.jsx's `level.wave`) — the combat-driven signal for "a fresh wave truly
+    // started", replacing the melody's own note content (which now changes on every JIT background block
+    // append for a continuously-generated level and is no longer a reliable "new wave" proxy — see the
+    // wave-reset effect's own comment below).
+    levelWaveIndex = 0,
+    // Bug fix (Han 2026-08-20, "na level 7 blijf ik heel veel MISSED NOTES krijgen, na voltooiing"): lets
+    // the wave-reset effect below tell "entering a genuine next wave" (`levelWaveIndex < levelTotalWaves`)
+    // apart from "`levelWaveIndex` just incremented one final time because the level itself ended" (
+    // `levelWaveIndex === levelTotalWaves`, useLevel.js's `onWaveCleared` always returns `next` even on the
+    // clear that ends the level) — see that effect's own comment for why conflating the two wiped
+    // already-resolved combat state and caused a burst of spurious MISSED judgments right at level end.
+    levelTotalWaves = 0,
     // #992 (Han: 3 new Playback Settings setters — RPG fx volume / RPG music volume / RPG visibility):
     // `rpgFxVolume` is the raw VOL_STEPS value (0-1), converted below into a multiplier relative to its
     // OWN default (DEFAULT_RPG_FX_VOLUME) — never a raw replacement gain (see rpgVolumeMultiplier).
@@ -713,6 +756,16 @@ export default function SheetRpgLayer({
     // projectile becomes visible — see PROJECTILE_SPAWN_LEAD_BEATS below for how this interacts with
     // the (unchanged) beatsOnScreen flight span.
     wizardSpawnLeadMeasures = 1,
+    // Bug fix (Han 2026-08-25 UAT, "misschien is er een hard code op even/oneven... die werkt voor
+    // blokken van 1, maar nu zijn het blokken van 4"): the call/response half of each measure used to be
+    // decided by raw (measureIndex+1)%2 parity (`isOddMeasure` below), correct ONLY when a call/response
+    // group is exactly 1 measure (letter d / native Level 9-11's own default). For letter e
+    // (`callResponseMeasures: 2`) that parity no longer lines up with the actual call/response boundary
+    // — see `isOddMeasure`'s own comment for the full derivation. `lvl.callResponseMeasures` (1 for
+    // letter d, 2 for letter e — SheetMusic.jsx's own `callResponseGroupMeasures` prop, same source
+    // BarlinesLayer's #1155 labeling already reads), null/1 = every level whose call/response group is
+    // a single measure (unchanged behaviour).
+    callResponseGroupMeasures = null,
     // Level 11 (Han 2026-08-06): a purely decorative, non-combat green wizard shown alongside Slime
     // enemies — see the render block near the real Wizard's own static render for the full rationale.
     decorativeWizard = false,
@@ -959,8 +1012,11 @@ export default function SheetRpgLayer({
     // #693 round 8: critters (under rests) hit by an accidental note during the rest — simpler than a
     // slime's kill (no separate death animation), just hidden once struck.
     const [killedCritters, setKilledCritters] = useState(() => new Set());
-    const [heroAttack, setHeroAttack] = useState(null);    // { startTick } — hero playing attack once
-    const [wiggle, setWiggle] = useState(null);            // { index, startTick } — a missed/next slime shaking
+    // Bug fix (Han 2026-08-21): `startRawMs` (never-frozen raw clock), not `startTick` (the gated clock)
+    // — an input-reaction animation must always finish playing even if the gate stays frozen right after
+    // it starts (e.g. a wrong attempt while waiting), see `framesSinceRaw`'s own comment for the full story.
+    const [heroAttack, setHeroAttack] = useState(null);    // { startRawMs } — hero playing attack once
+    const [wiggle, setWiggle] = useState(null);            // { index, startRawMs } — a missed/next slime shaking
     const [judgments, setJudgments] = useState([]);        // [{ id, category, startTick }] floating labels at the strike line
     // #686 Level 9 — one-shot "spawn glow" flourish, fired once per projectile the instant it becomes
     // visible (see the per-tick effect below). `spawnGlowFiredRef` prevents re-firing every tick while a
@@ -1042,6 +1098,12 @@ export default function SheetRpgLayer({
     const onCritterKilledRef = useRef(onCritterKilled); onCritterKilledRef.current = onCritterKilled;
     const onFirstTickUnfrozenRef = useRef(onFirstTickUnfrozen); onFirstTickUnfrozenRef.current = onFirstTickUnfrozen;
     const waveStartRef = useRef(0);                        // tick at which the current wave's clock started
+    // #867 rework (Han 2026-08-20, "level 3... loopt vast; nieuwe maten niet fatsoenlijk gegenereerd"):
+    // tracks the PREVIOUS `scrollStartTime` seen by the wave-reset effect below, so it can tell "the real
+    // anchor just arrived for the FIRST time" (prev was null, now isn't — must reset to 0, see that
+    // effect's own #1050-round-6 comment) apart from "a LATER wave started while already anchored" (prev
+    // was already non-null — must NOT reset to 0, see waveStartRef's own new comment there).
+    const prevScrollStartTimeRef = useRef(null);
     // #1050 follow-up (Han 2026-08-17, "pretty clear and steady 1/12-th note stutter"): the JSX-side
     // `transform` on the scroll `<g>` groups (barlineScrollRef/noteScrollRef/etc., see their declaration
     // near `scrollPx` below) must be a value that's set ONCE per wave and then left alone — never
@@ -1085,11 +1147,45 @@ export default function SheetRpgLayer({
     const gatedFrozenRef = useRef(false);          // currently waiting for the player to defeat the due note?
     const gatedFreezeStartRawMsRef = useRef(0);    // RAW elapsed-ms-since-anchor at the instant we froze
     const gatedPauseAccumMsRef = useRef(0);        // total RAW ms consumed by freezes so far this wave
+    // FR (Han 2026-08-21, "als input <1/16 noot te laat is, kan je dan 'inhalen'?... auditief zou de
+    // timpaan geen last hebben van de vertraging"): a near-perfect hit (within `CATCHUP_THRESHOLD_MS`,
+    // one sixteenth-note of lateness) still folds its FULL lateness into `gatedPauseAccumMsRef` the
+    // instant it resolves (below) — preserving the existing "resume exactly where it froze, zero jump"
+    // guarantee this file's own tests already pin down — but THEN this ramp claws that tiny amount back
+    // out of the accumulator smoothly over `CATCHUP_RAMP_MS`, so the level's shared clock (and everything
+    // reading it: scroll position, `gatedElapsedMsRef` → the rubato cello/timpani hook) ends up almost
+    // exactly back on the ORIGINAL fixed-tempo schedule a few hundred ms later, instead of permanently
+    // carrying that sliver of lateness forward for the rest of the song. Without this, EVERY near-perfect
+    // hit (the common case) compounds into a growing drift away from the notated tempo — Han: "loopt het
+    // level alsnog vertraging op". A freeze longer than the threshold (a real, noticeable wait) is
+    // deliberately NOT caught up — only truly negligible lateness is invisibly absorbed. `null` when no
+    // ramp is in progress; otherwise `{ startRawMs, recoverMs, accumBefore }` (see the resume branch and
+    // the main loop's ramp-processing step, both below, for how these three fields are used).
+    const catchupRampRef = useRef(null);
+    const CATCHUP_RAMP_MS = 220;   // short enough to read as "snappy", long enough to never look like a jump
     const rawTRawMsRef = useRef(0);                // RAW (never-frozen) elapsed-ms-since-anchor, updated every
                                                     // rAF frame — lets effects outside the loop (e.g. the
                                                     // combat-hit effect, on unfreeze) read "now" independent
                                                     // of whether the gated clock is currently frozen.
     const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
+
+    // #1102 (adaptive tempo, Han 2026-08-28): `bpm` — and therefore `beatMs` — can now change MID-LEVEL,
+    // which would otherwise re-rate this file's WHOLE elapsed duration retroactively and jump the notes,
+    // every slime, and the gated freeze point all at once. `tempoNormalizedMs` (tempoScrollAnchor.js —
+    // see that file for the full rationale) is the one shared conversion; this wrapper adds the wave
+    // anchor subtraction every call site here needs, so the returned value is still exactly the
+    // "milliseconds elapsed since this level's clock started" quantity every formula below already
+    // expects — only normalized across tempo changes. Identical to the old expression for a level whose
+    // tempo never changes.
+    //
+    // Reads ONLY refs (never render-scoped values), so the rAF loop's mount-time closure can call it
+    // safely — the same rule `sideScrollX` below already follows for the same reason.
+    const tempoAnchorRef = useRef(freshTempoAnchor());
+    const tempoScrollMs = (rawSinceAnchorMs) => tempoNormalizedMs(
+        tempoAnchorRef.current,
+        rawSinceAnchorMs - waveStartRef.current * INTERVAL_MS,
+        geomRef.current.beatMs,
+    );
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
     // (which needs the full {sl, idx, delta} shape for grading/resolution bookkeeping) AND
@@ -1098,7 +1194,7 @@ export default function SheetRpgLayer({
     // it is safe to define once and never redefine per render — it always sees "now" when CALLED.
     const computeInWindowCandidates = () => {
         const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
-        const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+        const elapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);   // #1102: tempo-normalized
         return slimesRef.current
             .map((sl, idx) => ({ sl, idx, delta: elapsedMs - (sl.beat + bos) * bMs }))
             .filter(({ idx, delta }) => !resolvedRef.current.has(idx) && Math.abs(delta) <= bMs * MUCH_TOO_BEATS);
@@ -1150,6 +1246,19 @@ export default function SheetRpgLayer({
     // wrapper over the shared `framesElapsed` (see its declaration) so the rAF loop can call the SAME
     // formula directly with a fresh `fMs`, without going through this closure's own (render-scoped) default.
     const framesSince = (startTick, fMs = frameMs) => framesElapsed(tickRef.current, startTick, fMs);
+    // Bug fix (Han 2026-08-21, "de animatie 'mid attack' blijft hangen tijdens het wachten op de juiste
+    // noot in rubato... ik dacht dat het level was vastgelopen"): `framesSince` above measures against
+    // `tickRef.current` — the GATED clock, which holds perfectly still for as long as a gated level is
+    // frozen waiting for the correct note. An attack/wiggle animation is a REACTION to an input attempt
+    // (right OR wrong) — if it starts while gated and the gate stays frozen (a wrong attempt, or simply a
+    // long wait), its own "has this animation cycle finished" check never advances either, so it visibly
+    // hangs mid-pose for as long as the freeze lasts, reading exactly like a crashed level. Same bug
+    // class §1052's second follow-up already fixed for idle/cosmetic animation (`rawFIdx`, driven off
+    // `rawTRawMsRef` — the TRUE, never-frozen clock) — never applied to input-REACTION animations before,
+    // since they're event-triggered rather than continuously cycling. `framesSinceRaw` is the same
+    // formula against that same never-frozen clock, for exactly this class of animation: something that
+    // must always finish playing regardless of whether gameplay itself is currently paused.
+    const framesSinceRaw = (startRawMs, fMs = frameMs) => Math.floor((rawTRawMsRef.current - startRawMs) / fMs);
 
     // #660 side-scroll positions: a slime spawns at its own `beat` and travels to startX over `beatsOnScreen`
     // beats, then keeps going off the left edge if never struck. The NOTE moves LINEARLY (noteX); the SLIME
@@ -1170,8 +1279,9 @@ export default function SheetRpgLayer({
     // pass only `atTick` and get the exact same tick-quantized value as before.
     const sideScrollX = (beat, atTick, rawElapsedMs) => {
         const { startX: sx, viewRight: vr, beatsOnScreen: bos, beatMs: bMs, frameMs: fMs } = geomRef.current;
-        const elapsedSinceAnchor = rawElapsedMs ?? (atTick * INTERVAL_MS);
-        const msSinceSpawn = elapsedSinceAnchor - waveStartRef.current * INTERVAL_MS - beat * bMs;
+        // #1102: `tempoScrollMs` also subtracts the wave anchor (`waveStartRef`), so this is the SAME
+        // quantity as before for a fixed-tempo level — only tempo-normalized across any change.
+        const msSinceSpawn = tempoScrollMs(rawElapsedMs ?? (atTick * INTERVAL_MS)) - beat * bMs;
         const dist = vr - sx;
         const noteX = vr - (msSinceSpawn / (bos * bMs)) * dist;                 // linear
         const totalFrames = Math.round((bos * bMs) / fMs);                     // walk frames over the crossing
@@ -1209,6 +1319,20 @@ export default function SheetRpgLayer({
     const clockStartRef = useRef(null);
     const ctxRef = useRef(context); ctxRef.current = context;
     const scrollStartRef = useRef(null); scrollStartRef.current = scrollStartTime != null ? scrollStartTime * 1000 : null;
+    // #1096 follow-up (Han 2026-08-21, mid-level overlay pause — see `paused` prop's own comment above):
+    // `pausedRef` mirrors the prop into the rAF closure (same convention as `ctxRef` just above — the
+    // loop's own effect has an intentionally empty/stable dependency array, so it must read live values
+    // through refs, never the bare prop). `externalPauseAccumMsRef` is the running total of real-world ms
+    // spent paused so far this level; the loop below subtracts it from the raw elapsed time every frame,
+    // which keeps growing at the same rate as real time WHILE paused — the two cancel out, so the
+    // resulting elapsed time simply stops advancing for as long as `paused` stays true, then continues
+    // from exactly where it left off the instant it goes false again. No separate "freeze point" / resume
+    // math needed (unlike the gated-freeze mechanism below, which resumes on a discrete hit event instead
+    // of continuously) — this accumulator approach is simpler because pause/resume are just the two edges
+    // of one continuously-held boolean.
+    const pausedRef = useRef(false); pausedRef.current = paused;
+    const externalPauseAccumMsRef = useRef(0);
+    const lastFrameNowMsRef = useRef(null);
     const debugLoggedUnfreezeRef = useRef(false);   // TEMP DEBUG (Han 2026-08-06) — log the FIRST unfrozen tick once
     // Reset the "reported once" latch whenever a NEW anchor arrives (a fresh level start or replay) —
     // without this, `debugLoggedUnfreezeRef`/the watchdog signal above would only ever fire for the
@@ -1226,10 +1350,35 @@ export default function SheetRpgLayer({
     // wave-start calculations. Exactly "notes never arrive" / hit-detection logging "EXTRA NOTE
     // (nothing due)" for every real note played. Reset alongside debugLoggedUnfreezeRef — same
     // trigger, same reasoning: a fresh anchor cycle must never inherit anything from the last one.
-    useEffect(() => { debugLoggedUnfreezeRef.current = false; clockStartRef.current = null; }, [scrollStartTime]);
+    //
+    // Bug fix (#1159, Han 2026-08-25, "visuele scroll-positie loopt ~1.5 kwartnoot achter op de
+    // metronoom... consistent over songs"): `externalPauseAccumMsRef`/`lastFrameNowMsRef` (declared just
+    // above) had the EXACT SAME "component stays mounted across level changes" problem `clockStartRef`
+    // was fixed for in #1052 — but were never added to this reset effect when #1096's follow-up
+    // introduced them. `overlayEditMode` (SheetMusic.jsx's `paused` prop) includes `levelResultEditMode`,
+    // true while the level-result screen shows after EVERY level — so `externalPauseAccumMsRef` picks up
+    // a chunk of real wall-clock time on every level completion and NEVER gave it back, permanently
+    // subtracting more and more from the visual clock (`rawTRawMs = trueRawTRawMs -
+    // externalPauseAccumMsRef.current`) of every level played afterward in the same mounted session,
+    // while the audio clock (Sequencer/AudioContext) never saw this local subtraction at all — a
+    // growing, audio-invisible visual lag. A fresh anchor (new level/replay) must start this accumulator
+    // at 0 exactly like `clockStartRef`, for the same reason.
     useEffect(() => {
-        let raf;
-        const loop = () => {
+        debugLoggedUnfreezeRef.current = false; clockStartRef.current = null;
+        externalPauseAccumMsRef.current = 0; lastFrameNowMsRef.current = null;
+    }, [scrollStartTime]);
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §329) —
+    // 'critical' priority (must run every frame, drives the audio-locked scroll position). This loop
+    // already read EVERY piece of per-tick state through refs (`geomRef`, `ctxRef`, `scrollStartRef`,
+    // `pausedRef`, and the many others declared above) rather than plain closure variables — the exact
+    // pattern `useFrameLoop` requires — so this migration needed no ref-conversion work (unlike the
+    // RpgLevelPanel/useRpgLevelState migrations, which each had one `let`-based tick variable to move to a
+    // ref first). The callback still independently reads `ctxRef.current.currentTime` for its own `nowMs`
+    // — `useFrameLoop`'s own raw rAF timestamp argument is unused here on purpose, per this hook's own
+    // design principle: subsystems locked to the AudioContext clock must keep reading that clock
+    // themselves, never substitute the ticker's timestamp for it.
+    useFrameLoop(() => {
+        {
             // Bug fix (Han 2026-08-06, "slimes komen te laat, niet in sync met de metronoom... soms pas
             // na ~4 maten, niet eens matenaantal"): for a side-scroll level, `scrollStartTime` starts
             // null and only becomes real once the level's instruments are CONFIRMED ready (App.jsx §166's
@@ -1257,7 +1406,6 @@ export default function SheetRpgLayer({
             // `geomRef.current.sideScroll` instead — that ref is reassigned on EVERY render (see its
             // declaration above `sideScrollX`), so the loop always sees the CURRENT value.
             if (geomRef.current.sideScroll && scrollStartRef.current == null) {
-                raf = requestAnimationFrame(loop);
                 return;
             }
             const ctx = ctxRef.current;
@@ -1272,8 +1420,20 @@ export default function SheetRpgLayer({
             // #1050: the RAW (un-rounded) elapsed ms since `anchor` — never itself frozen, always "real"
             // elapsed time. Kept in a ref so effects outside this loop (e.g. the combat-hit effect, to
             // measure how long a gated freeze lasted) can read "now" independent of gating below.
-            const rawTRawMs = nowMs - anchor;
-            rawTRawMsRef.current = rawTRawMs;
+            const trueRawTRawMs = nowMs - anchor;
+            rawTRawMsRef.current = trueRawTRawMs;
+            // #1096 follow-up (Han 2026-08-21, mid-level overlay pause — see `paused` prop's own comment):
+            // grows in lockstep with real time WHILE paused, so subtracting it below exactly cancels out
+            // the real time that passes during a pause — everything from here on (`rawTRawMs`, gameplay
+            // `tRawMs`/`tick`, gated-freeze arrival math, spawn/expiry windows, `gatedElapsedMsRef`) sees
+            // gameplay simply stop advancing, then resume from precisely where it left off. Deliberately
+            // NOT applied to `rawTRawMsRef` above — that ref stays the TRUE unfrozen clock other consumers
+            // (idle/cosmetic animation, gated-freeze-duration measurement) already rely on unchanged.
+            if (pausedRef.current && lastFrameNowMsRef.current != null) {
+                externalPauseAccumMsRef.current += Math.max(0, nowMs - lastFrameNowMsRef.current);
+            }
+            lastFrameNowMsRef.current = nowMs;
+            const rawTRawMs = trueRawTRawMs - externalPauseAccumMsRef.current;
             // #1052 (Han 2026-08-17, "gated scroll"): for a gated level, `tRawMs` (and everything derived
             // from it — position, hit windows, wave-elapsed, expiry) freezes the instant the earliest
             // still-unresolved slime reaches its own arrival instant, and resumes exactly where it froze
@@ -1282,12 +1442,30 @@ export default function SheetRpgLayer({
             // unchanged — freezing this ONE shared value is sufficient (see this refs' own comment above).
             let tRawMs = rawTRawMs;
             const g0 = geomRef.current;
+            // FR (Han 2026-08-21, catch-up for near-perfect hits): decay any in-flight ramp BEFORE it
+            // feeds into `liveEffMs` below, so this frame already reflects the partially-recovered value
+            // — see `catchupRampRef`'s own comment (declared above) for the full mechanism.
+            if (catchupRampRef.current) {
+                const ramp = catchupRampRef.current;
+                // `trueRawTRawMs` (not the pause-adjusted local `rawTRawMs` below) — `ramp.startRawMs` was
+                // itself captured from `rawTRawMsRef.current`, the SAME true/unadjusted clock, so this stays
+                // internally consistent regardless of whether a mid-level overlay pause (`externalPauseAccumMsRef`)
+                // happens to overlap the ramp's short window.
+                const rampElapsed = trueRawTRawMs - ramp.startRawMs;
+                if (rampElapsed >= CATCHUP_RAMP_MS) {
+                    gatedPauseAccumMsRef.current = ramp.accumBefore - ramp.recoverMs;
+                    catchupRampRef.current = null;
+                } else {
+                    const frac = rampElapsed / CATCHUP_RAMP_MS;
+                    gatedPauseAccumMsRef.current = ramp.accumBefore - ramp.recoverMs * frac;
+                }
+            }
             if (g0.gatedScroll && g0.sideScroll && g0.beatMs > 0 && g0.beatsOnScreen > 0) {
                 const liveEffMs = rawTRawMs - gatedPauseAccumMsRef.current;
                 if (!gatedFrozenRef.current) {
                     // Mirrors the SAME arrival formula the hit-detection window/expiry effect already use
                     // (§6c) — "perfect timing" is delta===0, i.e. the note's full travel time has elapsed.
-                    const waveElapsedMs = liveEffMs - waveStartRef.current * INTERVAL_MS;
+                    const waveElapsedMs = tempoScrollMs(liveEffMs);   // #1102: tempo-normalized
                     const nextIdx = slimesRef.current.findIndex((_, idx) => !resolvedRef.current.has(idx));
                     const nextSlime = nextIdx >= 0 ? slimesRef.current[nextIdx] : null;
                     if (nextSlime && waveElapsedMs >= (nextSlime.beat + g0.beatsOnScreen) * g0.beatMs) {
@@ -1297,6 +1475,10 @@ export default function SheetRpgLayer({
                 }
                 tRawMs = gatedFrozenRef.current ? (gatedFreezeStartRawMsRef.current - gatedPauseAccumMsRef.current) : liveEffMs;
             }
+            // #1096: imperative ref write (never React state — this runs every rAF frame) so
+            // useLevelGatedRubatoAudio.js can trigger cello/timpani off the SAME frozen-aware clock the
+            // visual scroll already uses, instead of a fixed AudioContext-time schedule.
+            if (gatedElapsedMsRef) gatedElapsedMsRef.current = tRawMs;
             const t = Math.round(tRawMs / INTERVAL_MS);
             // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost"): logs the FIRST tick this loop
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
@@ -1374,7 +1556,9 @@ export default function SheetRpgLayer({
                 // #1050 third follow-up: this push is DELIBERATELY never gated by `runRpgEntityUpdates` —
                 // note-scroll smoothness must never depend on how much RPG-entity work happens to be
                 // pending this frame (see this section's own top-of-file comment).
-                const scrollElapsedMs = tRawMs - waveStartRef.current * INTERVAL_MS;
+                // #1102: tempo-normalized (see `tempoScrollMs`) so a mid-level tempo change alters the
+                // forward scroll RATE without ever moving the already-scrolled position.
+                const scrollElapsedMs = tempoScrollMs(tRawMs);
                 const framePx = (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist;
                 const barlineTransform = `translate(${-framePx}, 0)`;
                 const noteTransform = `translate(${NOTE_STAFF_DX - framePx}, 0)`;
@@ -1431,9 +1615,13 @@ export default function SheetRpgLayer({
                     // drive its frame from the raw (never-frozen) clock instead of `p.ff` (which is
                     // derived from the frozen `tRawMs` and would otherwise freeze mid-move-cycle) — same
                     // "gameplay position freezes, idle animation doesn't" principle as `slimeWalkOrIdleFrame`.
+                    // #1097 (Han 2026-08-22): dropped the `/4` — critter idle now cycles at the SAME cadence
+                    // as slime/hero idle instead of an artificially slower one (see `critterDraw`'s own
+                    // comment for the compensating `tMs` multiplier that keeps flying-critter wobble speed
+                    // unchanged despite `frame` now advancing 4x faster).
                     const gF = gatedFrozenRef.current
-                        ? Math.floor(rawTRawMsRef.current / (g.frameMs || 1) / 4) % 1000
-                        : Math.floor(p.ff / 4) % 1000;   // same slow idle cadence as the render body used
+                        ? Math.floor(rawTRawMsRef.current / (g.frameMs || 1)) % 1000
+                        : Math.floor(p.ff) % 1000;
                     entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF, gatedFrozenRef.current);
                 });
                 // Level 11 switch-flourish (StaticProjectile2) — fixed SWITCH_LOOKAHEAD array, plain index.
@@ -1551,55 +1739,141 @@ export default function SheetRpgLayer({
                 lastFrameTickWallMsRef.current = nowMs;
                 setFrameTick(rawFIdx);
             }
-            raf = requestAnimationFrame(loop);
-        };
-        raf = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(raf);
-    }, []);
+        }
+    }, [], { priority: 'critical' });
 
-    // reset combat when the melody (its slime notes) changes — a fresh wave; the side-scroll clock restarts.
-    const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
+    // reset combat when a fresh wave actually starts; the side-scroll clock restarts.
     useEffect(() => {
-        setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); setHits([]); clearedRef.current = false;
-        setKilledCritters(new Set());
-        setBassDyingList([]); setBassKilledSet(new Set());   // #862 — same fresh-wave reset, bass's own state
-        resolvedRef.current = new Set(); wrongAttemptRef.current = new Set(); resolvedStaticRef.current = new Set();
-        setSpawnGlows([]); spawnGlowFiredRef.current = new Set();
-        // #1050 second follow-up: a fresh wave means every entity key starts over (even if a key STRING
-        // happens to be reused) — clear every frozen-props cache so nothing inherits a stale position/
-        // frame from the wave that just ended (see `freezeOnce`'s own comment for why these exist).
-        frozenSlimePropsRef.current.clear(); frozenBassSlimePropsRef.current.clear();
-        frozenCritterPropsRef.current.clear(); frozenSwitchPropsRef.current.clear();
-        // #1052: a fresh wave starts fully unfrozen with a clean pause history — the gated freeze/resume
-        // bookkeeping must never carry over from the wave that just ended.
-        gatedFrozenRef.current = false; gatedPauseAccumMsRef.current = 0;
-        // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
-        // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
+        // Bug fix (Han 2026-08-20, "na level 7 blijf ik heel veel MISSED NOTES krijgen, na voltooiing"):
+        // `levelWaveIndex` also increments ONE LAST TIME when the FINAL wave clears (`useLevel.js`'s
+        // `onWaveCleared` always returns `next`, even on the clear that ends the level) — but there is no
+        // new wave's content to reset INTO at that point, the level is simply ending. Treating it like any
+        // other wave-start wiped `resolvedRef`/`killedSet` for slimes that were ALREADY correctly hit
+        // earlier in the level; every one of them then looked freshly "unresolved" with a long-past due
+        // time, so the miss-detection loop (below) marked them ALL as MISSED in a burst right as the level
+        // finished — reproducible on ANY level (gated or not), not just multi-wave ones, since even a
+        // single-wave level's `wave` goes 0→1 exactly once, at completion. Skip the reset entirely when
+        // this fire is that terminal, content-less increment.
+        if (levelTotalWaves > 0 && levelWaveIndex >= levelTotalWaves) return;
+        // Bug fix (Han 2026-08-21, "na voltooiing 80x MISSED" + "2-/4 enemies vanquished" — Level 3):
+        // the SAME root cause as the `waveStartRef` fix above, applied to the REST of this reset block.
+        // For a GATED level (`gatedScroll`), treble content grows continuously via JIT streaming with
+        // ABSOLUTE offsets (never replaced per wave — `wave` there is purely a combat/spawn-gating
+        // counter, confirmed via interview to apply uniformly to every gated level, Wizard/Mixed
+        // included, not just plain-Slime ones). Wiping `resolvedRef`/`killedSet`/etc. on every
+        // non-terminal wave transition made EVERY slime the player already correctly hit earlier in the
+        // song look "unresolved" again the instant a later wave began — the very next judging tick found
+        // them all long-overdue and marked them ALL missed in one burst (while the ORIGINAL correct hit
+        // had already counted as a defeat, producing inflated/inconsistent totals like "2-/4").
+        //
+        // Regression fix (Han 2026-08-21, follow-up: "na passeren van end of song measure line stopt het
+        // level nooit"): the FIRST attempt at this fix skipped the reset block ENTIRELY for a continuing
+        // gated wave, including `clearedRef.current = false`. `clearedRef` is a completely different kind
+        // of state than `resolvedRef`/`killedSet` — it isn't "has this slime been dealt with" (which
+        // genuinely must persist across the whole song), it's "has THIS killedCount-reaches-total crossing
+        // ALREADY been reported" (the `onSlimesCleared` → `useLevel.js`'s `onWaveCleared` → `setWave` →
+        // eventually `pendingSongEndRef`/`onSongEnd` chain). Leaving it permanently `true` after wave 1's
+        // very first clear meant `onSlimesCleared` could NEVER fire again for any later wave — `wave` got
+        // stuck forever, `pendingSongEndRef` never got set, and the level could never reach `done`, however
+        // far the visual scroll travelled. `killedCount`/`total` (`slimeData.length`) are BOTH already
+        // whole-song-cumulative for a JIT-continuous level (never wave-scoped, unlike the old
+        // regenerate-per-wave model) — so leaving `killedCount` un-reset alongside `resolvedRef`/`killedSet`
+        // and ONLY re-arming `clearedRef` is what correctly lets `onSlimesCleared` fire again the next time
+        // cumulative kills catch up to cumulative content, without ever un-resolving an already-handled
+        // slime. `killedSet` (like `resolvedRef`) directly gates rendering (`killedSet.has(idx)` hides a
+        // struck slime, see its own declaration comment) — resetting it would make already-dead slimes
+        // reappear on screen, so it stays un-reset here for exactly the same reason `resolvedRef` does.
+        if (gatedScroll && levelWaveIndex > 0) {
+            clearedRef.current = false;
+        } else {
+            setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); setHits([]); clearedRef.current = false;
+            setKilledCritters(new Set());
+            setBassDyingList([]); setBassKilledSet(new Set());   // #862 — same fresh-wave reset, bass's own state
+            resolvedRef.current = new Set(); wrongAttemptRef.current = new Set(); resolvedStaticRef.current = new Set();
+            setSpawnGlows([]); spawnGlowFiredRef.current = new Set();
+            // #1050 second follow-up: a fresh wave means every entity key starts over (even if a key STRING
+            // happens to be reused) — clear every frozen-props cache so nothing inherits a stale position/
+            // frame from the wave that just ended (see `freezeOnce`'s own comment for why these exist).
+            frozenSlimePropsRef.current.clear(); frozenBassSlimePropsRef.current.clear();
+            frozenCritterPropsRef.current.clear(); frozenSwitchPropsRef.current.clear();
+            // #1052: a fresh wave starts fully unfrozen with a clean pause history — the gated freeze/resume
+            // bookkeeping must never carry over from the wave that just ended.
+            //
+            // Bug fix (Han 2026-08-21): kept INSIDE this else-branch — for a continuing gated wave (the
+            // branch above), `gatedFrozenRef`/`gatedPauseAccumMsRef` must NOT reset (see this fix's own
+            // top-level comment: it could un-freeze an active gate or snap the shared clock mid-song).
+            gatedFrozenRef.current = false; gatedPauseAccumMsRef.current = 0;
+        }
+        // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the FIRST anchored wave's
+        // clock is 0 regardless of WHEN the melody generated (a few frames later). Free-running mode
+        // restarts from the current tick.
         // #688 (Level 9 rework): back to ONE continuous melody/single wave (like every other side-scroll
         // level, §679) — the §686 multi-wave due-time-snapping logic no longer applies (it only existed to
         // compensate for wave content not existing until its own due time; there's only one wave now).
         //
-        // Bug fix (Han 2026-08-10, round 6): this effect used to depend on `[notesKey]` ONLY (see the
-        // eslint-disable below, previously deliberate). If the melody (`notesKey`) settled a few ms
-        // BEFORE `scrollStartTime` flipped from null to its real value (exactly what the console log
-        // showed: this effect fired with `scrollStartTime: null` two ms before "anchor picked"),
-        // `waveStartRef.current` got locked to `tickRef.current` — a garbage, possibly large tick value
-        // (since the sibling stale-closure bug above meant `tick` had been free-running for seconds) —
-        // and this effect never fires again for the SAME melody, so it was never corrected back to 0
-        // once the real anchor arrived. `scrollStartTime` is now in the dependency array so this effect
-        // re-runs the instant the real anchor arrives (even without a new melody), always correcting
-        // `waveStartRef` to 0 for an anchored wave. Re-running the combat-state resets above (killed
-        // count etc.) on that transition is harmless — no real combat could have happened during the
-        // pre-anchor free-run.
-        waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
+        // Bug fix (Han 2026-08-10, round 6): this effect used to depend on the melody's own note content
+        // ONLY (see the eslint-disable below, previously deliberate). If that settled a few ms BEFORE
+        // `scrollStartTime` flipped from null to its real value (exactly what the console log showed: this
+        // effect fired with `scrollStartTime: null` two ms before "anchor picked"), `waveStartRef.current`
+        // got locked to `tickRef.current` — a garbage, possibly large tick value (since the sibling
+        // stale-closure bug above meant `tick` had been free-running for seconds) — and this effect never
+        // fired again for the SAME melody, so it was never corrected back to 0 once the real anchor
+        // arrived. `scrollStartTime` is now in the dependency array so this effect re-runs the instant the
+        // real anchor arrives (even without a wave change), always correcting `waveStartRef` to 0 for an
+        // anchored wave. Re-running the combat-state resets above (killed count etc.) on that transition is
+        // harmless — no real combat could have happened during the pre-anchor free-run.
+        //
+        // #867 rework round 3/4 (Han 2026-08-20): this effect used to depend on `notesKey` (a hash of the
+        // melody's own notes) as its "did a new wave start" signal — correct back when a wave meant "the
+        // WHOLE melody was thrown away and replaced" (#688's own "there's only one wave now" assumption).
+        // Once treble content instead grows CONTINUOUSLY via JIT one-block-ahead streaming (§263 rework
+        // rounds 2-3: Level 9/10, and now any gated procedural level), `notesKey` changes on EVERY
+        // background block append — nothing to do with an actual combat wave transition — so this effect
+        // was firing (and wiping killedSet/dyingList/judgments/frozen-props/gatedFrozenRef) every time new
+        // content silently arrived, not just when a wave was genuinely cleared. Han: "na maat 2 te
+        // voltooien begint het level te verspringen" — exactly this. Fixed to depend on `levelWaveIndex`
+        // (App.jsx's `level.wave`, the COMBAT-driven counter that only changes on a real `onWaveCleared`)
+        // instead — decoupled from how often the underlying melody happens to grow in the background.
+        //
+        // #1096 follow-up (Han 2026-08-20, "geen well done scherm... lijkt op hoe het level eruit zag
+        // voordat je de maten correct aan elkaar hebt geplakt"): round 3/4's OWN fix above — advancing
+        // `waveStartRef.current` to `tickRef.current` on every later wave — was itself WRONG once round 3
+        // made melody offsets/`slimeData[i].beat` ABSOLUTE (continuously growing from the level's true
+        // start, never wave-local any more). `sideScrollX()` and the gate-freeze/song-end detection below
+        // compute `elapsed − waveStartRef.current·INTERVAL_MS − beat·beatMs`: with an ABSOLUTE `beat`,
+        // that formula is only correct when `waveStartRef` represents the level's TRUE absolute start
+        // (0), exactly like it always did pre-#867 — advancing it per wave re-introduces a wave-relative
+        // baseline the rest of the arithmetic no longer expects, silently corrupting the cumulative
+        // "how far has the final barline travelled" calculation (`onSongEnd` below) enough that it never
+        // fires, while per-frame slime positions drift too little to notice by eye. `waveStartRef` was
+        // only ever WRONG-BY-DESIGN back when each wave's melody restarted its OWN offsets at 0 (pre-round-
+        // 3) — that assumption is gone, so the "advance per wave" behaviour must go with it. Only the
+        // FIRST-anchored-wave correction (the actual round-6 race fix) still applies; every LATER wave
+        // reset now leaves `waveStartRef` untouched, i.e. permanently 0 for the whole level's duration.
+        const isFirstAnchoredWave = scrollStartTime != null && prevScrollStartTimeRef.current == null;
+        if (scrollStartTime == null) {
+            waveStartRef.current = tickRef.current;   // free-running (pre-anchor) mode — unchanged
+        } else if (isFirstAnchoredWave) {
+            waveStartRef.current = 0;                 // the level's one true absolute start
+        }
+        // else: already anchored, a later wave — leave `waveStartRef` exactly as it is (0).
+        prevScrollStartTimeRef.current = scrollStartTime;
         // #1050 follow-up: freeze the JSX-side scroll transform's starting value HERE — the only place
         // `waveStartRef` changes — instead of letting the render body recompute it from the live tick on
         // every re-render (see `frozenScrollPxRef`'s own declaration for why that stomps the rAF loop's
         // smooth motion). A fresh wave always starts at this position; the rAF loop takes over completely
         // from the very next frame.
         {
+            // #1102: a level (re)start is the one place the tempo anchor must genuinely RESET rather than
+            // re-anchor — `waveStartRef` itself just moved, so "beats elapsed so far" is zero again. A
+            // LATER wave of an already-anchored level must NOT reset it: `waveStartRef` deliberately stays
+            // at the level's true absolute 0 there (see this effect's own #1096 comment), and any tempo
+            // change that already happened must keep its accrued beats.
+            if (scrollStartTime == null || isFirstAnchoredWave) {
+                tempoAnchorRef.current = freshTempoAnchor();
+            }
             const g = geomRef.current;
-            const scrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+            const scrollElapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);
             frozenScrollPxRef.current = g.sideScroll && g.beatMs > 0 ? (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist : 0;
         }
         // TEMP DEBUG (Han 2026-08-10, #824 follow-up round 3, "notes arrive very late"): logs the exact
@@ -1612,15 +1886,18 @@ export default function SheetRpgLayer({
             expectedFirstArrivalMs: slimeData[0] != null ? (slimeData[0].beat + beatsOnScreen) * (60000 / bpm) : null,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [notesKey, scrollStartTime]);
+    }, [levelWaveIndex, levelTotalWaves, scrollStartTime]);
 
     // a played note (any input) — key ONLY on the nonce so it fires once per note; read live state via refs.
     useEffect(() => {
         if (!combatNote) return;
         const fMs = geomRef.current.frameMs;
         // ANY note → hero attacks once, but not more often than one attack cycle (the 2-frame delay).
-        if (!heroAttackRef.current || (tickRef.current - heroAttackRef.current.startTick) * INTERVAL_MS >= ATTACK_CYCLE * fMs) {
-            setHeroAttack({ startTick: tickRef.current });
+        // Bug fix (Han 2026-08-21, "mid attack blijft hangen... in rubato"): `startRawMs`/`rawTRawMsRef`
+        // (never frozen) instead of `startTick`/`tickRef` (the gated clock) — see `framesSinceRaw`'s own
+        // comment for the full rationale.
+        if (!heroAttackRef.current || (rawTRawMsRef.current - heroAttackRef.current.startRawMs) >= ATTACK_CYCLE * fMs) {
+            setHeroAttack({ startRawMs: rawTRawMsRef.current });
         }
         if (geomRef.current.sideScroll) {
             // Level 2/3 graded hit window (Han 2026-08-02): a note for beat b is due at the strike line at
@@ -1634,7 +1911,7 @@ export default function SheetRpgLayer({
             // — the §686 measure-wide window existed only to compensate for the Wizard's own (now-reverted)
             // shorter flight span; with `beatsOnScreen` shared again, arrival timing already matches slimes.
             const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
-            const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+            const elapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);   // #1102: tempo-normalized
             const addJudgment = (category) =>
                 setJudgments((l) => [...l, { id: judgmentIdRef.current++, category, startTick: tickRef.current }]);
             const inWindow = computeInWindowCandidates(); // #990: shared with hittableNotesRef (§6c)
@@ -1663,8 +1940,24 @@ export default function SheetRpgLayer({
                 // where it froze — the real time just spent frozen is folded into `gatedPauseAccumMsRef`
                 // (see its own comment) so the very next rAF frame sees no jump.
                 if (geomRef.current.gatedScroll && gatedFrozenRef.current) {
-                    gatedPauseAccumMsRef.current += rawTRawMsRef.current - gatedFreezeStartRawMsRef.current;
+                    const latenessMs = rawTRawMsRef.current - gatedFreezeStartRawMsRef.current;
+                    gatedPauseAccumMsRef.current += latenessMs;
                     gatedFrozenRef.current = false;
+                    // FR (Han 2026-08-21, catch-up for near-perfect hits — see `catchupRampRef`'s own
+                    // comment above for the full rationale): a sixteenth note or less of real lateness
+                    // gets smoothly clawed back out of the accumulator over the next `CATCHUP_RAMP_MS`,
+                    // instead of permanently carrying it forward. A longer, genuinely noticeable wait is
+                    // left exactly as before (full, permanent absorption — this level teaches note
+                    // recognition with no time pressure, per §1052's own interview; only truly negligible
+                    // lateness is invisible-mended). Any PRIOR ramp still in flight is simply replaced —
+                    // one hit's catch-up superseding another's is fine, both are sub-perceptible amounts.
+                    if (latenessMs > 0 && latenessMs < bMs / 4) {
+                        catchupRampRef.current = {
+                            startRawMs: rawTRawMsRef.current,
+                            recoverMs: latenessMs,
+                            accumBefore: gatedPauseAccumMsRef.current,
+                        };
+                    }
                 }
                 const { x } = sideScrollX(target.sl.beat, tickRef.current);
                 setDyingList((l) => [...l, { index: target.idx, startTick: tickRef.current, x }]);
@@ -1701,7 +1994,9 @@ export default function SheetRpgLayer({
                     played: combatNote.note, candidatesInWindow: inWindow.length,
                     nearestSlime: { idx: nearest.idx, note: nearest.sl.note, deltaMs: Math.round(nearest.delta) },
                 });
-                setWiggle({ index: nearest.idx, startTick: tickRef.current });
+                // Bug fix (Han 2026-08-21): `startRawMs` (never-frozen clock) — same fix/rationale as
+                // `heroAttack`'s own trigger above, `framesSinceRaw`'s comment has the full explanation.
+                setWiggle({ index: nearest.idx, startRawMs: rawTRawMsRef.current });
             } else {
                 // #693 round 8 (Han: "als personage een critter slaat kost dat -1/2 punt, die gaat dood"):
                 // a note played during silence — BEFORE falling through to the generic "extra note"
@@ -1758,8 +2053,10 @@ export default function SheetRpgLayer({
             setJudgments((l) => [...l, { id: judgmentIdRef.current++, category, startTick: tickRef.current, lane: 'bass' }]);
         if (bassCombatEvent.type === 'hit') {
             // ANY note (treble or bass) makes the hero attack — same shared cooldown as combatNote above.
-            if (!heroAttackRef.current || (tickRef.current - heroAttackRef.current.startTick) * INTERVAL_MS >= ATTACK_CYCLE * geomRef.current.frameMs) {
-                setHeroAttack({ startTick: tickRef.current });
+            // Bug fix (Han 2026-08-21): `startRawMs`/never-frozen clock — same fix as the combatNote
+            // effect's own trigger above (`framesSinceRaw`'s comment has the full rationale).
+            if (!heroAttackRef.current || (rawTRawMsRef.current - heroAttackRef.current.startRawMs) >= ATTACK_CYCLE * geomRef.current.frameMs) {
+                setHeroAttack({ startRawMs: rawTRawMsRef.current });
             }
             const s = bassSlimesRef.current[idx];
             const { x } = sideScrollX(s.beat, tickRef.current);
@@ -1793,8 +2090,8 @@ export default function SheetRpgLayer({
             else setKilledCount((k) => Math.max(k, ...finished.map((d) => d.index + 1)));
             setDyingList((l) => l.filter((d) => framesSince(d.startTick) < DEATH_FRAMES));
         }
-        if (heroAttack && framesSince(heroAttack.startTick) >= ATTACK_CYCLE) setHeroAttack(null);
-        if (wiggle && framesSince(wiggle.startTick) >= WIGGLE_FRAMES) setWiggle(null);
+        if (heroAttack && framesSinceRaw(heroAttack.startRawMs) >= ATTACK_CYCLE) setHeroAttack(null);
+        if (wiggle && framesSinceRaw(wiggle.startRawMs) >= WIGGLE_FRAMES) setWiggle(null);
         // #863: `tick` state is gone — `tickRef.current` is the freshest available value at this
         // (now-throttled) render, same reasoning as `framesSince` above.
         if (judgments.length && judgments.some((j) => (tickRef.current - j.startTick) * INTERVAL_MS > JUDGMENT_MS)) {
@@ -1839,7 +2136,7 @@ export default function SheetRpgLayer({
             // #688: back to the same window the hit-matching effect above uses (kept in exact sync so a
             // note can't expire on a different schedule than the one it was gradeable under).
             const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
-            const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+            const elapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);   // #1102: tempo-normalized
             slimesRef.current.forEach((sl, idx) => {
                 if (resolvedRef.current.has(idx)) return;
                 if (elapsedMs > (sl.beat + bos) * bMs + bMs * MUCH_TOO_BEATS) {
@@ -1919,7 +2216,7 @@ export default function SheetRpgLayer({
     // narrow on purpose (wiggle is short-lived/rare, not worth its own imperative ref plumbing, per the
     // ticket's point 8 rationale).
     if (wiggle) {
-        const wf = framesSince(wiggle.startTick);
+        const wf = framesSinceRaw(wiggle.startRawMs);
         wiggleRef.current = { index: wiggle.index, wdx: wf >= 0 && wf < WIGGLE_FRAMES ? Math.sin(wf * 3.2) * 4 * (1 - wf / WIGGLE_FRAMES) : 0 };
     } else {
         wiggleRef.current = null;
@@ -1927,7 +2224,7 @@ export default function SheetRpgLayer({
     // hero: during the first 3 frames of an attack show the LAST 3 attack frames (3,4,5); else idle loop.
     let heroAnim = idleAnim, heroFrame = gFrame % idleAnim.frames;
     if (heroAttack) {
-        const e = framesSince(heroAttack.startTick);
+        const e = framesSinceRaw(heroAttack.startRawMs);
         if (e < ATTACK_SHEET_FRAMES) { heroAnim = ATTACK; heroFrame = ATTACK_SHEET_START + e; }
     }
     // the doll only needs to re-render when its FRAME changes (every frameMs), not every fast tick.
@@ -2025,8 +2322,8 @@ export default function SheetRpgLayer({
     // already reached via its own `setAttribute` calls. Same class of bug CLAUDE.md §6 already bans for
     // `opacity` ("React re-renders will overwrite inline style set by rAF"): JSX props and the rAF loop's
     // `setAttribute` both target the same DOM attribute, so JSX must never keep re-asserting a live value.
-    // Now reads `frozenScrollPxRef` — written ONCE per wave by the `[notesKey, scrollStartTime]` effect
-    // above (the only place `waveStartRef` changes), untouched by any later frameTick render. Its JSX
+    // Now reads `frozenScrollPxRef` — written ONCE per wave by the `[levelWaveIndex, scrollStartTime]`
+    // effect above (the only place `waveStartRef` changes), untouched by any later frameTick render. Its JSX
     // value therefore never changes after the wave starts, so React never touches this attribute again —
     // the rAF loop owns 100% of the ongoing motion, uninterrupted.
     const scrollPx = frozenScrollPxRef.current;
@@ -2042,10 +2339,13 @@ export default function SheetRpgLayer({
     // song (laatste maatstreep) de hit zone bereikt"): fires `onSongEnd` once the FINAL barline's rendered
     // X (finalBarX, translated by the same -scrollPx everything else in the scrolling group uses) reaches
     // the strike line — not when the last note/wave resolves, which can be measures earlier. `firedRef`
-    // guards against re-firing every tick once past the line; reset whenever the melody changes (a fresh
-    // level start/replay gets a fresh final barline to wait for).
+    // guards against re-firing every tick once past the line; reset on a wave change (#867 rework round 4:
+    // was keyed on the melody's own note content, which now changes on every JIT background block append
+    // for a continuously-generated level — `levelWaveIndex` is the correct "did combat actually advance"
+    // signal instead; harmless either way since `onSongEnd` itself is gated on `pendingSongEndRef`, only
+    // ever true for the level's true final wave).
     const songEndFiredRef = useRef(false);
-    useEffect(() => { songEndFiredRef.current = false; }, [notesKey]);
+    useEffect(() => { songEndFiredRef.current = false; }, [levelWaveIndex]);
     useEffect(() => {
         if (!sideScroll || finalBarTick <= 0 || songEndFiredRef.current) return;
         // Layout fix (Han 2026-08-18): must use the SAME `strikeLineX` as everything else in this file
@@ -2059,7 +2359,7 @@ export default function SheetRpgLayer({
         // by the time this effect body runs — recompute it here inline from `tickRef.current`, using the
         // EXACT SAME formula as the render body's `scrollElapsedMs`/`scrollPx` above (§6c: same arithmetic,
         // just re-evaluated at the freshest possible moment instead of trusting a render-scoped closure).
-        const freshScrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+        const freshScrollElapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);   // #1102: tempo-normalized
         const freshScrollPx = beatMs > 0 ? (freshScrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
         if (finalBarX - freshScrollPx <= strikeX) { songEndFiredRef.current = true; onSongEnd?.(); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2106,7 +2406,37 @@ export default function SheetRpgLayer({
     //    shown only in the debug layer below.
     //  - `noteStaffContentReal`: ONLY even-measure real NOTES (natural rests are already drawn by the layer
     //    above — showing them again here would double-draw) — wrapped in a debugMode-only opacity.
-    const isOddMeasure = (offset, measureLengthSlots) => (Math.floor(offset / measureLengthSlots) + 1) % 2 === 1;
+    //
+    // FLAGGED AS PARTIALLY STALE (Han 2026-08-25, found while fixing the odd/even-parity bug below): this
+    // paragraph's premise — App.jsx's `restifyOddMeasures` collapsing the call measure at generation time,
+    // leaving the response as an untouched "natural mix" — describes the ORIGINAL one-shot Level 9 design.
+    // #867's later rework moved the call/response rest-collapse into JIT generation itself
+    // (`generateLevel9CallResponseBlock.js`'s `collapseToCallRests`, invoked per-block, no longer a
+    // whole-melody post-process) — `restifyOddMeasures` is no longer what produces this data. The DUAL-LAYER
+    // split described here (rest-guide always visible, real pitch debug-only) is still exactly what's
+    // wanted per Han's 2026-08-25 confirmation (call-response is ear-training — pitches stay hidden in BOTH
+    // halves outside debug mode), so this mechanism itself was kept, not removed — only its call/response
+    // BOUNDARY determination (`isOddMeasure`, now `isCallMeasure` below) was wrong for `groupMeasures > 1`.
+    // Bug fix (Han 2026-08-25 UAT, Level 11/letter e: "het gebeurt altijd, in de oneven maten... die
+    // [even/oneven-check] werkt voor blokken van 1, maar nu zijn het blokken van 4"): raw (measureIndex+1)
+    // % 2 parity assumes every SINGLE measure alternates call/response — true only when a call/response
+    // group is exactly 1 measure. For a 2-measure group (letter e), the cycle is [call,call,response,
+    // response] — measure index 2 (1-based "3", the FIRST response measure) is still ODD by raw parity,
+    // so the old check misclassified it as "still the call" and let its real pitch pass straight through
+    // into the ALWAYS-VISIBLE layer below instead of being suppressed like the rest of the response —
+    // happening on EVERY cycle, exactly matching "het gebeurt altijd, in de oneven maten". Fixed by
+    // reusing the SAME cycle math `computeCallResponseLabel` already uses for the #1155/#308 labeling
+    // fix (§6c — one source of truth for "which half of its cycle is this measure in", not two): `pass`
+    // is 1 for the call half, 2 for the response half, for ANY group size. `groupMeasures` falls back to
+    // 1 (byte-identical to the old parity check) when the level doesn't set `callResponseMeasures`.
+    // Renamed from `isOddMeasure` to `isCallMeasure` — the old name was already misleading before this
+    // fix (a "response" measure IS "odd" for any group size but 1), the exact kind of stale-name trap
+    // CLAUDE.md flags for `restifyOddMeasures`'s own history ("despite the name now targeting even
+    // measures") — name it after what it actually answers instead of repeating that mistake.
+    const isCallMeasure = (offset, measureLengthSlots) => computeCallResponseLabel({
+        barlineOrdinal: Math.floor(offset / measureLengthSlots),
+        groupMeasures: callResponseGroupMeasures ?? 1,
+    }).pass === 1;
     // Bug fix (Han 2026-08-06, "level 10: de wizardnoten zijn zichtbaar, die moeten onzichtbaar zijn"):
     // for a Mixed level, only WIZARD-type-block notes get the Level-9 hide/reveal treatment below —
     // Slime-type-block notes (a normal, uncollapsed melody) must stay always visible, unchanged.
@@ -2120,8 +2450,8 @@ export default function SheetRpgLayer({
             notes: notes.map((n, i) => {
                 if (n === 'c' || offsets[i] == null) return n;
                 if (!wizardMeasure(offsets[i], mls)) return n;  // Slime-block note (Mixed only): always visible
-                if (isOddMeasure(offsets[i], mls)) return n;    // odd measure: already the forced whole-rest
-                return n === 'r' ? n : 'c';                     // even measure: keep natural rests, hide real notes
+                if (isCallMeasure(offsets[i], mls)) return n;   // call half: already the forced whole-rest
+                return n === 'r' ? n : 'c';                     // response half: keep natural rests, hide real notes
             }),
         };
         return (
@@ -2133,7 +2463,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode, callResponseGroupMeasures]);
     const noteStaffContentReal = useMemo(() => {
         if (!((isWizard || isMixed) && sideScroll && scrollNotationClipped && scrollNotationClipped.melody)) return null;
         const mls = scrollNotationClipped.measureLengthSlots || 48;
@@ -2143,8 +2473,8 @@ export default function SheetRpgLayer({
             notes: notes.map((n, i) => {
                 if (n === 'c' || offsets[i] == null) return n;
                 if (!wizardMeasure(offsets[i], mls)) return 'c'; // Slime-block note: already shown in Rest layer
-                if (isOddMeasure(offsets[i], mls)) return 'c';   // odd measure: nothing extra (rest already shown)
-                return n === 'r' ? 'c' : n;                      // even measure: reveal only the real notes
+                if (isCallMeasure(offsets[i], mls)) return 'c';  // call half: nothing extra (rest already shown)
+                return n === 'r' ? 'c' : n;                      // response half: reveal only the real notes
             }),
         };
         return (
@@ -2156,7 +2486,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode, callResponseGroupMeasures]);
     // non-Wizard/non-Mixed levels keep the original single unmodified layer.
     const noteStaffContent = useMemo(() => {
         if (isWizard || isMixed) return null;
@@ -2540,7 +2870,9 @@ export default function SheetRpgLayer({
                 };
                 // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
                 const live = freezeOnce(frozenCritterPropsRef.current, c.key, () => {
-                    const gFrame = Math.floor(p.ff / 4) % 1000;   // slow, gentle idle cycle (not the slime's walk cadence)
+                    // #1097 (Han 2026-08-22): same cadence as slime/hero idle now, not an artificial 1/4 rate
+                    // — see the imperative hot-path update above for the matching change + rationale.
+                    const gFrame = Math.floor(p.ff) % 1000;
                     return { x: p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, y: slimeY, frame: gFrame };
                 });
                 return <Critter key={c.key} ref={liveCritterRef} x={live.x} y={live.y} variant={c.variant} frame={live.frame} />;
