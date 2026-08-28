@@ -7,6 +7,297 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-27 — ✅ Bestiary: nieuwe entries (Carriage, Coachwoman, Ferryman)
+
+Han dropte nieuwe sprites:
+- `public/ASSORTED/characters/char_with_porttrait/carriage/` — `GandalfHardcore Carriage sheet.png`
+  (2176×384, rijen: walk/run/graze/idle), `GandalfHardcore Coachwoman sheet.png` (512×128, rijen:
+  idle/walk), `GandalfHardcore Carriage Top Layer sheet.png` (2176×384, overlay om karakters ACHTER
+  de bovenkant van de wagen te tekenen — geen los wezen), `64x64 Portrait.png`.
+  - Carriage tags: other, townsfolk, worker, move — kijkt naar rechts.
+  - Coachwoman (portret hoort bij haar): tags human, townsfolk, worker, move — kijkt naar links.
+- `public/ASSORTED/characters/char_with_walk/Ferryman.png` (480×256) — tags Humanoid, townsfolk,
+  on water, undead, move — kijkt naar rechts. 1 animatie (alle frames): float.
+
+Open (interview loopt): exacte frame-groottes (sheets delen niet netjes op 64×64), wat te doen met de
+Top Layer sheet in de bestiary, of het gedeelde portret alleen naar Coachwoman moet, en of "on water"
+een nieuwe tag wordt. Daarna: `bestiaryMetadata.json` + evt. FRAME_OVERRIDES/labels/FACING in
+`scripts/generate-bestiary-manifest.mjs`, dan beide generators draaien.
+
+## 2026-08-27 — 🐞 Doc audit: dubbele §-nummers (§328/§329/§330) door parallelle sessies, opgelost
+
+Bij het schrijven van #1162 Fase 9 (WebGL-tekenlus-consolidatie) bleek `docs/architecture.md` §328/§329/§330
+DUBBEL vergeven: één set door deze sessie (rAF-consolidatie: real-hardware trace, useFrameLoop-hook,
+SheetRpgLayer-migratie), en onafhankelijk daarvan een andere set door dit "UI overhaul"-traject hieronder
+(wereld-als-home-view, integer world-scale + pixel-perfect layout) — vermoedelijk een parallelle sessie die
+niet van elkaars werk wist. Zelfde klasse fout als CLAUDE.md §1a's eigen "dubbele §38"-audit. Opgelost door
+de UI-overhaul-sectie te hernummeren naar §332/§333/§334 (die van deze sessie kwamen chronologisch eerder in
+het bestand te staan) — alle cross-references (hieronder, `worldLayout.js`, `RpgLevelPanel.jsx`) meegefixt.
+Geen inhoud gewijzigd, enkel nummers.
+
+## 2026-08-27 — ✅ FR: pixel-art piano in world-content-blok 2 (impl — wacht op UAT)
+
+Zie `docs/architecture.md` §341. `WorldPiano.jsx`: C4→C5. **Meet de container** en vult
+'m op de grootste GEHELE schaalfactor **per as onafhankelijk** (sx=⌊w/39⌋, sy=⌊h/38⌋).
+Witte toetsen met **1-gpx grijze tussenruimte**, notch-types `[2,3,4,2,3,3,4,1]` (buur-L
+= type 4, buur-R = type 2). Dark band + gouden pixelfont-**"Melody"** bovenaan. **Default
+wit** (kleuring = apart ticket). Speelbaar via `handleNoteInputCombat` + `instrument.start/stop`,
+Pressed-sprite tijdens aanslag. **Reflectie**: gespiegelde toetsen, onderkant tegen
+bovenkant toetsen, gradient 50%→0% (onder→boven). Assets → `src/assets/pixel-piano/`.
+Groen: lint 0, build, 995 tests. UAT: check zwarte-toets-x + felt-variant + band-hoogte.
+Tweaks (Han 2026-08-28): felt overlapt toetsen 1 gpx (geen gat); toets-gap =
+`ceil(sx/2)` CSS-px hairline; "Melody"-band **transparant** (reflectie zichtbaar erachter).
+Ronde 3-4 (Han 2026-08-28): **alle witte toetsen = `White1`** (geen notch-varianten); grijze
+"slot"-lijn ONDER elke zwarte toets pal over de witte toets i.p.v. sprite-notch; `GRAY` 50%
+donkerder (`#45474c`); zwarte toetsen 1 gpx omlaag; reflectie **altijd** gerenderd, onderkant
+tegen het vilt (`whiteH − feltOverlap + sy`), `to top`-gradient 50%→0%; **notenletters
+c d e f g a b c** op de witte toetsen, op **wereld-schaal N** (`max(7, 6·N)` px, `3·sy` omhoog
+van de onderrand) — was ongeschaald 6 px, te laag, bijna onzichtbaar.
+UAT: zwarte-toets-x-offsets, felt-variant, `BAND_H=9`/"Melody"-fontgrootte, reflectiezichtbaarheid.
+
+Ronde 5 (Han 2026-08-28) — twee sporen:
+- 🔨 **WorldPiano-intern (nu):**
+  - padding-grijs nog iets donkerder; **één uniforme padding** `PAD = min(pad_x, pad_y)` overal
+    (tussen witte toetsen, boven witte toetsen als grijze lijn, zwarte-toets-drop) — zelfde kleur,
+    zelfde hoogte/breedte.
+  - verticale stapel van boven naar onder: **weerspiegeling → onzichtbare paddinglijn → vilt →
+    grijze paddinglijn → witte toetsen**. Reflectie dus omhoog via de onzichtbare marge, niet meer
+    tegen het vilt geplakt.
+  - reflectie **reageert visueel op ingedrukte toetsen** (spiegel neemt `held` over — geldt ook
+    voor QWERTY/MIDI zodra spoor 2 er is).
+  - notenletters op **bestiary-formaat** (`13.72 · N` px, mag overlopen), nog iets hoger; **ook op
+    de zwarte toetsen** met Unicode ♯ (`c♯ d♯ f♯ g♯ a♯`), §5b.
+  - "Melody"-pixelfont **grid-locken**: font-size op integer-veelvoud van de font-designgrid,
+    integer-positie (geen flex-halve-pixel), text-shadow weg/zacht — anders altijd wat rand-alias
+    (browser rastert tekst altijd met AA; alleen grid-lock + integer-positie helpt).
+- ✅ **Spoor 2 — gedeelde input + labels (GO gekregen 2026-08-28):**
+  - ✅ `src/theory/scaleKeyLabel.js` — `scaleKeyDisplayPC(note, scale)`, gedeelde toonladder-bewuste
+    toetslabel-spelling. PianoView's `getNoteLabel` delegeert nu die tak (transpose/octave-wrapper
+    blijft van PianoView). WorldPiano gebruikt 'm → G♯ toont als A♭ in mol-toonaard. Smoke test.
+  - ✅ `src/hooks/useQwertyPiano.js` — gedeelde keydown/keyup + guards + blur-release + repeat-dedupe.
+    Mapping komt van `deriveQwertyScheme` (SSOT, §6d). WorldPiano gebruikt 'm; `qwertyActive` =
+    `qwertyKeyboardActive || 'auto'` (auto = fine-pointer device). PianoView's eigen listener blijft
+    voorlopig (draagt #990/#871 wrong-note-fixes die eigen UAT nodig hebben) — alleen de map is
+    gedeeld. Smoke test (3 cases).
+  - ✅ MIDI-visual: `App.midiHeld` state (display-only), doorgegeven → WorldPiano licht toetsen +
+    reflectie mee op. WorldPiano installeert NOOIT eigen `onmidimessage` (zou App's globale MIDI
+    stelen).
+- ⏳ **Rest van Spoor 2 — CSS-kleuring** die PianoView's scale-highlight matcht (tint-overlay +
+  `mix-blend-mode: multiply`, scale/colorScope vanuit App). Nog niet gebouwd — apart, gefocust
+  passje want "identiek aan pianoview" mag niet geëyeballd worden (§9k).
+- Vraag toets-breedte-in-cm: **niet betrouwbaar mogelijk** (CSS-cm = 96px/in print-fictie, geen
+  fysieke DPI-API, bewust niet ge-exposed). Enige route = eenmalige gebruikers-kalibratie tegen
+  bankpas/liniaal → px/mm in localStorage. Los tickettje indien gewenst.
+
+Ronde 6 (Han 2026-08-28) — ✅ WorldPiano-intern + tekstboxen:
+
+- ✅ tekstboxen (**alle**): `4·N` gpx interne padding — DialogueBox compact (`box-sizing:border-box`,
+  box blijft 256×64) + bestiary `--pill-pad`/inputs (`calc(--bpx*4)`). Was 0 / 1px.
+- ✅ "Melody" **geen weerkaatsing** — band staat nu bóven de reflectie in de stapel.
+- ✅ zwarte + witte toetsen **top-aligned** (`blackDrop` → 0).
+- ✅ stray grijze lijn onder vilt weg — witte-toets-naden zijn nu expliciete `<div>`s, geen
+  container-`background` (dat bloedde door de transparante spritetop).
+- ✅ padding nog een slag donkerder (`#3c3e43` → `#2f3135`).
+- ✅ label zakt `1·sy` bij ingedrukte toets.
+- ✅ zwarte-toets-letters omhoog (`bottom` `sy` → `2·sy`), en volgen nu de displaynames (toonladder).
+- ✅ reflectie-opacity: 0 vanaf halve toetshoogte (`REFL_H = ⌈WHITE_H/2⌉` band, mask over volledig
+  bereik).
+Groen: lint 0, build, 1001 tests (+6).
+
+Ronde 7 (Han 2026-08-28) — ✅ "gewoon een kopie van pianoview met pixel-art toetsen":
+
+- ✅ "Melody" tekst NIET verplaatst; reflectie staat nu `bottom:100%` (volledig bóven de band, in de
+  headroom) → geen weerkaatsing achter de letters, tekst blijft staan.
+- ✅ marge onder het vilt weg — grijze `PAD`-lijn + onzichtbare `PAD` verwijderd; vilt zit pal op de
+  toetsen. `NATIVE_H` 54 → 52.
+- ✅ zwarte-toets-letters zelfde bottom-offset als witte (`(down?3:4)·sy`).
+- ✅ reflectie-opacity 55% → **30%** (mask alpha).
+- ✅ **QWERTY-labels** (grijs, monospace bold, bóven de toetsnaam) zoals pianoview — `qwertyOn` only,
+  key uit `deriveQwertyScheme` reverse-map.
+- ✅ **CSS-kleuring** = pianoview `highlight`-scheme: tonic → `--white-key-color-tonic`, in-scale →
+  `--white/black-key-color-highlight`, als `mix-blend-mode:multiply`-overlay op de witte sprite;
+  enharmonisch-veilig via `getNoteSemitone`. Buiten-scale toetsen blijven blank.
+- 🔎 Labels: `scaleKeyDisplayPC` = exact PianoView's `getNoteLabel`-tak.
+Groen: lint 0, build, 1001 tests.
+
+Ronde 8 (Han 2026-08-28) — ✅:
+
+- ✅ **Label-bug gevonden**: `BLACK_KEYS.pc` was verzonnen (G♭). `generateAllNotesArray` is
+  `C D♭ D E♭ E F F♯ G A♭ A B♭ B` — een MIX (F♯ is kruis). Nu overgenomen → C-groot toont **F♯**
+  zoals pianoview. Test-case toegevoegd.
+- ✅ "Melody": reflectie staat nu weer bóven het vilt en **achter** de band (`zIndex 1` < band
+  `zIndex 3`); band-achtergrond transparant → reflectie zichtbaar rondom, gouden tekst er OVERheen.
+  `text-shadow` weg. Mirror bevat de tekst zelf nooit.
+- ✅ padding = **1 CSS px zwart (`#000`), niet geschaald** (Han: "zie er uit als 1 px, niet 1
+  game-pixel"). Tussen witte toetsen + **flankerend aan weerszijden van elke zwarte toets**
+  (`left/right: -1`, mag over de witte toets).
+- ✅ zwarte toetsen `1·sy` px omhoog (`top: -sy`) → vallen over het vilt.
+- ✅ reflectie-opacity 30% (mask alpha, gepositioneerd `bottom: whiteH + feltH`).
+Groen: lint 0, build, 1002 tests.
+
+Ronde 9 (Han 2026-08-28) — ✅ ("Melody staat perfect <3", labels werken):
+
+- ✅ zwarte-toets-kleur was te donker — `multiply` op de bijna-zwarte sprite slokte de tint op.
+  Nu: witte toetsen `multiply`, **zwarte toetsen `screen`** → highlight-kleur leesbaar.
+- ✅ padding = **1 gpx op WERELD-schaal N** (`SEAM = max(1, round(scale))`), niet × de interne
+  piano-fill-schaal `sx`.
+- ✅ reflectie nog `1·sy` omhoog (`bottom: whiteH + feltH + sy`).
+- ✅ geen zwarte flank-lijn op het stukje zwarte toets dat over het vilt steekt — flank loopt nu
+  vanaf de witte-toets-bovenkant omlaag (`top: blackRaise`).
+Groen: lint 0, build, 1002 tests.
+
+Ronde 10 (Han 2026-08-28) — ✅ laatste puntje: zwarte rand ook langs de **onderkant** van elke
+zwarte toets (`left/right: -SEAM`, `bottom: -SEAM`, `height: SEAM`) → ⊐-vorm rond de onderste helft.
+Groen: lint 0, build, 1002 tests.
+
+Ronde 11 (Han 2026-08-28) — ✅ perfectionist-ronde:
+
+- ✅ zwarte toets: onderste `2·sy` faden naar 30% alpha (`mask-image`) → witte toets eronder
+  schemert erdoor ("weerkaatsing op de lip"). Naden/labels blijven buiten de mask.
+- ✅ klavier vult nu de **hele** blok-breedte: betere `sx` (echte naadbreedte verrekend) +
+  `transform: scaleX(w / boardW)` — geen gecentreerde gutter meer.
+- ✅ tekst op piano → **"Melody Hill"**.
+Groen: lint 0, build, 1002 tests.
+
+Ronde 12 (Han 2026-08-28) — ✅ range-klavier + verticale regels:
+
+- ✅ **Range-klavier** (`src/theory/pianoKeyboardWindow.js` + test): toont de toetsen van de
+  **actieve clef**-range. >1 octaaf → hele range (smallere toetsen). ≤1 octaaf → verbreed naar vol
+  octaaf: C–C, anders G–G, anders tonic→tonic+octaaf. Buiten-range toetsen **grijs**
+  (`rgba(128,128,128,0.62)` + labels 40%). QWERTY-map volgt het window.
+  `App` geeft `pianoRangeMin/Max` uit `(activeClef==='bass'?bass:treble)Settings.range`;
+  `noteAtOrdinal` nu geëxporteerd uit `qwertyScheme.js` (§6c).
+- ✅ **Harde regel**: keys ≥ **60 gpx** (`syFloor = ceil(60·N/27)`), `sy = max(1, syFloor, syFit)`.
+  Bij korte blok schuift de weerkaatsing + "Melody Hill" van bovenaf weg (`overflow:hidden`,
+  bottom-aligned).
+- ✅ **minder weerkaatsing**: `REFL_H` 14 → `round(27/4)≈7`.
+- ✅ **"Melody Hill" font ≥ toetsletters**: `melodyPx = max(5·sy, letterPx)`; `BAND_H` 9 → 12.
+- ✅ klavier vult hele blok-breedte (betere `sx` + `scaleX`), zwarte toets bottom-`2·sy` fade 30%,
+  tekst → "Melody Hill". (rondes 11–12 samengevoegd)
+Groen: lint 0, build, 1008 tests (+6).
+
+⏳ Open: pixel-perfecte tekst — advies gegeven (wordmark als PNG; dynamische tekst = gedeelde
+bitmap-font `<PixelText>` + atlas als apart ticket). Wacht op Han's go.
+- ✅ `scripts/render-font-atlas.mjs` (Playwright) → `docs/font-atlas.png`: **pixel-perfecte** glyph-atlas
+  van CelticTime / SandyForest / Bitfantasy. Verankerd op Han's x-hoogtes (5/5/6 dp, cap ~7), alle 3 op
+  een 16-eenheden em-grid → render 128px = **8 scherm-px per design-pixel**, geen drift. Per-design-pixel
+  raster + **rode baseline** per cel. Ontbrekende glyphs (accenten, ♯♭♮𝄫𝄪𝄞𝄢, `&`/`@`/`~` in Bitfantasy)
+  gedetecteerd via CSS-fallback-pixelvergelijk → **grijs, ingepast in de cel** zodat Han ze kan overtrekken.
+- ⏳ Volgende stap voor Han: glyphs tekenen in de atlas. Terug in de app = ofwel glyphs aan de `.ttf`
+  toevoegen (FontForge; `@font-face` in `App.css` / `DialogueBox.jsx` pakt zelfde bestandsnaam op),
+  ofwel een `scripts/inject-glyph.mjs` (pixel-map JSON → TTF via `opentype.js`, nog te bouwen indien
+  gewenst), ofwel de grotere `<PixelText>` + bitmap-atlas route.
+
+## 2026-08-27 — (oud) FR-interview piano
+
+Han dropte `src/assets/ASSET DROP/Pixel Piano 1.0/` (RagnaPixel, free/commercial license):
+- **Felt/** — 259×2 gpx strip (5 varianten), hoort bovenaan de toetsen (rode rand in ref-afb).
+- **Keys/** — witte toetsen 4×27 gpx, types 1-4 (1=geen zwarte buur, 2=buur L, 3=L+R, 4=buur R)
+  + `Pressed`-variant. Kleuren: Blue/Gray/Green/Old/Red/**White**/Yellow (White = plain look).
+- **Flats + Sharps/** — zwarte toetsen 3×16 gpx (+ Pressed), zelfde kleuren; "zonder kleur = White".
+
+Doel: 1 octaaf C4→C5 (8 witte toetsen) in **content-blok 2**, zoals de ref-afb. + spiegeleffect
+boven de piano (als content-blok 1 genoeg padding heeft).
+Witte-toets-type per noot: C=4, D=3, E=2, F=4, G=3, A=3, B=2, C5=1. Zwarte toetsen: C#,D#,F#,G#,A#.
+
+Interview loopt — vragen gesteld in chat 2026-08-27.
+
+## 2026-08-27 — ⏳ UI overhaul: RPG-wereld als primaire view (in stappen)
+
+Han: RPG-wereld wordt de eerste/hoofd-view. Fullscreen, geen AppHeader/titel/tab-nav
+bovenaan. Terug naar klassieke view moet kunnen. Doel op termijn: alles via de RPG
+(level starten, scales bekijken, ...). Landscape: RPG ~bovenste helft → max 3/4.
+Portrait: 2/3–3/4. Regel **4A** gekozen (min-breedte 320 gpx wint; portrait-hoogtecap
+mogelijk apart). Pixel-perfect = **integer** schaalfactor; onderbalk = vrije hoogte,
+slokt de rest op.
+
+**Stap 1 (✅ impl klaar — wacht op UAT)** — zie `docs/architecture.md` §332.
+- Nieuw `worldMode` (persist, default true) in `useAppUIState`. Boot → world.
+- `inWorld` = `worldMode && !level.active && characterScreen !== 'levelResult'`.
+- `inWorld` ⇒ `AppHeader` + subheader-rij niet renderen; nieuwe `WorldNavBar`
+  (`src/components/layout/WorldNavBar.jsx`) bovenaan het bottom-paneel: ÉÉN platte
+  rij, de 5 screen-knoppen (uit `AvatarSubHeader`'s geëxporteerde `SCREENS`) direct
+  naast [start level ⚔] [debug 🐛] [music view ♪ → klassieke oefenview root].
+- Klassiek → world: `AppHeader` hero-knop VERVANGEN door een world-knop (`Globe`,
+  `onEnterWorld`).
+- LEVEL start = world offload (bestaand `setCharacterScreen(null)`); na LEVEL terug
+  naar world via `handleCloseLevelResult` + level-picker `onClose`.
+- Single-view: bottom-paneel geforceerd `column` zolang `inWorld`.
+- Groen: lint (0 errors), build, 961 tests pass.
+- NIET in Stap 1: pixel-perfect scaling, portrait, keyboard/stats in world-paneel,
+  diegetische interacties.
+
+**Stap 2 (✅) — audit.** Zie `docs/architecture.md` §334. Er is al ÉÉN gedeelde
+schaalfactor (alle lagen × `zoom`); foliage-shader intern al game-pixel-net. Twee
+problemen kwamen van de *display*-schaal: (1) `zoom` niet-integer, (2) camera-pan niet
+op device-pixel gesnapt.
+
+**Stap 3 (✅ impl klaar — wacht op UAT).** Zie `docs/architecture.md` §334.
+- `src/utils/worldLayout.js` — `computeWorldLayout(w,h)` → `{scale, arrangement,
+  world, nav, content:{block1,block2}}`, elk blok een rect `{x,y,screenW,screenH,
+  gpxW,gpxH}` in viewport-coords. **Wereldhoogte FLEXT met N**: loop N=1↑, neem
+  eerste passende, bump zolang wereld-schermhoogte >TIE_PX (32) groeit ÉN wereld
+  ≥ SOFT_SQUEEZE_MIN (224 gpx). Dus 938×667 → N=2 (van 272→507px), maar 1920×1080
+  blijft N=3 vol-272 (niet N=4 @206). 4 band-tilings op oplopende hoogtekost:
+  v-row 64 / h-row 80 / **split** (c1 vol breed, dan [nav|c2] — Han's schets) 128 /
+  h-col 144 gpx. Blok-minima (0 padding): blok 1 ≥ 256×64, blok 2 ≥ 192×64 gpx.
+  Nav: 8 iconen, verticaal 1×8 (16×128) of 2×4 (32×64), horizontaal 8×1 (128×16);
+  `WorldNavBar` legt ze in exact dat grid. 27 unit-tests.
+- Conversatiebox (`RpgLevelBottomPanel`→`DialogueBox`) rendert nu op **level-schaal N**
+  (`transform: scale(N/2.5)`, gemeten native, geclamped tot het blok). `DIALOGUE_SCALE`
+  geëxporteerd.
+- Debug-tint: blauw (`0.18`) vult alleen de SLACK rond de gecentreerde min-rect
+  (256×64 / 192×64 gpx) — de min-rect zelf blijft doorzichtig, dus min-size vs
+  extra ruimte visueel onderscheiden.
+- **Bestiary in world mode = world-schaal + pixel font.**
+  - creature-preview op `worldScale = worldLayout.scale` (i.p.v. `PREVIEW_SCALE`).
+  - navigatie: world sub-screens renderen nu de pixel-`WorldNavBar`-BLOK (scale +
+    `cols`/`rows` uit `worldLayout.nav`), niet de 52px-rij, in 1-gpx-padded wrapper.
+  - nav: `computeWorldLayout` **prefereert een horizontale strip BOVEN de content**
+    (h-row/h-col) zodra de volle (of licht-gesqueezde ≥224) wereld nog past met de
+    extra 16 gpx — "als er genoeg ruimte is boven content, iconen erboven". Alleen bij
+    te weinig hoogte → **verticale kolom NAAST de content** (v-row/split), volle
+    bottom-area-hoogte, iconen `space-evenly` verticaal gespreid. Horizontaal = volle
+    breedte, `space-evenly`. Sub-screens forceren altijd horizontaal.
+  - tekst: `.bestiary-pixel` class + `--bpx` → `CharacterCreator.css`: font
+    **`'BestiaryPixel'`** (normal = **CelticTime**, italic = **SandyForest**, bold =
+    **Bitfantasy** — `@font-face` split in `App.css`), font-size `calc(--bpx*13.72)`
+    (~10 gpx glyph). Knoppen/tags/inputs: **letterlijke `1px` padding + `line-height:1`**
+    → knop = 1 glyph hoog + 2px. `PILL_STYLE.padding = var(--pill-pad, 2px 8px)` +
+    `lineHeight:1`; klassiek onveranderd. `worldScale` via App→TabView→`BestiaryBottomPanel`.
+  - **conv box**: `DialogueBox` krijgt `scale`/`textCols`/`compact` props; world mode
+    `scale=N`, `textCols=192`, `compact` → box **exact `(64+192)·N` = 256 gpx breed ×
+    64 gpx hoog**, 0 tekst-padding, frame als inset `box-shadow` (0 layout). Past exact
+    in blok 1. **AUTO-toggle weg**. Level-result-caller ongewijzigd (2.5× + border + AUTO).
+  - `OscillatingText`: elk **woord** in een `white-space:nowrap` `inline-block`-groep
+    (letters-spans erin) → regel breekt alleen bij spaties, nooit midden in een woord
+    ("y⏎ou know"). Tests bijgewerkt.
+  - klassieke view volledig ongewijzigd.
+- App.jsx: `worldLayout` memo; top-sectie = `world.screenH` + `overflow:hidden`;
+  `RpgLevelPanel` in crop-shift wrapper (`bottom: -(bottomCrop·N)`, hoogte 272·N)
+  met `worldScale={N}`; hele bottom-sectie in world-level = **`<WorldBottomArea>`**
+  (nav + 2 blokken; **conversatie = blok 1** via `RpgLevelBottomPanel`; blok 2
+  gereserveerd).
+- `RpgLevelPanel`: `zoom = worldScale ?? dynamicZoom` (integer wint); interim
+  `size.w/320`-clamp weg; tap-to-move `/ZOOM` → `/zoom` bug gefixt.
+- `WorldNavBar`: `scale` + `orientation` props → 16×16 gpx bare-icon knoppen,
+  horizontaal of verticaal gestapeld. Han vervangt icoontjes later met pixel art.
+- `ForegroundFoliageLayer`: `uScreenPos`/`uSizePx` → hele device-pixels (§327 finding 2).
+- debug: `WorldLayoutDebugFrames` — kaders + gpx-dims + crop; nav ↔/↕; blok 1 = "conversation".
+- Groen: lint (0 err), build, 984 tests.
+- NIET nu (Stap 3b): blok-2-content (klavier/stats); DOM-lagen camera-transform
+  device-px snappen; portrait-tuning.
+
+**Wisp/Slime-interactie (✅ impl — wacht op UAT).** Zie `docs/architecture.md` §336.
+- Correcte wisp: `findVariantByUrl(WISP_URL)` (= zelfde `Wisp.png` als het portret),
+  fallback `findCreatureByName('Wisp')`.
+- **16×16 gpx** klik-zone (`EntityHitZone`) i.p.v. de hele sprite-box; geankerd zoals
+  de sprite (mid-onder grounded / center-hover flying); **oranje overlay in debug**.
+- Toets **Enter/F/Spatie**: dialoog open → volgende (`advanceDialogueRef` →
+  `handleTextClick`); anders → dichtstbijzijnde wisp/slime binnen **48 px**
+  (`NPC_INTERACT_RANGE`) → start gesprek. Genegeerd tijdens typen in een veld;
+  Spatie `preventDefault`.
+
 ## 2026-08-14 — ⏳ Nieuwe CR's (interview loopt) — 4 losse features
 
 Han, terwijl #988's WAV-conversie op de achtergrond draaide:
@@ -5222,3 +5513,1169 @@ Han: "noem het volume dat je voor applaus gebruikte ppp. de windvlaag mag volume
 
 Geverifieerd: `npm run test:run` (846 passed), `npm run lint` (0 errors), `npm run build` (clean).
 Niet live getest. Zie architecture.md §274.
+
+## 2026-08-20 — ✅ Nieuwe town-crier + blacksmith_f sprites: work-animatie, 2-maten-loting, notenwissel
+
+Han dropte nieuwe sprites (Town crier.png/json, blacksmith_f.png/json) met een echte idle+actie-split.
+Interview (4 vragen, zie transcript): (1) de nieuwe "rol elke 2 maten (50%), speel 2 maten" regel geldt
+voor ALLE workers met idle+work-achtige animatie (Town crier's Ring, blacksmith_f's Work, EN Blacksmith
+Slow's bestaande `hit` — laatste triggert nu op frame 11 i.p.v. frame 8); (2) de work/ring-animatie
+LOOPT om de 2 maten te vullen (geluid vuurt elke herhaling); (3) blacksmith_f wordt een "Female" variant
+van bestaande creature "Blacksmith Fast" (niet een losse creature, niet een vervanging); (4) noten
+gewisseld — Town crier G6, Blacksmith Fast G5 (was G5/G6).
+
+1. **✅ Assets verplaatst** — blacksmith_f.png/json + Town crier.png/json van `ASSET DROP/` naar
+   `public/ASSORTED/characters/char_passive/` (Town crier overschrijft de oude 640×64/10-frame versie
+   met de nieuwe 960×64/15-frame Idle+Ring versie; blacksmith_f is een nieuw bestand).
+2. **✅ `scripts/generate-bestiary-manifest.mjs`** — nieuwe BASE_OVERRIDES-regel (blacksmith_f.png ->
+   base "Blacksmith Fast", variant "Female"); metadata-lookup nu variant-aware (`Base::Variant`
+   compound-key EERST geprobeerd, anders terugval op de bestaande base-only key) — nodig omdat
+   `addedAnimations` anders óók op de bestaande Plain-variant (het roster-sheet-idle) terecht zou komen.
+3. **✅ `bestiaryMetadata.json`** — "Town crier" (Idle 5 cellen / Ring 10 cellen) en "Blacksmith
+   Fast::Female" (Idle 5 cellen / Work 5 cellen) toegevoegd; manifest geregenereerd (diff bevestigd
+   beperkt tot exact deze 2 creatures, 108 insertions/2 deletions).
+4. **✅ `useWorkerHitState.js`** — herschreven: de oude 'idle-triggers' (altijd-aan) en 'random'
+   (per-tel kans, natuurlijke-lengte hit) modes vervangen door ÉÉN 'measure-random'-vormig mode: rol op
+   elke `petFrame % windowFrames === 0` grens (windowFrames = `measures * timeSignature[0] *
+   FRAMES_PER_BEAT`, dus LIVE timeSignature, niet een vaste 4/4 — CLAUDE.md §6c), en bij succes de
+   work-animatie LOOPEN tot het venster vol is, geluid op elke `elapsed % workLen` match in
+   `hitFrameIndices` (array, niet één index — nodig voor Town crier's frame 1 ÉN 6).
+5. **✅ `RpgLevelPanel.jsx`** — `workerNpcs`-roster bijgewerkt (alle 3 geluid-workers op het nieuwe
+   hitConfig-shape, Blacksmith Fast krijgt `variant: 'Female'` mee aan `findCreatureByName`,
+   `timeSignature` doorgegeven aan `WorkerNpcSlot`/de hook).
+6. **✅ Nieuwe test** `src/hooks/__tests__/useWorkerHitState.test.js` (3 tests: stil bij hitConfig=null,
+   blijft idle bij mislukte loting, wisselt naar work + vuurt elke loop-herhaling + terug naar idle na
+   het venster).
+
+**Aanname, gevlagd (niet bevestigd in-game):** Blacksmith Slow's hitFrameIndex gelezen als natuurlijk-
+celnummer (zelfde conventie als de originele "cell 8" -> index 3, §275) — cel 11 -> array-index 6 in
+`[5,6,7,8,9,10,11,12,1,2]`. Corrigeer als dit fout blijkt.
+
+Geverifieerd: `npm run test:run` (851 passed, 3 nieuw), `npm run lint` (0 errors), `npm run build`
+(clean). Niet live getest — Han's eigen in-game check nodig voor de bel/hamer-timing en de 50%-loting.
+Zie architecture.md §282.
+
+## 2026-08-20 — ✅ Blacksmith trio hernoemd/gekleurd + 'audio' bestiary-tag/preview + Archer-pijl bugfix
+
+Han: "ik zie mijn nieuwe files niet gebruikt van blacksmith en blacksmith f" / "waar zijn de kleurvarianten
+van blacksmith fast... 3 kleuren" / "noem blacksmith fast -> blacksmith man (3 kleuren), en voeg blacksmith
+woman toe. De laatste blacksmith heet gewoon blacksmith (SSW)." / "ik wil in de bestiary ook de
+animatie-audio horen. voeg een tag toe: audio" / "bug: de archer is zijn pijl kwijt".
+
+Interview (2 vragen): (1) de 3 kleuren zitten op characters sheet 5/6.png — bevestigd via pixel-crop +
+visuele vergelijking (rij1/col5-9 is dezelfde hamerende pose in 3 kleuren); (2) Blacksmith Woman wordt een
+LOSSE creature (niet langer een variant van Blacksmith Man, corrigeert de vorige ronde).
+
+1. **✅ Blacksmith (SSW)** — nieuwe ASSET DROP-sprite (960×64, schone Idle 5/Work 10, zelfde opzet als
+   Town crier) vervangt de oude handgemaakte 12-cel hamer-grid-hack. "Hit op frame 11" nu ondubbelzinnig
+   gelezen tegen DEZE sheet's eigen aseprite-framenummering -> Work-lokale index 5 (corrigeert de vorige
+   ronde's index-6-gok tegen de oude grid, die nu vervangen is).
+2. **✅ Blacksmith Man** (was Blacksmith Fast) — 3 echte kleurvarianten (Plain/Grey/Blue) via een
+   gerichte extractie van precies rij1/col5-9 op sheets 5 en 6 (niet de volledige onbekende rosters van
+   die sheets — §676's scope-grens blijft staan).
+3. **✅ Blacksmith Woman** (blacksmith_f) — nu een STANDALONE creature (eigen bestiary-kaart), niet langer
+   een "Female"-variant van Blacksmith Man.
+4. **✅ `src/model/workerSoundConfig.js`** (nieuw) — één bron van waarheid voor welke workers geluid
+   hebben en op welk frame, gedeeld door de generator (audio-tag), het level-roster (echte playback) en de
+   nieuwe bestiary-audio-hook. De eerdere `Base::Variant`-metadata-lookup-fallback (vorige ronde) is
+   teruggedraaid — met Blacksmith Woman als losse base is die niet meer nodig (§7: geen overbodige
+   complexiteit laten hangen).
+5. **✅ 'audio'-tag + bestiary-preview geluid** — nieuwe tag naast portrait/move/attack/ranged, afgeleid
+   uit `WORKER_SOUND_CONFIG` (geen los lijstje). Nieuwe hook `useBestiaryAnimationAudio.js` speelt het
+   geluid af terwijl je de Work/Ring-animatie bekijkt in de bestiary (op de bestiary's eigen 150ms-tick,
+   niet tempo-gebonden — dat was het nooit).
+6. **✅ Archer-pijl bug gevonden en gefixt** — `"Archer sheet"` -> `"Archer"` rename (§870) liep AL vóór
+   zowel de pijl-portret-koppeling als de geel/wit-swatch-override in dezelfde loop; beide matchten nog op
+   de oude naam en faalden dus stilletjes sinds die rename. 2 string-literals gecorrigeerd.
+7. **✅ Nieuwe test** `src/hooks/__tests__/useBestiaryAnimationAudio.test.js` (6 tests).
+
+Geverifieerd: `npm run test:run` (857 passed, 6 nieuw), `npm run lint` (0 errors), `npm run build` (clean).
+Eén onafhankelijke, pre-existing flaky test (generateLevel9CallResponseBlock) faalde 1x in de volledige
+suite, slaagde bij isolatie en bij een herhaalde volledige run (zelfde patroon als §273). Niet live getest.
+Zie architecture.md §284.
+
+## 2026-08-21 — 🐞 Bugfix: blacksmith_f (Blacksmith Woman) onzichtbaar — vergeten asset-file-list te regenereren
+
+Han: "blacksmith f niet zichtbaar in bestiary en ook niet in rpg-world" / "blacksmith (fka blacksmith
+slow): work animatie werkt niet".
+
+**Root cause gevonden (bug 1, bevestigd):** `blacksmith_f.png` bestaat wel fysiek in
+`public/ASSORTED/characters/char_passive/`, maar `src/model/assortedFileList.generated.js`
+(`bestiaryAssets.js`'s enige bron van "welke files bestaan er", sinds #955) was nooit geregenereerd nadat
+dat bestand als NIEUW bestand werd toegevoegd (§284) — `scripts/generate-assorted-file-list.mjs`'s eigen
+kopregel zegt expliciet "re-run after adding/removing/renaming any file", wat ik gemist heb.
+`buildCreatures()` (bestiaryAssets.js regel 33) skipt een manifest-entry STILLETJES (geen error) als er
+geen matchende URL is — vandaar onzichtbaar in zowel bestiary als rpg-world, zonder enige foutmelding.
+**✅ Gefixt:** `node scripts/generate-assorted-file-list.mjs` gedraaid — `blacksmith_f.png` toegevoegd (+2
+losse opgeruimde dubbele-download-bestanden die niet meer bestaan, onafhankelijke bijvangst).
+
+**Bug 2 (Blacksmith/SSW work-animatie):** metadata + de echte pixel-inhoud van het nieuwe
+`SSW/Blacksmith.png` (960×64, 15 frames) zijn beide geverifieerd correct (cells kloppen met de aseprite
+Idle/Work-tags, elk frame bevat echte hamer-content, geen lege cellen) — `SCANNED_CREATURES` resolvet
+"Blacksmith" met een geldige url + idle:5/work:10, identiek vóór en na de file-list-fix (dit pad bestond
+al, alleen de BYTES zijn overschreven). Geen code-bug gevonden. Sterk vermoeden: browser-cache — `public/`
+bestanden hebben geen cache-busting hash, dus een oude gecachte 256×192-versie op dezelfde URL zou de
+nieuwe Work-cellen (kolom 5-14) buiten de oude beeldgrenzen laten vallen. Kan hier niet live getest worden
+— Han: hard-refresh (Ctrl+Shift+R) en opnieuw checken; als het dan nog steeds niet werkt, graag opnieuw
+melden met wat je precies ziet (leeg vak? verkeerd frame? crash?).
+
+**Losstaand gevonden, NIET aangepast:** `bestiaryMetadata.json`'s "Town crier"-blok is via de live
+bestiary-editor gewijzigd (buiten deze sessie om) — rij 0 heeft nu `cells` overschreven naar dezelfde 10
+cellen als de Ring-animatie MET `newKey: "Ring"`, dus Town crier heeft nu geen Idle-animatie meer en TWEE
+identiek gelabelde "Ring"-animaties. Ziet er onbedoeld/kapot uit, maar ik weet niet wat de bedoeling was —
+laat het staan zoals gevonden; zeg het als dit gefixt moet worden.
+
+**Les voor volgende keer:** bij een NIEUW bestand (niet een content-overschrijving van een bestaand pad)
+onder `public/ASSORTED/characters/` of `fx/`, ALTIJD zowel `generate-assorted-file-list.mjs` ALS
+`generate-bestiary-manifest.mjs` draaien — de eerste stap was ik kwijtgeraakt.
+
+Geverifieerd: `npm run test:run` (857 passed, 1 skipped), `npm run lint` (0 errors), `npm run build`
+(clean).
+
+**Follow-up (Han: "please fix"):** de losstaande Town crier metadata-corruptie hierboven gefixt —
+`animOverrides.0` teruggezet naar de originele Idle-cellen (col0-4, `newKey` verwijderd); `addedAnimations`'
+eigen `ring`-entry (col5-14) was altijd al correct en ongewijzigd. Regenererd: Town crier heeft weer
+`idle:5`/`ring:10`, geen duplicaten meer. `npm run test:run` (857 passed), `npm run lint` (0 errors).
+
+## 2026-08-21 — 🐞 Bugfix: rpg-world debug-metronoom "klinkt als een geigenteller" (regressie)
+
+Han: "de rpg world metronoom klinkt als een geigenteller... veel te veel 'clicks' per seconde."
+
+**Root cause:** letterlijk dezelfde bug-klasse als de eerdere #RAM-level fix (2026-08-11, ook al "klinkt
+als een geigenteller" — toen via een instabiele `instruments`-referentie), nu via een ANDERE instabiele
+referentie: `setVolume` (`useInstruments.js`) is een plain arrow function, niet gememoized, opnieuw
+aangemaakt bij elke App.jsx-render — en App.jsx re-rendert ~60x/sec zolang de held beweegt. `setVolume`
+stond in `useDebugMetronome`'s effect-dependency-array, dus de hele rAF-click-loop brak af en herstartte
+bij elke render; elke herstart zet `lastBeatIndexRef` terug naar -1, en de eerstvolgende tick vuurt dan
+altijd een klik af (ongeacht of er echt een maatgrens bereikt is) — dus tot ~60 klikken/seconde i.p.v. 1
+per tel.
+
+**✅ Gefixt** (`src/components/character/useDebugMetronome.js`): `setVolume` nu via een `setVolumeRef`
+gelezen (zelfde conventie als de bestaande `instrumentsRef` net erboven), uit de dependency-array
+verwijderd. Bewust scoped tot dit bestand — `useInstruments.js`'s `setVolume` zelf niet aangepast (zou
+`useCallback` vereisen en raakt veel meer call-sites), dit is de kleinste fix die exact het gerapporteerde
+symptoom oplost.
+
+Geverifieerd: `npm run test:run` (859 passed, 1 skipped), `npm run lint` (0 errors/warnings op dit
+bestand), `npm run build` (clean). Niet live getest — Han's eigen in-game check nodig.
+
+## 2026-08-22 — 🐞 Bugfix: Level 3 (rubato) eindigde nooit — live gereproduceerd + opgelost met Playwright
+
+Han: "ok de cello-bug lijkt te werken. Maar! Nu eindigt het level nog steeds niet. Het gaat specifiek om
+level 3 (rubato)".
+
+Voor het eerst dit gerapporteerde-maar-niet-live-geteste type bug ECHT live gereproduceerd, in plaats van
+er weer statisch naar te gokken: dev server was al actief (Han's eigen sessie), Playwright (sinds #1095
+een dependency, nog nooit eerder hiervoor gebruikt) in een aparte headless-Chromium tab erbij, level 3
+gestart, en met QWERTY-toetsen door het level heen gespeeld terwijl console-logs werden opgevangen.
+
+**Root cause gevonden (bevestigd via tijdelijke debug-logging, daarna weer verwijderd):** `wavesForLevel()`
+rekende Level 3's aantal golven uit als `totalMeasures/numMeasures = 10/2 = 5`, in de veronderstelling dat
+er 5 aparte "golf compleet"-momenten zouden zijn. Maar `useLevelTrebleStream.js`'s JIT-generatie voor een
+gated level draait op haar EIGEN real-time klok, los van het tempo waarin de speler daadwerkelijk speelt
+(`loopForever`) — dus alle 20 noten van het level staan er al binnen enkele seconden, ruim voordat de
+speler ook maar de eerste "golf" heeft leeggemaakt. `killedCount`/`total` zijn allebei cumulatief voor het
+HELE nummer (nooit golf-gescoped) — dus er is maar 1 mogelijk "cleared"-moment: killedCount==total==20.
+`wave` gaat dan 0→1 en kan daarna nooit meer verder (niets te doden, niets te genereren) — `next(1) >=
+tw(5)` is nooit waar, het level blijft voor altijd hangen met een lege notenbalk.
+
+**✅ Gefixt** — `wavesForLevel` geeft nu gewoon `1` terug voor dit type level (via nieuwe gedeelde
+`isJitTrebleLevel()` in levels.js), i.p.v. de oude 5. Deze exacte "is dit level JIT-gedreven"-check bleek
+AL 2x apart heruitgevonden (useLevel.js, App.jsx) — samengevoegd tot 1 gedeelde predicate zodat dit soort
+onderlinge drift niet nog een keer kan gebeuren.
+
+**Live geverifieerd dat de fix werkt**: level 3 opnieuw volledig doorgespeeld (20/20 gedood) — het
+RESULT-scherm verscheen nu wél ("you got me!", stats, Opnieuw/Sluiten). Voorheen bleef de notenbalk voor
+altijd leeg.
+
+**Losstaand gevonden, niet gefixt (cosmetisch, apart ticket waard):** het RESULT-scherm toont "20/4 enemies
+vanquished" i.p.v. 20/20 — `onEnemyTotal` rapporteert het groeiende aantal correct (4, 8, ... 20) maar iets
+verderop lijkt alleen de EERSTE waarde (4) vastgehouden te worden.
+
+Geverifieerd: `npm run test:run` (863 passed, 1 skipped), `npm run lint` (0 errors), `npm run build`
+(clean). **Live geverifieerd via Playwright** — dit keer geen "niet live getest"-disclaimer nodig. Zie
+architecture.md §289.
+
+## 2026-08-25 — 🐞→✅ FALSE ALARM: metronome/visuele-timing misalignment was een hot-reload artefact
+
+Han (mid-conversatie, terwijl #1153/#1154 in uitvoering waren): "Sakura has a misalignement between the
+metronome and the perfect 'timing' visual position! This is a critical bug... The 'sceen' is about 1,5
+quarter note behind the metronome. The bug is consistend across songs (songs and random music)." Gemeld als
+optredend in een LEVEL (RPG scroll-scherm), nieuw sinds vandaag's wijzigingen.
+
+Voordat er blind in scroll/audio-scheduling-code gedoken werd (hoog-risico, timing-invariant-gevoelig
+gebied): gevraagd of het na een HARDE refresh (Ctrl+F5) nog steeds optrad. **Antwoord: weg na refresh** —
+dit was een Vite HMR-artefact (stale refs/state in een AL ACTIEF level, achtergebleven door de vele
+live-reloaded edits deze sessie aan SheetRpgLayer.jsx/App.jsx/useLevel.js), geen echte code-regressie.
+Geen actie ondernomen — CLAUDE.md §9k: nooit gokken/fixen op een ongeverifieerd symptoom als een goedkope
+check (hier: 1 vraag) het al kan uitsluiten.
+
+## 2026-08-25 — 🔨 Feature: level-mode letters G (Modulated) en H (Randomized Notes)
+
+Han interview (dit gesprek):
+- G scope: alle sideScroll levels (songs + procedureel).
+- G timing: EENMALIG gekozen bij levelstart, vast voor het hele level (niet per blok wisselend zoals
+  Level 11's decorativeWizard).
+- H formule: notesPerMeasure = totaal aantal noten / totaal aantal maten (afgerond).
+- H instellingen: gebruik ALTIJD het liedje's eigen generator-settings, override alleen notesPerMeasure/
+  variability(30)/randomizationRule('arp_group').
+
+Status: ✅ done. Live geverifieerd (Playwright): G op Level 1 -> "Level 1 Intro in C Dorian"; H op Sakura ->
+"Sakura in E In" (schaal ongewijzigd) met verse noten + akkoordlabel. Onderweg 1 echte bug gevonden+gefixt
+via live test (niet gegokt): H's eerste implementatie crashte op Sakura ("Invalid array length" in
+generateRhythmicDNA) omdat het liedje's sparse generator.trebleSettings standalone gebruikt werd i.p.v.
+gemerged op de volledige app trebleSettings state. npm run test:run 935/1, lint 0 errors, build clean. Zie
+docs/architecture.md §311. Kanban #1153/#1154 -> test, met notes+acceptance criteria.
+
+## 2026-08-25 — 🐞 KRITIEK: song call-response (d/e) — akkoorden/bas niet verdubbeld, end-of-song kapot
+
+Han (UAT op Sakura, call-response mode d/e — #1155/#1157 gebied): "de akkoorden (en dus de bas) in de mode
+D/E houden geen rekening met de herhalingen. Heb je nu de maatnummering gehardcoded in plaats van bestaande
+herhalingslogica te hergebruiken?? De lengte van het nummer is ook niet verdubbeld, dus opeens, precies
+halverwege het nummer, zijn de akkoorden 'op' (want niet herhaald) en verschijnt de 'end of song'
+maatstreep."
+
+Twee gerapporteerde problemen:
+1. Afspraak was dat het level ALTIJD stopt bij de end-of-song maatstreep — gebeurt niet.
+2. Het level gaat door NA end-of-song — animaties verdwijnen, geen akkoorden meer.
+
+Status: ⏳ nog te onderzoeken. Werkhypothese (nog niet bevestigd): `useLevelTrebleStream.js`'s
+`sliceSongCallResponseBlock`-pad (§306) verdubbelt de WEERGEGEVEN treble-inhoud correct (call+response per
+song-maat), maar `totalMeasures`/de akkoordprogressie (`loaded.chordMelody`) van het liedje zelf worden
+NERGENS op dezelfde manier verdubbeld — die blijven op de ORIGINELE (ongedubbelde) liedlengte staan, terwijl
+`normalizeLevel`'s `totalMeasures`-formule al voor `applyLevelVariant`'s d/e-override draait (dus kan de
+override 'm niet meer corrigeren). Han's harde vraag verdient een eerlijk antwoord in de architecture.md
+write-up: is er een aparte maatnummerings-mechanisme gebouwd i.p.v. de bestaande herhalingslogica
+(computeRepeatPass) uit te breiden? Moet root-cause-onderzoek uitwijzen, niet aannemen.
+
+## 2026-08-25 — 🔊 Twee audio-kwaliteitsverzoeken (smplr)
+
+Han: "Ik heb hier vroeger SMPLR 'gedownloaded' en sindsdien klinkt de sawtooth (wizard) heel 'hard'. Kun je
+onderzoeken hoe dat kan en het geluid terug wat minder 'hard' doen klinken? Mss bijv heel klein beetje soft
+attack en release?" + "bij noten direct na elkaar lopen de noten duidelijk in elkaar over. Specifiek voor de
+sawtooth en andere noten zonder release: stop 1/32 noot voor het einde, om overlap te voorkomen.
+(bijvoorbeeld D2q D2q klinkt als D2h.)"
+
+Status: ⏳ nog te onderzoeken/implementeren. Twee losse punten:
+1. Sawtooth (wizard) klinkt te hard sinds een smplr-herdownload — onderzoek instrument-config/envelope,
+   voeg kleine soft attack/release toe indien haalbaar zonder de synthese-engine zelf te herschrijven.
+2. Noten zonder release lopen in elkaar over bij opeenvolgende identieke noten (D2q D2q -> klinkt als D2h) —
+   fix: stop de noot 1/32e noot voor het nominale einde om overlap te voorkomen. Geldt specifiek voor
+   sawtooth en andere release-loze instrumenten.
+
+## 2026-08-25 — ✅ Bugfix: Sakura d/e — akkoorden/bas verdubbeld, totalMeasures gefixt
+
+Root cause bevestigd (niet aangenomen): `sliceSongCallResponseBlock.js`'s JIT-treble-verdubbeling was al
+correct, maar het liedje's akkoordprogressie (`loaded.chordMelody`, EENMALIG geladen, niet JIT-gegroeid)
+werd nergens verdubbeld, EN `lvl.totalMeasures` werd al berekend in `normalizeLevel` VOORDAT
+`applyLevelVariant`'s d/e-override ooit kon toeslaan — dus bleef op de originele (ongedubbelde) liedlengte
+staan. `useLevelBackingStream.js` (bas/cello) leest DIEZELFDE `totalMeasures` als bron van waarheid, dus 1
+fix (totalMeasures verdubbelen) lost bas ook op (Han's eigen "de akkoorden (en dus de bas)").
+
+**Nee, geen hardcoded maatnummering** (eerlijk antwoord op Han's scherpe vraag) — de LABEL-logica
+(computeCallResponseLabel, §307/308) was al correct en apart van dit probleem; de bug zat in een
+ONTBREKENDE uitbreiding (akkoorden/totalMeasures nooit verdubbeld), niet in een vervangende hardcode.
+
+Fix: nieuwe `doubleMelodyForCallResponse` (sliceSongCallResponseBlock.js) — verdubbelt een HELE melodie
+(akkoorden) voor call-response, ZONDER rest-collapse (akkoorden blijven hoorbaar/zichtbaar in beide
+helften — het is de doorlopende harmonische ondergrond, niet iets om op gehoor te raden). `totalMeasures:
+lvl.numMeasures*2` toegevoegd aan `applyLevelVariant`'s callResponseOverrides, alleen voor songId-levels.
+`useLevel.js`'s begin() geeft `callResponseGroupMeasures` door aan `handleLoadSong`.
+
+Live geverifieerd (Playwright): Sakura + letter e gestart, door het level heen gespeeld — maat 8.2/9
+tonen nog correct akkoordlabels (voorheen liepen ze rond maat 7 af, exact halverwege de 14 maten). 0
+console errors. Tests: 12 nieuwe in sliceSongCallResponseBlock.test.js, 2 nieuwe in levelVariants.test.js.
+npm run test:run/lint/build allemaal groen.
+
+## 2026-08-25 — 🐞 KRITIEK gevonden (bevestigd via directe code-probe): G's modulatie-algoritme is fundamenteel kapot tussen verschillend-gevormde modi
+
+Han (na live UAT van G op Sakura): "wat voor logica heb je gebruikt voor modulatie? Ik lijk voor elk level
+steeds dezelfde te krijgen... Ik zie ook nog dat de A een G wordt. Gebruik je de bestaande modulatielogica?
+Die zou al moeten bestaan: Toonladder -> hepta equiv (blue notes mappen) -> transponeren naar hepta equiv
+van target -> mappen op target (blue notes resolven)."
+
+**Bevestigd via directe probe (modulateMelody('In' op E -> Phrygian op E)):** A4->G4, maar OOK E4->D4 (de
+TOONSOORT ZELF verschuift weg!), F4->E4, B4->A4, C5->B4 — Elke noot schuift structureel weg. Root cause:
+`modulateMelody`'s `isHeptaHepta`-tak (vandaag pas gefixt voor #1156/#310, maar dat fixte alleen de
+REFERENTIE-TOONSOORT-OFFSET, niet dit) matcht een noot op zijn GRAAD-NUMMER in de bron's heptatonische
+referentie (bv. Lydisch-vorm voor "In"), en herinterpreteert dat GRAAD-NUMMER direct in de doel-schaal's
+EIGEN (anders-gevormde, bv. Frygisch) referentie. Graad 2 in Lydisch = een grote terts; graad 2 in Frygisch
+= een kleine terts — HETZELFDE graadnummer betekent een ANDER interval zodra bron en doel een andere VORM
+hebben. Mijn eigen tests van vandaag (§310) testten alleen gelijk-gevormde paren (diatonisch->diatonisch
+zelfde modus, "In"->"In" zelfde modus) — dus deze klasse bug werd niet gevangen.
+
+Han's eigen beschreven algoritme ("transponeren naar hepta equiv van target") suggereert een PURE
+TRANSPOSITIE (vaste halve-toonsafstand tussen referentie-toonsoorten) i.p.v. graad-hermapping — met de hand
+doorgerekend geeft DIE aanpak A4->G#4 (ook niet A). Beide interpretaties geven een resultaat dat waarschijn-
+lijk niet is wat Han verwacht (dat de toonsoort E zelf onveranderd blijft, bijvoorbeeld).
+
+Status: ⏳ NIET zelf een aanname doen over het juiste muziektheoretische algoritme — teruggekoppeld naar
+Han met concrete berekeningen, gevraagd om richting te geven i.p.v. te gokken (kost anders geld zonder
+garantie, CLAUDE.md §9k). Ook gevraagd: is "altijd dezelfde modus per level" een bug (had Han TRUE random
+per playthrough verwacht) of correct (huidige implementatie is bewust deterministisch geseed op lvl.id, om
+LevelStartSplash's preview en de daadwerkelijke levelstart nooit te laten verschillen).
+
+## 2026-08-25 — 🐞 De 1,5-maat timing-bug is TERUG na meerdere levels — "refresh" was geen robuuste fix
+
+Han: "Wacht eens even na een paar levels te testen komt de 1,5 maat bug terug. Ik vond 'het was gewoon
+refresh' ook niet robuust genoeg als oplossing." Eerdere conclusie (hot-reload-artefact, verdween na Ctrl+F5)
+was dus ONVOLDOENDE — het probleem is REPRODUCEERBAAR na verloop van meerdere levels binnen dezelfde sessie
+(niet alleen een eenmalig HMR-restje). Status: ⏳ nog te onderzoeken — ditmaal ECHT, geen aanname meer dat
+het vanzelf overgaat. Nog geen root cause. Prioriteit: hoog (net als de modulatie-bug hierboven), samen met
+Han af te stemmen welke van de openstaande punten eerst.
+
+Han's antwoorden op de 3 vragen: (1) modulatie-fix — AFGEWEZEN, "kijk goed in de codebase want er bestaat
+gewoon al een modulation algoritme" (ik moet dieper zoeken, niet zelf iets nieuws verzinnen). (2)
+determinisme — BEVESTIGD bug, Han wil ECHTE randomness per playthrough (niet steeds dezelfde modus per
+level). (3) timing-bug — "kijk eerder in de code wat het zou kunnen veroorzaken voor een gerichte
+diagnostiek te draaien" (eerst hypothese vormen via code-analyse, dan pas gericht live testen).
+
+## 2026-08-25 — 🐞 KRITIEK #1158: E In toont 5 voortekens i.p.v. 0
+
+Han (mid-conversatie, tijdens G-testen): "nu staan er bij E In 5 voortekens!!! Hoe kan dat nou? Want E
+Phrygian heeft 0 voortekens. De fout ligt niet aan het RPG level, maar wsl aan het doorgeven van
+hepta-equiv naar de accidental-berekening." Kanban-ticket #1158 aangemaakt (onder epic #1087, per Han's
+instructie), NOG NIET onderzocht/gefixt — alleen geticket zoals gevraagd.
+
+**Update — ✅ GEFIXT.** Geen codebug: `git diff` toonde dat Han zelf (nog niet gecommit) 5 pentatonische
+schalen' `diatonic`-veld had gewijzigd (Iwato/In/Insen/Hirajoshi/Egyptian pentatonic) zonder de bijbehorende
+`heptaRefIntervals`-arrays aan te passen — `diatonic` is een load-bearing lookup-key in
+`modeAdjustments[diatonic]`, geen vrijblijvend "lijkt op"-label. Per schaal geverifieerd (cumulatieve
+semitonen van heptaRefIntervals vergeleken met de 7 standaardmodi) en teruggezet naar de correcte waarde:
+Iwato->Phrygisch, In->Lydisch (deze veroorzaakte de -5), Insen->Mixolydisch, Hirajoshi->Aeolisch, Egyptian
+pentatonic->Ionisch. Een 6e schaal (Minor six pentatonic) GEFLAGD maar niet aangepast — matcht geen van de
+7 modi exact, onduidelijk wat juist is. E In geeft nu weer correct 0 voortekens. npm run test:run 944/1,
+lint 0 errors, build clean. Kanban #1158 -> test.
+
+**Correctie (Han): verkeerde richting.** Han: "ik zie dat ik de diatonic heb aangepast zonder de
+heptaRefIntervals aan te passen. Kun jij dat doen voor alle penta scales?" — dus NIET diatonic terugzetten
+naar de oude waarde, maar heptaRefIntervals AANPASSEN aan Hans nieuwe diatonic-waarden. Geverifieerd voor
+alle 6 penta-schalen (incl. de eerder geflagde Minor six pentatonic) dat hun eigen pitch-classes een exacte
+subset zijn van het diatonic-doel bij offset 0 — allemaal kloppend. Doorgevoerd.
+
+**Bonus: lost ook #1153 op, met NUL wijzigingen aan modulateMelody.** Na de data-fix: "In op E ->
+Phrygisch op E" laat nu alle noten (incl. de tonica) ONGEWIJZIGD — precies het verwachte resultaat. De 2
+eerdere mislukte pogingen om modulateMelody's ALGORITME te wijzigen waren dus de verkeerde diagnose — het
+was een DATA-probleem, niet een algoritme-probleem. Han had gelijk: "kijk goed in de codebase want er
+bestaat gewoon al een modulation algoritme."
+
+Documentatie toegevoegd bovenin scaleHandler.js (wat diatonic/heptaRefIntervals betekenen) + comment
+cleanup gedaan (mijn eigen verbose per-fix comments ingekort nu de algemene regel bovenaan staat), beide
+op Han's verzoek. Nieuwe regressietest in musicUtils.test.js. npm run test:run 945/1, lint 0, build clean.
+Zie docs/architecture.md §312. Kanban: #1158 -> test, #1153 -> impl (determinisme-bug nog open).
+
+## 2026-08-25 — ✅ #1153/#1154 follow-up round (5 items uit één UAT-bericht)
+
+Han meldde in één bericht 5 dingen tegelijk: (1) G nog steeds ALTIJD deterministisch (E Phrygian op
+Sakura) — wil ECHTE randomness per level-start; (2) G mag nooit naar de eigen "diatonic parent" van de
+schaal moduleren (In->Phrygisch is triviaal, zinloos als G-keuze); (3) G heeft opeens geen akkoorden/
+baslijn meer; (4) level-variant-letter moet blijven staan bij het wisselen van levelnummer, TENZIJ niet
+beschikbaar voor het nieuwe level (was: altijd resetten — bewuste omkering van eerdere UX-beslissing); (5)
+H genereert alleen de eerste paar maten melodie, niet het hele nummer.
+
+**Alle 5 gefixt:**
+1. `pickModulatedMode` (levels.js) nu `Math.random()`-based i.p.v. `lvl.id`-seeded.
+2. Sluit de schaal's eigen `diatonic`-veld uit de random pool uit (teruggezocht naar de bijbehorende
+   `.name` in `scaleDefinitions.Diatonic`, want die twee komen niet altijd overeen — bv. Major's diatonic
+   is 'Ionian' maar zijn eigen `.name` is 'Major'). Bonus-fix hierbij gevonden: `modulatedOverrides` riep
+   `pickModulatedMode` TWEE keer aan (voor `key.mode` en `modulateToMode` apart) — onschadelijk toen het
+   deterministisch was, maar zou nu met random twee VERSCHILLENDE modi opleveren. Eén roll, hergebruikt.
+3. ROOT CAUSE gevonden: App.jsx's `remodulate`-helper (voor treble/bass) werd ook op `chordMelody`
+   losgelaten, maar die heeft een ANDERE vorm (`.notes[i]` = akkoord-noten ARRAY, `.displayNotes[i]` = een
+   `Chord`-OBJECT, niet losse strings). De helper's string-only guards lieten akkoord-arrays ongewijzigd
+   door EN vervingen elke `Chord` door een lege string — vandaar "geen akkoorden/baslijn" (de backing-cello
+   volgt akkoordwortels, had dus niks meer om te volgen). Nieuwe `remodulateChordMelody` (losgetrokken naar
+   `src/songs/remodulateLoadedSong.js`) behandelt de akkoord-vorm correct via dezelfde `modulateMelody`.
+4. `LevelStartSplash.jsx`'s carousel-handler aangepast: `selectedVariant` blijft nu staan tenzij
+   `availableVariantLetters` hem uitsluit voor het nieuwe level (of het geen sideScroll-level is).
+5. Losgetrokken naar `src/generation/generateBlockedSongTreble.js`: genereert nu in blokken van 4 maten
+   (of 2 als 14 niet deelbaar is door 4, zoals bij Sakura), i.p.v. één MelodyGenerator-call voor het hele
+   nummer — matcht hetzelfde patroon dat useLevelTrebleStream.js/generateLevelBackingChunk.js al gebruiken.
+
+Beide fixes (3 en 5) losgetrokken uit App.jsx naar eigen testbare modules (zelfde patroon als
+resolveLoadedSong.js) — nieuwe tests tegen Sakura's ECHTE songdata bevestigen: akkoorden blijven Chord-
+instanties met daadwerkelijk gewijzigde wortels, en H's melodie bereikt nu het LAATSTE blok (maat 12-14),
+niet alleen de eerste paar maten. Zie docs/architecture.md §313. npm run test:run 956/1, lint 0, build
+clean. Kanban: notes toegevoegd aan #1153 en #1154.
+
+## 2026-08-26 — ✅ Hard rule: noot-lengte cap op groeps-/maatgrenzen (sluit #1087 af)
+
+Han: "Extra regel voor alle melody generation: de lengte van een noot mag geen twee groepsgrenzen
+passeren... nooit 2 maatgrenzen." Interview via AskUserQuestion bevestigde de kern (max 1 extra
+notengroep) MAAR bracht een belangrijke nuance boven water die ik zelf niet had geraden: de "groepen"
+voor deze regel worden OPNIEUW berekend op de generatie-slot-resolutie (`chooseGrouping(numerator *
+slotsPerBeat)`), niet de grovere beat-niveau `rhythmicGrouping` — bv. 4/4 bij smallestNoteDenom=8 groepeert
+als {3,3,2} achtste-noten-slots, niet proportioneel {4,4}. Geverifieerd tegen Han's eigen 5/4-[2,3]
+voorbeeld (noot start op tel 4, max 4 tellen lang) — mijn implementatie reproduceert dit EXACT (Math.random
+gemocked om die specifieke groepsvolgorde te forceren).
+
+Geïmplementeerd als `capNoteLengthAtGroupBoundaries` in melodyGenerator.js — draait ALTIJD (niet achter
+`insertBeatRests`, want harde regel voor alle instrumenten per §6b), direct na de bestaande
+`insertRestsAtBeats` stap. De "nooit 2 maatgrenzen"-regel bleek wiskundig al impliciet in de
+groepen-regel besloten (next-group fallback kan nooit meer dan 1 volledige maat verder wrappen) — toch
+als expliciete defensieve check bewaard, zoals Han vroeg. 4 nieuwe tests (incl. het exacte 5/4-voorbeeld).
+npm run test:run 960/1 (nul regressies in de hele generation-testsuite), lint 0, build clean. Zie
+docs/architecture.md §314.
+
+**Sawtooth/harshness-onderzoek (nog GEEN implementatie — Han vroeg expliciet om eerst een voorstel):**
+Han's hypothese "speelt de wizard sawtooth i.p.v. square?" — ONWAAR, gecheckt in code (App.jsx:1640)
+EN op schijf (WAV-bestanden zijn qua bytes verschillend): de wizard gebruikt al correct 'lead_1_square'.
+Wél een sterke, git-archeologisch bevestigde vondst: commit 09ea29d (2026-05-11, "wip: restore local
+audio samples...") verhoogde smplr 0.16.4->0.20.0 EN verving tegelijk de CDN (MusyngKite-soundfont) door
+lokale samples geëxtraheerd uit Han's eigen FluidR3_GM.sf2 — exact dezelfde regressie-klasse als #1097
+(woodblock, "een andere soundfont-set, een hoorbare regressie die Han niet had gevraagd"). Dit is
+vermoedelijk de dominante oorzaak van de "hardheid" (andere bronopname), niet het envelope. Kleinere
+bijdrage: smplr's release/decay-standaard groeide mee (0.16.4's impliciete ~200ms -> huidige expliciete
+`ampRelease: 0.3` = 300ms) — draagt bij aan het "in elkaar overlopen" van korte noten. `ampAttack` bleek
+een dode config-optie in smplr zelf (nergens daadwerkelijk toegepast in de Voice-klasse) - een letterlijke
+"korte attack" is dus niet gratis beschikbaar zonder smplr zelf te patchen.
+Voorstel gepresenteerd aan Han (mirror de oude CDN MusyngKite-samples lokaal voor lead_1_square/
+lead_2_sawtooth, zelfde patroon als extract-legacy-woodblock.mjs, plus kortere ampRelease) — wacht op
+zijn beslissing voordat er geïmplementeerd wordt.
+
+**#1159 aangemaakt** (op Han's verzoek, "maak een apart ticket en zet meteen in design"): de 1,5-maat
+metronoom/visuele-timing desync — nog niet onderzocht, in kanban-status 'design'.
+
+## 2026-08-26 — ✅ Sawtooth/square harshness: legacy MusyngKite-samples gemirrord + kortere ampRelease
+
+Han keurde het voorstel goed ("do this please :)"). Geïmplementeerd:
+
+1. **`scripts/extract-legacy-synth-leads.mjs`** (nieuw) — generaliseert `extract-legacy-woodblock.mjs`'s
+   exacte patroon naar BEIDE synth-leads in één run: haalt MusyngKite's eigen MIDI.js-bestanden op voor
+   `lead_1_square` EN `lead_2_sawtooth`, decodeert elke ingebedde MP3 naar WAV. Resultaat: 88 echte
+   semitoon-opnames per instrument (i.p.v. de 5 ankerpunten A2-A6 uit de FluidR3-extractie) — zelfde
+   24MB per map als de al-geaccepteerde woodblock-precedent.
+2. **`localInstruments.js` gegeneraliseerd** — de losse `LEGACY_WOODBLOCK_SLUG`-branch werd een
+   `LEGACY_INSTRUMENT_OVERRIDES`-map (§6c: geen 3e bijna-identieke branch) zodat woodblock zijn eigen
+   extra-gain/limiter-keten behoudt (los, ongerelateerd "te zacht"-issue, #1097) terwijl de synth-leads
+   die NIET krijgen (tegenovergesteld probleem: te hard). Beide leads krijgen `ampRelease: 0.06` (60ms,
+   was 300ms via de globale default) — `buildLocalSmplrJson` kreeg een `defaultsOverride`-parameter
+   hiervoor, zonder de andere instrumenten te raken.
+
+Niet opgelost (gedocumenteerde beperking): een echte "korte attack" bestaat niet als bruikbare smplr-optie
+(`ampAttack` wordt nergens daadwerkelijk toegepast in de Voice-klasse, geverifieerd in de daadwerkelijke
+runtime-source) — zou een fork van smplr vereisen, buiten scope van deze ronde.
+
+Geverifieerd: alle 176 manifest-entries hebben een bestaand WAV-bestand (script-check), bestandsgroottes
+zijn volwaardige opnames (niet leeg/corrupt). npm run test:run 960/1, lint 0, build clean. NIET op gehoor
+getest — dat is aan Han's UAT (klinkt het echt minder hard, en is 60ms release lang genoeg om niet
+afgeknipt te klinken?). Zie docs/architecture.md §315.
+
+## 2026-08-26 — ✅ #1159: visuele scroll loopt ~1,5 kwartnoot achter op de metronoom — root cause + fix
+
+Code-hypothese eerst opgesteld (op Han's expliciete verzoek), pas na zijn bevestiging ("yes! doe maar :D")
+geïmplementeerd:
+
+1. **Root cause gevonden**: §277's (#1096-follow-up) nieuwe mid-level-overlay-pause mechanisme in
+   `SheetRpgLayer.jsx` (`externalPauseAccumMsRef`) lekte wall-clock-tijd elke keer het levelresultaat-
+   scherm te zien was (`overlayEditMode` bevat `levelResultEditMode`), en werd — anders dan
+   `clockStartRef`/`debugLoggedUnfreezeRef` ernaast — NOOIT gereset bij een nieuwe `scrollStartTime`
+   (nieuw level/replay). Elk volgend level's visuele klok begon dus permanent achter te lopen op de
+   audio-klok, cumulatief erger na meer levels/resultschermen in dezelfde sessie.
+2. **Fix**: `externalPauseAccumMsRef`/`lastFrameNowMsRef` mee resetten in hetzelfde
+   `useEffect([scrollStartTime])` dat de andere twee refs al reset.
+3. **Nieuwe regressietest** in `SheetRpgLayer.test.jsx` — bewezen faalt zonder de fix, slaagt met de fix.
+
+Geverifieerd: npm run test:run 961/1 (nieuwe test incl.), lint 0 errors, build clean. Live getest in een
+echte (headless) browser via Playwright — Level 1 start en draait zonder console-errors, scroll/strike-
+line-uitlijning ziet er correct uit. Performance-diagnose (op Han's verzoek) zie apart bericht: cold-load
+timing, bundle-grootte (geen code-splitting, 4,1MB JS-bundle), frame-timing sample tijdens gameplay.
+Zie docs/architecture.md §316.
+
+## 2026-08-26 — 🔨 Performance deep-dive: dev-vs-prod, 212MB eager audio, mobile button-mash stresstest
+
+Han vroeg door op de eerdere perf-cijfers ("gaat dit ook goed werken op mobile?", daarna "heb je echt de
+levels getest met button mashing (PC en mobile)?"). Eerlijk antwoord: nog niet grondig — alsnog gedaan:
+
+1. **Dev vs. productiebuild, echte CPU-profile (CDP Profiler, niet alleen FPS-tellen)**: de eerdere
+   "46fps/15% trage frames" bleek grotendeels React DEV-instrumentatie (~46% van sampled tijd aan
+   jsxDEV/proptype-validatie) — verdwijnt in productiebuild: 60fps rock-solid, 0% frames >33ms.
+2. **Echte bottleneck gevonden**: 735 WAV-bestanden / 212MB laden EAGER bij elke cold boot, zelfs zonder
+   klik, vóór de boot-splash weggaat (~5,7s op localhost/schijfsnelheid). Groter probleem dan de eerder
+   genoemde bundle-splitsing. → **ticket #1160** (Han: "load time mag een ticket krijgen", niet urgent).
+3. **Button-mash stresstest** (rapid QWERTY-toetsinvoer tijdens actieve combat, productiebuild):
+   - PC: 60fps stabiel, geen errors.
+   - Mobiel-emulatie (Playwright Pixel 7 + CDP 4x CPU-throttle, Chrome's eigen "mid-tier mobiel"-preset):
+     ~20fps, geen crashes, maar merkbaar trager. Sourcemap-resolved profile: geen 1 hotspot, kosten
+     verspreid over normale React-reconciliatie + renderMelodyNotes/SheetMusic/SheetRpgLayer/PianoView —
+     consistent met "elke toetsdruk triggert een vrij brede re-render", niet één geïsoleerde bug.
+   - Caveat expliciet benoemd: CDP-throttling is een approximatie, geen fysiek toestel beschikbaar om op
+     te testen vanuit deze omgeving.
+
+→ **ticket #1161** aangemaakt (status `design`, priority high) — Han wil dit "meteen aanpakken", maar
+interview (CLAUDE.md §4b) moet nog: scope (RPG-level only vs. hele app), mobiel nu-of-later prioriteit, en
+of Han zelf op een fysiek toestel kan valideren. Nog geen code gewijzigd voor deze twee tickets.
+
+## 2026-08-27 — ✅ #1161: PianoView/TabView memoized — mobiel 20fps → 60fps
+
+Han bevestigde de hypothese ("de re-render is zeker niet nodig") en vroeg om concrete aanbevelingen.
+Root-cause gevonden: `SheetMusic`/`MelodyNotesLayer` waren al React.memo (eerdere optimalisatieronde),
+maar `PianoView` en `TabView` niet — `App.jsx`'s `combatNote` (verandert bij ELKE gespeelde noot) forceerde
+daardoor een volledige, onvoorwaardelijke re-render van het hele toetsenbord + actieve tabblad bij elke
+notendruk, terwijl `combatNote` niet eens een prop van `TabView` is en `PianoView`'s eigen toetsaanslag-
+visuals al via zijn eigen lokale state lopen.
+
+**Fix**: `export default React.memo(PianoView)` / `React.memo(TabView)` — zelfde patroon als `SheetMusic`
+al had. Eerst geverifieerd dat hun props/callbacks daadwerkelijk stabiel zijn (contexts zijn al
+`useMemo`'d, `handleNoteInputCombat` is `useCallback`'d) zodat de memo ook echt raak.
+
+**Resultaat**: exact dezelfde button-mash-stresstest herhaald na de fix — mobiel-emulatie (4x CPU-
+throttle) ging van ~20fps (50ms/frame, 90%+ trage frames) naar **60fps (16.7ms/frame, 0% trage frames)** —
+gelijk aan PC. Visueel bevestigd dat de combat-feedback (hero-attack-animatie, judgment-labels) nog
+correct vuurt op elke toetsdruk. npm run test:run 961/962 (ongewijzigd), lint 0, build clean.
+
+Bewust NIET gedaan deze ronde: de grotere structurele optie (RPG-combat state uit App.jsx isoleren) — niet
+nodig gebleken, de goedkope fix haalde de 60fps-doelstelling al. Zie docs/architecture.md §317.
+
+## 2026-08-27 — 🔨 #1161 vervolg: RPG-world (open wereld) — React-fix werkt, maar is niet de bottleneck
+
+Han: "ren eens een stuk in RPG mode op mobile emulator" — gedaan. Resultaat was ~5,7fps (174ms/frame,
+96% trage frames), veel slechter dan de levels.
+
+Root cause + fix (zelfde patroon als hierboven, plus Han's eigen ontwerp-idee "animatie ticks die
+afstemmen met de metronome-ticks, 60/s, meest nabije frame is goed genoeg"):
+1. `petFrame` (RpgLevelPanel.jsx): `setInterval` → rAF + AudioContext-sync (zelfde patroon als
+   SheetRpgLayer.jsx), commit naar state alleen bij een echt veranderde waarde (React's Object.is-bailout
+   houdt de commit-cadans identiek aan de oude interval — lost drift op, niet de renderfrequentie).
+2. 5 WebGL/canvas scenery-lagen (LdtkScenery, LdtkLitGround, WaterReflectionLayer, ForegroundFoliageLayer
+   ×2, LdtkAnimatedTiles ×2 — 9 call-sites) kregen React.memo — geen van allen hangt af van petFrame, maar
+   herrenderden er wel op mee.
+3. Cruciaal: meerdere props waren VERS berekend inline in JSX (cullTilesToViewport(...), cullToViewport(
+   [...].map(...))) — memo zou anders stil gefaald hebben. Naar useMemo/useCallback verplaatst.
+
+**Eerlijk resultaat**: React's eigen aandeel in de gemeten tijd daalde >60% (668.6ms → 269.8ms) — de fix
+werkt exact zoals bedoeld. Maar de FPS zelf verbeterde nauwelijks (nog steeds ~6fps stilstaand) — React was
+hier nooit de dominante kostenpost. 86-91% van de tijd zit in native canvas/WebGL-werk (texImage2D,
+toDataURL, getImageData, putImageData) — waarschijnlijk de normal-map-generatie voor watertegels
+(useLdtkWaterInstances.js → runtimeNormalMap.js's Sobel-filter pixel-verwerking, wel gecached per uniek
+tegel+frame, dus geen pure per-frame bug maar een cache-warmup-kost die tijdens mijn testvenster nog niet
+klaar was).
+
+Conclusie: deze fix is echt, geverifieerd en verdient het om te blijven staan (npm run test:run/lint/build
+groen, geen visuele regressies, hero/wereld/water/foliage renderen nog correct) — maar lost de RPG-wereld-
+FPS niet op. De echte bottleneck is een ANDER soort probleem (canvas/beeldverwerking, geen React-rerenders)
+dat een eigen, apart vervolgonderzoek nodig heeft. Aan Han gemeld, niet stilzwijgend verder achtervolgd.
+Zie docs/architecture.md §318.
+
+## 2026-08-27 — ✅ #1162: watertegels 'static' gemaakt (geen animatie, geen pixel-swap) — fix klopt, perf-winst niet te bewijzen vanuit deze sessie
+
+Han's concrete beslissing: "animated tiles + reflectie + pixel swap + shimmer is niet nodig. Enkel
+reflectie + shimmer volstaat." Geïmplementeerd in `useLdtkWaterInstances.js`: de `tick`/`FRAME_MS`-rAF-
+animatielus (cyclede door meerdere bronkolommen) volledig verwijderd — `col` wordt nu één keer berekend
+(nog wel per-plaatsing verschoven voor visuele variatie, maar bevroren). De "pixel switch"-sparkle
+(`isWater: true`, alleen gebruikt voor `uWhiteCap*`-uniforms) staat nu op `false`. `wave: true` (shimmer)
+en `WaterReflectionLayer` (losstaand component) blijven ongewijzigd — reflectie + shimmer blijven dus.
+Dit was precies het mechanisme dat §318 al als sterkste verdachte aanwees voor de dominante mobile-kost.
+
+Visueel geverifieerd (screenshot van de vijver onder de boomstam-brug): reflectie en shimmer zien er nog
+goed uit, geen visuele regressie. Tests/lint/build groen.
+
+**Eerlijke bevinding**: de FPS-winst van deze fix kon ik NIET aantonen vanuit deze sessie. Dezelfde
+mobiel-emulatie-stresstest liet nauwelijks verandering zien (nog ~6fps onder 4x CPU-throttle). Uitgezocht
+waarom: deze headless Chromium-omgeving heeft GEEN echte GPU — WebGL valt terug op SwiftShader (Google's
+CPU-based software-renderer, bevestigd via WEBGL_debug_renderer_info). Gecombineerd met Pixel-7-emulatie's
+deviceScaleFactor 2.625 (effectief ~1082×2202px backing-store — MEER pixels dan de 1400×900 desktoptest)
+worden de meerdere volledige-schermbrede, per-pixel-belichte WebGL-canvassen van de RPG-wereld volledig op
+de CPU gerasterd bij hoge pixeldichtheid — een kost die niets met de efficiëntie van onze eigen code te
+maken heeft en alles overschaduwt. Op een echt toestel (met echte GPU-versnelling) zou dit zeer wel
+significant beter kunnen presteren — maar dat kan alleen op echte hardware bevestigd worden, niet vanuit
+deze sessie.
+
+Conclusie: de fix blijft staan (verwijdert echte CPU-kost, relevant op elk toestel, GPU of niet) — maar de
+mobiel-emulatiecijfers van deze sessie zijn geen betrouwbaar oordeel over "is de RPG-wereld nu snel genoeg
+op echte telefoons". Dat vereist een echte toestel-test. Zie docs/architecture.md §319.
+
+## 2026-08-27 — ✅ #1162 vervolg: laatste 2 setInterval-gedreven animatie-timers omgezet naar rAF
+
+Han: "kun je nog meer optimalisaties vinden? :D" — snelle audit van elke resterende `setInterval` in
+`src/components/character/`/`src/hooks/` voor hetzelfde patroon (React-state op een eigen, niet-frame-
+uitgelijnde timer) dat petFrame/watertegels al hadden. Twee echte instanties gevonden en gefixt:
+1. `RpgLevelPanel.jsx`'s `walkFrame` (het loop-/rencyclus van de held — actief tijdens ELK "lopen"-scenario)
+2. `LdtkAnimatedTiles.jsx`'s `tick` (kampvuur-animatie, water loopt hier niet meer doorheen)
+
+Beide naar rAF+dedupe-commit (zelfde patroon als eerder) — geen nieuwe renderfrequentie, wel drift-vrij.
+
+Bewust NIET aangeraakt: `useLdtkFoliageInstances.js` (al correct — genereert normal-maps 1x per unieke
+crop, nooit herhaald), `useDebugMetronome.js`'s FPS-teller (1x/sec, debug-only, verwaarloosbaar),
+`useWorldAmbientMusic.js`'s vogel/water-intervallen (manipuleren AudioParams direct, geen React-state,
+triggeren dus nooit een re-render — andere probleemklasse). Bundle-splitsing/eager audio-load blijven
+bewust buiten scope (Han's eigen keuze, apart ticket #1160).
+
+Geverifieerd: lopen + kampvuur animeren nog correct, geen glitches. Tests/lint/build groen. Zelfde
+kanttekening als hierboven: geen GPU in deze sessie, dus geen betrouwbaar FPS-oordeel mogelijk — deze
+fixes verwijderen wel echte, meetbare CPU-kost. Zie docs/architecture.md §320.
+
+## 2026-08-27 — 🔨 #1162 Fase 1: camera-pan imperatief gemaakt voor de scenery-lagen
+
+Han testte op ECHTE hardware (PC, VSCode-webview): 120fps stilstaand, 30fps bij zijwaarts bewegen — "de
+camera-update moet echt anders". Root cause: `cameraX` is React state, geüpdatet 60×/sec via rAF zolang de
+held beweegt (bestaand "dead-zone follow camera"-ontwerp) — vrijwel elke scenery-laag/entiteit-positie
+hangt hiervan af, dus lopen forceerde een volledige re-render van de hele open-wereld-boom.
+
+**Fix (Fase 1 — Han koos voor gefaseerd)**: zelfde patroon als SheetRpgLayer.jsx's `frozenScrollPxRef`
+(§1050) — een grond-vlak-wrapper `<div>` waarvan de `transform` IMPERATIEF geschreven wordt door dezelfde
+rAF-lus die `cameraX` al berekent, buiten React om. Inhoud binnenin gebruikt nieuwe LOKALE (camera-
+onafhankelijke) positiehelpers — stabiel zolang alleen de camera beweegt, dus memo's raken nu echt tijdens
+lopen. Scope: `LdtkScenery`'s grondlaag (CanvasLayer, nu ook gememoized) + `LdtkAnimatedTiles` +
+`WaterReflectionLayer` (2 wrapper-groepen per pass, vanwege LdtkLitGround's z-order-positie ertussen).
+
+**Bewust NIET gedaan (Fase 2, nog niet gestart)**: LdtkLitGround/ForegroundFoliageLayer (WebGL-instantie-
+lagen — hebben een shader-uniform nodig, geen CSS-transform, groter/risicovoller) en alle entiteit-
+positionering (held/pet/wisp/slime/critters/workers) — Han's eigen voorstel om dit in 2 fases te doen.
+
+**Bekende resterende gap**: LdtkAnimatedTiles' `animatedTiles`-prop blijft instabiel tijdens lopen (culling
+hangt bewust nog af van de camera-bewuste positie) — lage prioriteit, puur DOM, goedkoopste van de groep.
+
+Visueel geverifieerd (meerdere pan-afstanden, beide richtingen, Playwright-screenshots) — scenery/water/
+reflectie/boom/entiteiten blijven pixel-perfect uitgelijnd, geen drift/flits. Tests/lint/build groen.
+Zelfde kanttekening: geen betrouwbare FPS-meting mogelijk vanuit deze (GPU-loze) sessie — aan Han gevraagd
+om zelf opnieuw te testen op zijn eigen omgeving (waar hij de originele 120→30-drop mat). Zie
+docs/architecture.md §321.
+
+## 2026-08-27 — ✅ #1162 Fase 2: entiteiten + WebGL-foliage-laag imperatief; LdtkLitGround bleek al in orde
+
+Han: "doe ook fase 2 maar! :D" — meteen doorgepakt.
+
+**Fase 2a (entiteiten)**: zelfde wrapper-`<div>`-met-imperatieve-transform-truc als Fase 1, uitgebreid naar
+Wisp/Slime/6 workers/held/pet + hun spiegelbeelden. `WorldWanderer` (critters) bleek AL imperatief-ref-
+gedreven (`worldToScreenXRef`, dateert van vóór dit ticket) — puur consistentie-halve mee verhuisd naar
+dezelfde wrapper, verder geen wijziging nodig.
+
+**Fase 2b (WebGL-foliage-laag)**: bleek GEEN shader/GLSL-wijziging nodig te hebben — `uScreenPos` was al
+gewoon "de uiteindelijke schermpositie", per instance per draw-call vanuit JS gezet. Pure JS-verhuizing:
+RpgLevelPanel geeft nu een `cameraOffsetRef` door die ForegroundFoliageLayer's EIGEN, al-continu-lopende
+draw-lus zelf optelt bij elke instance's (nu LOKALE) screenX, vlak vóór de uniform-call. Viewport-culling
+verhuisde in dezelfde beweging mee naar die draw-lus (was voorheen camera-bewust in RpgLevelPanel, dus
+moest daar elke pan-frame herrekend worden).
+
+**LdtkLitGround**: uitgezocht, bleek NIETS te hoeven — leest zijn positie al via een liveRef die elke
+render vers wordt gezet (ongeacht of React "moest" re-renderen), en zijn eigen draw-lus loopt al onafhankelijk
+door. Was al immuun voor deze bugklasse — mijn eerdere aanname (in Fase 1's notitie) dat dit ook een
+shader-uniform nodig had, klopte niet bij nader onderzoek.
+
+Geverifieerd: lange heen-en-terugreis (~8s naar de verste workers, ~10s terug voorbij spawn) — alles blijft
+pixel-uitgelijnd, geen drift/glitches. Tests/lint/build groen. Zelfde kanttekening: geen betrouwbare FPS-
+meting vanuit deze GPU-loze sessie mogelijk. Zie docs/architecture.md §322.
+
+## 2026-08-27 — ✅ #1162 Fase 3: EntityLayer geëxtraheerd; "chunk loading" uitgesloten
+
+Han's ECHTE hardware-hertest (PC/VSCode-webview) na Fase 1+2: 120fps stilstaand → 41fps bewegend — een
+reëel, substantieel beter resultaat dan de oorspronkelijke 30fps, maar nog steeds een gat. Vraag: is het
+"inladen van chunks"?
+
+**Uitgesloten**: `buildWorld()` bouwt het HELE level in één keer (`useMemo`), geen viewport-gebonden
+streaming ergens in de LDtk-laadketen (grep bevestigt: geen lazy/chunk-patroon).
+
+**Echte oorzaak van het resterende gat**: Fase 1/2 maakten elke ENTITEIT/laag's eigen props stabiel tijdens
+puur pannen, maar RpgLevelPanel ZELF moest nog steeds zijn hele ~2000-regelige renderfunctie herhalen elke
+pan-frame (onvermijdelijk: eigen cameraX-state dwingt dat af). React.memo slaat pas werk over ZODRA de
+reconciler een component bereikt en de props vergelijkt — het voorkomt nooit dat de OUDER JSX-elementen
+voor zijn kinderen construeert, gememoized of niet. Dat is zelf al reële, niet-triviale kost bij zoveel
+content elke frame (zelfde kostenklasse als SS318's allereerste profiel al aanwees).
+
+**Fix**: het hele entiteitenblok (Wisp/Slime/6 workers/critters/held/pet + spiegelbeelden) geëxtraheerd
+naar een nieuwe top-level `const EntityLayer = React.memo(...)`, gedefinieerd IN HETZELFDE bestand (zelfde
+conventie als WorkerNpcSlot/WorldWanderer al hadden — geen nieuw bestand nodig, module-constanten als
+HERO_CROP blijven gewoon in scope). RpgLevelPanel's eigen pan-frame-render doet nu één goedkope
+`<EntityLayer/>`-aanroep i.p.v. de hele entiteiten-subtree inline te construeren — en omdat alle ~27 props
+al stabiel zijn tijdens puur pannen (Fase 1/2's eigen werk), slaat deze memo dat werk nu écht over.
+
+Geverifieerd: slime-klik opent nog correct de dialoog (bevestigt EntityReflection's closure + click-
+handlers overleefden de extractie), wandel-test toont alles nog pixel-uitgelijnd. Tests groen (961/962 —
+1 onafhankelijk bevestigde flaky test, niets met deze wijziging te maken), lint 0 errors, build groen.
+
+Logisch vervolg (nog niet gedaan): dezelfde extractie-truc toepassen op de scenery-blokken (nog steeds
+inline in RpgLevelPanel's render). Zie docs/architecture.md §323.
+
+## 2026-08-27 — ✅ #1162 Fase 4: SceneryBack/SceneryFront geëxtraheerd (Han: "doe maar")
+
+Zelfde extractie-truc als Fase 3, nu toegepast op de scenery-blokken (LdtkScenery + LdtkLitGround +
+LdtkAnimatedTiles/WaterReflectionLayer-wrapper + ForegroundFoliageLayer), zoals in Fase 3 als logisch
+vervolg genoteerd en door Han goedgekeurd.
+
+Twee nieuwe top-level `React.memo`-componenten in RpgLevelPanel.jsx, direct na EntityLayer: `SceneryBack`
+(back-of-entities pass, incl. backgroundLayers + WaterReflectionLayer) en `SceneryFront` (front-of-entities
+pass, edgeLitOnly=true, geen WaterReflectionLayer) — twee losse componenten i.p.v. één geparametriseerde,
+omdat de originele code al die exacte back/front-splitsing had (§6d: hergebruik bestaande structuur, geen
+nieuwe branching verzinnen). Legacy-mode scenery (oude hand-rolled parallax/floor/tree/tent JSX,
+verweven met het LDtk-blok in de back-pass) blijft ONAANGEROERD, inline in RpgLevelPanel zelf — zelfde
+scope-grens als elke vorige ronde.
+
+Geverifieerd: Playwright-visuele-regressie — held liep rechts (~4s) en dan links voorbij startpunt (~7s) in
+de open-world RPG; screenshots tonen correcte scenery-pan in beide richtingen, waterreflecties blijven
+uitgelijnd onder de boomstam-brug, wilg + smid-NPC renderen correct gelaagd, geen console-errors. Tests
+groen (961/962, 1 skip, geen flaky failures deze run), lint 0 errors (enkel verwachte nieuwe
+react/prop-types warnings voor de nieuwe componenten hun ongetypede props, zelfde conventie als EntityLayer),
+build groen.
+
+Zelfde kanttekening als elke ronde van dit ticket: geen betrouwbare FPS-meting mogelijk vanuit deze GPU-loze
+sandbox-sessie (SwiftShader software-rendering, zie §318) — Han's eigen hertest op echte hardware moet
+uitwijzen of dit het resterende 41fps-gat verder dicht. Zie docs/architecture.md §324.
+
+## 2026-08-27 — ✅ #1162 Fase 5: profiling wijst weg van React; dode mix-blend-mode overlay gegated
+
+Han's hertest na Fase 4: "blijft redelijk consistent op 41 fps hangen" — twee rondes JSX-constructie-fixes
+op rij (Fase 3 + Fase 4) leverden GEEN extra winst op. Nieuwe CPU-profiel-run (zelfde CDP+sourcemap-techniek
+als §318, 4x throttle, 6s bewegen) op de POST-Fase-4 build: slechts ~14% van de tijd valt toe te schrijven
+aan JS/React — >85% zit in de profiler's "(program)"-bucket, d.w.z. BUITEN JS-executie (layout/paint/
+compositing/WebGL-rasterization), waar een JS CPU-profiler niet in kan kijken. Dit verklaart meteen waarom
+Fase 3/4 niets opleverden: React was allang niet meer het dominante probleem na Fase 1/2.
+
+Concrete verdachte gevonden: `domDarkenOverlayStyle` in RpgLevelPanel.jsx — een full-viewport
+(`inset:0`) div met `mix-blend-mode: multiply` (§141's oude CSS-benadering van dag/nacht-tint voor de
+Legacy-mode achtergronden), gerenderd ZONDER sceneryMode-gate, terwijl RAM-level (LDtk) al sinds de #925
+follow-up zijn EIGEN WebGL-shader-belichting heeft (globalIllumination). mix-blend-mode dwingt de browser om
+elke frame een aparte compositing-laag te blenden — precies het soort onzichtbare (voor JS-profiling) kost
+die we nu zien, en de eerste concrete kandidaat uit deze profiling-ronde.
+
+Fix: gegated tot `sceneryMode === 'Legacy'`. Geverifieerd: screenshot pixel-identiek aan voor de fix
+(bevestigt dat de overlay in LDtk-mode met NIETS blendde — pure dode gewicht, geen visueel effect verloren),
+DOM-check bevestigt de div nu volledig ongemount is in LDtk-mode (niet enkel onzichtbaar), 0 console errors.
+Tests groen (961/962, 1 skip), lint 0 errors (exact dezelfde 2598 warnings, geen nieuwe), build groen.
+
+Nog niet bewezen dat dit HET hele 41fps-plateau verklaart — Han stuurt na hertesten een echte Chrome
+DevTools Performance-trace (niet CPU-profiler — de Performance-tab's Summary toont Scripting/Rendering/
+Painting-percentages, wat mijn profiler niet kan) zodat de volgende stap op echte data gebaseerd kan worden
+i.p.v. nog een code-gok. Bekende volgende kandidaat: ForegroundFoliageLayer's niet-gebatchte
+`gl.drawArrays`-aanroep per foliage-instance (al gedocumenteerd in dat bestand) — een Performance-trace zou
+dit direct zichtbaar maken. Zie docs/architecture.md §325.
+
+## 2026-08-27 — ✅ #1162 Fase 6: witte schuimkoppen op water hersteld (Han miste ze)
+
+Han na Fase 5: "ik ben de shimmer op het water kwijt! (de witte schuimkoppen) die moet je wel nog blijven
+renderen." §319's "static watertiles"-instructie bundelde twee losse dingen onder overlappende
+"shimmer"-terminologie — de implementatie gokte verkeerd en zette `isWater: false`, wat de witte-schuimkop-
+sparkle helemaal uitschakelde.
+
+Uitgezocht: de ECHTE perf-kost in §319 was de JS-tick-gedreven kolom-cycling (cache miss → synchrone
+Sobel-normal-map-regeneratie). `isWater` is daar los van — puur een per-instance boolean die AL BINNEN de
+al-lopende WebGL draw-loop één shader-uniform kiest (`uWhiteCapThreshold`/`uWhiteCapStrength`), geen extra
+draw call, geen cache-lookup, geen timer. Herstellen is dus gratis.
+
+Fix: `useLdtkWaterInstances.js` `isWater: false` → `isWater: true`. Tick/kolom-cycling-verwijdering (het
+deel dat wél perf-toe deed) blijft ongewijzigd.
+
+Geverifieerd: witte sparkle weer zichtbaar op het water bij de eend/zwaan, 0 console errors. Tests groen
+(961/962, 1 skip), lint 0 errors, build groen. Zie docs/architecture.md §326.
+
+## 2026-08-27 — 🔍 #1162: pixel-perfectness audit (Han: "is de foliage pixel swap Game Pixel perfect?")
+
+Onderzocht, niets gewijzigd. Texture-sampling: correct (`gl.NEAREST`, geen bilinear blur). MAAR twee dingen
+maken het geheel niet klassiek pixel-perfect, allebei bestaand ontwerp, geen bug:
+1. `zoom` is continu (`dynamicZoom = size.h / LEVEL_PX_HEIGHT`, viewport-responsive), geen vast geheel getal
+   — ongelijkmatige pixel-duplicatie bij nearest-neighbor sampling, los van bewegen.
+2. Schermpositie wordt niet naar hele device-pixels afgerond (`uScreenPos = screenX * dpr`, geen
+   Math.round) — "pixel swimming" tijdens pannen, versterkt door niet-gehele dpr (bv. 2.625 op Pixel 7).
+
+Niet gefixt — ontwerpkeuze-afweging (heel getal zoom = geen perfecte viewport-fit meer). Voorgelegd aan Han
+voor beslissing. Zie docs/architecture.md §327.
+
+**Han's antwoord**: zijn echte vraag was smaller — "checken of deze dezelfde schaal heeft als alle andere
+pixels: dus foliage pixel = 1gpx. Dat is voldoende voor nu!" Geverifieerd: ground tiles (`LdtkScenery.jsx`'s
+`CanvasLayer`, `width: LEVEL_PX_WIDTH * zoom`) en foliage (`RpgLevelPanel.jsx`'s `foliageInstanceProps`,
+`widthPx: inst.gridSize * zoom`) gebruiken exact dezelfde `zoom`-waarde (`dynamicZoom`, overal identiek
+doorgegeven). **Bevestigd: foliage pixel = 1 gpx, zelfde schaal als elke andere laag** — geen mismatch,
+niets te fixen. De zoom-fit/panning-shimmer punten hierboven blijven open maar zijn NIET gevraagd nu.
+
+Voor de pine-forest 21fps/niet-gebatchte-draw-calls kandidaat: Han kiest EERST een echte Chrome DevTools
+Performance-trace (Scripting/Rendering/Painting %) op zijn eigen hardware, voordat een grotere WebGL-
+herschrijving (instanced rendering) gestart wordt. Wachten op die data — geen verdere actie tot dan.
+
+## 2026-08-27 — 🔍 #1162: echte trace geanalyseerd — WebGL-hypothese INGETROKKEN, echte oorzaak is taak-volume
+
+Han leverde een echte Chrome DevTools trace (651MB, iPhone 14 Pro Max emulatie, pine forest, ~20s incl.
+bewegen). Geanalyseerd via een zelfgeschreven streaming JSON-parser (bestand te groot om in geheugen te
+laden) die zowel per-thread busy-time berekent als het ECHTE V8 CPU-profiel van de main thread
+reconstrueert uit de trace's ingebedde Profile/ProfileChunk-events (1.47M samples).
+
+**Thread busy-time**: CrRendererMain (main thread) 99% busy over de hele 20s — GPU/raster worker threads
+amper enkele tientallen ms elk. **Echte GPU-rasterization is dus NIET de bottleneck.**
+
+**Dit trekt de "niet-gebatchte gl.drawArrays" hypothese (Fase 5) IN**: drawFrame/getTexture/bindTexture/
+uniform*-aanroepen in ForegroundFoliageLayer samen < 0.1% van de samples. Verworpen.
+
+**Wat het ECHT is**: ~95% van alle samples valt in vier NATIVE (niet-JS) buckets die niet aan app-code
+toe te wijzen zijn: "run" (55.5%), "(program)" (25.0%), "createTask" (12.8%), "requestAnimationFrame"
+(2.0%) — Chrome/V8-interne taak-scheduling, niet de INHOUD van een specifieke callback maar het aantal
+apart geplande kleine taken. Direct herkenbare app-code (RpgLevelPanel+ForegroundFoliageLayer+
+useRpgLevelState samen) is ruim onder 1%.
+
+**Kanttekeningen**: (1) trace komt van de dev-server (npm run dev), niet de productie-build — een deel
+van de react-dom_client.js-kost is DEV-ONLY validatie/warning-machinery die in productie niet bestaat;
+(2) extreem hoge sample-rate (~74.000/sec) heeft zelf meetoverhead — percentages zijn richtinggevend, geen
+exacte wandklok-verdeling.
+
+**Concrete volgende kandidaat (nog niet gebouwd)**: de open-world-schermen registreren VEEL losse
+requestAnimationFrame-loops (camera-pan, pet-animatie, walk-animatie, 2x ForegroundFoliageLayer,
+2x LdtkLitGround, LdtkAnimatedTiles-tick, critter/vogel-wander, worker-audio-afstandcheck, ...) — elk een
+APART geplande taak per frame. Dat matcht precies de createTask+requestAnimationFrame ~15%. Consolideren
+tot minder (idealiter één centrale per-frame dispatcher) is de best onderbouwde volgende stap, maar is een
+bredere, architectuur-rakende refactor over veel bestanden — verdient een eigen interview voor implementatie.
+Voorgesteld: eerst dezelfde test herhalen tegen de PRODUCTIE-build (npm run build && npm run preview) om de
+dev-mode ruis eruit te filteren, voordat de refactor gestart wordt. Zie docs/architecture.md §328.
+
+## 2026-08-27 — 🔨 #1162 Fase 8: gedeelde useFrameLoop-ticker (Han: "start interview voor rAF-consolidatie")
+
+Interview gehad: scope = OOK SheetRpgLayer (Levels/combat), aanpak = herbruikbare gedeelde "frame ticker"
+hook (i.p.v. alles direct in RpgLevelPanel bundelen). SheetRpgLayer's eigen §1050-bevinding meegenomen in
+het ontwerp: aparte rAF-chains lossen paint-blocking niet op (browser schildert pas na ALLE rAF-callbacks
+van dat frame) — de ticker levert daarom alleen de RUWE rAF-timestamp (nooit een eigen afgeleide tijd) en
+heeft een 'critical'/'throttled' priority-systeem, zodat audio-sync (context.currentTime, blijft door
+subsystemen zelf gelezen) en paint-blocking-gevoeligheid intact blijven.
+
+Nieuw: `src/hooks/useFrameLoop.js` + smoke test (4/4 groen).
+
+Gemigreerd deze ronde (laagste risico, PUUR consolidatie, geen gedragswijziging, allemaal 'critical'):
+RpgLevelPanel.jsx (camera-pan, pet-animatie, walk-animatie, alle WorldWanderer-instanties/critters+vogels)
+en useRpgLevelState.js (speler-beweging/pet-follow). Belangrijkste valkuil: tick-state (`startMs`/`last`)
+die voorheen als closure-`let` in een eenmalig-lopend effect leefde, moest naar een `useRef` — useFrameLoop
+roept altijd de LAATSTE callback-closure aan via zijn eigen ref, dus een closure-`let` zou bij elke render
+resetten i.p.v. per-tick te persisteren.
+
+BEWUST NOG NIET gemigreerd (gevlagd, niet vergeten):
+1. ForegroundFoliageLayer/LdtkLitGround/LdtkAnimatedTiles's eigen WebGL-tekenlussen — die zijn async (await
+   texture-loads) en pacen zichzelf door pas de VOLGENDE frame te vragen in een `finally`-blok na volledige
+   afronding, nooit overlappend. Een naïeve migratie zou overlappende/interleaved WebGL-aanroepen kunnen
+   geven — heeft een "nog bezig, sla deze tick over"-guard nodig. Volgens SS328's eigen trace-bevinding is
+   hun JS-kost sowieso <0.1% van de samples, dus lagere prioriteit dan het eerst leek.
+2. SheetRpgLayer.jsx — de meest invariant-gevoelige rAF-lus in de hele codebase (dezelfde die #1159 al eens
+   een echte productiebug had). Migratie hier volgt apart, met de bestaande #1159-regressietest als
+   expliciete gate — nog niet gestart.
+
+Geverifieerd: Playwright (rennen, stilstaan+pet-catchup, links lopen — alles correct, 0 console errors,
+visueel consistent met eerdere baselines). Tests groen (972/973, 1 skip — de 15 worldLayout.test.js-
+failures in dezelfde run zijn PRE-EXISTING, ongerelateerd werk van Han, bevestigd via git status).
+Lint 0 errors (2 nieuwe react-hooks/exhaustive-deps warnings van de WorldWanderer-cleanup-split bewust
+onderdrukt met rationale — de refs zijn langlevende gedeelde registries, geen DOM-refs). Build groen.
+Zie docs/architecture.md §329.
+
+## 2026-08-27 — ✅ #1162 Fase 8 vervolg: SheetRpgLayer gemigreerd + per-subscriber error-isolatie
+
+Voor SheetRpgLayer aan te pakken eerst een echt gat gevonden en gefixt: useFrameLoop's gedeelde tick() had
+GEEN isolatie tussen subscribers — één subscriber die throwt zou de HELE ticker breken (requestAnimationFrame
+nooit meer opnieuw aangevraagd), voor ALLE subscribers, niet alleen de falende. SheetRpgLayer's eigen lus
+heeft try/catch juist om deze exacte reden (#863, ooit een echte productiecrash). Fix: elke subscriber-call
+in een eigen try/catch (`runSubscriber`), nieuwe error-code E034-FRAME-LOOP-SUBSCRIBER (toegevoegd aan
+CLAUDE.md §7a). Nieuwe test bevestigt: een gezonde subscriber blijft tikken ook als een andere elke frame
+throwt.
+
+SheetRpgLayer.jsx migratie bleek de VEILIGSTE van de drie, niet de riskantste — deze lus las AL elke
+tick-state via refs (geomRef/ctxRef/scrollStartRef/pausedRef/etc.), precies het patroon useFrameLoop nodig
+heeft, en wel VANWEGE een eerder gedocumenteerde bug (2026-08-10 stale-closure fix). Geen ref-conversie
+nodig (in tegenstelling tot RpgLevelPanel/useRpgLevelState, die elk één closure-let hadden).
+
+Geverifieerd — de afgesproken expliciete gate: volledige SheetRpgLayer.test.jsx-suite (20 tests) groen,
+INCLUSIEF de #1159-regressietest bij naam. Tests groen (990/991, 1 skip, volledige suite), lint 0 errors, 0
+nieuwe niet-prop-types warnings in SheetRpgLayer.jsx, build groen. Live-browser sanity check (na een
+stale-dist-404 die bleek te komen van het herbouwen terwijl een preview-server nog de OUDE build serveerde —
+een test-sequencing-artefact, niets met de code te maken, opgelost door de server te herstarten): open-world
+scherm rendert correct na migratie, 0 console errors.
+
+Fase 8 nu compleet voor de oorspronkelijk afgesproken scope (beide schermen geconsolideerd). Nog open: de
+async WebGL-tekenlussen (ForegroundFoliageLayer/LdtkLitGround/LdtkAnimatedTiles) blijven bewust op hun eigen
+rAF-lus — zie SS329's eigen lijst. Wacht op Han's hertest op echte hardware voor het echte FPS-effect van
+deze hele Fase 8. Zie docs/architecture.md §330.
+
+## 2026-08-27 — 🐞✅ Periodiek loop/animatie-stotteren gefixt: animated-tiles cull herbouwde elke rAF-frame
+
+Han: "ongeveer elke schermbreedte, de animatie een klein beetje vertraagt, en dan terug versnelt" —
+overal in de wereld, sinds een van de eerste RPG-world builds.
+
+**Root cause**: `culledAnimatedTilesBack`/`Front` (campfire cull-lijst) was een `useMemo` die afhing van
+`cullTilesToViewport`, die op zijn beurt afhing van `localWorldToScreenX` — de CAMERA-AFHANKELIJKE
+projectiefunctie (leest `cameraX`-state, verandert elke rAF-frame tijdens lopen). Dus de "memoized" array
+werd elke frame opnieuw opgebouwd tijdens beweging, ondanks het eigen commentaar dat het tegendeel
+beweerde — precies het soort constante per-frame heap-allocatie dat periodieke GC-pauzes veroorzaakt.
+GC-pauzes zijn tijd-periodiek; bij een vrij constante loopsnelheid ziet dat er ruimte-periodiek uit
+("elke schermbreedte"). Sterk onderbouwde hypothese uit code-lezen (sowieso een echte, verspillende bug),
+niet bewezen via een live profiel — Han koos "fix nu, dan testen" boven "eerst een trace."
+
+**Fix**: nieuwe `useCulledAnimatedTiles`-hook (module-level in RpgLevelPanel.jsx), herberekent op de
+gedeelde useFrameLoop-ticker met 'throttled' cadans (150ms, ruim binnen de bestaande CULL_MARGIN_PX=400
+buffer's speling), gebruikt de camera-ONAFHANKELIJKE `localWorldToScreenXLocal` + een live
+`cameraOffsetRef`-read (zelfde patroon als ForegroundFoliageLayer's eigen culling), met een dedup-check
+zodat setState alleen vuurt als de zichtbare SET tegels echt verandert. Dode `localWorldToScreenX` (enige
+caller was deze bug) verwijderd, niet uitgecomment.
+
+Geverifieerd: tests groen (993/994, 1 skip — één eigen useFrameLoop-test bleek flaky onder volledige-
+suite-belasting, gehard door de sleep-marge te verruimen), lint 0 errors, build groen. Playwright: twee
+lange wandelingen (8s rechts, 12s links voorbij startpunt, nieuw gebied in), animated tiles verschijnen/
+verdwijnen nog correct, 0 console errors, geen visuele regressies.
+
+Nog niet bevestigd of dit HET gerapporteerde stotteren daadwerkelijk oplost — wacht op Han's hertest op
+echte hardware. Zie docs/architecture.md §335.
+
+## 2026-08-27 — 🔨 #1162 Fase 10a: foliage texture-atlas (grote WebGL-herschrijving, Stap 1/3)
+
+Han bij nog steeds ~40fps na de rAF-consolidatie: "wat kun je nog meer voor optimalisaties doen?" →
+gekozen voor de grote WebGL-instanced-rendering herschrijving i.p.v. eerst productie-build testen.
+Correctie op SS328: die concludeerde dat WebGL-tekenoproepen goedkoop waren (<0.1% van samples), maar dat
+keek alleen naar waar de JS-CALL-SITE toegeschreven werd — de ECHTE native kost van gl.uniform*/
+gl.bindTexture-aanroepen (WebGL-validatie, ANGLE-vertaallaag) landt in de profiler's generieke "run"/
+"(program)"-buckets, niet onder de aanroepende JS-functie. ForegroundFoliageLayer doet 1 gl.drawArrays +
+~15 gl.uniform* + 2 gl.bindTexture PER zichtbare instantie (tot 150+ per frame) — precies het soort
+main-thread-overhead dat in die buckets zou verstoppen, terwijl GPU/raster-threads inactief blijven.
+
+Plan (goedgekeurd, ~/.claude/plans/dynamic-questing-naur.md): 3 fases — (10a) gedeelde texture-atlas zodat
+alle instanties dezelfde texture kunnen delen; (10b) WebGL instancing (ANGLE_instanced_arrays) zodat de
+hele zichtbare set in 1 tekenoproep past; (10c) echte instanties aansluiten. Scope: alleen foliage (enige
+laag met per-instance tekenoproepen); water bewust buiten scope (crop-selectie hangt af van een per-
+plaatsing random offset privé aan useLdtkWaterInstances.js, niet netjes te delen zonder die stateful logica
+te dupliceren — foliage domineert het instantie-aantal toch al ruimschoots). Atlas-bouw gechunked via
+requestIdleCallback (Han's eigen expliciete vraag), zelfde BATCH_SIZE-conventie als useLdtkFoliageInstances.js.
+
+Fase 10a klaar: nieuwe useLdtkFoliageAtlas.js — dedupliceert crops op dezelfde sleutel-conventie, pakt ze
+in een grid (elke crop is even groot, dus geen bin-packing-algoritme nodig) in twee gedeelde canvassen
+(diffuse+normal, zelfde layout), gebouwd in idle-callback-batches. Normal-crops tekenen rechtstreeks van
+`normalMapCanvasFromCrop`'s canvas-resultaat (geen dataURL/`<img>`-omweg nodig, in tegenstelling tot het
+OUDE per-instance pad). NOG NIET aangesloten op het tekenen — enkel geverifieerd via een debugMode-preview
+(twee atlas-canvassen als `<img>`, gate net als de bestaande Foliage-debug/params-panelen).
+
+Geverifieerd: Playwright-screenshot toont 60 unieke crops, netjes gegrid gepakt zonder gaten/overlap,
+diffuse+normal atlas ruimtelijk uitgelijnd (zelfde crop = zelfde celpositie in beide, gecontroleerd via een
+herkenbare boomstam/water-vorm), 0 console errors. Smoke test (2/2, mockt canvas/Image net als de
+buurhooks geen tests hebben vanwege ontbrekende jsdom-canvas-support). Tests groen (995/996, 1 skip), lint
+0 errors, build groen.
+
+Nog te doen: Fase 10b (instanced shader/tekenpad) en 10c (echte instanties aansluiten) — zie het planbestand
+voor het volledige technische ontwerp. Zie docs/architecture.md §337.
+
+## 2026-08-27 — ✅ #1162 Fase 10b prep: uEdgeLitOnly losgekoppeld van de gedeelde shader-functie
+
+Voordat de instanced shader geschreven kon worden: `edgeLightFactor()` (gedeeld tussen ForegroundFoliageLayer
+en LdtkLitGround, CLAUDE.md §6d) las `uEdgeLitOnly` als impliciete global. Voor instancing moet dat een
+per-instance `varying float` worden (GLSL ES 1.00 kent geen `varying int`), maar een `varying` kan geen
+declaratie delen met een `uniform` van dezelfde naam in een ander shader-programma. Fix: `edgeLightFactor`
+neemt `edgeLitOnly` nu als expliciete parameter i.p.v. een gedeelde global te lezen — puur syntactisch,
+gedrag 100% ongewijzigd voor de twee bestaande shaders.
+
+Onderweg gevonden (niet door review, door de build zelf): een paar toegevoegde commentaren gebruikten
+markdown-backticks BINNEN de GLSL-broncode-strings (gewone JS template literals) — een backtick sluit zo'n
+string voortijdig af. `npm run build` faalde meteen met een JS-syntaxfout op de exacte regel. Gefixt, en
+expliciet gecontroleerd dat er geen andere backticks meer in een shader-template-literal zaten. Goed om te
+onthouden voor de rest van Fase 10b/10c — nog meer shader-string-bewerking te gaan.
+
+Geverifieerd: tests groen (995/996), lint 0 errors, build groen. Playwright door het werkersdorp/wilg/vijver
+(oefent beide shaders tegelijk uit): 0 console errors, rendering visueel ongewijzigd t.o.v. de baseline.
+
+Zie docs/architecture.md §338.
+
+## 2026-08-27 — ✅ #1162 Fase 10b: de instanced shader werkt, geverifieerd in isolatie (Han: "goed!")
+
+Nieuwe FoliageInstancingTest.jsx (debug-only, tijdelijk): eigen geïsoleerde WebGL1-context, compileert de
+NIEUWE instanced vertex+fragment shader, tekent echte crops uit de Fase 10a-atlas via ÉÉN
+drawArraysInstancedANGLE-call — nul risico voor de echte rendering.
+
+Wat veranderde: de ~13 waarden die per instantie varieerden (uScreenPos/uSizePx/uDiffuseUV/
+uWorldCenterX/Width/Height/uGroundDistOffset/uInstanceKind/uHasWave/uHasSkew/uWhiteCapThreshold/Strength/
+uEdgeLitOnly) zijn nu per-instance vertex-attributen (5 gepakte vec4's, divisor=1), gelezen als varying
+i.p.v. uniform in de fragment-shader. Int-uniforms werden 0.0/1.0-float-varyings. Waarden die AL identiek
+waren over elke instantie (skew/stretch/waveSteps/lighting-params — allemaal uit foliageParams, geen
+instantie-data) blijven gewoon per-tekenoproep-uniforms, ongewijzigd — bevestigd door de OUDE lus's exacte
+gl.uniform*-aanroepen te herlezen, niet aangenomen. De gl_FragCoord-gebaseerde pixel-berekening (SS141
+ronde 20's eigen fix voor varying-interpolatie-wobble) blijft ONGEWIJZIGD — veilig, want alle 4 hoekpunten
+van één instantie's quad delen dezelfde attribuutwaarde (divisor=1), dus GPU-interpolatie daarvan is exact.
+
+Twee echte bugs gevonden door de isolatietest, precies waarvoor die gebouwd is: (1) een markdown-backtick
+binnen een GLSL-string (zelfde foutklasse als SS338, gevangen door de build's JS-syntaxfout); (2) een
+ontbrekende `varying float vEdgeLitOnly;` in de FRAGMENT-shader (wel in de vertex-shader) — WebGL-link
+faalde runtime met "undeclared identifier", gelogd via E021-FOLIAGE-SHADER-COMPILE, gevangen door de
+Playwright console-check. De build's JS-syntaxcheck kan dit soort GLSL-fout NIET vangen — precies waarom
+deze geïsoleerde live-browser-verificatie nodig was vóór dit ooit de echte content raakte.
+
+Geverifieerd: 0 console/shader-errors na de fixes; ingezoomde screenshot toont 3 echte foliage-crops uit de
+atlas correct getekend — juiste alpha-cutout transparantie, scherpe NEAREST-gefilterde randen, zichtbare
+normal-map-schaduwdiepte. Tests groen (995/996), lint 0 errors, build groen.
+
+Nog te doen (Fase 10c): deze bewezen shader verhuizen naar ForegroundFoliageLayer.jsx zelf, de echte
+per-frame instance-buffer bouwen uit de echte zichtbare instantie-lijst, de oude per-instance-lus vervangen.
+Legacy-mode blijft volledig ongewijzigd. Zie docs/architecture.md §339.
+
+## 2026-08-27 — ✅ #1162 Fase 10c: echte integratie — foliage tekent nu via ÉÉN instanced call (Han: "ok top, fase 10c!")
+
+De bewezen shader uit SS339 verhuisde van FoliageInstancingTest.jsx naar ForegroundFoliageLayer.jsx zelf.
+ADDITIEF, geen vervanging: het component draait nu TWEE tekenpassages per frame — de ORIGINELE
+per-instance-uniform-lus (water + alle Legacy-mode objecten, ongewijzigd) plus een NIEUWE instanced pass
+(LDtk-mode foliage, voorheen ook via de oude lus, nu volledig omzeild).
+
+ForegroundFoliageLayer.jsx: VERTEX_SRC_INSTANCED/FRAGMENT_SRC_INSTANCED letterlijk overgenomen; createProgram
+neemt nu expliciete bronnen (compileert beide programma's met dezelfde helper); de GL-setup-effect compileert
+ook het instanced-programma (ANGLE_instanced_arrays-extensie, attribute/uniform-locaties, één instanceBuf) —
+niet-beschikbaar wordt getolereerd net als "WebGL unavailable" elders in dit bestand (§7a), de oude pass blijft
+onaangetast. Nieuwe atlas/atlasInstances-props; een aparte useEffect (keyed op [atlas]) upload de atlas-textures
+onafhankelijk van de eenmalige GL-setup-effect, want de atlas publiceert meerdere keren incrementeel (SS337).
+drawFrame krijgt een nieuw blok NA de bestaande lus: culled atlasInstancesRef.current met dezelfde
+cullMinX/cullMaxX, pakt de zichtbare set in één Float32Array (20 floats/instance), upload met één bufferData,
+zet de gedeelde per-tekenoproep-uniforms, bindt de atlas-textures ÉÉN keer, en tekent met ÉÉN
+drawArraysInstancedANGLE — vervangt wat anders N × (drawArrays + ~17 uniform-calls) was geweest, precies de
+per-instance WebGL-API-overhead die SS328's echte-hardware-trace aanwees.
+
+RpgLevelPanel.jsx: useLdtkFoliageInstances-aanroepen VERWIJDERD (niet alleen ongebruikt — die hook deed zijn
+EIGEN aparte runtime-Sobel-normal-map-generatie per crop, nu pure verspilde arbeid want useLdtkFoliageAtlas.js
+genereert die normal maps al in de atlas). Nieuwe atlasFoliageInstanceFor(tile) bouwt de atlas-instantie
+rechtstreeks uit de ruwe LDtk-tile, met dezelfde sleutel-conventie als useLdtkFoliageAtlas.js (§6c); positie/
+flip-wiskunde regel-voor-regel overgenomen uit useLdtkFoliageInstances.js's instanceFor (bewezen correct, enkel
+de UV-bron veranderde). localFoliageInstancesBack/Front zijn nu WATER-ONLY; atlasFoliageInstancesBack/Front
+zijn de nieuwe parallelle lijsten, doorgegeven via SceneryBack/SceneryFront naar ForegroundFoliageLayer's nieuwe
+atlas/atlasInstances-props. Legacy-mode call sites blijven ongewijzigd — atlas/atlasInstances zijn daar simpelweg
+null/[] (useLdtkFoliageAtlas zelf geeft al null terug buiten sceneryMode:'LDtk').
+
+Geverifieerd: npm run test:run (995/996), npm run lint (0 errors), npm run build allemaal groen. Live-browser
+Playwright-check tegen een verse `vite preview`-build (default view = sceneryMode:'LDtk', bevestigd in de code,
+niet aangenomen): 0 console errors (geen E021, geen WebGL-fouten) bij zowel initiële mount als na het lopen van
+de hero door een vijver/boomstam/bosrand-scène — dezelfde scène die bosjes, achtergrond-bladerdak, én een
+foliage-tegel-voorgrondobject tegelijk toont. Screenshots tonen foliage met intacte alpha-cutout-transparantie,
+scherpe pixel-randen, en normal-map-schaduwdiepte — geen zwarte vlakken, geen ontbrekende textures, geen visuele
+corruptie t.o.v. de pre-Fase-10-baseline. Dit bevestigt dat de shader compileert/linkt en de echte
+instance-buffer-koppeling correct is; het bevestigt NIET en kan niet bevestigen de echte FPS-impact — geen GPU
+aanwezig in deze sandbox-omgeving, dus de daadwerkelijke framerate-winst vereist nog steeds Han's eigen
+hardware-hertest (`npm run dev`), dezelfde staande voorwaarde als elke perf-ronde in dit ticket.
+
+Nog onbeslist (vraag aan Han): of FoliageInstancingTest.jsx (SS339's geïsoleerde testomgeving) nu verwijderd
+moet worden, of blijft als permanente debug-tool voor toekomstig shader-werk.
+
+Zie docs/architecture.md §340.
+
+---
+
+## 🐞 Level 13 wizard cast = geen geluid (square wave onhoorbaar) — Han 2026-08-28
+
+**Symptoom:** In LEVEL 13 (`enemyType: "Wizard"`) speelt de wizard-cast preview
+(`App.jsx wizardPreviewRef` → `createMelodicInstrument(context,'lead_1_square')`)
+geen hoorbaar geluid. Moet de square-wave lead zijn. Was eerder "te hard"
+(#313/#315), nu na de smplr-remirror onhoorbaar.
+
+**Bevindingen:**
+- `lead_1_square` routeerde via `LEGACY_INSTRUMENT_OVERRIDES` →
+  `/samples/Instruments/lead_1_square-classic/*.wav` (MusyngKite mirror). Gemeten
+  piek **~0.06** van full-scale, en de synth-leads kregen — anders dan woodblock —
+  BEWUST géén gain-compensatie ("te hard al"). Klopte voor de FluidR3-versie
+  (piek ~0.69), niet voor de MusyngKite-opname → onhoorbaar op mezzo-forte.
+- De hele #313/#315-boel (`extract-legacy-synth-leads.mjs`,
+  `legacySynthLeadBuffers.generated.js`, 176 `*-classic/*.wav`) was **nooit in git
+  gecommit** → clean checkout / CI / deploy zou niet eens builden (dangling import).
+
+**Fix (✅ 2026-08-28):**
+- `LEGACY_INSTRUMENT_OVERRIDES` bevat de twee synth-leads niet meer (alleen
+  woodblock). Ze vallen terug op de gecommitte FluidR3-extractie.
+- Nieuwe `MELODIC_TONE_SHAPING` in `localInstruments.js`: per-slug
+  `{ lpfCutoffHz, gain }`. `lead_1_square` = `{2600, 0.5}`, `lead_2_sawtooth` =
+  `{2200, 0.45}`. `lpfCutoffHz` → per-voice lowpass biquad in smplr's `Voice`;
+  `gain` → `output.addInsert` gain-node. Beide waarden zijn op-gehoor te tunen.
+- `extract-legacy-synth-leads.mjs` + `legacySynthLeadBuffers.generated.js`
+  verwijderd; de twee `*-classic/` WAV-mappen verwijderd.
+- `docs/architecture.md`: §315 gemarkeerd als SUPERSEDED, nieuwe §344.
+- ⚠ Nog open (aan Han): `woodblock-classic/` (88 files, metronoom) is óók
+  untracked in git — zelfde landmijn, bewust niet in deze fix meegenomen.
+- Groen: `npm run test:run` (1008 pass / 1 skip), `npm run lint` (0 errors),
+  `npm run build` (clean). **Nog niet op gehoor geverifieerd** — Han's UAT.
+
+---
+
+## ⏳ Future: fine-grained scheduling lookahead for smoother tempo ramps — Han 2026-08-28
+
+**Idea (follow-up to #1102 adaptive tempo).** Decouple *generation* cadence from
+*audio-schedule* cadence. Keep generating musical content at block/measure
+granularity (the pipeline's phrase/rhythm structure needs that), but commit notes
+to the AudioContext schedule only ~1 quarter note ahead instead of a full
+block/chunk. A shared quarter-note tick reads the live bpm for every track
+together (finer version of `Sequencer.scheduleBlock`'s per-measure
+`bpmRef.current` re-read), so a tempo change lands almost immediately and in sync
+across all instruments — enabling a smooth accelerando/ritardando glide rather
+than stepped bpm changes at 2-measure boundaries.
+
+**Edge case:** a note whose duration exceeds the (now tiny) lookahead window is
+scheduled note-on before its note-off is known. Its note-off must be
+(re)scheduled/cancelled on time as the tempo evolves. Acceptable because
+note-off timing is far less critical than note-on (Han) — reuse the existing
+StopFn / `stop({ time })` pattern, re-issue the stop at the recomputed time when
+bpm changes.
+
+**Not in #1102 scope** — #1102 ships the block/chunk-boundary bpm step with
+`commitIndexFor`/lcm exact-sync. This is a later refinement of the same feature.
+
+**Status:** ⏳ backlog — no ticket yet.
+
+**Can a note's end time be overridden / sustained longer? (Han 2026-08-28)** Mostly
+yes, depends on voice type:
+- Oscillator voices (`createMelodicInstrument`, e.g. `lead_1_square`): full control
+  of the release — move the note-off later freely; if a release ramp was already
+  scheduled, `gain.cancelScheduledValues(t)` + reschedule.
+- Looped / long soundfont samples (most melodic `Soundfont`, cello, piano): can be
+  held longer via a later `stop({ time })`, within the sample's usable length.
+- Short decaying one-shots (percussion, plucks): natural decay is fixed — can stop
+  earlier, cannot stretch beyond the recording.
+With ~1-quarter lookahead the note-off usually isn't scheduled yet when tempo
+changes, so you just compute it at the new (slower) tempo — it sustains longer
+for free, no "override" needed. Precedent already in the codebase:
+`useLevelGatedRubatoAudio.js` (#1096) holds cello notes until a frozen-aware
+clock passes the note's end event — same mechanism, gate-driven instead of
+tempo-driven.
+
+---
+
+## 🐞 World bottom-area: content blocks balloon vertically on tall/narrow viewports — Han 2026-08-28
+
+**Symptoom (world 598×272, nav 598×16, content1 342×611, content2 256×611 — `h-row`, N=1):**
+- Contentblokken zijn veel hoger dan wijd (342×611 / 256×611) → "heel lelijk".
+  Han: bij >150 gpx hoogte liefst altijd **boven elkaar** (full-width) i.p.v. naast elkaar.
+- "Melody Hill" wordmark veel te groot t.o.v. de piano — `melodyPx = max(5·sy, letterPx)`
+  en `sy = syFit = floor(box.h / NATIVE_H)` balloont omdat het blok 611px hoog is.
+- Enorme lege ruimte onderaan (de blokken vullen álle overgebleven hoogte).
+- Han: "had ik niet gezegd dat schermhoogte max 320 mocht zijn? sta dat toe."
+  (Bestaat NIET in worldLayout.js — `WORLD_GPX_H_MAX=320` capt alleen het WORLD-blok.)
+- 598px breed = net onder de N=2-drempel (`w/2 ≥ 304` → w ≥ 608) → vast op N=1 → worst case.
+
+**Root cause:** `worldLayout.js` `build()` — "Blocks fill the leftover bottom-area height"
+(bewuste keuze §334). Geen cap op contentblok-hoogte; geen max op de content-band.
+
+**Interview (4 vragen) beantwoord:** 320 = worldblok-cap (bestaat al, geen nieuwe schermcap);
+vrije ruimte → onderaan laten staan; altijd stapelen op smal/portret; piano+wordmark loskoppelen
+van blokhoogte → vastzetten op world-schaal N.
+
+**Fix (✅ 2026-08-28) — zie architecture.md §345:**
+- `worldLayout.js`: nieuwe `CONTENT1_GPX_H` (64) / `CONTENT2_GPX_H` (144) + `blockH()` helper —
+  blokken op natuurlijke hoogte, surplus = lege ruimte onderaan; te kort scherm → degradeert naar
+  vullen (nooit < 64 gpx, nooit buiten viewport). `worldScreenHeight`/`bandGpx` ONgewijzigd →
+  world-hoogte-selectie identiek.
+- Portret (`h > w`) → `pickArrangement` kiest nu `h-col`/`split` (full-width gestapeld) vóór de
+  normale volgorde. `v-row` nav-kolom nu net zo hoog als het langste blok (was de hele band).
+- `WorldPiano.jsx`: `sy = min(syFloor, syFit || syFloor)` (vast op ≥60-gpx-toets-floor, `syFit`
+  alleen nog omlaag-clamp); `melodyPx = letterPx` (was `max(5·sy, letterPx)`).
+- 3 nieuwe worldLayout-tests. `npm run test:run` / `lint` / `build` — [draait].
+- ⚠ Bewust NIET gedaan (Han's keuzes): vrije ruimte niet naar world (level-art is maar 272 gpx),
+  niet verticaal gecentreerd → blijft gap onderaan, ook op brede schermen. `CONTENT2_GPX_H` +
+  toets-grootte zijn 1-constante-tweaks; Han's UAT bepaalt de definitieve waarden.
+
+**Status:** 🔨 impl klaar, verificatie draait — Han UAT nodig (vooral: piano/blok-2-hoogte op gevoel).
+
+---
+
+## #1102 — Adaptive mode (letter `i`): bpm volgt live de ANPM ✅ (2026-08-28)
+
+Hervat na de pauze van 2026-08-23 (§298). Han 2026-08-28: ÉÉN pass, alle drie de
+content-architecturen, treble/bas moeten op DEZELFDE maat wisselen ("force exact sync").
+Drempels ≥90% sneller / <70% langzamer / hold ertussen: bevestigd als eerste versie.
+
+- ✅ `adaptiveTempo.js`: `lcmOf` + `commitIndexFor` — de exact-sync primitief (eerste maatindex
+  die een grens is van ELKE stream van dit level). Formules van §298 ongewijzigd hergebruikt.
+- ✅ `levels.js`: variant `i` niet langer `notYetImplemented`; `applyLevelVariant(lvl, letter, anpm)`
+  zet `bpm = baselineAdaptiveBpm(lvl, anpm)`, herberekent de span-bundel, stempelt
+  `adaptive` + `adaptiveBaseBpm` (het GESCHREVEN tempo — daar hangt de clamp aan).
+- ✅ `useAdaptiveTempo.js` (NIEUW): `bpmRef` blijft de enige bron voor "tempo NU" (zelfde patroon als
+  `Sequencer.scheduleBlock`, die `bpmRef.current` per maat vers leest). Wat er bij komt is één
+  GEPLANDE wijziging: JIT-streams plannen audio een scherm vooruit, dus ze moeten het tempo van maat M
+  al kennen vóórdat de app-brede `bpm` mag wisselen (anders loopt het beeld een chunk voor op de muziek).
+- ✅ Beide JIT-hooks lezen bpm VERS per blok/chunk (niet in de effect-deps!) en plaatsen elk blok met
+  een OPGETELDE seconden-cursor i.p.v. `index * measures * barSec`.
+- ✅ Beslisser: treble-stream voor JIT-levels; een App.jsx-effect op `level.wave` voor de klassieke
+  per-wave levels (geen koppeling in `useLevel.js` nodig).
+- ✅ `tempoScrollAnchor.js` (NIEUW) + `tempoScrollMs` in SheetRpgLayer: her-ankert bij elke
+  tempowissel, zodat de scrollpositie NIET springt — alleen de snelheid verandert. Alle 8 call sites
+  gebruiken dezelfde uitdrukking.
+- ✅ Tests: 30 nieuw/aangepast. `npm run test:run` 1046 groen, `lint` 0 errors, `build` schoon.
+- 📄 docs/architecture.md §346 (en §298 gemarkeerd als hervat/afgerond).
+
+**Status:** 🔨 impl klaar → Han UAT. Let vooral op: (a) voelt ±5% per blok goed of te traag/te
+schokkerig? (b) hoor/zie je bas en treble ooit uit de pas lopen op het moment van de wissel?
+(c) de timpani-one-shot wordt bewust NIET mee-versneld (zie §346 "known limitations").
