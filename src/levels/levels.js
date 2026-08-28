@@ -274,17 +274,28 @@ import InstrumentSettings from '../model/InstrumentSettings';
 import SONGS from '../songs/songIndex.js';
 import { noteToMidi } from '../theory/noteUtils';
 import { TICKS_PER_WHOLE, TICKS_PER_BEAT } from '../constants/timing';
-import { DEFAULT_TIME_SIG } from '../constants/generatorDefaults';
+import { DEFAULT_TIME_SIG, DEFAULT_SCALE_MODE, DEFAULT_SCALE_TONIC } from '../constants/generatorDefaults';
+import { scaleDefinitions } from '../theory/scaleHandler';
+// #1102: adaptiveTempo.js owns Han's locked bpm formulas and imports `totalNotesForLevel` back from THIS
+// file — a deliberate, ESM-safe import cycle: neither module CALLS the other at module-init time (both
+// only reference each other inside function bodies), and keeping the two formulas in the one file that
+// documents them is worth more than breaking the cycle by duplicating either (§6c).
+import { baselineAdaptiveBpm } from './adaptiveTempo';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 
 // #1045 (Han 2026-08-17): every level's default note-coloring scheme, unless the level overrides it
-// with its own `colorMode`. Must match one of NoteColoringStaffOverlay.jsx's SCHEMES mode values.
+// with its own `colorScheme`/`colorScope`. Must match NoteColoringStaffOverlay.jsx's COLOR_SCHEMES/
+// COLOR_SCOPES values.
 // #1049 follow-up (Han 2026-08-17, "laat dat de default zijn voor alle levels die ik nu heb"):
-// changed from plain 'subtle-chroma' (colors every note) to the new 'scale-subtle-chroma' hybrid
-// (colors only in-scale notes, same subtle-chroma gradient) — no level currently sets its own explicit
-// `colorMode`, so this single constant change already updates every shipped level.
-export const DEFAULT_LEVEL_COLOR_MODE = 'scale-subtle-chroma';
+// changed from plain 'subtle-chroma' (colors every note) to the 'scale-subtle-chroma' hybrid (colors
+// only in-scale notes, same subtle-chroma gradient) — no level currently sets its own explicit
+// override, so a single constant change already updates every shipped level.
+// #1103 (Han 2026-08-22): the old single `colorMode` field is now two independent fields — this old
+// combined value is expressed as `colorScheme: 'subtle-chroma'` + `colorScope: 'scale'` (see noteUtils.js's
+// own #1103 comment for the full equivalence table).
+export const DEFAULT_LEVEL_COLOR_SCHEME = 'subtle-chroma';
+export const DEFAULT_LEVEL_COLOR_SCOPE = 'scale';
 
 // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
 // moet zijn na 2 maten (6 kwarttellen)"), generalized #889 (Han 2026-08-14): `beatsOnScreen` (the
@@ -394,6 +405,12 @@ const songLevelDefaults = (songDef) => {
         timeSignature: songDef.timeSignature,
         numMeasures: songDef.numMeasures,
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
+        // #1154 (Han 2026-08-25, letter h "Randomized Notes" — "notes/measure = aantal maten / aantal
+        // noten... bepaal instellingen die bij het nummer passen"): the song's OWN average note density
+        // (real notes only, rests already filtered above), used as the generation notesPerMeasure when
+        // variant 'h' regenerates this song's melody from scratch. Derived per-song here (not a level.js
+        // constant) since every song has a different density — §6c, no hardcoded table.
+        randomizedNotesPerMeasure: Math.max(1, Math.round(notes.length / songDef.numMeasures)),
         range: { min, max },
         // `family` added (Han 2026-08-17 bug fix): a song-level's key was silently applied inside
         // whichever scale family the app happened to already have selected — harmless for a Diatonic
@@ -452,12 +469,13 @@ const normalizeLevel = (lvl) => {
         : null;
     // #1045 (Han 2026-08-17, "Voeg color mode toe aan de settings van een level. Zet standaard op
     // subtle chroma"): same "explicit field wins, else derived" convention as beatsOnScreen/numRepeats
-    // above — a level can author its own `colorMode` (any NoteColoringStaffOverlay.jsx SCHEMES value:
-    // 'none'/'tonic_scale_keys'/'chords'/'chromatone'/'subtle-chroma'), applied by useLevel's
-    // applyConfig via setNoteColoringMode. Every level gets one (not just sideScroll), matching how
-    // key/bpm/timeSignature are always-applied rather than side-scroll-only.
-    const colorMode = merged.colorMode ?? DEFAULT_LEVEL_COLOR_MODE;
-    return { ...merged, numRepeats, totalMeasures, colorMode, ...(span || {}) };
+    // above — a level can author its own `colorScheme`/`colorScope` (#1103: the old single `colorMode`
+    // enum split into two independent axes, see noteUtils.js's own #1103 comment), applied by useLevel's
+    // applyConfig via setColorScheme/setColorScope. Every level gets both (not just sideScroll), matching
+    // how key/bpm/timeSignature are always-applied rather than side-scroll-only.
+    const colorScheme = merged.colorScheme ?? DEFAULT_LEVEL_COLOR_SCHEME;
+    const colorScope = merged.colorScope ?? DEFAULT_LEVEL_COLOR_SCOPE;
+    return { ...merged, numRepeats, totalMeasures, colorScheme, colorScope, ...(span || {}) };
 };
 
 const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));
@@ -531,13 +549,354 @@ export const LEVEL19 = byId[19];
 
 export const LEVELS = byId;
 
+// #1100 (split from #1087, Han 2026-08-22 chat interview): selectable per-play "mode variants", chosen at
+// the level-start splash — NEVER persisted to the level's own authored config (this file stays the single
+// source of truth for a level's OWN defaults; a variant only overrides the EFFECTIVE object passed to
+// `level.start`). Bundles {speed, colorScheme, colorScope} per letter (CLAUDE.md §6c: this IS the
+// legitimate "no formula exists" case — a per-variant CONFIG bundle, not a value derivable from anything
+// else). 'a' reuses the EXISTING gatedScroll/JIT-generation mechanism (useLevelTrebleStream.js etc —
+// already keyed off the plain `lvl.gatedScroll` boolean, never a hardcoded level id) rather than
+// inventing a second "rubato" concept.
+// Locked speed multipliers (chat interview): full=1x/medium=0.75x/slow=0.5x — ONE generic formula applied
+// to whatever bpm the level already declares, never a per-level bpm table.
+// #1103 follow-up (Han 2026-08-22, coloring redesign): colors re-specified in the new colorScheme x
+// colorScope terms — a,b=chroma+scale; c,d=subtle-chroma+scale; e,f=none.
+// #1101 (split from #1087, Han 2026-08-23 chat interview, "call response is altijd black wizard — dus
+// slime is thans een MODE van een level"): d/e are call-response — FORCE `enemyType: 'Wizard'` on
+// whatever level they're applied to (the wizard cast-audio mechanism is NOT decoupled from
+// call-response, only from levels.json's static per-level `enemyType` authoring) and set
+// `callResponseMeasures` (1 for d, 2 for e — see generateLevel9CallResponseBlock.js's own `groupMeasures`
+// param). `gatedScroll: false` is DELIBERATE: `isJitTrebleLevel` excludes `enemyType==='Wizard'`, so
+// forcing Wizard on an originally-gatedScroll level (1-3) while leaving gatedScroll on would flip its
+// wave-counting to the discrete numRepeats-based model while `loopForever` (keyed on gatedScroll alone)
+// stayed true underneath — risking a repeat of §289's "level never ends" bug class. Rubato ('a') and
+// call-response ('d'/'e') are mutually exclusive per-letter choices anyway, never combined.
+// #1153 (Han 2026-08-25, letter g "Modulated" — chat interview: "ik wil dan een 'variant' van het nummer
+// in een andere toonladder. Kies voorlopig een random diatonische toonladder die verschilt van de
+// oorspronkelijke"; scope confirmed for ALL sideScroll levels (songs + procedural), FIXED for the whole
+// level, not alternating per block like Level 11's decorativeWizard): the 7 canonical Diatonic mode
+// `name` values `getScaleDefinition('Diatonic', name)` accepts (scaleDefinitions.Diatonic above) — reused
+// verbatim, not re-derived, so a new diatonic mode added there is automatically available here too.
+const DIATONIC_MODE_NAMES = scaleDefinitions.Diatonic.map((m) => m.name);
+
+// Bug fix (Han 2026-08-25 UAT: "Ik heb nog steeds ALTIJD E phrygian op sakura - lijkt deterministisch;
+// dus ja, ik wil elke keer dat je het level start een random diatonische toonladder"): the old `lvl.id`-
+// seeded pick was deliberately deterministic (see git history) on the theory that the live preview
+// re-invoking `applyLevelVariant` on every render needed a stable answer — but the preview never actually
+// surfaces the SPECIFIC picked mode name anywhere a player sees (LevelStartSplash.jsx's variant label just
+// shows the letter's static "Modulated" title; only the debugMode JSON dump shows the resolved `key.mode`,
+// and re-rolling there on re-render is harmless/expected for a debug view). Han wants TRUE randomness per
+// actual level start — `startLevel` (App.jsx) calls `applyLevelVariant` fresh at that exact moment, so a
+// `Math.random()` pick here already lands correctly: whatever the preview last showed, the real level gets
+// its own fresh roll the instant Start is pressed.
+//
+// Bug fix (same UAT, "Zorg bij G meteen dat er niet naar de diatonic 'parent' van de toonladder wordt
+// gemoduleerd - In -> Phrygisch is triviaal, dus dan heeft level G kiezen geen zin"): a scale's `diatonic`
+// field (scaleHandler.js, see that file's own top-of-file doc) names the heptatonic mode its notes are an
+// EXACT zero-offset subset of (#1158) — modulating to that exact mode changes no pitch at all (every note
+// is already a valid member), a silent no-op that defeats the point of picking "Modulated". Excluded here
+// by looking the scale's OWN `diatonic` key back up in `scaleDefinitions.Diatonic` to find which entry
+// owns it, then excluding that entry's `.name` (the value `DIATONIC_MODE_NAMES` — and this function's
+// return value — actually use; `diatonic` and `.name` diverge for 3 of the 7 Diatonic entries, e.g.
+// Major's own `diatonic` is 'Ionian' but its `.name` is 'Major' — see scaleHandler.js). `originalMode` is
+// ALSO excluded directly (defensive: covers a procedural level whose `key.mode` already equals its own
+// `.name`, and guards against a future entry with no `diatonic` field). §6c: reuses `scaleDefinitions`
+// (already imported) rather than a new hardcoded parent-mode table.
+const pickModulatedMode = (lvl) => {
+    const originalMode = lvl.key?.mode ?? DEFAULT_SCALE_MODE;
+    const originalFamily = lvl.key?.family ?? 'Diatonic';
+    const ownDef = scaleDefinitions[originalFamily]?.find((m) => m.name === originalMode);
+    const diatonicParentName = ownDef?.diatonic
+        ? scaleDefinitions.Diatonic.find((m) => m.diatonic === ownDef.diatonic)?.name
+        : null;
+    const excluded = new Set([originalMode, diatonicParentName].filter(Boolean));
+    const pool = DIATONIC_MODE_NAMES.filter((name) => !excluded.has(name));
+    const candidates = pool.length ? pool : DIATONIC_MODE_NAMES;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+};
+//
+// `iconKey` (Han 2026-08-24, "gebruik de nieuwe status_effect_icons"): a lookup key into
+// LevelStartSplash.jsx's own `ICON_BY_KEY` map (the actual PNG imports + UI concern live there, not
+// here — levels.js stays asset/UI-import-free, same reasoning as not importing generationFields.js's
+// lucide-react constants here, see availableVariantLetters' own comment). NOT the raw asset filename —
+// keeps this table readable and the image swap-out localized to one file if the assets ever move/rename.
+// `notYetImplemented: true` (g/h/i below): the icon/slot is reserved and shown in the picker so Han can
+// see the full planned set, but the letter is NOT selectable yet — picking a variant that changes
+// nothing would be a silent no-op, worse than a visibly disabled button (LevelStartSplash.jsx greys it
+// out). Remove the flag the moment that letter's actual generation logic is built.
+export const LEVEL_MODE_VARIANTS = {
+    a: { label: 'Rubato', gatedScroll: true, colorScheme: 'chroma', colorScope: 'scale', iconKey: 'rubato' },
+    b: { label: 'Langzaam', speedMultiplier: 0.5, colorScheme: 'chroma', colorScope: 'scale', iconKey: 'slow' },
+    c: { label: 'Middel', speedMultiplier: 0.75, colorScheme: 'subtle-chroma', colorScope: 'scale', iconKey: 'halfTempo' },
+    d: {
+        label: 'Call-response (1 maat)', enemyType: 'Wizard', gatedScroll: false, callResponseMeasures: 1,
+        numRepeats: 2, speedMultiplier: 0.75, colorScheme: 'subtle-chroma', colorScope: 'scale',
+        iconKey: 'listenRepeat1',
+    },
+    e: {
+        label: 'Call-response (2 maten)', enemyType: 'Wizard', gatedScroll: false, callResponseMeasures: 2,
+        numRepeats: 2, speedMultiplier: 1, colorScheme: 'none', colorScope: 'all',
+        iconKey: 'listenRepeat2',
+    },
+    f: { label: 'Vol tempo', speedMultiplier: 1, colorScheme: 'none', colorScope: 'all', iconKey: 'fullTempo' },
+    // #1153: `modulated: true` — see `pickModulatedMode`'s own comment above for the deterministic-pick
+    // rationale and `applyLevelVariant`'s `modulatedOverrides` for how it's applied (procedural: the
+    // EXISTING `lvl.key`-driven scale-application path in useLevel.js's applyConfig just picks it up for
+    // free; songs: App.jsx's `handleLoadSong` gets an explicit `modulateToMode` override).
+    g: { label: 'Modulated', iconKey: 'modulated', modulated: true },
+    // #1154: `randomizedNotes: true` — ONLY offered for songId levels (availableVariantLetters below;
+    // Han: "de al reeds random nummers hebben geen variant H" — a procedural level is already fresh
+    // content every playthrough, this variant exists specifically to give a FIXED song that same
+    // "familiar chords, new melody" treatment). See `applyLevelVariant`'s `randomizeSongOverrides`.
+    h: { label: 'Randomized Notes', iconKey: 'randomizedNotes', randomizedNotes: true },
+    // #1102 (Han 2026-08-23 chat interview, resumed 2026-08-28): `adaptive: true` — the level's bpm
+    // STARTS at the player's own ANPM-derived baseline (`baselineAdaptiveBpm`, adaptiveTempo.js) and then
+    // tracks their live performance ±5% per block/wave, clamped to [authoredBpm/2, authoredBpm]. See
+    // `applyLevelVariant`'s `adaptiveOverrides` below and docs/architecture.md §344.
+    i: { label: 'Adaptive speed', iconKey: 'adaptiveSpeed', adaptive: true },
+};
+
+// Applies a chosen LEVEL_MODE_VARIANTS letter on top of an already-normalized level object, returning a
+// NEW object — never mutates `lvl` (the shared, module-level LEVELS[id] object other call sites also
+// read). `letter == null` returns `lvl` UNCHANGED — "as authored" is itself the default choice, not mapped
+// to any one letter, since most levels' own bpm/colorScheme/colorScope don't exactly match any single variant (CLAUDE.md
+// §7b: no behaviour change for any EXISTING call site that doesn't opt into a letter).
+// Only meaningful for `sideScroll` levels — every variant concerns scrolling-gameplay pacing/coloring;
+// LevelStartSplash.jsx only renders the picker when `lvl.sideScroll`, so a non-sideScroll level never
+// reaches this with a letter set. 'a' (rubato) is offered regardless of `songId` — gatedScroll+songId
+// TOGETHER already exists and is heavily exercised today (Levels 1/2 are both songId+gatedScroll, and are
+// the two most fixed/tested levels this cycle, §285-289) — the gating mechanism is content-source-
+// agnostic, so there is no extra risk in letting a PREVIOUSLY non-gated song-backed level opt into it.
+//
+// #1102: `anpm` (the player's profile-level "accurate notes per minute" skill number, ProfileContext) is
+// the OPTIONAL third param — the only variant that needs profile state. Passing it is harmless for every
+// other letter (ignored), and omitting it for the adaptive letter simply falls back to the level's own
+// authored bpm (`baselineAdaptiveBpm`'s own null-ANPM branch), so no call site is obliged to thread it.
+export const applyLevelVariant = (lvl, letter, anpm = null) => {
+    const variant = letter != null ? LEVEL_MODE_VARIANTS[letter] : null;
+    if (!variant) return lvl;
+    // #1102: the adaptive letter derives its STARTING bpm from the player's own ANPM instead of a fixed
+    // multiplier of the level's authored tempo — but it lands in the SAME `bpm` variable the
+    // speedMultiplier letters use, so the span recompute below (and every downstream consumer of
+    // `lvl.bpm`) needs no adaptive-specific branch at all (§6c).
+    const bpm = variant.adaptive
+        ? baselineAdaptiveBpm(lvl, anpm)
+        : (variant.speedMultiplier ? Math.round(lvl.bpm * variant.speedMultiplier) : lvl.bpm);
+    // #994's span bundle (beatsOnScreen/visibleMeasures/leadInBars/metronomeBars, see normalizeLevel
+    // above) is BPM-derived — a variant that changes bpm must recompute it, or the on-screen scroll pace
+    // goes stale vs the new tempo. An author's own explicit `beatsOnScreen` was tuned for the ORIGINAL
+    // bpm, so it is deliberately NOT preserved here (unlike normalizeLevel's own "explicit wins" rule) —
+    // at a different tempo it no longer means what the author intended.
+    const span = (bpm !== lvl.bpm && lvl.sideScroll)
+        ? deriveLevelSpan({ bpm, timeSignature: lvl.timeSignature ?? DEFAULT_TIME_SIG })
+        : null;
+    // #1101: d/e's `callResponseMeasures` also forces `enemyType`/`numMeasures`/`numRepeats` — the level's
+    // OWN authored values are irrelevant once call-response is selected, since the whole point is "any
+    // level can become a call-response level regardless of its own default enemy/wave shape". `numMeasures`
+    // becomes the call/response GROUP size (what `useLevelTrebleStream`'s Wizard-branch `blockMeasures`
+    // derives from) and feeds `wavesForLevel`'s discrete `totalMeasures / (numMeasures*numRepeats)` model
+    // (levels.js below) so wave-counting stays correct for WHATEVER level this was applied to.
+    // Bug fix (Han 2026-08-24 UAT, variant 'e': "de tijd tussen de call en response is nu nog steeds 1
+    // maat; daardoor overlapt wat ik moet spelen met het luisteren naar de tovenaar"): the wizard cast's
+    // audio is scheduled `wizardSpawnLeadMeasures * barSec` EARLIER than the block's own start
+    // (useLevelTrebleStream.js's `leadOffsetSeconds`) specifically so the cast finishes exactly when the
+    // call's own measures end and the response begins. That only works when the lead time equals the
+    // CALL's own length (`callResponseMeasures`) — `wizardSpawnLeadMeasures` was never set here, so it
+    // defaulted to 1 regardless of variant, correct for 'd' (1-measure call) by coincidence but too
+    // short for 'e' (2-measure call): the cast kept playing for a second measure that had already become
+    // the response's own gameplay window. Native Wizard levels (13/108/114/118) keep their own authored
+    // `wizardSpawnLeadMeasures` untouched — this override only applies when call-response ITSELF sets
+    // the block shape via `callResponseMeasures`.
+    // Bug fix (Han 2026-08-25 UAT, Sakura d/e: "de lengte van het nummer is ook niet verdubbeld, dus
+    // opeens, precies halverwege het nummer, zijn de akkoorden 'op'... en verschijnt de 'end of song'
+    // maatstreep"): for a SONG, call-response ALWAYS doubles the level's true total length (every real
+    // song measure becomes a call+response PAIR) — but `lvl.totalMeasures` was computed once at
+    // `normalizeLevel` time from the song's own `numMeasures`, BEFORE this variant could ever apply, so
+    // it stayed at the un-doubled length. `lvl.numMeasures` here is still that ORIGINAL song length (this
+    // override hasn't replaced it yet in this same object-spread), so doubling it directly is correct —
+    // App.jsx's `handleLoadSong` doubles the chord progression to match (see
+    // `sliceSongCallResponseBlock.js`'s `doubleMelodyForCallResponse`), and `useLevelBackingStream.js`'s
+    // bass/cello generation already reads `lvl.totalMeasures` as its own content-length source of truth
+    // (§6c — one shared value, fixing it here fixes bass "for free", matching Han's own "de akkoorden (en
+    // dus de bas)"). Scoped to songs only — a procedural level's `totalMeasures` semantics (already
+    // folding in its own `numRepeats`/`numBlocks`) aren't touched here; no report of them being wrong.
+    const callResponseOverrides = variant.callResponseMeasures != null ? {
+        enemyType: variant.enemyType,
+        callResponseMeasures: variant.callResponseMeasures,
+        numMeasures: variant.callResponseMeasures,
+        numRepeats: variant.numRepeats,
+        wizardSpawnLeadMeasures: variant.callResponseMeasures,
+        ...(lvl.songId != null ? { totalMeasures: lvl.numMeasures * 2 } : {}),
+    } : {};
+    // #1153: overrides `key` to the deterministically-picked "different diatonic mode" — for a
+    // PROCEDURAL level this is the ENTIRE fix (useLevel.js's applyConfig already applies `lvl.key`
+    // unconditionally via setSelectedMode/setTonic). `modulateToMode` additionally tells App.jsx's
+    // handleLoadSong to actively re-pitch a SONG's fixed melody/bass/chords into that mode (procedural
+    // generation needs no such step — it generates fresh content in whatever scale is active).
+    // Bug fix (Han 2026-08-25 UAT, "G heeft opeens geen akkoorden / baslijn meer"): `pickModulatedMode`
+    // is now `Math.random()`-based (see its own comment) — calling it TWICE here used to be harmless
+    // when it was a deterministic function of `lvl` alone, but now gives `key.mode` and `modulateToMode`
+    // two DIFFERENT random modes. App.jsx's `handleLoadSong` uses `modulateToMode` to build `activeScale`
+    // (the scale it actually re-pitches treble/bass/chordMelody INTO) while `useLevel.js`'s `applyConfig`
+    // separately applies `key` (tonic/mode/family) to the app's OWN scale state — with two different
+    // modes in play, the chord/bass modulation target and the app's displayed scale disagreed, and
+    // downstream chord-progression lookups keyed on the app's scale silently found nothing. One roll,
+    // reused for both fields.
+    const modulatedOverrides = variant.modulated ? (() => {
+        const targetMode = pickModulatedMode(lvl);
+        return {
+            key: { tonic: lvl.key?.tonic ?? DEFAULT_SCALE_TONIC, mode: targetMode, family: 'Diatonic' },
+            modulateToMode: targetMode,
+        };
+    })() : {};
+    // #1154: only meaningful for a songId level (availableVariantLetters excludes 'h' otherwise, but
+    // guard here too since applyLevelVariant has no other caller-side enforcement). `forceTrebleSettings`
+    // reaches App.jsx's handleLoadSong via useLevel.js's begin() — see that file's own comment.
+    // #1102: `adaptive` marks the level for the live tempo controller (useAdaptiveTempo.js) and
+    // `adaptiveBaseBpm` preserves the level's OWN AUTHORED tempo — `bpm` above has already been replaced
+    // by the ANPM-derived baseline, but the clamp Han locked is `[authoredBpm/2, authoredBpm]`, so the
+    // authored value must survive somewhere. Kept as its own field rather than re-reading `LEVELS[id].bpm`
+    // downstream, which would be wrong for a Level-0 draft object or a song-backed level (whose `bpm` is
+    // itself back-filled from the song definition, not written in levels.json).
+    const adaptiveOverrides = variant.adaptive ? { adaptive: true, adaptiveBaseBpm: lvl.bpm } : {};
+    const randomizeSongOverrides = (variant.randomizedNotes && lvl.songId != null) ? {
+        randomizeSongMelody: true,
+        forceTrebleSettings: {
+            notesPerMeasure: lvl.randomizedNotesPerMeasure,
+            variability: 30,
+            randomizationRule: 'arp_group',
+        },
+    } : {};
+    return {
+        ...lvl,
+        bpm,
+        ...(span || {}),
+        gatedScroll: variant.gatedScroll ?? lvl.gatedScroll,
+        // #1102 bug fix (found while prototyping the 'x' variant, kept regardless of that pause — a
+        // future color-less variant must fall back to the level's OWN color, not silently overwrite it
+        // with `undefined`): every current variant (a-f) DOES specify a color, so this fallback is
+        // defensive-only today, not yet exercised by any real selection.
+        colorScheme: variant.colorScheme ?? lvl.colorScheme,
+        colorScope: variant.colorScope ?? lvl.colorScope,
+        ...callResponseOverrides,
+        ...modulatedOverrides,
+        ...randomizeSongOverrides,
+        ...adaptiveOverrides,
+    };
+};
+
+// Audit fix (Han 2026-08-24, "ga kritisch door de level modi heen en los inconsistenties op"): two
+// letter x level-shape combinations were offered by LevelStartSplash.jsx's static VARIANT_LETTERS list
+// without ever being checked against what the underlying mechanism actually supports — found by tracing
+// every consumer of the fields a variant touches (the SAME method that caught §299's totalMeasures bug),
+// not by guessing:
+//
+// 1. (RESOLVED, #1155, Han 2026-08-24 — was: call-response forces `enemyType: 'Wizard'`, which used to
+//    flip on `useLevelTrebleStream`'s PROCEDURAL generation for a `songId` level too, silently replacing
+//    the actual composed song with generated notes.) Fixed properly instead of excluded: when
+//    `lvl.songId` is set, `useLevelTrebleStream` now SLICES the song's own measures into call/response
+//    pairs (`sliceSongCallResponseBlock.js`) instead of generating anything — see that file's own
+//    comment. d/e are therefore available for every level, songs included.
+// 2. rubato (`variant.gatedScroll`) freezes the visual scroll indefinitely at any note the player hasn't
+//    hit yet (SheetRpgLayer's `gatedFrozenRef`) — but a native Wizard/Mixed level's wizard "cast" preview
+//    audio (`useLevelTrebleStream.js`/`useLevelMixedStream.js`, both `blockStartTime = contentStartTime +
+//    blockIndex * blockMeasures * barSec`) is scheduled on a FIXED AudioContext-time schedule, same as
+//    bass/metronome USED to be before #1096 built a gate-aware trigger for those specifically
+//    (`useLevelGatedRubatoAudio.js`). No equivalent gate-aware mechanism exists for the wizard cast — if
+//    the gate freezes, the next block's cast can still fire on schedule while the visual stays frozen on
+//    an earlier note, an audio/visual desync never previously reachable (no NATIVE level combines
+//    `gatedScroll` with `enemyType: 'Wizard'`/`'Mixed'`) until 'a' was offered unconditionally for every
+//    `sideScroll` level, native Wizard ones (13/108/114/118) and Mixed (14) included.
+//
+// Building gate-aware wizard-cast timing (mirroring #1096) is a real feature, not a one-line fix — until
+// that exists, both combinations are simply excluded here rather than shipped broken. Single source of
+// truth for the picker (LevelStartSplash.jsx calls this instead of hand-filtering VARIANT_LETTERS itself).
+export const availableVariantLetters = (lvl, letters) => letters.filter((letter) => {
+    const variant = LEVEL_MODE_VARIANTS[letter];
+    // #300/§304 (2026-08-24): a `decorativeWizard` level used to be EXCLUDED from d/e here — its
+    // key-modulation stream and call-response's own JIT stream both tried to own the same treble state.
+    // Han, on that fix: "why exclude d/e? why not have the wizard cast a modulation spell before each
+    // call-response block?" — so instead of excluding the combination, `useLevelTrebleStream.js`'s block
+    // generation now DOES the modulating itself when `decorativeWizard` is set (one stream, two jobs) —
+    // no exclusion needed here any more. See that hook's `blockScale` for the merged mechanism.
+    if (variant.gatedScroll && (lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed')) return false;
+    // #1154 (Han: "de al reeds random nummers hebben geen variant H"): only a FIXED song benefits from
+    // "keep the chords, generate a new melody" — a procedural level is already fresh content every
+    // playthrough, offering 'h' there would be a visible no-op choice.
+    if (variant.randomizedNotes && lvl.songId == null) return false;
+    // #1102 (Han 2026-08-28, "alle drie de architecturen in één ticket"): 'i' (adaptive speed) is
+    // deliberately NOT gated per level shape — the tempo controller hooks into the two JIT streams AND
+    // the classic per-wave path, so every one of the three content architectures a `sideScroll` level can
+    // have is covered. No exclusion clause needed here; this comment exists so a future audit doesn't
+    // read the absence as an oversight.
+    return true;
+});
+
 // waves to clear = total measures / measures-per-wave. Each wave shows ONE generated melody
 // (numMeasures) for `numRepeats` measure-slots (§686, Level 9's call-response: numMeasures=1,
 // numRepeats=2 → the 1 generated measure is shown twice — once as the wizard's call, once as the
 // player's repeat-measure — so a wave spans 2 measures of the level's timeline, not 1). Every
 // pre-#686 level has numRepeats=1 (the field already existed, unused for this purpose), so this
 // generalization changes no existing level's wave count (§6c: extend the formula, don't special-case).
-export const wavesForLevel = (lvl) => Math.max(1, Math.round(lvl.totalMeasures / (lvl.numMeasures * (lvl.numRepeats || 1))));
+//
+// #1101 (Han 2026-08-22, "level eindigt nog steeds niet — level 3 (rubato)"): a `gatedScroll` level's
+// treble is grown via `useLevelTrebleStream.js`'s JIT one-block-ahead streaming, which runs on its OWN
+// real-time schedule INDEPENDENT of the gate/combat pace (`loopForever` — content never stops
+// generating while the level is active, so the player waiting at note 1 does not slow it down). This
+// means the level's full content (capped at its true end, `trebleFinalBarTick`) reliably finishes
+// streaming in well before the player has cleared even the first of the "N discrete waves" this
+// division used to assume — `killedCount`/`total` (SheetRpgLayer.jsx) are BOTH whole-song-cumulative
+// for this kind of level (never wave-scoped), so there is really only ONE clear event possible: kill
+// count catches up to the level's true total. Live-reproduced: Level 3 fired `onSlimesCleared` exactly
+// once at killedCount===total===20 (all 20 notes), incrementing `wave` 0→1 — but `wavesForLevel`'s old
+// division said `tw=5`, so `next(1) >= tw` was never true, `pendingSongEndRef` never got set, and the
+// level was stuck forever with a blank staff (confirmed live via Playwright + temporary debug logging;
+// removed after diagnosis). Fixed at the source: this SAME shape (`isJitTrebleLevel`) already existed
+// independently in TWO other files (`useLevel.js`'s `isJitTrebleDriven`, `App.jsx`'s
+// `isJitGatedSlimeLevel`) — consolidated here as the one shared predicate (§6c) so this fix, and any
+// future one, can't drift out of sync between the 3 call sites again.
+export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll && !lvl?.songId
+    && lvl?.enemyType !== 'Wizard' && lvl?.enemyType !== 'Mixed' && !lvl?.decorativeWizard);
+
+// Bug fix (Han 2026-08-24 UAT, call-response levels: "enemies vanquished" underreported + a burst of
+// extra "missed" judgments at level end). `isJitTrebleLevel` above deliberately EXCLUDES `enemyType ===
+// 'Wizard'` — that's correct for ITS OWN job (picking the discrete numRepeats-based wave-count model,
+// since call-response's wave counting is intentionally NOT the JIT one-wave model). But App.jsx's
+// `levelTrebleStream` (useLevelTrebleStream.js) activates on `enemyType === 'Wizard' ||
+// isJitTrebleLevel(lvl)` — i.e. call-response (Wizard-forced by #1101's d/e) DOES stream its treble via
+// the SAME JIT one-block-ahead mechanism gated levels use, it just ALSO uses the discrete wave model for
+// combat pacing. `useLevel.js`'s `onWaveCleared` only knew about the wave-model exclusion
+// (`isJitTrebleLevel`), not the treble-stream one — so for a multi-wave call-response level it kept
+// calling `regenerate()` on every wave clear (§867 round 3's own comment already identifies this
+// class of bug for gated levels, but never widened the guard to cover Wizard/call-response, since no
+// multi-wave Wizard variant existed until #1101). `regenerate()` resets `levelMelodyReady` and rebuilds
+// the AMBIENT (non-JIT) treble/bass state that the JIT stream's own content isn't even reading from —
+// racing it, and (via the `levelMelodyReady` flip `useLevelBackingStream`/`useLevelTrebleStream` both
+// gate on) intermittently tearing down and restarting their own effects mid-level, which is what
+// desynced the slime/kill bookkeeping (`slimeData` derives from `trebleMelody`, which the JIT stream
+// keeps re-publishing right after `regenerate()` just wiped App.jsx's copy of it).
+// Single shared predicate (§6c) — App.jsx's 3 inline `enemyType === 'Wizard' || isJitGatedSlimeLevel`
+// call sites should eventually consume this too, not re-derive it a 4th time.
+export const usesTrebleJitStream = (lvl) => !!(lvl?.enemyType === 'Wizard' || isJitTrebleLevel(lvl));
+
+export const wavesForLevel = (lvl) => (isJitTrebleLevel(lvl)
+    ? 1
+    : Math.max(1, Math.round(lvl.totalMeasures / (lvl.numMeasures * (lvl.numRepeats || 1)))));
+
+// #1099 (Han 2026-08-22, ANPM stat) + #1102 (Han 2026-08-23, adaptive tempo): "maten per minuut x noten
+// per maat" (Han) — the level's own total note count, shared by BOTH the post-completion ANPM update
+// (App.jsx) and the pre-start adaptive-tempo baseline (applyLevelVariant below), so the two formulas can
+// never drift apart (CLAUDE.md §6c: one source of truth, not two independent copies). Bass only counts
+// when `twoHanded` (Han: bass counts ONLY "als die in input staat" — the player is actually playing it,
+// not just hearing an accompaniment track). Bass's own notesPerMeasure isn't always exposed as a flat
+// field (song-backed levels nest it in the song definition), so this falls back to 1/measure — the value
+// BOTH `LEVEL_BASS_SIMPLE` and `LEVEL_BASS_DEFAULT` above already use when a level doesn't set
+// `tracks.bass.notesPerMeasure` explicitly.
+export const totalNotesForLevel = (lvl) => {
+    const trebleNotesPerMeasure = lvl?.notesPerMeasure || 0;
+    const bassNotesPerMeasure = lvl?.twoHanded ? (lvl?.tracks?.bass?.notesPerMeasure ?? 1) : 0;
+    return (lvl?.totalMeasures || 0) * (trebleNotesPerMeasure + bassNotesPerMeasure);
+};
 
 // treble-only staff visibility, in the playbackConfig `eyes` shape the app already uses (see PresetPicker).
 // #663 (Han 2026-08-03, "laat [de akkoordenprogressie] in debug ook maar zien"): `showChords` follows the
