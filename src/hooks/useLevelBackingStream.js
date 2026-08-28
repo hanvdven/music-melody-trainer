@@ -16,10 +16,15 @@ import playMelodies from '../audio/playMelodies';
 // generateLevelBackingChunk.js — the SAME MelodyGenerator pipeline every other track uses, no
 // hardcoded pattern (Han: "geen hard-coded oplossingen ... gebruik het gewone protocol"). A new
 // chunk is generated one chunk-duration BEFORE it's due (a 2-measure buffer, "2+2 maten op
-// voorhand") instead of racing anything against instrument readiness. Timpani (percussion) and
-// treble are UNCHANGED — timpani stays the Han-authorized hardcoded pattern (his explicit
-// instruction: "hard code de timpani voor nu"), scheduled once exactly as before; treble is not
+// voorhand") instead of racing anything against instrument readiness. Treble is UNCHANGED — not
 // part of these bugs.
+//
+// Timpani (percussion) is UNCHANGED — timpani stays the Han-authorized hardcoded pattern (his explicit
+// instruction: "hard code de timpani voor nu"), scheduled once exactly as before (App.jsx). #867 rework
+// (Han 2026-08-20): a draft considered folding timpani into this same chunked mechanism, but Han corrected
+// that ("ik wil dat de timpani stilvallen als de muziek stopt") — timpani should fall silent when its own
+// fixed-length schedule ends, not loop forever like bass/metronome do for a gated level. The METRONOME
+// exclusion below (gated levels get NO metronome at all) is the only new behaviour here.
 //
 // This hook OWNS the growing bass/metronome Melody objects (for SheetMusic's scrollNotationBass
 // to render) AND their audio scheduling (via playMelodies, same param shape every other level-
@@ -67,6 +72,11 @@ export default function useLevelBackingStream({
   bassInstrument,
   metronomeInstrument,
   stopFnsRef,      // shared levelBackingStopFnsRef — collects every scheduled note's StopFn
+  // #1102 (adaptive tempo, letter 'i'): the shared tempo controller (useAdaptiveTempo.js). This stream
+  // never DECIDES a tempo change — it only ADOPTS one at its own next chunk boundary, which
+  // `commitIndexFor` guaranteed is the SAME measure index the treble stream adopts at. Deliberately not
+  // in this effect's dependency array (a tempo change must never tear down/rebuild the JIT schedule).
+  adaptiveTempo = null,
 }) {
   const [bass, setBass] = useState(() => Melody.defaultBassMelody());
   const [metronome, setMetronome] = useState(() => Melody.defaultMetronomeMelody());
@@ -88,7 +98,7 @@ export default function useLevelBackingStream({
     setBass(Melody.defaultBassMelody());
     setMetronome(Melody.defaultMetronomeMelody());
 
-    const bpm = lvl.bpm || 80;
+    const startBpm = lvl.bpm || 80;
     const barBeats = timeSignature[0] || 4;
     const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
     // Bug fix (Han 2026-08-06, "de 6/8 maatsoort zorgt dat alles misloopt"): `barSec = (60/bpm) *
@@ -98,7 +108,12 @@ export default function useLevelBackingStream({
     // eighth-notes' worth — literally double the real bar length. Fixed to derive bar duration from
     // `measureLengthTicks` (already denominator-correct) via the timing SSOT `secondsPerTick`, not a
     // beats×denominator-agnostic shortcut.
-    const barSec = measureLengthTicks * secondsPerTick(bpm);
+    // #1102: a FUNCTION of bpm now, not one constant for the whole level — an adaptive level's bar
+    // duration changes when its tempo does, so each chunk is placed at `previous chunk start + its OWN
+    // chunkMeasures × barSec`, an accumulated cursor instead of `chunkIndex × chunkMeasures × barSec`.
+    // Identical arithmetic for every non-adaptive level (a constant bpm makes accumulation and
+    // multiplication the same numbers).
+    const barSecAt = (b) => measureLengthTicks * secondsPerTick(b);
     // #994: per-level span, replacing the former fixed LEVEL_LEAD_IN_BARS = 2 for all three of its old
     // jobs. Keeping `chunkMeasures === leadInBars` is what preserves the proven lookahead relationship:
     // a chunk's notes become visible at the right edge exactly `leadInBars` measures before they sound
@@ -117,9 +132,11 @@ export default function useLevelBackingStream({
 
     const timers = [];
     const ownStopFns = [];   // THIS run's scheduled StopFns — cancelled on cleanup, unlike stopFnsRef
-    const scheduleAndTrack = (melodies, instruments, scheduledStart, namedInstruments, trackGains) => {
+    // #1102: `chunkBpm` is passed in per call (was the effect-wide `bpm` const) — an adaptive level's
+    // cello/metronome must sound at the tempo of the chunk they belong to.
+    const scheduleAndTrack = (melodies, instruments, scheduledStart, namedInstruments, trackGains, chunkBpm) => {
       const before = stopFnsRef.current.length;
-      playMelodies(melodies, instruments, context, bpm, scheduledStart, null, null, namedInstruments, null, trackGains, stopFnsRef);
+      playMelodies(melodies, instruments, context, chunkBpm, scheduledStart, null, null, namedInstruments, null, trackGains, stopFnsRef);
       for (let i = before; i < stopFnsRef.current.length; i++) ownStopFns.push(stopFnsRef.current[i]);
     };
 
@@ -127,7 +144,20 @@ export default function useLevelBackingStream({
     // time (clamped for a trailing remainder). Every chunk starts exactly one chunk-duration after
     // the previous one — the uniform grid that makes "generate chunk k+1 when chunk k begins" a
     // fixed 2-measure lookahead buffer for every chunk, including the first.
-    const numContentMeasures = lvl.numMeasures;
+    // Bug fix (Han 2026-08-24, Level 8 mode D: "ik hoor geen bas/metronoom... lijkt anders
+    // geimplementeerd dan level 13"): this MUST be `lvl.totalMeasures` (levels.js's own documented
+    // "total measures across the WHOLE level"), never `lvl.numMeasures` ("how many measures ONE
+    // generated block/wave covers" — levels.js line ~36). The two happen to be equal for every
+    // single-wave level (numRepeats=1, one block), which is every level this stream had been
+    // exercised against before #1101 — masking that the wrong field was being read here all along.
+    // #1101's call-response variants (d/e) repurpose `numMeasures` into the call/response GROUP size
+    // (1 or 2), leaving it far smaller than the level's real length — with the old `lvl.numMeasures`
+    // read, backing generated only that one tiny group's worth of content, then (never looping, since
+    // `gatedScroll:false` for d/e) fell permanently silent for the rest of the level. Native multi-wave
+    // Wizard levels (e.g. 108/114/118, `numMeasures` = one call/response block, `totalMeasures` = the
+    // full multi-wave level) had this exact same latent bug independent of #1101 — fixed by the same
+    // line, not a separate patch.
+    const numContentMeasures = lvl.totalMeasures;
     const totalChunks = 1 + Math.ceil(numContentMeasures / chunkMeasures);
     // #1052 third follow-up (Han 2026-08-18, "the cello plays its tones and then after a while it
     // stops... it's not rubato at all, it just plays the song as normal" + "if I take too much time at
@@ -146,8 +176,26 @@ export default function useLevelBackingStream({
     // reason, so looping "forever" here is safe — nothing outlives the level.
     const loopForever = !!lvl.gatedScroll;
 
-    const generateAndScheduleChunk = (chunkIndex) => {
+    // #1102: `chunkStartTime` is now THREADED THROUGH the recursion (an accumulated audio-time cursor)
+    // instead of being recomputed as `levelAudioStart + chunkIndex * chunkMeasures * barSec`.
+    const generateAndScheduleChunk = (chunkIndex, chunkStartTime) => {
       const isLeadIn = chunkIndex === 0;
+      // #1102: this chunk's position on the level's CONTENT-measure timeline — the shared index space
+      // the treble stream's `blockIndex * blockMeasures` also lives in. Chunk 0 IS the lead-in, so it
+      // sits one full chunk BEFORE content measure 0 (`chunkMeasures === leadInBars` by construction,
+      // see this file's own #994 comment), which makes every chunk boundary land on a multiple of
+      // `chunkMeasures` — exactly what `commitIndexFor` relies on.
+      const contentMeasure = (chunkIndex - 1) * chunkMeasures;
+      // The tempo THIS chunk is generated and scheduled at, read FRESH here rather than captured once
+      // for the whole effect — the same "re-read the live bpm ref at the top of each scheduling unit"
+      // pattern `Sequencer.scheduleBlock` already uses per measure (§6c/§6d).
+      // The LEAD-IN is pinned to the level's own starting tempo: no adaptive commit can exist before the
+      // first block/wave has been graded, and `useLevelTrebleStream` derives its `contentStartTime` from
+      // the identical expression — so both streams' content clocks start at the exact same instant.
+      const bpm = (lvl.adaptive && adaptiveTempo && !isLeadIn)
+        ? adaptiveTempo.bpmForMeasure(contentMeasure, chunkStartTime)
+        : startBpm;
+      const barSec = barSecAt(bpm);
       // #1052 third follow-up: `% (loopForever ? numContentMeasures : Infinity)` wraps back to measure 0
       // once past the level's own content length ONLY when looping — `x % Infinity === x` for any finite
       // x, so a non-gated level's `contentCovered` is completely unchanged by this expression.
@@ -204,7 +252,9 @@ export default function useLevelBackingStream({
       // lead-in measure (the visual clock's zero), and the cello is scheduled AT it — so cello/timpani
       // begin exactly when the first lead-in barline appears on screen. Only the metronome is offset,
       // by the same amount as its tick timeline above.
-      const chunkStartTime = levelAudioStart + chunkIndex * chunkMeasures * barSec;
+      // #1102: `chunkStartTime` is the accumulated cursor threaded in from the previous chunk (it used to
+      // be recomputed here as `levelAudioStart + chunkIndex * chunkMeasures * barSec`, which silently
+      // assumed one bar duration for the whole level).
       const metronomeStartTime = isLeadIn
         ? chunkStartTime + (leadInBars - metronomeBars) * barSec
         : chunkStartTime;
@@ -220,16 +270,26 @@ export default function useLevelBackingStream({
           metronomeStartTime, barSec, leadInBars, metronomeBars,
         });
       }
-      if (bassChunk.notes.length) {
+      // #1096 (Han 2026-08-20, rubato: "de cello niet [laten spelen] aan metronoom tempo... hou de noot
+      // aan, totdat de tijdslijn de end event passeert"): for a gated level, cello audio is no longer
+      // pre-scheduled here at all — `useLevelGatedRubatoAudio.js` triggers it in real time instead, off
+      // the gate's own frozen-aware clock. This chunk's content still grows/generates exactly as before
+      // (that hook reads THIS state's `bass` Melody) — only the fixed-schedule AUDIO trigger is skipped.
+      if (bassChunk.notes.length && !lvl.gatedScroll) {
         scheduleAndTrack(
           [bassChunk], [bassInstrument], chunkStartTime, { bass: bassInstrument },
-          { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
+          { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 }, bpm,
         );
       }
-      if (metronomeChunk.notes.length) {
+      // #867 rework (Han 2026-08-20, "ik dacht voor gated scroll gezegd te hebben wel timpanen, geen
+      // metronoom"): a gated level has no fixed tempo to click to (the scroll waits for the player, not
+      // a clock) — the metronome chunk is still generated above (keeps this function branch-free/uniform
+      // per chunk) but simply never scheduled for a gated level, mirroring how §1052 already skips the
+      // timpani one-shot call for other reasons at its own call site (App.jsx).
+      if (metronomeChunk.notes.length && !lvl.gatedScroll) {
         scheduleAndTrack(
           [metronomeChunk], [metronomeInstrument], metronomeStartTime, { metronome: metronomeInstrument },
-          { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 },
+          { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 }, bpm,
         );
       }
 
@@ -241,16 +301,18 @@ export default function useLevelBackingStream({
       // #1052 third follow-up: `loopForever` levels never stop scheduling — see this function's own
       // `contentCovered` comment above for how the content wraps instead of running out.
       if (loopForever || nextIndex < totalChunks) {
+        // #1102: the accumulated cursor — this chunk's own start plus its own measures at its own tempo.
+        const nextChunkStartTime = chunkStartTime + chunkMeasures * barSec;
         if (chunkIndex === 0) {
-          generateAndScheduleChunk(nextIndex);
+          generateAndScheduleChunk(nextIndex, nextChunkStartTime);
         } else {
           const delayMs = Math.max(0, (chunkStartTime - context.currentTime) * 1000);
-          timers.push(setTimeout(() => generateAndScheduleChunk(nextIndex), delayMs));
+          timers.push(setTimeout(() => generateAndScheduleChunk(nextIndex, nextChunkStartTime), delayMs));
         }
       }
     };
 
-    generateAndScheduleChunk(0);
+    generateAndScheduleChunk(0, levelAudioStart);
 
     return () => {
       timers.forEach((t) => clearTimeout(t));
