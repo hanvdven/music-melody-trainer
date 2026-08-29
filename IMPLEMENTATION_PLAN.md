@@ -6910,3 +6910,32 @@ Drempels ≥90% sneller / <70% langzamer / hold ertussen: bevestigd als eerste v
 **Status:** 🔨 impl klaar → Han UAT. Let vooral op: (a) voelt ±5% per blok goed of te traag/te
 schokkerig? (b) hoor/zie je bas en treble ooit uit de pas lopen op het moment van de wissel?
 (c) de timpani-one-shot wordt bewust NIET mee-versneld (zie §346 "known limitations").
+
+### #1102 — afrondingsronde na Hans UAT-bounce ✅ (2026-08-29)
+
+Han's bounce (UAT 2026-08-28): *"geen zichtbare versnelling op level 4 & 11"* → oorzaak: die levels
+waren 1 generatie-chunk, dus de beslisser evalueerde 0 keer. Eerst ticket B (#1163/#1164/#1165/#1166),
+daarna #1102 afmaken. Die vier zijn klaar; dit is de afrondingsronde.
+
+- ✅ **Nul-ANPM baseline → 0.7× het geschreven tempo** (`NO_ANPM_BASELINE_FACTOR`, adaptiveTempo.js).
+  Was het geschreven tempo zelf = de clamp-BOVENGRENS, dus versnellen was onmogelijk voor wie nog
+  geen ANPM heeft.
+- ✅ **Evaluatie-aanloop: een adaptief level speelt zijn eigen content 3× door**
+  (`ADAPTIVE_LEVEL_REPEATS = 3`). Mechanisme: `applyLevelVariant` vermenigvuldigt de EIGEN
+  `totalMeasures` van het level — het ene lengteveld dat `blockCountFor` / `wavesForLevel` /
+  `totalNotesForLevel` / de timpani-span / de eind-maatstreep allemaal al lezen — dus 3× is
+  structureel gewoon een langer level en eindigt via de paden die al bestaan. Bewust NIET voor
+  `songId`-levels (hun song-slice herhaalt niet → §289 "level eindigt nooit") en niet voor
+  non-sideScroll levels (daar evalueert de stream sowieso niet).
+- ✅ **Integratietest** `src/hooks/__tests__/adaptiveMode.integration.test.js` (13 tests): echte
+  controller + echte content-stream om een echt level heen. Baseline (incl. 0.7×), ±5%, deadband,
+  clamp op beide grenzen — allemaal afgelezen aan de ECHTE scheduling-argumenten; alle sporen
+  wisselen op hetzelfde blok; 3× blokken en dan stoppen.
+- 📄 docs/architecture.md **§354** — één samenhangende adaptive-tempo sectie die §346 + §350's
+  "#1102-naad" + §298 vervangt (die drie blijven als historie staan, met een verwijzing).
+  Ook de verouderde header van `adaptiveTempo.js` gecorrigeerd (noemde de verwijderde
+  `useLevelTrebleStream.js`).
+
+**Status:** 🔨 impl klaar → Han UAT. Let vooral op: (a) voelt ±5% per blok goed? (b) is 3× doorspelen
+niet te lang? (c) **de timpani wordt NIET mee-versneld** en loopt nu over ~24 maten — dat is het
+duidelijkste hoorbare risico van deze ronde (§354 known limitation 1).

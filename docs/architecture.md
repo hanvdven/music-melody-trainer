@@ -22888,6 +22888,14 @@ felt-to-centre-box `sy` formula with `kFit` cap, `melodyPx`; removed `NATIVE_H`/
 
 ### §346. Adaptive tempo — level-mode letter `i`, live bpm tracking the player's ANPM (#1102, Han 2026-08-23 interview, built 2026-08-28)
 
+> **SUPERSEDED BY §354** (#1102 finishing pass, 2026-08-29). This section describes the FIRST build,
+> which hooked three separate content architectures and whose UAT bounce ("no visible acceleration on
+> levels 4 & 11") led to the #1163–#1166 pipeline merge. Kept as history — the reasoning below is still
+> the record of WHY each rule exists — but three things it states are no longer true: the null-ANPM
+> fallback is now `0.7 ×` the authored bpm (not the authored bpm), the decider is `useLevelContentStream`
+> alone (the App.jsx per-wave effect and both retired JIT streams are gone), and the "timpani is finished
+> before the first commit" limitation no longer holds. **Read §354 instead.**
+
 **Purpose.** Han's adaptive mode: a level should meet the player where they are. Picking letter `i`
 ("Adaptive speed") on the level-start splash starts the level at a tempo derived from the player's own
 profile-level ANPM skill number (§291) instead of the level's authored bpm, and then tracks their live
@@ -23272,7 +23280,9 @@ used for exactly the reason its own comment already gives for chords: the harmon
 something the player guesses by ear (that is the melody's job), it is the continuous accompaniment
 underneath BOTH halves, so the same content is simply repeated for each.
 
-**#1102 (adaptive tempo) — the seam.** `adaptiveTempo.js`, `useAdaptiveTempo.js`, level-mode variant
+**#1102 (adaptive tempo) — the seam.** *(This paragraph is the re-fit only; the finished feature it
+seams onto is documented in **§354**, which supersedes it together with §346.)*
+`adaptiveTempo.js`, `useAdaptiveTempo.js`, level-mode variant
 `'i'`, `tempoScrollAnchor.js`, SheetRpgLayer's `tempoScrollMs` and `useLevel.statsRef` are all
 **unchanged**. Only the WIRING was re-fitted: the per-block `bpmForMeasure` read and the accumulated
 cursor, previously duplicated in two streams, are one copy in `useLevelContentStream`; and App.jsx's
@@ -23478,3 +23488,232 @@ corrected — no code change), `src/levels/__tests__/levels.test.js` (the two `#
 "1 continuous wave" cases updated to the 4-chunk reality + a new `#1163c` block: per-id value pins,
 `totalNotesForLevel` byte-identity pins, `blockCountFor === wavesForLevel`, the 13/13d/13e/14/15
 cadence guard, the timpani-span-from-`totalMeasures` guard).
+
+### §354. Adaptive tempo, FINAL wiring — level-mode letter `i` (#1102, Han 2026-08-23 interview → 2026-08-29)
+
+**This section supersedes and consolidates §346** (the first, three-architecture build), **§350's
+"#1102 — the seam" paragraph** (the #1165 re-fit) **and §298** (the paused groundwork). Those three
+stay as history — every rule they document is inherited verbatim — but THIS is the section to read
+for what adaptive mode actually is and how it is wired today.
+
+**Purpose.** Han's adaptive mode: a level should meet the player where they are. Picking letter `i`
+("Adaptive speed") on the level-start splash (a) starts the level at a tempo derived from the
+player's own profile-level ANPM skill number (§291) rather than the level's authored bpm, (b) makes
+the level play through its own content **three times** so there is a real runway to converge over,
+and (c) tracks the player's live performance — **±5% per generated block**, clamped to
+`[authoredBpm/2, authoredBpm]`.
+
+---
+
+#### The four locked decisions (Han — do NOT re-derive)
+
+| Decision | Value | Where it lives |
+|---|---|---|
+| Baseline tempo | `bpm = ANPM × beatsInLevel / totalNotesInLevel` — the algebraic INVERSE of #1099's own ANPM formula (`notesPerMinute = totalNotes / elapsedMinutes`), applied to THIS level's beat/note structure. Han: *"ANPM is een skill, en overstijgt levels."* | `baselineAdaptiveBpm` (`adaptiveTempo.js`) |
+| Step | ±5% per graded block | `ADAPTIVE_STEP` |
+| Clamp | `[authoredBpm/2, authoredBpm]`; a bound is a **silent no-op** this round | `evaluateAdaptiveBpm` |
+| Repeats | the level plays through **3×** (*"niet oninteressant om het level te blijven herhalen. Bijvoorbeeld 3x"*) | `ADAPTIVE_LEVEL_REPEATS` |
+
+`beatsInLevel = 4·(ts[0]/ts[1]) · totalMeasures`; `totalNotesInLevel = totalNotesForLevel(lvl)` —
+the SAME shared helper #1099's post-completion ANPM update calls, so the two formulas can never
+drift (§6c). Bass notes count only on a `twoHanded` level (Han: only *"als die in input staat"*).
+
+**No-ANPM fallback = `round(authoredBpm × 0.7)`** (Han 2026-08-28, from the UAT bounce below). It
+used to be the authored bpm itself — which is also the clamp CEILING, so a player who had never
+finished a level started pinned at the top of the range and adaptive mode could only ever slow
+down, never demonstrate the acceleration that is its whole point. 0.7× leaves headroom in both
+directions. Constant: `NO_ANPM_BASELINE_FACTOR`.
+
+**Accuracy thresholds — a FIRST-PASS TUNABLE**, confirmed by Han as "good as first pass" but
+explicitly open to UAT feedback on feel: **`>=90%` speeds up** (matching #1099's own qualifying
+threshold), **`<70%` slows down**, anything between **HOLDS** rather than chasing noise every block.
+A stretch with zero graded notes is a no-op, so the very first boundary always holds.
+`evaluateAdaptiveBpm` reuses `computeAccuracyPercent` / `computeTotalNotes` (LevelStatsCharts.jsx) —
+there is no third scoring formula anywhere in this feature (§6c).
+
+---
+
+#### The UAT bounce that reshaped this ticket (Han 2026-08-28)
+
+*"No visible acceleration on levels 4 & 11."* Root cause: those levels were `numMeasures: 8` /
+`totalMeasures: 8` → **one** generation chunk → the decider evaluated **zero** times mid-level.
+Adaptive-as-built only did anything on levels with many chunks. Han's decision: park #1102, first
+build the uniform per-chunk pipeline (#1163/#1164/#1165/#1166), then finish adaptive on top of it.
+Both halves of that bounce are now closed:
+
+- the **mechanism** half by #1165/#1166 — ONE cadence, ONE decider, and `numMeasures: 2` on the ramp
+  levels, so level 4 is 4 blocks instead of 1;
+- the **runway** half by `ADAPTIVE_LEVEL_REPEATS` below (4 blocks → 12), and the **ceiling** half by
+  the 0.7× no-ANPM baseline.
+
+---
+
+#### Picker and level application (`levels.js`)
+
+`LEVEL_MODE_VARIANTS.i` carries `adaptive: true` (icon `adaptiveSpeed`).
+`applyLevelVariant(lvl, letter, anpm)` takes an OPTIONAL third param — `i` is the only variant that
+needs profile state, and every other letter simply ignores it. For the adaptive letter it:
+
+1. sets `bpm = baselineAdaptiveBpm(lvl, anpm)`, then recomputes #994's bpm-derived span bundle
+   (`beatsOnScreen` / `visibleMeasures` / `leadInBars` / `metronomeBars`) through the SAME code path
+   the `speedMultiplier` letters already take — no adaptive-specific branch downstream (§6c);
+2. stamps `adaptive: true` and `adaptiveBaseBpm` — the level's own AUTHORED tempo, which the clamp
+   is expressed against (`bpm` has by then been replaced by the ANPM baseline, and for a song-backed
+   or Level-0 draft object there is no reliable `LEVELS[id].bpm` to re-read later);
+3. multiplies `totalMeasures` by `ADAPTIVE_LEVEL_REPEATS`.
+
+`availableVariantLetters` needs no clause for `i` — with one pipeline every `sideScroll` level shape
+is covered, so it is offered for all of them.
+
+**Why the repeat is expressed as `totalMeasures × 3` and nothing else.** `totalMeasures` is already
+the ONE length field every consumer reads, so multiplying it makes a 3× adaptive level structurally
+identical to an ordinary longer level, through paths that already exist and are already exercised:
+
+| Consumer | Effect of the ×3 |
+|---|---|
+| `blockCountFor` (`levelBlockPlan.js`) | 3× blocks → 3× evaluation points, still **finite** |
+| `wavesForLevel` | 3× waves → `onWaveCleared` reaches its target only after all three passes |
+| `SheetMusic.levelFullTotalMeasures` → SheetRpgLayer `trebleFinalBarTick` | the final barline (and the slime/critter spawn clip that derives from it) moves out 3× |
+| App.jsx `timpaniMelody` | spans the whole 3× level |
+| `totalNotesForLevel` | 3× notes over ~3× the time → #1099's ANPM is **unchanged** by the repeat |
+| `baselineAdaptiveBpm` | **unchanged** — `totalMeasures` is in both the numerator (beats) and the denominator (notes) and cancels out |
+
+The rejected alternative was a bounded loop inside `useLevelContentStream` (a capped `loopForever`).
+It would still have had to move `wavesForLevel` and `levelFullTotalMeasures`, or the level would end
+at the original final barline one third of the way in — i.e. re-derive the same thing in a scattered
+way, plus a new code path. `applyLevelVariant` already does this exact scoped-`totalMeasures` trick
+for call-response on songs.
+
+**The repeat is SCOPED to procedural (`songId == null`) side-scroll levels, and that exclusion is
+load-bearing, not caution.** A song-backed level's per-block treble slice is deliberately
+**unwrapped** (`useLevelContentStream`'s `songSlice`: past the song's last measure the slice is
+empty, so a song never silently repeats). Tripling such a level's wave target while its slimes stop
+at the song's true end would leave `pendingSongEndRef` never set — exactly the §289 *"level never
+ends"* bug class. `!sideScroll` is excluded for a different reason: the stream only consults the
+controller for a side-scroll level, so a longer static level would be pure padding.
+
+---
+
+#### The live half — one decider, one schedule
+
+**`bpmRef` is the single source of truth for "the tempo NOW."** This is the pattern
+`Sequencer.scheduleBlock` already relies on: it re-reads `bpmRef.current` at the top of EVERY
+measure and derives that measure's `secondsPerTick` / `measureDuration` / `lookahead` from it, so a
+tempo change between blocks is already handled, in sync, with no extra machinery.
+`useLevelContentStream` mirrors that read **per block** instead of capturing one
+`const bpm = lvl.bpm || 80` for the whole effect. `bpm` is deliberately **NOT** in the stream's
+dependency array — adding it would tear down and rebuild the whole JIT schedule on every change,
+which is the same reason `useLevel.statsRef` exists rather than a `stats` dependency.
+
+**`useLevelContentStream` is the SOLE decider for every level** (#1165). At the end of each block's
+generation it calls `adaptiveTempo.evaluate({ stats: statsRef.current, fromMeasure: (k+1)·B,
+units: [B] })`. There is exactly one decider and one cadence, so a stretch of play can never be
+double-adjusted and no second mechanism can disagree about when a change takes effect. §346's
+separate App.jsx per-wave decider effect is gone with the classic path it served.
+
+**Why a one-element tempo SCHEDULE is still needed (`useAdaptiveTempo.js`).** A level's audio is
+generated and scheduled up to one screenful AHEAD of when it sounds, so when the stream builds the
+block that begins at measure M it must ALREADY know M's tempo — whereas the app-wide `bpm` (which
+drives SheetRpgLayer's scroll rate and the sprite frame rate) may only change when M actually
+SOUNDS, or the picture runs a whole block ahead of the music. One decision, two moments: the stream
+reads the decided value early; `setBpm` is armed for the commit block's own scheduled start time.
+The commit record is cleared the instant it lands, after which `bpmRef.current` alone answers again.
+This is a schedule of a FUTURE change, **not** a parallel "current bpm".
+
+**Exact cross-track sync is now STRUCTURAL.** `commitIndexFor(fromIndex, units)` returns the first
+measure index `>= fromIndex` that is a multiple of `lcm(units)` — the first index at which every
+stream feeding the level has a real boundary. With #1165's single cadence it is always called with
+`units: [B]`, and treble / bass / metronome / percussion are literally the same block generated and
+scheduled together at one bpm. Han's locked *"force exact sync"* therefore holds by construction
+rather than by arithmetic. `commitIndexFor` / `lcmOf` are kept general (and tested for odd
+numerators — measure COUNTS are integers in every meter; an odd numerator changes a bar's DURATION,
+never how many bars a block spans) because that generality costs nothing.
+
+**Accumulated seconds cursor.** Block `k`'s start is `block k-1's start + its OWN measures × ITS OWN
+bar duration`, never `k · B · barSec` — which silently assumed one bar duration for the whole level.
+Arithmetically identical for any level whose tempo never changes.
+
+**Scroll continuity — `tempoScrollAnchor.js`.** Every timing formula in SheetRpgLayer converts
+elapsed real ms into musical beats by dividing by `beatMs`. A changed `beatMs` would re-rate the
+WHOLE elapsed duration RETROACTIVELY — notes, every slime, and the gated freeze point all jumping in
+one frame (the E027-class "catch up" snap). The anchor `{ beats, rawMs, beatMs }` is **re-anchored,
+never reset**: the beats accrued so far are frozen at the old rate and only the forward rate
+changes, so position is continuous by construction. SheetRpgLayer's `tempoScrollMs` wrapper is the
+ONE expression all **eight** elapsed→beats call sites use (the rAF loop's `framePx`, the render
+body's `frozenScrollPxRef`, the song-end effect's `freshScrollPx`, `sideScrollX`,
+`computeInWindowCandidates`, the combat-hit effect, the expiry effect, and the gated-freeze arrival
+test) — one formula, not copies that could drift (§6c/§6d). It resets only on a level (re)start.
+
+---
+
+#### INVARIANTS
+
+- **The level always ENDS.** `blockCountFor` stays finite for a non-gated level (the repeat only
+  multiplies it), and `wavesForLevel` scales with it, so `onWaveCleared` still reaches its target and
+  `pendingSongEndRef` → `onSongEnd` still fires exactly once. A gated level keeps `wavesForLevel === 1`
+  and simply runs 3× longer before its (3× further out) final barline crosses the strike line.
+- **Never applied retroactively.** A decision taken while generating block `k` can only affect a
+  block at index `>= commitIndexFor(...)`; content already generated and scheduled is never re-rated.
+- **Spatial layout is FIXED for the whole level** — `beatsOnScreen`, `dist`, `scrollPPT`,
+  `noteWidth` and every already-rendered note's X. Only the time→position RATE varies. Live note
+  re-flow remains explicitly out of scope (§298).
+- **Byte-identical for a non-adaptive level.** The accumulated cursor equals the old multiplication,
+  `tempoNormalizedMs` returns its input unchanged, and neither `bpmForMeasure` nor `evaluate` is ever
+  called. Asserted directly.
+- **One change in flight at a time**: a second decision while a commit is still pending is skipped
+  rather than superseding an already-armed `setBpm`.
+- A pending change is **cancelled when the level goes inactive**, so it can never land after
+  `useLevel.restore()` has put the player's own pre-level bpm back.
+- **`bpm` is never added to the content stream's effect dependency array.**
+
+---
+
+#### Known limitations (deliberate; UAT watch list)
+
+1. **The timpani one-shot is not re-rated.** App.jsx's `timpaniMelody` (Han's authorized hardcoded
+   pattern) is built once and scheduled at the level's STARTING tempo for `leadInBars +
+   totalMeasures`. §346 claimed this was harmless because the pattern "is finished or nearly
+   finished before the first commit can occur" — that was true when a level was one 8-measure block
+   and is **no longer true**: post-#1166 the first commit lands around measure 4-6, and the ×3
+   repeat means the timpani now spans ~24 measures. On an adaptive level whose tempo actually moves,
+   the timpani will progressively drift against the music. **Top UAT listening item**; re-rating it
+   means giving the one-shot the same per-block treatment the other tracks got, which is its own
+   ticket, not a line change here.
+2. **Feedback is delayed by one lookahead** — a block is judged when its NEXT block is generated,
+   up to one screenful before that block sounds. Inherent to generating ahead of playback.
+3. **The `setTimeout` that arms `setBpm` carries the usual 10-50ms drift.** Harmless here (unlike
+   §6's ban on driving `setCurrentMeasureIndex` that way) because the scroll position is anchored: a
+   slightly late switch changes only the rate, and at a ±5% step that is well under a millisecond of
+   accumulated error.
+4. **A faster adapted tempo means less on-screen TIME, not more notes on screen** — `beatsOnScreen`
+   stays fixed at the baseline value. That is the intended "only the rate varies" behaviour, but it
+   is worth confirming it feels right.
+5. **Song-backed levels get the baseline but effectively no live adaptation.** Their
+   `blockMeasuresFor` is the whole song (`numMeasures` was never migrated to the #1163 "chunk size"
+   model for songs), so `blockCountFor` is 1 and the decider runs once — a seed, never a decision.
+   They also do not repeat (see the scoping note above). Migrating song levels to a real chunk
+   cadence is the same work #1166 did for the ramp levels and belongs in its own ticket.
+6. Blocks past the first draw an EMPTY chord window on a procedural level, because the level's chord
+   progression is generated once at `numMeasures` length while the block window advances linearly.
+   This is **pre-existing** (every multi-block level since #1166 behaves this way) and is neither
+   caused nor worsened by adaptive mode — recorded here because the ×3 repeat makes it more visible.
+
+**Out of scope, by Han's own split:** #1120 (what happens when the tempo would need to drop BELOW
+the floor — switch to rubato/gated pacing) and #1121 (what happens at the CEILING — grow difficulty
+via note density instead of more tempo).
+
+**Files.** `src/levels/adaptiveTempo.js` (the two locked formulas, `NO_ANPM_BASELINE_FACTOR`,
+`ADAPTIVE_LEVEL_REPEATS`, `lcmOf`/`commitIndexFor`), `src/levels/levels.js`
+(`LEVEL_MODE_VARIANTS.i`, `applyLevelVariant`'s `anpm` param + `adaptiveOverrides` incl. the repeat),
+`src/hooks/useAdaptiveTempo.js` (the decide/schedule/apply controller),
+`src/hooks/useLevelContentStream.js` (per-block fresh bpm read, accumulated cursor, sole decider),
+`src/components/sheet-music/tempoScrollAnchor.js` + `src/components/sheet-music/SheetRpgLayer.jsx`
+(`tempoScrollMs` and its eight call sites), `src/App.jsx` (controller wiring, `anpm` into
+`applyLevelVariant`, `begin` on start/replay, `cancel` on level end). Tests:
+`src/levels/__tests__/adaptiveTempo.test.js`, `src/hooks/__tests__/useAdaptiveTempo.test.js`,
+`src/components/sheet-music/__tests__/tempoScrollAnchor.test.js`,
+`src/levels/__tests__/levelVariants.test.js`, `src/hooks/__tests__/useLevelContentStream.test.js`,
+and `src/hooks/__tests__/adaptiveMode.integration.test.js` (NEW — the real controller + the real
+content stream around a real level: baseline incl. the 0.7× case, ±5% / deadband / both clamp bounds
+observed on the ACTUAL scheduling arguments, all tracks switching at the same block, and the 3×
+block count terminating).
