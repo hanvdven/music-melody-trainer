@@ -7,6 +7,79 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-29 — ✅ #1165 (#1163b): één level-content-stream — 5 mechanismen samengevoegd
+
+Sub-ticket 2 van 3 onder epic #1163 (na #1164 = `generateBlock.js`, vóór #1166 = de
+`numMeasures` 8→2 JSON-migratie). Plan v2 door Han goedgekeurd; impl [Opus/high].
+
+Wat is vervangen (allemaal VERWIJDERD, niet uitgeschakeld):
+- `useLevelTrebleStream.js` · `useLevelBackingStream.js` · `useLevelMixedStream.js` ·
+  `useLevelKeyModulationStream.js` · `useLevel.js`'s `regenerate()`-per-wave (voor ELK level,
+  ook de niet-sideScroll levels 101/107/112 — Han: volledige uniformiteit, geen fallback).
+- Plus `generateLevelMixedBlock.js`, `generateLevelBackingChunk.js` en de
+  `sliceSongCallResponseBlock`-export.
+
+Nieuw:
+- ✅ `src/hooks/useLevelContentStream.js` — DE stream: één cadans, één tijdlijn (lead-in
+  `[-leadInBars,0)`, blok k `[k*B,(k+1)*B)`), één opgetelde audio-tijd-cursor, één lookahead
+  met de §693 wizard-cast-deadline `Math.min` intact.
+- ✅ `src/levels/levelBlockPlan.js` — pure per-level policy (`blockMeasuresFor`,
+  `blockTypeForBlock`/`blockTypeAt`, `resolveBlockScale`, `blockCountFor`, `leadInSpecFor`,
+  `trackSpecsForLevel`). `blockCountFor` leest `totalMeasures`, NOOIT `numMeasures` — dat is de
+  §299-bug die in twee van de vier hooks nog live stond en die #1166 anders zou laten toeslaan.
+- ✅ `src/generation/generateMetronomeChunk.js` — de metronoom blijft byte-identiek en gaat
+  daarom bewust NIET door `generateBlock` (geen akkoord-context, geen gedeeld ritme-grid).
+
+Ritme-grid AAN (Han's plan_review-keuze): treble/bas/percussie uit één maatgroepering +
+ranked-array per blok, net als continuous playback. → **UAT van #1165 is een muzikale
+her-beluistering van elk level, geen regressie-check.**
+
+Geaccepteerde neveneffecten: (a) cello/bas-ritme volgt de blokcadans; metronoom byte-identiek;
+lead-in blijft `leadInBars` met de `metronomeBars = ceil(leadInBars/2)` halve stagger.
+(b) een lied publiceert zijn treble per blok (zelfde noten/offsets — verbatim slice, dus géén
+herspelling via `modulateMelody`).
+
+#1102: `adaptiveTempo.js` / `useAdaptiveTempo.js` / letter `i` / `tempoScrollAnchor.js` /
+`statsRef` ONGEWIJZIGD; alleen de bedrading is her-ingepast (per-blok bpm-lezing + cursor nu in
+één stream) en App.jsx's klassieke per-wave decider-effect is VERWIJDERD — de stream is nu de
+enige decider voor élk level, en `commitIndexFor` krijgt altijd `units:[B]`, waardoor Han's
+"force exact sync" structureel wordt in plaats van rekenkundig. #1102 blijft on_hold.
+
+Verificatie: `npm run test:run` 1146 pass / 1 skip (was 1062/1) · `npm run build` clean ·
+`npm run lint` 0 errors (2747 warnings, 2 minder dan de baseline). Architectuur: nieuwe §350
+(+ §3 "Step 0" en de §12 bestandstabellen bijgewerkt).
+
+
+## 2026-08-29 — 🔨 CelticTime pixel-font: injecteer Han's getekende glyphs (atlas → TTF)
+
+Han tekende met de hand glyphs in `docs/font-atlas.png` (boven op de grijze fallback-cellen)
+en wil ze "netjes" (raster-exact) in de fonts. Interview: route **1b + 1c**, alleen CelticTime
+(+ 1 los fixje voor SandyForest). Terse "ok" op de voorgestelde defaults.
+
+Doelen:
+- subscript-cijfers `₀–₉` (U+2080–2089) — octaaf in pixel-art klavier
+- superscript-cijfers `⁰–⁹` (U+2070,00B9,00B2,00B3,2074–2079) — akkoordtype (`^5 ^7 ^9`); zelfde
+  vormen, omhoog verschoven
+- Romeinse cijfers `Ⅰ–Ⅶ` (U+2160–2166) — modus-labels (UI later)
+- accidentals `♯♭♮𝄫𝄪` (U+266F/266D/266E/1D12B/1D12A) in CelticTime — Han traceerde de fallback
+- SandyForest: `0` (U+0030) — ontbrak in het font, Han tekende hem
+
+Stappen:
+1. ⏳ `scripts/extract-pixel-glyphs.mjs` (pngjs) — leest de getekende cellen uit de HUIDIGE atlas
+   (section-tops 16 / 886 / 1756, cell 104px, 8px/design-pixel, 13×13), threshold isoleert Han's
+   zwarte inkt van de grijze `#9aa0a6` fallback → ingecheckte `scripts/pixel-glyphs.json` (grid per
+   glyph). Dit ís het "netjes maken". ASCII-preview ter controle door Han.
+2. ⏳ `scripts/inject-glyphs.mjs` (opentype.js, nieuwe devDependency) — `pixel-glyphs.json` →
+   outline-paden (horizontale runs samengevoegd), verankerd op CelticTime x-hoogte 5dp / baseline;
+   overschrijft `CelticTime.ttf` + `SandyForest.ttf` ter plekke (git = back-up). JSON = bron.
+3. ⏳ `render-font-atlas.mjs` — per-font `EXTRA_ROWS` (CelticTime-only): 3 nieuwe rijen
+   (subscript / superscript / Romeins). Accidentals worden zwart in de bestaande rij 8. Sectie-
+   hoogte per fontrij-telling.
+4. ⏳ verify: test:run / build / lint; atlas her-renderen + visueel checken (nieuwe rijen zwart uit
+   font, A–Z/0–9 ongewijzigd); docs/architecture.md pixel-font sectie bijwerken.
+
+**Status:** 🔨 stap 1.
+
 ## 2026-08-29 — ✅ #1164 / #1163a — extract shared per-block generator `generateBlock.js`
 
 Sub-ticket 1 of 3 under epic #1163 (uniform per-chunk generation). Pure refactor, ZERO
@@ -6655,25 +6728,60 @@ tempo-driven.
 **Root cause:** `worldLayout.js` `build()` — "Blocks fill the leftover bottom-area height"
 (bewuste keuze §334). Geen cap op contentblok-hoogte; geen max op de content-band.
 
-**Interview (4 vragen) beantwoord:** 320 = worldblok-cap (bestaat al, geen nieuwe schermcap);
-vrije ruimte → onderaan laten staan; altijd stapelen op smal/portret; piano+wordmark loskoppelen
-van blokhoogte → vastzetten op world-schaal N.
+**Ronde 1 (teruggedraaid):** blokken op vaste content-hoogte (`CONTENT1_GPX_H`/`CONTENT2_GPX_H` +
+`blockH()`), surplus als één gap onder alles. Han ronde 3: "content 1 en 2 mogen padding hebben en
+vangen alle verticale ruimte overschot op" → surplus moet IN de blokken als marge, niet als gap.
 
 **Fix (✅ 2026-08-28) — zie architecture.md §345:**
-- `worldLayout.js`: nieuwe `CONTENT1_GPX_H` (64) / `CONTENT2_GPX_H` (144) + `blockH()` helper —
-  blokken op natuurlijke hoogte, surplus = lege ruimte onderaan; te kort scherm → degradeert naar
-  vullen (nooit < 64 gpx, nooit buiten viewport). `worldScreenHeight`/`bandGpx` ONgewijzigd →
-  world-hoogte-selectie identiek.
-- Portret (`h > w`) → `pickArrangement` kiest nu `h-col`/`split` (full-width gestapeld) vóór de
-  normale volgorde. `v-row` nav-kolom nu net zo hoog als het langste blok (was de hele band).
-- `WorldPiano.jsx`: `sy = min(syFloor, syFit || syFloor)` (vast op ≥60-gpx-toets-floor, `syFit`
-  alleen nog omlaag-clamp); `melodyPx = letterPx` (was `max(5·sy, letterPx)`).
-- 3 nieuwe worldLayout-tests. `npm run test:run` / `lint` / `build` — [draait].
-- ⚠ Bewust NIET gedaan (Han's keuzes): vrije ruimte niet naar world (level-art is maar 272 gpx),
-  niet verticaal gecentreerd → blijft gap onderaan, ook op brede schermen. `CONTENT2_GPX_H` +
-  toets-grootte zijn 1-constante-tweaks; Han's UAT bepaalt de definitieve waarden.
+- `worldLayout.js`: **portret (`h > w`)** → `pickArrangement` kiest `h-col`/`split` (full-width
+  gestapeld, restant 50/50) vóór de normale volgorde. Landscape onaangeroerd. `build()` verder terug
+  naar origineel: blokken **vullen** de overgebleven hoogte. `worldScreenHeight`/`bandGpx`
+  ongewijzigd → world-hoogte identiek.
+- `WorldPiano.jsx` (ronde 4): toetsen ALTIJD bottom-anchored op onderkant blok 2; board rekt omhoog
+  zodat de **bovenkant vilt = bovenkant van het denkbeeldige gecentreerde 64-gpx-vak** in blok 2
+  (`keysH + feltH ≈ (box.h + 64·N)/2`). `sy` lost dat op en **snapt naar heel veelvoud van N**
+  (gpx-perfect toets-randen), toetsen ≥ 60 gpx. `kFit`-cap: toetsen nooit hoger dan blok 2 (logo +
+  weerkaatsing clippen dan bovenaan weg — toegestaan). `melodyPx = letterPx`. `NATIVE_H`/`syFloor`/
+  `syFit` weg.
+- worldLayout-tests: portret-stack + landscape-onveranderd. `npm run test:run` / `lint` / `build` — groen.
 
-**Status:** 🔨 impl klaar, verificatie draait — Han UAT nodig (vooral: piano/blok-2-hoogte op gevoel).
+**Status:** 🔨 impl klaar — Han UAT. Tweak-knoppen: `CENTRE_BOX_GPX` (64) en `KEYS_MIN_GPX` (60) in
+WorldPiano; `melodyPx` als het logo groter moet.
+
+### 🔨 World scale: 1.5 half-step (#347) — Han 2026-08-28
+
+Smalle mobiel (~560–607px breed) zat vast op N=1 (N=2-gate = `w ≥ 608`) → veel leegte.
+Besluit Han: **1.5** als enige extra stap (geen 2.5/3.5). Eén schaal overal (geen world/UI-split —
+afgeraden, breekt §334-invariant). Gate op **`devicePixelRatio ≥ 2`** (daar is 1.5 = 3 hele
+device-px, pixel-perfect; dpr-1 desktop blijft crisp N=1).
+
+- `worldLayout.js`: `SCALE_STEPS_BASE` / `SCALE_STEPS_HALFSTEP`, `computeWorldLayout(w, h, dpr=1)`,
+  gate. Bump-logica ongewijzigd → hele integers houden voorrang, 1.5 alleen als N=2 niet past.
+- `App.jsx`: geeft `window.devicePixelRatio` mee.
+- 3 tests (580×900 dpr2 → 1.5; dpr1 → 1; brede viewports → integer). test/lint/build groen.
+
+**Status:** 🔨 impl klaar — Han UAT op echt toestel (pixelfont / piano op 1.5).
+
+### 🔨 World/content hoogte-LADDER (#348) — Han 2026-08-29
+
+Regel Han: "hoogtes: 240 en 64 → lineair naar 272 en 92: vanaf dan → content naar 128. Dan level
+hoger → max 320." Interview: boven de ladder → content vangt de rest op; 64/92/128 = **per blok**;
+geldt voor **alle** arrangementen.
+
+- `worldLayout.js`: `worldScreenHeight` → `distributeHeight(H, o, k)` — piecewise-lineair,
+  `world + o + k·content === H` (vult viewport exact, geen gap). `ARRANGEMENTS` krijgen `o`
+  (verticale nav-overhead) + `k` (blokken gestapeld); `bandGpx` = `o + k·64` (afgeleid, zelfde
+  getallen). `build()` herschreven: `worldH` + nav + `cH`-per-blok, laatste blok slikt afronding.
+- `cropFor` → extra `skyPadGpx = max(0, gpxH − 272)` voor fase 3 (world 272→320). `App.jsx`:
+  `topSection` achtergrond `#8fd0d9` (= top van RpgLevelPanel's eigen sky-gradient) vult de strook
+  boven de 272-gpx level-art. RpgLevelPanel zelf ongewijzigd (blijft 272·N, bottom-anchored).
+- Gedragswijziging (bewust, Han's regel): breed landscape zit nu lager op de ladder — 1920×1080 →
+  world ≈ 261 gpx i.p.v. 272. Geen regressie.
+- worldLayout-tests: nieuwe ladder-describe (320-max + skyPad; exact-fill; monotoon) + invariant/
+  scale-selection asserts bijgewerkt. `test:run` (1054/1055) / `lint` (0 err) / `build` groen.
+
+**Status:** 🔨 impl klaar — Han UAT (vooral fase 3: de sky-strook boven de wereld op een hoog scherm;
+`#8fd0d9` is een gok-match, 1-liner om te tweaken).
 
 ---
 

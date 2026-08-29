@@ -164,6 +164,16 @@ See §349 for the full write-up.
 **Files:** `src/generation/generateBlock.js` (new), `src/audio/Sequencer.js` (delegates),
 `src/generation/__tests__/generateBlock.test.js` (new).
 
+**#1165 — the SECOND caller.** Since #1163b every LEVEL enters the pipeline at this exact same
+Step 0: `useLevelContentStream` calls `generateBlock` once per block, for treble + bass +
+percussion + chords together, off one shared rhythm grid — instead of the five hand-rolled
+per-mechanism generators it replaced. A level passes the same `seriesArgs` bundle the Sequencer
+does (with no transpose path, no difficulty targets and no reference melody) plus `generateBlock`'s
+opt-in level params: `chordStrategy: 'song'` for a song-backed level's chords, `fixedOstinato` for a
+`randomizationRule: 'fixed'` track, and `shape: 'call-response'` for a Wizard block. There is no
+level-specific branch anywhere inside the generation code (CLAUDE.md §6b) — per-level variation is
+DATA in `src/levels/levelBlockPlan.js`. See §350.
+
 ### Chord Authorship & State Management
 
 Two writers, strictly separated to prevent race conditions:
@@ -832,6 +842,7 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | `useSheetMusicHighlight.js` | rAF loop that drives note highlighting (`.note-active`), current-measure tracking, and pagination crossfade animations using the AudioContext clock — no `setTimeout` involved. |
 | `usePitchDetector.js` | Microphone pitch detection via the Web Audio API; emits detected note events used by `ToneRecognizer`. |
 | `useInputTest.js` | Tracks user input correctness during a melody round (key presses or pitch detector hits vs. expected notes); used to update per-note difficulty data. |
+| `useLevelContentStream.js` | THE one per-block content stream for every level (§350) — owns the growing treble/bass/metronome/percussion `Melody` objects, the wizard-cast + cello + metronome audio scheduling, the lead-in block, the JIT lookahead, and (#1102) the per-block bpm read + adaptive decision. Replaced `useLevelTrebleStream` / `useLevelBackingStream` / `useLevelMixedStream` / `useLevelKeyModulationStream` and the classic `regenerate()`-per-wave path. |
 | `useWindowSize.js` | Debounced `window.resize` listener; returns `{ width, height }` for responsive layout decisions. |
 | `useLongPress.js` | Unified pointer/touch long-press handler; returns event props to attach to a DOM element. |
 | `useLongPressTimer.js` | Variant of `useLongPress` that exposes a progress value (0–1) over the press duration — used to drive hold-to-confirm affordances. |
@@ -978,6 +989,7 @@ the header and the sheet:
 | File | Purpose |
 |---|---|
 | `generateBlock.js` | The ONE shared "generate one block" entry point (§3 Step 0 / §349) — shared rhythm grid + rhythmic chord track + `generateNextSeries`. Called by both `Sequencer.randomizeScaleAndGenerate` and (from #1165) the level pipeline. Pure. |
+| `generateMetronomeChunk.js` | The metronome click track for one level block (§350). Deliberately NOT routed through `generateBlock`: it is deterministic per beat and must stay byte-identical across #1165's re-chunking, which giving it a chord context or the shared grid would break. Pure. |
 | `melodyGenerator.js` | Top-level melody generation entry point; wires together rhythm generation, note selection, and difficulty filtering. |
 | `generateRankedRhythm.js` | Generates a weighted-random rhythmic pattern for a melody based on time signature and difficulty. |
 | `generateBackbeat.js` | Generates a percussion backbeat pattern aligned to the melody's rhythm. |
@@ -22198,12 +22210,12 @@ world) so the first feasible one gives the tallest world:
   block it's `cols×rows` = **1×8 (16×128 gpx)** if the space is tall enough, else **2×4 (32×64 gpx)**;
   as a horizontal strip it's **8×1 (128×16 gpx)**. `WorldNavBar` lays the icons out in that exact grid
   (`grid-auto-flow: column`), chrome stripped. Placeholder lucide icons — Han will swap for pixel art.
-- **Two content blocks** — zero-padding minimums (Han: "0 padding of marge in de blokken. Is
-  aanvaardbaar"): **block 1 ≥ 256×64**, **block 2 ≥ 192×64** game px. Side-by-side the width splits
-  `256 : 192`. **Blocks are sized to their CONTENT, not the leftover height (§345, Han 2026-08-28)** —
-  block 1 = 64 gpx, block 2 = 144 gpx; surplus viewport height is left empty at the bottom, and a
-  too-short viewport degrades to filling. On a portrait (h > w) viewport the two blocks always stack
-  full-width. The conversation (`RpgLevelBottomPanel` →
+- **Two content blocks** — **block 1 ≥ 256×64**, **block 2 ≥ 192×64** game px. Side-by-side the width
+  splits `256 : 192`. **Blocks FILL the leftover bottom-area height** (§345, Han 2026-08-28); the
+  content inside centres itself (`RpgLevelBottomPanel`) or bottom-anchors at a fixed scale
+  (`WorldPiano`), so the extra height reads as **padding** around the control, not a stretched
+  control. On a **portrait (h > w)** viewport the two blocks always stack full-width, leftover split
+  50/50. The conversation (`RpgLevelBottomPanel` →
   `DialogueBox`) lives in **block 1**. `DialogueBox` takes `scale`, `textCols` and `compact` props:
   world mode passes `scale = N`, `textCols = 192`, `compact` — so the box is **EXACTLY** `(64 + 192)·N`
   = 256 game px wide × 64 game px tall, the frame drawn as an **inset `box-shadow`** (zero layout
@@ -22238,9 +22250,12 @@ all four blocks (block 1 marked "conversation", nav labelled with its `cols×row
 `[arrangement]` and crop), each `W×H gpx  ×N` (monospace, never inherited — §1a).
 
 **Invariants.**
-- `computeWorldLayout` is pure; `N` is a positive integer; every returned rect lies within the
-  viewport; the world block is 192–272 game px tall and ≥ 304 game px wide (except the degenerate
-  `N=1` fallback). `topCropGpx + gpxH + bottomCropGpx === 272` always. `nav.cols · nav.rows ≥ 8`.
+- `computeWorldLayout` is pure; `N` is a positive whole integer **or `1.5`** (the latter only when
+  `devicePixelRatio ≥ 2` — §347); every returned rect lies within the viewport; the world block is
+  **192–320** game px tall (the height LADDER, §348) and ≥ 304 game px wide (except the degenerate
+  `N=1` fallback). `topCropGpx + (gpxH − skyPadGpx) + bottomCropGpx === 272` always (the level art is
+  ≤ 272; `skyPadGpx` is the sky strip above it when the block is taller). `nav.cols · nav.rows ≥ 8`.
+  `world + navOverhead + k·content === viewport` — the split fills the viewport exactly.
 - Every world layer consumes the SAME `zoom` — never re-introduce a per-layer scale (§6c).
 - World-mode layout is independent of `isDualView` (that split only governs the classic view).
 
@@ -22822,52 +22837,54 @@ build" landmine. Left for a follow-up decision since woodblock works on Han's di
 `public/samples/Instruments/lead_1_square-classic/` + `.../lead_2_sawtooth-classic/`. §315 marked
 superseded.
 
-### §345. World bottom-area: content blocks sized to their content, portrait stacks, piano/wordmark decoupled from block height (Han 2026-08-28)
+### §345. World bottom-area: portrait stacks the content blocks; piano + "Melody Hill" decoupled from block height (Han 2026-08-28)
 
 **Purpose / Symptom.** On a near-worst-case portrait viewport (world 598×272, nav 598×16, content1
 342×611, content2 256×611 — `h-row`, N=1) Han reported: content blocks "veel hoger dan wijd, heel
-lelijk"; the "Melody Hill" wordmark "heel erg groot t.o.v. de piano"; and "zooo veel padding
-onderaan, allemaal loze ruimte". 598px is just below the N=2 width threshold (`w/2 ≥ 304` ⇒
-`w ≥ 608`), so the layout is stuck at N=1 with ~627 gpx of bottom band that the two blocks stretched
-to fill.
+lelijk"; the "Melody Hill" wordmark "heel erg groot t.o.v. de piano". 598px is just below the N=2
+width threshold (`w/2 ≥ 304` ⇒ `w ≥ 608`), so the layout is stuck at N=1 with a ~627-gpx bottom band.
+The blocks being *tall* isn't the problem — them being tall **and narrow** is, plus the piano and
+wordmark scaling *with* that height.
 
-**Root cause.** `worldLayout.js` `build()` gave each content block the *entire* leftover
-bottom-area height ("Blocks fill the leftover bottom-area height", §334). Inside, `WorldPiano.jsx`
-derived its vertical key scale from the block height (`sy = max(syFloor, floor(box.h / NATIVE_H))`)
-and the wordmark from `sy` (`melodyPx = max(5·sy, letterPx)`), so both ballooned with the block.
+**Root cause.** `pickArrangement` had no portrait awareness, so a tall-narrow viewport still put the
+two blocks side-by-side (each ~340 gpx wide, ~610 gpx tall). And `WorldPiano.jsx` derived its
+vertical key scale from the block height (`sy = max(syFloor, floor(box.h / NATIVE_H))`) and the
+wordmark from `sy` (`melodyPx = max(5·sy, letterPx)`), so both ballooned as the block grew.
 
-**Fix (Han's interview answers).**
-1. **Content-sized blocks.** New `CONTENT1_GPX_H` (64 — the fixed conversation box) and
-   `CONTENT2_GPX_H` (144 — the piano board at its fixed `syFloor`). New `blockH(naturalGpx, availPx,
-   n)` helper: a block renders at `naturalGpx·n`, clamped to `[CONTENT_GPX_H_MIN·n, availPx]`. On a
-   roomy viewport that's just the natural height and the surplus is **left empty at the bottom**
-   ("onderaan laten staan"); on a viewport too short for the naturals it degrades to filling
-   `availPx` (never below the 64-gpx min, never past the viewport edge). **`worldScreenHeight` and
-   the `ARRANGEMENTS` `bandGpx` are untouched**, so world-height selection and the "full 272-gpx
-   world on 1080p" guarantee are unchanged.
-2. **Portrait stacks.** `pickArrangement` now, when `h > w`, tries `h-col` / `split` (both blocks
-   stacked full-width) *before* the normal strip/column order — "altijd stapelen op smal/portret".
-   The `v-row` nav column also only spans as tall as the taller block now (was the full band), so
-   its icons don't spread down a column far taller than the content beside it.
-3. **Piano/wordmark decoupled.** `WorldPiano` `sy` is now `min(syFloor, syFit || syFloor)` — fixed
-   to the keys-≥-60-gpx floor, with `syFit` only a *downward* clamp for a genuinely short block
-   (board clips off the top rather than overflowing). `melodyPx = letterPx` (was `max(5·sy,
-   letterPx)`).
+**Fix.**
+1. **Portrait → stack.** `pickArrangement`, when `h > w`, tries `h-col` / `split` (both blocks
+   stacked full-width, leftover split 50/50) *before* the normal strip/column order — Han: "altijd
+   stapelen op smal/portret". Landscape is untouched.
+2. **Blocks still FILL the leftover height.** An interim version sized them to a fixed content height
+   and dumped the surplus as one gap below everything; Han preferred (round 3) the surplus **absorbed
+   into the blocks as padding**: "content 1 en 2 mogen padding hebben en vangen alle verticale ruimte
+   overschot op". So `build()` is back to the original fill-leftover geometry. The *content* inside
+   handles the extra room: `RpgLevelBottomPanel` already centres its 256×64 dialogue box
+   (`alignItems/justifyContent: center`); `WorldPiano`'s wrapper is `alignItems: flex-end` so the
+   board bottom-anchors with the slack above it.
+3. **Piano/wordmark decoupled from block height.** `melodyPx = letterPx` (was `max(5·sy, letterPx)`) —
+   the "Melody Hill" wordmark tracks the key-letter size, not the vertical scale.
+4. **Piano vertical stretch = felt-to-centre-box (round 4, Han 2026-08-28).** Block 2 is read as a
+   notional `CENTRE_BOX_GPX` (64) gpx box centred in the block, plus top/bottom padding. The keys
+   ALWAYS bottom-anchor to block 2's bottom edge (wrapper `flex-end`); the board stretches UP so the
+   **felt's top edge meets the centre box's top edge** — `keysH + feltH ≈ (box.h + 64·N)/2`. `sy`
+   solves that, then **snaps to a whole multiple of the world scale N** so every key edge is on a
+   game-pixel boundary ("natuurlijk gpx-perfect"), and to keys ≥ `KEYS_MIN_GPX`. A `kFit` cap keeps
+   the keys themselves from ever exceeding block 2's height (band + reflection clip off the top
+   instead — allowed); if even the min doesn't fit, the keys win and go below 60 gpx. Everything
+   above the centre-box top = reflection + logo; the keys span the centre box **and the bottom
+   padding**.
 
-**Invariants.** Every returned rect still lies within the viewport; blocks still meet
-`CONTENT_GPX_H_MIN`; world height and scale selection are byte-identical to before for every
-non-portrait viewport. The `CONTENT2_GPX_H` (144) ↔ `WorldPiano` `syFloor` pair must move together —
-144 = `NATIVE_H(48) · ceil(60/27)` at N=1.
+**Invariants.** `worldScreenHeight` and the `ARRANGEMENTS` `bandGpx` are untouched → world-height
+selection and the "full 272-gpx world on 1080p" guarantee are byte-identical. Every returned rect
+still lies within the viewport; blocks still meet `CONTENT_GPX_H_MIN`. Landscape arrangements are
+unchanged.
 
-**Not done (Han's explicit choices, noted for future).** The freed vertical space is *not* given to
-the world (it can't — the level art is only 272 gpx tall) and *not* vertically centred; it stays as
-a bottom gap. On wide screens too you now see empty space below the piano instead of stretched
-blocks. `CONTENT2_GPX_H` / key size are single-constant tweaks pending Han's UAT.
-
-**Files:** `src/utils/worldLayout.js` (`CONTENT1_GPX_H`/`CONTENT2_GPX_H`, `blockH`, portrait branch
-in `pickArrangement`, per-arrangement heights + nav-column height in `build`, header comment),
-`src/utils/__tests__/worldLayout.test.js` (3 new cases), `src/components/character/WorldPiano.jsx`
-(`sy` clamp, `melodyPx`), `docs/architecture.md` §334 bullet + this section, `IMPLEMENTATION_PLAN.md`.
+**Files:** `src/utils/worldLayout.js` (portrait branch in `pickArrangement`, header comment + a note
+above `build`'s block layout), `src/utils/__tests__/worldLayout.test.js` (portrait-stack +
+landscape-unchanged cases), `src/components/character/WorldPiano.jsx` (`CENTRE_BOX_GPX`, the
+felt-to-centre-box `sy` formula with `kFit` cap, `melodyPx`; removed `NATIVE_H`/`syFloor`/`syFit`),
+`docs/architecture.md` §334 bullet + this section, `IMPLEMENTATION_PLAN.md`.
 
 ### §346. Adaptive tempo — level-mode letter `i`, live bpm tracking the player's ANPM (#1102, Han 2026-08-23 interview, built 2026-08-28)
 
@@ -23000,3 +23017,323 @@ the intended "only the rate varies" behaviour.
 **Verified:** `npm run test:run` (1046 passed, 1 skipped), `npm run lint` (0 errors, warnings-only
 baseline unchanged apart from one new documented `exhaustive-deps` warning), `npm run build` (clean).
 **Not yet live-verified by Han.**
+
+### §347. World scale — a single 1.5 half-step to bridge the 1→2 gap (Han 2026-08-28)
+
+**Purpose / Symptom.** `computeWorldLayout` picks the largest integer scale `N` that fits. The N=2
+gate is `w/2 ≥ WORLD_GPX_W_MIN (304)` ⇒ `w ≥ 608`. On a phone ~560–607 CSS-px wide (portrait) the
+world was locked to **N=1** — everything rendered small with a lot of empty space around it (Han:
+"die 619 breedte zit me wat dwars op mobile … kijk eens wat een boel leegte"). The jump to N=2 is a
+full doubling, so there's no graceful in-between.
+
+**Fix.** One extra step, **1.5**, inserted between 1 and 2 in the scale search
+(`SCALE_STEPS_HALFSTEP = [1, 1.5, 2, 3, …]`). No 2.5 / 3.5 — the 2→3 jump is only +50%, Han: "verschil
+tussen 2 en 3 is relatief veel kleiner". `computeWorldLayout` gained a 3rd arg `dpr`; the half-step
+list is used **only when `dpr ≥ 2`**, where 1.5 CSS-px = 3 whole device-px per game pixel so the
+render stays pixel-perfect. A dpr-1 desktop window keeps the crisp integer N=1 (and the user can
+just widen the window). `App.jsx` passes `window.devicePixelRatio`; a dpr change (zoom / monitor
+move) fires `resize` in practice so the size-keyed memo picks it up.
+
+**Behaviour.** Whole integers still win: the existing "first feasible, then bump only for a
+`> TIE_PX` height gain that keeps the world ≥ `SOFT_SQUEEZE_MIN`" logic is unchanged, so 1.5 is
+chosen only when N=2 genuinely doesn't fit **and** 1.5 clears that same bar over N=1. Wide viewports
+are completely unaffected (1.5 is always superseded by 2). Everything downstream —
+`worldScreenHeight`, `build`, `cropFor`, the crop-shift wrapper in `App.jsx`, `RpgLevelPanel`'s
+`zoom` — was already float-safe; a single shared non-integer `zoom` does **not** re-introduce the
+§334 "swimming" (that was a *continuously varying* zoom; 1.5 is fixed and stable).
+
+**Deliberately not done.** No per-layer scale split (Han floated "world 1.5, rest ×2" — rejected: it
+breaks the "every world layer consumes the SAME zoom" invariant (§6c / §334) across 5+ components
+for a benefit that is nil on the dpr-2 screens where 1.5 is actually used).
+
+**Files:** `src/utils/worldLayout.js` (`SCALE_STEPS_BASE`/`SCALE_STEPS_HALFSTEP`, `dpr` param + gate,
+header comment), `src/App.jsx` (`window.devicePixelRatio` arg), `src/utils/__tests__/worldLayout.test.js`
+(3 new cases), `docs/architecture.md` §334 invariant + this section, `IMPLEMENTATION_PLAN.md`.
+
+### §348. World layout — the world/content height LADDER (Han 2026-08-29)
+
+**Purpose.** Replaces "give the world the most height, then the content blocks fill whatever's left"
+with a fixed, staged distribution of viewport height as the screen gets taller — Han's one-line
+rule: *"hoogtes: 240 en 64 → lineair naar 272 en 92: vanaf dan → content naar 128. Dan level hoger
+→ naar max 320."*
+
+**The ladder** (`distributeHeight(H, o, k)` in `worldLayout.js`, `H` = viewport gpx = viewport CSS
+px / N):
+
+| phase | world gpx | content gpx **per block** |
+| --- | --- | --- |
+| foot → 1 | 240 → 272 (linear) | 64 → 92 (linear, together) |
+| 1 → 2 | 272 (fixed) | 92 → 128 (linear) |
+| 2 → 3 | 272 → 320 (linear) | 128 (fixed) |
+| below foot | squeeze 240 → 192 (+16-gpx bottom crop) | 64 (pinned) |
+| above top | 320 (fixed) | 128 + (rest) — blocks absorb everything further |
+
+`o` = the arrangement's *vertical* nav overhead (16 for a strip, 0 for a beside-column); `k` = how
+many content blocks stack vertically (1 for a row, 2 for `h-col`/`split`). By construction
+`world + o + k·content === H` at every point, so **the layout fills the viewport exactly** — no gap,
+no overflow — and every arrangement (`build`) places `worldH`, then the nav, then blocks of `cH`
+each, with the last-placed block taking `h − y` to swallow ±1-px rounding.
+
+**World > 272 (phase 3).** The level art is only 272 gpx tall, so `cropFor` now also returns
+`skyPadGpx = max(0, worldGpxH − 272)`. The `RpgLevelPanel` layer still renders 272·N, bottom-anchored
+in the crop wrapper; the exposed strip on top shows `#8fd0d9` — the top colour of `RpgLevelPanel`'s
+own `linear-gradient(to bottom, #8fd0d9, #dff3f5)` sky — painted as the `topSection` container's
+`background` in `App.jsx` (`inWorldLevel` only). Seam is invisible because both sides are that exact
+colour at the boundary.
+
+**Scale search** still uses `distributeHeight(...).worldGpx` for the `TIE_PX` bump comparison, and
+`SOFT_SQUEEZE_MIN` (224) still blocks a bump that would push the world into the squeeze zone. Whole
+integers (+ the §347 1.5 half-step) unchanged. `ARRANGEMENTS` now carry `o`/`k`; `bandGpx`
+(feasibility floor only) is derived as `o + k·64` — same numbers as before (64/80/128/144).
+
+**Invariants.** `topCropGpx + (gpxH − skyPadGpx) + bottomCropGpx === 272` always; `gpxH ∈ [192, 320]`;
+every rect within the viewport; content blocks still ≥ 64 gpx (−1 for rounding). **Behaviour change:**
+a landscape desktop that used to land on a full 272-gpx world at a given N may now sit lower on the
+ladder (e.g. 1920×1080 → world ≈ 261 gpx, not 272) — this is the rule Han asked for, not a
+regression.
+
+**Files:** `src/utils/worldLayout.js` (`distributeHeight`, `cropFor` + `skyPadGpx`, `ARRANGEMENTS`
+`o`/`k`, `build` rewrite, scale loop, header), `src/App.jsx` (`topSection` sky background),
+`src/utils/__tests__/worldLayout.test.js` (ladder describe block + updated invariant/scale-selection
+assertions), `docs/architecture.md` §334 + this section, `IMPLEMENTATION_PLAN.md`.
+
+### §349. `generateBlock.js` — the ONE shared per-block generator (#1164 / #1163a, Han 2026-08-29)
+
+**Purpose.** Level content generation had drifted into several unrelated mechanisms with different
+cadences (see #1163); the first step toward one uniform pipeline is a single function that both
+continuous playback *and* levels call to build one block of music. This ticket (#1163a, sub-ticket 1
+of 3) extracts that function. **Zero user-visible change** — a pure refactor guarded by the existing
+golden/characterization tests.
+
+**How it works.** `src/generation/generateBlock.js` owns exactly what
+`Sequencer.randomizeScaleAndGenerate` did between "the chord progression is authored" and
+"`_measureSpan` measures the result" (was Sequencer.js ~lines 1386–1533):
+
+1. **shared RHYTHM GRID** — `globalTemplate = generateDeterministicRhythm(1, ts, measureSlots,
+   'default', GLOBAL_RESOLUTION)` (the cross-instrument grid of §3 step 4b's exception path);
+2. **rhythmic chord track** — `new MelodyGenerator(… randomizationRule:'progression' …)` +
+   `insertPassingChords` (verbatim, all inline comments preserved per §4);
+3. **multi-track build** — `generateNextSeries(…)` → `{ treble, bass, percussion }`.
+
+Signature: `generateBlock({ activeScale, timeSignature, numMeasures, chordProgression, seriesArgs,
+chordStrategy?, songChords?, songMeasureCount?, blockStartMeasure?, fixedOstinato?, shape?,
+groupMeasures? }) → { treble, bass, percussion, chordProgression, chords /* alias */, globalTemplate,
+rhythmicGrouping, fixedOstinato, trebleSettings?, bassSettings? }`. `seriesArgs` is the bundle
+`generateNextSeries` needs (`oldTonic/oldMode/oldFamily/oldScaleNotes/oldDisplayScale`, `randConfig`,
+`currentMelodies`, `instrumentSettings`, `currentMelodyContext`, `targetTrebleDifficulty`,
+`targetBassDifficulty`, `percussionScale`).
+
+**Pure.** No React, no `this`, no setters, no module-level mutable state. Cross-block memory (the
+ostinato) is the *caller's* — `generateBlock` returns `fixedOstinato` and the caller threads it into
+the next call.
+
+**Per-track SOURCE routing — the existing parameters, no new knob.** An earlier plan draft proposed
+a parallel `source: 'generate' | 'fixed' | 'none'` enum; Han corrected that 2026-08-29 — routing keys
+off parameters that already exist:
+
+| Track(s) | Mechanism | Behaviour |
+|---|---|---|
+| chords | strategy key `'song'` (`progressionDefinitions.js` §17) | with `songChords` + `songMeasureCount`: this block's chords follow the song by `(blockStartMeasure + localMeasure) mod songMeasureCount` (per-measure wrap). Absent those args → rhythmic `MelodyGenerator` + `insertPassingChords`, unchanged. |
+| treble / bass / percussion | per-track `InstrumentSettings.randomizationRule === 'fixed'` (§3 step 4e) | **reference present** (song loaded) → `generateNextSeries` slices/modulates it (already its behaviour). **no reference** → block 0's generated chunk is captured into `fixedOstinato` and replayed verbatim on every later block → **ostinato** (the one behaviour ADDED here). `!== 'fixed'` → fresh per block, unchanged. |
+| treble | optional `shape: 'call-response'` | post-transform: `collapseToCallRests` on the first `groupMeasures` (the silent "call") + the raw material shifted one group later (the playable "response"). Over a *generated* source reproduces `generateLevel9CallResponseBlock`; over a *sliced* source reproduces `sliceSongCallResponseBlock` — one merged mechanism (§6c). |
+
+The `'fixed'` naming is **not** a collision to warn about — `randomizationRule === 'fixed'` *is* the
+mechanism consumed ("do not roll fresh notes for this track": from a reference, or now from block 0's
+chunk). The `'song'` per-measure-modulo slice is a small purpose-built slicer, not a third general
+melody slicer (`sliceMelodyByRange` stays that).
+
+**Invariants / Fix.**
+- **No per-instrument branching inside `generateBlock`** (§6b): the ostinato check loops uniformly
+  over `['treble','bass','percussion']`; the only which-scale/which-reference asymmetry lives inside
+  `generateNextSeries`, where the golden tests already guard it.
+- **Byte-identical continuous playback**: the Sequencer passes none of the opt-in level params
+  (`chordStrategy`, `songChords`, `fixedOstinato`, `shape`), so its output is unchanged.
+  `randomizeScaleAndGenerate` still owns scale randomization, progression authorship/transposition,
+  the `setDisplayChordProgression` side effect, and `_measureSpan` / `generatedNumMeasures`.
+- **`Sequencer.start` / `scheduleBlock` / the `sessionController` capture are untouched** (§6/§7).
+- Guarded by `generationPipeline.golden.test.js`, `quarterGrid.golden.test.js`,
+  `generateNextSeries.test.js` (all unchanged) and
+  `randomizeScaleAndGenerate.characterization.test.js`, plus the new
+  `generateBlock.test.js` (plain generate incl. 7/8; `'fixed'` + reference; `'fixed'` no-reference
+  ostinato over 3 blocks; `'song'` modulo wrapping past `songMeasureCount`; `call-response` over
+  fixed + generated sources).
+
+**Files:** `src/generation/generateBlock.js` (new), `src/audio/Sequencer.js`
+(`randomizeScaleAndGenerate` delegates; `generateNextSeries` / `insertPassingChords` imports
+removed — reached through `generateBlock` now), `src/generation/__tests__/generateBlock.test.js`
+(new), `docs/architecture.md` §3 "Step 0" + this section, `IMPLEMENTATION_PLAN.md`.
+
+---
+
+### §350. One per-block content pipeline for EVERY level (#1165 / #1163b, Han 2026-08-29)
+
+**Purpose / Symptom.** Level content generation had drifted into **five** unrelated live mechanisms
+with **three** different cadences, **two** different length fields and **no** shared rhythm grid —
+none of them the clean per-block pipeline continuous playback uses. Adding anything that touches a
+level's content (adaptive tempo, #1102, was the trigger) meant wiring it into all five, twice, with
+two of them silently reading the wrong length field. This ticket replaces all five with ONE stream.
+
+**The five retired mechanisms, and where each landed.**
+
+| Retired | What it owned | Where it went |
+|---|---|---|
+| `useLevelTrebleStream.js` | treble, JIT per block (Wizard + gated procedural); wizard-cast audio; the `decorativeWizard` Major/Minor alternation (`blockScaleForCallResponse`); the song call-response slice; #1102's decider role | `useLevelContentStream` (recursion, cursor, lookahead, cast, decider) + `levelBlockPlan.resolveBlockScale` |
+| `useLevelBackingStream.js` | bass (cello) + metronome, JIT per `leadInBars` chunk, chunk 0 = the lead-in | `useLevelContentStream` (`generateLeadIn` + the bass/metronome half of each block) + `generateMetronomeChunk.js` |
+| `useLevelMixedStream.js` | treble for `enemyType: 'Mixed'`, hardcoded 2-measure blocks, `blockTypeAt` | `useLevelContentStream` + `levelBlockPlan.blockTypeForBlock` / `blockTypeAt` (SheetRpgLayer's 4 call sites only changed their import path) |
+| `useLevelKeyModulationStream.js` | treble for `decorativeWizard`, hardcoded 2-measure Major/Minor alternation | `levelBlockPlan.resolveBlockScale` — literally the same rule as `blockScaleForCallResponse`, merged (§300/§304/§305 had merged only the Wizard half) |
+| `useLevel.js` `regenerate()`-per-wave | one whole-level melody regenerated per cleared wave, for every level the four streams did not cover — including every non-sideScroll level | `useLevelContentStream` (Han's decision at plan_review: FULL uniformity, no fallback path kept) |
+
+Also deleted: `generateLevelMixedBlock.js`, `generateLevelBackingChunk.js` (its metronome half moved
+to `generateMetronomeChunk.js`, its bass half is now `generateBlock`), and
+`sliceSongCallResponseBlock`'s slice export (merged into `generateBlock`'s `shape: 'call-response'`,
+#1164). **Kept:** `collapseToCallRests`, `doubleMelodyForCallResponse`, `generateBlockedSongTreble`.
+
+**How it works — ONE of everything.**
+
+- **ONE activation condition** in App.jsx: `level.active && !level.done`. It was five
+  (`enemyType === 'Wizard' || isJitGatedSlimeLevel`, `enemyType === 'Mixed'`, `decorativeWizard &&
+  enemyType !== 'Wizard'`, `!level.done && sideScroll`, and an implicit "everything else"), plus a
+  three-way `treble=` ternary chain in `MelodyProvider` that is now one expression.
+- **ONE cadence** `B = blockMeasuresFor(lvl)` (`src/levels/levelBlockPlan.js`). Every track of a
+  block — treble, bass, percussion, chords, metronome — is generated for this same span. For most
+  levels `B` IS `lvl.numMeasures` (Han's data model: *numMeasures = generation chunk size*); three
+  level SHAPES carry their own musically-authored period that `numMeasures` does not yet express and
+  that #1165 deliberately does not change (call-response `callResponseMeasures * 2`, Mixed's
+  "2 maten slimes, dan 2 maten wizard", `decorativeWizard`'s "elke 2 maten … wisselt van
+  toonladder"). #1166's `numMeasures: 2` edit collapses all three into the `numMeasures`
+  fall-through, at which point those clauses can be deleted.
+- **ONE timeline**: the lead-in block covers content measures `[-leadInBars, 0)`; block `k` covers
+  `[k*B, (k+1)*B)`. TWO tick ORIGINS are preserved exactly as the retired streams published them,
+  because SheetMusic/SheetRpgLayer depend on both: the published TREBLE's tick 0 is content measure
+  0, the published BASS/METRONOME's tick 0 is the first lead-in measure.
+- **ONE accumulated audio-time cursor**: block `k`'s start is `block k-1's start + its OWN measures ×
+  ITS OWN bar duration` (#1102), never `index * B * barSec`. Identical arithmetic at a constant tempo.
+- **ONE lookahead**: `max(B, lvl.visibleMeasures ?? B)`, with the §693 Wizard cast deadline
+  `Math.min(visibilityDeadline, castTarget - 0.5*barSec)` preserved verbatim — generation can only
+  ever move EARLIER than the proven-correct #693 timing, so *"vanaf maat 4 komt de muziek van de
+  wizard te laat"* cannot regress by construction.
+- **ONE length rule**: `blockCountFor(lvl)` reads **`lvl.totalMeasures`, never `numMeasures`** —
+  the §299 bug class, fixed once for every level. `useLevelMixedStream` and
+  `useLevelKeyModulationStream` were both still reading `numMeasures` at the start of this ticket;
+  they were correct only because levels 14/15 have `numMeasures === totalMeasures === 8`, and
+  #1166's edit would have silently truncated both levels to 2 measures.
+- **`Infinity` blocks for a gated level** (`loopForever`, §867/§1052): the player may freeze on one
+  note for an arbitrary real-time duration, so content must never run out. The chord LOOKUP wraps
+  back into the level's own range; the block's tick position and start time keep increasing linearly.
+
+**Per-level policy is DATA, not branches** — `src/levels/levelBlockPlan.js` is pure (no React, no
+audio) and therefore directly unit-testable: `blockMeasuresFor`, `blockTypeForBlock` / `blockTypeAt`,
+`resolveBlockScale`, `blockCountFor`, `leadInSpecFor`, `trackSpecsForLevel`, `callGroupMeasuresFor`.
+
+**Per-track routing keys off parameters that ALREADY EXIST** (Han's PLAN v2 correction — no new level
+field, no parallel `source:` enum):
+
+- **chords** — the existing progression strategy key `'song'` (`progressionDefinitions.js`). A
+  song-backed level's chords follow the song's own progression by `(measure mod songLength)`; a
+  procedural level keeps its own strategy (`'tonic-tonic-tonic'` for most levels), its progression
+  authored ONCE at level start by `begin()`'s `regenerate(true)`, each block slicing its own window.
+- **treble / bass / percussion** — the existing per-track `InstrumentSettings.randomizationRule ===
+  'fixed'`. A song level forces it on for treble and the stream hands `generateBlock` that block's
+  song slice as its fixed material; a procedural level that AUTHORS `'fixed'` gets block 0's chunk
+  replayed every block (an ostinato, #1164). Everything else generates fresh per block, as before.
+
+**RHYTHM GRID: ON (Han's explicit plan_review decision).** treble/bass/percussion are generated off
+ONE shared measure-grouping / ranked-array grid per block — the same
+`progression -> groupings -> ranked -> tracks` order continuous playback uses. Han accepted that this
+CHANGES bass/percussion rhythm on existing levels: **#1165's UAT is a musical re-listen of every
+level, not a regression-only check.**
+
+**Accepted side-effects (Han, plan_review):**
+
+- **(a) cello/bass rhythm now follows the block cadence** and the shared grid. The **METRONOME stays
+  byte-identical**: it is a deterministic per-beat click track with no cross-measure state, so its
+  chunk size is irrelevant — which is exactly why it is generated by its own
+  `generateMetronomeChunk.js` rather than through `generateBlock` (a chord context and a shared grid
+  are the two things that could break that). `generateMetronomeChunk.test.js` proves the invariance
+  for 4/4, 3/4, 6/8 and 7/8. *(Scope note, PRE-EXISTING and unchanged by this ticket: for an ODD
+  numerator the within-measure accent pattern follows the measure's own grouping, which
+  `chooseGrouping` re-rolls on every call — so 7/8's wh/wm/wl sequence already differed between two
+  identical calls at any chunk size. The click COUNT and every click's OFFSET are invariant for every
+  meter, which is what "clicks on the same beats" means.)* The **LEAD-IN block stays
+  `leadInBars`-sized** with the `metronomeBars = ceil(leadInBars/2)` half-stagger (Han's *"alle
+  opmaten cello+timpanen. de tweede helft (round up) + metronoom erbij"*, §248) — only CONTENT blocks
+  take the cadence.
+- **(b) a song's treble is published incrementally per block**, same notes, same offsets. The
+  "upfront-complete song melody" special-case is gone. The slice is handed through `generateBlock`'s
+  fixed-material path **verbatim** — deliberately NOT through `generateNextSeries`'s
+  reference-melody branch, which would run `modulateMelody` + `transposeDisplayNotes` over it and
+  could re-spell a song's own authored accidentals. A test asserts the reassembled treble equals the
+  source song's `notes`/`offsets`/`durations`/`displayNotes` exactly.
+
+**A call-response block's accompaniment.** `generateBlock` builds ONE group (`numMeasures ===
+groupMeasures`) and its `shape: 'call-response'` transform doubles the treble into call + response.
+The block's bass/percussion are doubled with `doubleMelodyForCallResponse` — the existing helper,
+used for exactly the reason its own comment already gives for chords: the harmonic backdrop is not
+something the player guesses by ear (that is the melody's job), it is the continuous accompaniment
+underneath BOTH halves, so the same content is simply repeated for each.
+
+**#1102 (adaptive tempo) — the seam.** `adaptiveTempo.js`, `useAdaptiveTempo.js`, level-mode variant
+`'i'`, `tempoScrollAnchor.js`, SheetRpgLayer's `tempoScrollMs` and `useLevel.statsRef` are all
+**unchanged**. Only the WIRING was re-fitted: the per-block `bpmForMeasure` read and the accumulated
+cursor, previously duplicated in two streams, are one copy in `useLevelContentStream`; and App.jsx's
+classic per-wave decider effect (keyed on `level.wave`, excluded for JIT levels) is **DELETED** —
+with one cadence the stream is the SOLE decider for every level, so a boundary can never be
+double-adjusted. `commitIndexFor` is now always called with `units: [B]`, which makes Han's locked
+"force exact sync" between treble and bass/metronome **structural** (they are the same block,
+generated and scheduled together at one bpm) rather than arithmetic. `commitIndexFor`/`lcmOf` are
+kept as-is — their generality costs nothing and their test suite stays green. **#1165 implements NO
+new adaptive behaviour**; #1102 stays `on_hold` and will re-enable on this seam: with one cadence and
+one decider it no longer has three content architectures to hook into, and its §346 known
+limitations (timpani not re-rated, one-lookahead feedback delay, fixed `beatsOnScreen`, threshold
+tuning) are unchanged and still its own.
+
+**`wave` is now purely a combat/spawn counter.** `useLevel.onWaveCleared` no longer calls
+`regenerate()` for ANY level; `regenerate` survives only in `begin()` (the level's ONE initial
+generation, which also authors the chord progression every block draws its harmony from) and
+`close()`. This removes the last way a mid-level `levelMelodyReady` false->true flip could tear down
+and restart a content stream — the root cause of the §867/§304 "sounds like the level restarted" bug
+class. `wavesForLevel` is 1 for every shipped level except the multi-wave call-response variants
+(which already skipped `regenerate()`), so this is a genuine no-op for the shipped roster.
+
+**Non-sideScroll levels (101/107/112) run the same pipeline.** Han chose full uniformity over keeping
+a fallback. They have no scroll, no `levelAudioStart` and no scheduled audio, so the lookahead/timer/
+cursor machinery is simply INERT for them: the stream builds their (always finite) blocks in one
+synchronous pass and publishes the treble. No lead-in, no `playMelodies` call, no timers.
+
+**Invariants.**
+
+- **APPEND-ONLY** (CLAUDE.md §6, the level analogue of "`Song` is append-only"): every published
+  `Melody` grows by concatenation at monotonically increasing tick offsets; a published block is
+  never rewritten, re-offset or dropped. SheetRpgLayer's slime/kill bookkeeping derives from these
+  offsets and desyncs the instant that breaks. Asserted directly by
+  `useLevelContentStream.test.js`.
+- The Sequencer's `start()` / `scheduleBlock()` / `sessionController` capture are **untouched**.
+- No `setTimeout` drives `setCurrentMeasureIndex`; the stream's own timers schedule GENERATION only
+  (pre-existing pattern, inherited unchanged from both retired streams).
+- `updateScaleWithMode`, `secondsPerTick`, `sliceMelodyByRange`, `collapseToCallRests`,
+  `doubleMelodyForCallResponse`, `deriveLevelSpan`, `commitIndexFor`, `generateBlock` are all
+  REUSED, never re-derived (§6c). No per-instrument / per-architecture branch exists inside the
+  generation path (§6b).
+
+**Superseded by this section** (append-only history — those sections are still the record of WHY
+each rule exists, and every rule they document is inherited verbatim): §246, §248, §259, §289, §296,
+§298, §299, §304, §305, §306, §307, §313, §314, §344, §346, §349.
+
+**Files:** `src/hooks/useLevelContentStream.js` (new), `src/levels/levelBlockPlan.js` (new),
+`src/generation/generateMetronomeChunk.js` (new); DELETED `src/hooks/useLevelTrebleStream.js`,
+`src/hooks/useLevelBackingStream.js`, `src/hooks/useLevelMixedStream.js`,
+`src/hooks/useLevelKeyModulationStream.js`, `src/generation/generateLevelMixedBlock.js`,
+`src/generation/generateLevelBackingChunk.js`; `src/generation/sliceSongCallResponseBlock.js` (slice
+export removed, `doubleMelodyForCallResponse` kept), `src/App.jsx` (five activations -> one, the
+`treble=`/`metronome=`/`invisibleMelodies` wiring, `useLevelGatedRubatoAudio` + `useTwoHandedBass`
+repointed, classic per-wave adaptive decider effect deleted), `src/hooks/useLevel.js`
+(`onWaveCleared` no longer regenerates), `src/levels/levels.js` (`usesTrebleJitStream` removed, its
+comment kept as history), `src/components/sheet-music/SheetRpgLayer.jsx` (`blockTypeAt` import path).
+Tests: `src/hooks/__tests__/useLevelContentStream.test.js` (new — one guard per retired mechanism +
+the #1102 re-fit + append-only + a roster-wide "every shipped level generates without throwing"),
+`src/levels/__tests__/levelBlockPlan.test.js` (new),
+`src/generation/__tests__/generateMetronomeChunk.test.js` (new),
+`src/generation/__tests__/sliceSongCallResponseBlock.test.js` (slice tests became the merged-path
+migration guard), `src/hooks/__tests__/useLevel.test.js`, `src/levels/__tests__/levels.test.js`;
+`useLevelTrebleStream.test.js` / `useLevelBackingStream.test.js` /
+`generateLevelBackingChunk.test.js` deleted (absorbed).
