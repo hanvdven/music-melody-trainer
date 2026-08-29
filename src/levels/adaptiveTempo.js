@@ -1,19 +1,31 @@
 import { computeAccuracyPercent, computeTotalNotes } from '../components/levels/LevelStatsCharts';
 import { totalNotesForLevel } from './levels';
 
-// #1102 (split from #1087, Han 2026-08-23 chat interview): adaptive-mode ('x') tempo. Two pure, testable
-// pieces — the ONE-TIME baseline computed when a level starts, and the per-JIT-block live adjustment
-// evaluated by useLevelTrebleStream.js (the sole writer — see its own comment for why only one of the two
-// streaming hooks may write this shared value).
+// #1102 (split from #1087, Han 2026-08-23 chat interview): adaptive-mode (level-variant letter 'i')
+// tempo. Pure, testable pieces — the ONE-TIME baseline computed when a level starts, the per-block live
+// adjustment, the exact-cross-stream commit index, and the adaptive level's repeat count.
+//
+// WHO CALLS `evaluateAdaptiveBpm` (corrected 2026-08-29): `useLevelContentStream.js`, via
+// `useAdaptiveTempo.js`. An earlier version of this comment named `useLevelTrebleStream.js` and warned
+// that only ONE of the two streaming hooks may write the shared value — both of those hooks were DELETED
+// by #1165, which merged every level's content onto ONE per-block stream. That stream is now the sole
+// decider for every level, so "only one writer" is structural rather than a convention to uphold, and
+// `commitIndexFor` is always called with a single unit `[B]`.
 
 // Baseline bpm — the algebraic INVERSE of #1099's own ANPM formula (notesPerMinute = totalNotes /
 // elapsedMinutes), applied to THIS level's own beat/note structure instead of whichever level ANPM was
 // last measured on. Han: "ANPM is een skill, en overstijgt levels" (a profile-level skill number, not
 // tied to any one level) — "BPM = ANPM * (lengte van level in beats) / (totaal aantal noten in level)".
-// Falls back to the level's own authored bpm when ANPM is null (nothing played yet) or the level has no
+// NO-ANPM FALLBACK = 0.7 x the authored bpm (Han 2026-08-28, from the #1102 UAT bounce). It used to be
+// the authored bpm itself, which is ALSO the clamp CEILING (`[authoredBpm/2, authoredBpm]`) — so a player
+// with no ANPM yet started pinned at the top of the range and adaptive mode could only ever slow DOWN,
+// never demonstrate the acceleration that is its whole point. Starting a bit below the authored tempo
+// leaves headroom in both directions. Still falls back to the authored bpm outright when the level has no
 // notes to divide by (defensive; every real level has some).
+export const NO_ANPM_BASELINE_FACTOR = 0.7;
+
 export const baselineAdaptiveBpm = (lvl, anpm) => {
-    if (anpm == null) return lvl.bpm;
+    if (anpm == null) return Math.round(lvl.bpm * NO_ANPM_BASELINE_FACTOR);
     const quarterNotesPerMeasure = 4 * ((lvl.timeSignature?.[0] ?? 4) / (lvl.timeSignature?.[1] ?? 4));
     const beatsInLevel = quarterNotesPerMeasure * (lvl.totalMeasures || 0);
     const totalNotes = totalNotesForLevel(lvl);
@@ -30,6 +42,18 @@ export const ADAPTIVE_STEP = 0.05;
 // slows down, anything in between holds steady rather than chasing noise every single block.
 const SPEED_UP_ACCURACY = 90;
 const SLOW_DOWN_ACCURACY = 70;
+
+// How many times an adaptive level plays through its own content (Han 2026-08-28: "niet oninteressant om
+// het level te blijven herhalen. Bijvoorbeeld 3x"). WHY it is needed: the tempo only moves ±5% per block
+// boundary, and the FIRST boundary is always a no-op (no prior snapshot to diff against), so an 8-measure
+// level generated in 2-measure blocks offers just three real adjustments — not enough for the tempo to
+// visibly converge on the player's actual ability (the UAT complaint that parked this ticket). Tripling
+// the level's own length triples the number of evaluation points.
+//
+// A FIRST-PASS TUNABLE like ADAPTIVE_STEP and the two thresholds above: one constant, open to Han's UAT
+// feel. Applied in `applyLevelVariant` (levels.js) by multiplying the level's own `totalMeasures` — the
+// single field every length consumer already reads — never by a second, parallel length mechanism (§6c).
+export const ADAPTIVE_LEVEL_REPEATS = 3;
 
 // Diffs two CUMULATIVE stats snapshots (useLevel.js's `stats` shape — every field is an additive
 // counter) into a delta object shaped identically, so `computeAccuracyPercent`/`computeTotalNotes`

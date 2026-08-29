@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { LEVELS, LEVEL_MODE_VARIANTS, applyLevelVariant, availableVariantLetters } from '../levels';
+import { LEVELS, LEVEL_MODE_VARIANTS, applyLevelVariant, availableVariantLetters, wavesForLevel } from '../levels';
 import { COLOR_SCHEMES, COLOR_SCOPES } from '../../components/sheet-music/overlays/NoteColoringStaffOverlay';
-import { baselineAdaptiveBpm } from '../adaptiveTempo';
+import { baselineAdaptiveBpm, ADAPTIVE_LEVEL_REPEATS, NO_ANPM_BASELINE_FACTOR } from '../adaptiveTempo';
+import { blockCountFor } from '../levelBlockPlan';
 import { deriveLevelSpan } from '../levels';
 
 // #1100 (split from #1087, Han 2026-08-22 chat interview): a/b/c/f mode-variant picker. `applyLevelVariant`
@@ -152,15 +153,79 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         expect(LEVEL_MODE_VARIANTS.i.adaptive).toBe(true);
     });
 
-    it('variant i with NO anpm falls back to the level own authored bpm and keeps its colours', () => {
+    // Han 2026-08-28 (#1102 UAT bounce): the no-ANPM start is 0.7x the authored bpm, NOT the authored bpm
+    // — which is the clamp ceiling, and left adaptive mode unable to ever speed up.
+    it('variant i with NO anpm starts at 0.7x the authored bpm and keeps its colours', () => {
         const v = applyLevelVariant(base, 'i', null);
         expect(v.adaptive).toBe(true);
-        expect(v.adaptiveBaseBpm).toBe(base.bpm);
-        expect(v.bpm).toBe(base.bpm);
+        expect(v.adaptiveBaseBpm).toBe(base.bpm);        // the clamp is expressed against the AUTHORED tempo
+        expect(v.bpm).toBe(Math.round(base.bpm * NO_ANPM_BASELINE_FACTOR));
+        expect(v.bpm).toBeLessThan(base.bpm);            // headroom to accelerate
+        expect(v.bpm).toBeGreaterThan(base.bpm / 2);     // headroom to slow down
         expect(v.colorScheme).toBe(base.colorScheme);
         expect(v.colorScope).toBe(base.colorScope);
         expect(v.enemyType).toBe(base.enemyType);
         expect(v).not.toBe(base);   // never mutates the shared object
+    });
+
+    // #1102 (Han 2026-08-28, "niet oninteressant om het level te blijven herhalen. Bijvoorbeeld 3x"):
+    // the evaluation runway. Expressed through the level's OWN `totalMeasures`, so every length consumer
+    // (blockCountFor / wavesForLevel / totalNotesForLevel / the timpani span / the final barline) scales
+    // uniformly and the level still ends through the paths that already exist.
+    describe('variant i — the 3x evaluation runway (#1102, Han 2026-08-28)', () => {
+        it('multiplies a PROCEDURAL level\'s totalMeasures by ADAPTIVE_LEVEL_REPEATS', () => {
+            const v = applyLevelVariant(base, 'i', 60);
+            expect(v.totalMeasures).toBe(base.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
+        });
+
+        it('scales blockCountFor and wavesForLevel with it — ~3x the evaluation points, still FINITE', () => {
+            const v = applyLevelVariant(base, 'i', 60);
+            expect(blockCountFor(v)).toBe(blockCountFor(base) * ADAPTIVE_LEVEL_REPEATS);
+            expect(wavesForLevel(v)).toBe(wavesForLevel(base) * ADAPTIVE_LEVEL_REPEATS);
+            // FINITE is the "level must still end" guarantee: a finite block count means the stream stops
+            // generating, and a finite wave count means onWaveCleared eventually reaches its target.
+            expect(Number.isFinite(blockCountFor(v))).toBe(true);
+            expect(blockCountFor(v)).toBe(wavesForLevel(v));   // §1163c's "combat == chunk boundary" identity
+        });
+
+        it('leaves the starting bpm untouched — totalMeasures cancels out of the baseline formula', () => {
+            expect(applyLevelVariant(base, 'i', 60).bpm).toBe(baselineAdaptiveBpm(base, 60));
+        });
+
+        it('does NOT repeat a SONG level — its slices never wrap, so 3x waves could never be cleared', () => {
+            // A song-backed level's per-block treble slice is deliberately unwrapped (empty past the
+            // song's last measure, useLevelContentStream's `songSlice`). Tripling its wave target while
+            // its slimes stop at the song's true end is the §289 "level never ends" bug class.
+            const sakura = LEVELS[205];
+            expect(sakura.songId).toBe('sakura');
+            const v = applyLevelVariant(sakura, 'i', 60);
+            expect(v.adaptive).toBe(true);
+            expect(v.totalMeasures).toBe(sakura.totalMeasures);
+        });
+
+        it('does NOT repeat a non-sideScroll level — the stream never evaluates the controller there', () => {
+            const staticLvl = LEVELS[101];
+            expect(staticLvl.sideScroll).toBeFalsy();
+            expect(applyLevelVariant(staticLvl, 'i', 60).totalMeasures).toBe(staticLvl.totalMeasures);
+        });
+
+        it('a gated level still repeats — its wave count is 1 by construction, so nothing can strand it', () => {
+            // Level 3 is gatedScroll + procedural → isJitTrebleLevel → wavesForLevel 1, and its content
+            // loops forever anyway; the level ends when the FINAL BARLINE (now 3x further out) crosses the
+            // strike line. So the repeat simply makes it last 3x longer.
+            const gated = LEVELS[3];
+            expect(gated.gatedScroll).toBe(true);
+            const v = applyLevelVariant(gated, 'i', 60);
+            expect(v.totalMeasures).toBe(gated.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
+            expect(wavesForLevel(v)).toBe(1);
+        });
+
+        it('changes NOTHING about a non-adaptive letter (guard: no level got longer by accident)', () => {
+            ['a', 'b', 'c', 'f', 'g'].forEach((letter) => {
+                expect(applyLevelVariant(base, letter).totalMeasures).toBe(base.totalMeasures);
+            });
+            expect(applyLevelVariant(base, null).totalMeasures).toBe(base.totalMeasures);
+        });
     });
 
     it('variant i applies the ANPM baseline bpm and recomputes the bpm-derived span bundle', () => {

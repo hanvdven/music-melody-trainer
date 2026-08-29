@@ -280,7 +280,7 @@ import { scaleDefinitions } from '../theory/scaleHandler';
 // file — a deliberate, ESM-safe import cycle: neither module CALLS the other at module-init time (both
 // only reference each other inside function bodies), and keeping the two formulas in the one file that
 // documents them is worth more than breaking the cycle by duplicating either (§6c).
-import { baselineAdaptiveBpm } from './adaptiveTempo';
+import { baselineAdaptiveBpm, ADAPTIVE_LEVEL_REPEATS } from './adaptiveTempo';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 
@@ -651,8 +651,10 @@ export const LEVEL_MODE_VARIANTS = {
     h: { label: 'Randomized Notes', iconKey: 'randomizedNotes', randomizedNotes: true },
     // #1102 (Han 2026-08-23 chat interview, resumed 2026-08-28): `adaptive: true` — the level's bpm
     // STARTS at the player's own ANPM-derived baseline (`baselineAdaptiveBpm`, adaptiveTempo.js) and then
-    // tracks their live performance ±5% per block/wave, clamped to [authoredBpm/2, authoredBpm]. See
-    // `applyLevelVariant`'s `adaptiveOverrides` below and docs/architecture.md §344.
+    // tracks their live performance ±5% per block, clamped to [authoredBpm/2, authoredBpm], over a level
+    // that plays through its own content ADAPTIVE_LEVEL_REPEATS times. See `applyLevelVariant`'s
+    // `adaptiveOverrides` below and docs/architecture.md §354 (which supersedes §346/§298; an earlier
+    // version of this comment pointed at §344, which is a different feature entirely).
     i: { label: 'Adaptive speed', iconKey: 'adaptiveSpeed', adaptive: true },
 };
 
@@ -758,7 +760,37 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
     // authored value must survive somewhere. Kept as its own field rather than re-reading `LEVELS[id].bpm`
     // downstream, which would be wrong for a Level-0 draft object or a song-backed level (whose `bpm` is
     // itself back-filled from the song definition, not written in levels.json).
-    const adaptiveOverrides = variant.adaptive ? { adaptive: true, adaptiveBaseBpm: lvl.bpm } : {};
+    // #1102 (Han 2026-08-28, "niet oninteressant om het level te blijven herhalen. Bijvoorbeeld 3x"): an
+    // adaptive level plays through its own content ADAPTIVE_LEVEL_REPEATS times, so the ±5% controller
+    // gets ~3x as many block boundaries to converge on the player's real ability (the "no visible
+    // acceleration" UAT bounce: an 8-measure level in 2-measure blocks offers only 3 real adjustments,
+    // the first boundary always being a no-op). Expressed by multiplying the level's OWN `totalMeasures`
+    // — the single length field EVERY consumer already reads (`blockCountFor`, `wavesForLevel`,
+    // `totalNotesForLevel`, App.jsx's timpani span, SheetMusic's `levelFullTotalMeasures` → SheetRpgLayer's
+    // `trebleFinalBarTick`, which also clips slime/critter spawning) — so a 3x adaptive level is
+    // structurally an ordinary longer level and ENDS through exactly the paths that already exist (§6c).
+    // `callResponseOverrides` above already does this same scoped-`totalMeasures` trick for songs.
+    //
+    // SCOPED to PROCEDURAL side-scroll levels (`songId == null`), and this exclusion is load-bearing, not
+    // caution: a song-backed level's per-block treble slice is deliberately UNWRAPPED (see
+    // `useLevelContentStream`'s `songSlice` — past the song's last measure the slice is empty, so a song
+    // never silently repeats), while `wavesForLevel` would demand 3x the wave clears. Its slimes would run
+    // out one third of the way in and `pendingSongEndRef` would never be set — the §289 "level never ends"
+    // bug class, reintroduced. `!sideScroll` is excluded for a different reason: the stream only evaluates
+    // the controller for a side-scroll level, so a longer static level would be pure padding.
+    // `totalNotesForLevel` scales with it, which is CORRECT: the player really does play 3x the notes over
+    // ~3x the time, so #1099's post-completion ANPM (notes / elapsed minutes) is unchanged by the repeat.
+    // `baselineAdaptiveBpm` is computed above from the UN-multiplied level and is invariant anyway —
+    // `totalMeasures` appears in both its numerator (beats) and its denominator (notes) and cancels out.
+    // `lvl.totalMeasures > 0` also guards the Level-0 draft object this function can be handed before
+    // `normalizeLevel` has derived a length for it.
+    const adaptiveRepeats = (lvl.sideScroll && lvl.songId == null && lvl.totalMeasures > 0)
+        ? ADAPTIVE_LEVEL_REPEATS : 1;
+    const adaptiveOverrides = variant.adaptive ? {
+        adaptive: true,
+        adaptiveBaseBpm: lvl.bpm,
+        ...(adaptiveRepeats > 1 ? { totalMeasures: lvl.totalMeasures * adaptiveRepeats } : {}),
+    } : {};
     const randomizeSongOverrides = (variant.randomizedNotes && lvl.songId != null) ? {
         randomizeSongMelody: true,
         forceTrebleSettings: {

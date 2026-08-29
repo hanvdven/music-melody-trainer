@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { baselineAdaptiveBpm, evaluateAdaptiveBpm, commitIndexFor, lcmOf, ADAPTIVE_STEP } from '../adaptiveTempo';
+import {
+    baselineAdaptiveBpm, evaluateAdaptiveBpm, commitIndexFor, lcmOf,
+    ADAPTIVE_STEP, ADAPTIVE_LEVEL_REPEATS, NO_ANPM_BASELINE_FACTOR,
+} from '../adaptiveTempo';
 
 // #1102 (split from #1087, Han 2026-08-23 chat interview, wired up 2026-08-28). These two formulas were
 // written during the paused first attempt and deliberately left untested until they were actually
@@ -39,14 +42,36 @@ describe('adaptiveTempo — baselineAdaptiveBpm (#1102, Han\'s locked formula)',
         expect(baselineAdaptiveBpm(lvl({ timeSignature: [5, 4] }), 60)).toBe(150);
     });
 
-    it('falls back to the level\'s own authored bpm when ANPM is null (nothing played yet)', () => {
-        expect(baselineAdaptiveBpm(lvl({ bpm: 96 }), null)).toBe(96);
-        expect(baselineAdaptiveBpm(lvl({ bpm: 96 }), undefined)).toBe(96);
+    // Han 2026-08-28 (#1102 UAT bounce): the null-ANPM fallback used to be the authored bpm itself, which
+    // is ALSO the clamp ceiling — so a player with no ANPM yet started pinned at the top of
+    // `[authoredBpm/2, authoredBpm]` and adaptive mode could only ever slow down. 0.7x leaves headroom in
+    // both directions.
+    it('falls back to 0.7x the level\'s authored bpm when ANPM is null (nothing played yet)', () => {
+        expect(baselineAdaptiveBpm(lvl({ bpm: 96 }), null)).toBe(Math.round(96 * NO_ANPM_BASELINE_FACTOR));
+        expect(baselineAdaptiveBpm(lvl({ bpm: 96 }), undefined)).toBe(Math.round(96 * NO_ANPM_BASELINE_FACTOR));
+    });
+
+    it('the null-ANPM baseline sits strictly INSIDE the clamp, so both directions stay reachable', () => {
+        const level = lvl({ bpm: 100 });
+        const start = baselineAdaptiveBpm(level, null);
+        expect(start).toBe(70);
+        expect(start).toBeGreaterThan(level.bpm / 2);   // room to slow down
+        expect(start).toBeLessThan(level.bpm);          // room to speed up — the point of the change
     });
 
     it('falls back to the authored bpm when the level has no notes to divide by', () => {
         expect(baselineAdaptiveBpm(lvl({ bpm: 96, notesPerMeasure: 0 }), 60)).toBe(96);
         expect(baselineAdaptiveBpm(lvl({ bpm: 96, totalMeasures: 0 }), 60)).toBe(96);
+    });
+
+    // The #1102 repeat (ADAPTIVE_LEVEL_REPEATS) multiplies the level's `totalMeasures`, which appears in
+    // BOTH the formula's numerator (beats) and its denominator (notes) — so the starting tempo is
+    // completely unaffected by how many times the level repeats. Pinned so a future change to the repeat
+    // count can never silently move a player's starting tempo.
+    it('is invariant under the adaptive repeat — totalMeasures cancels out of the ratio', () => {
+        const once = lvl({ totalMeasures: 8 });
+        const thrice = lvl({ totalMeasures: 8 * ADAPTIVE_LEVEL_REPEATS });
+        expect(baselineAdaptiveBpm(thrice, 60)).toBe(baselineAdaptiveBpm(once, 60));
     });
 });
 
