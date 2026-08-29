@@ -7,6 +7,32 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-29 — ✅ #1164 / #1163a — extract shared per-block generator `generateBlock.js`
+
+Sub-ticket 1 of 3 under epic #1163 (uniform per-chunk generation). Pure refactor, ZERO
+user-visible change.
+
+- ✅ NEW `src/generation/generateBlock.js` (pure): owns the shared RHYTHM GRID
+  (`generateDeterministicRhythm`), the rhythmic chord track (`MelodyGenerator` +
+  `insertPassingChords`) and the multi-track `generateNextSeries` call — was inline in
+  `Sequencer.randomizeScaleAndGenerate` ~lines 1386–1533.
+- ✅ `Sequencer.randomizeScaleAndGenerate` now delegates the block build; keeps scale
+  randomization, progression authorship, `setDisplayChordProgression`, `_measureSpan` /
+  `generatedNumMeasures`. `start()` / `scheduleBlock` / `sessionController` untouched.
+- ✅ Per-track routing on EXISTING params (no new knob): chords → `'song'` strategy
+  per-measure-modulo follow; treble/bass/percussion → `randomizationRule === 'fixed'`
+  (reference → slice/modulate via `generateNextSeries`; no reference → NEW "repeat block 0's
+  chunk = ostinato", caller threads `fixedOstinato`). Optional `shape:'call-response'`
+  post-transform (`collapseToCallRests`) merges `generateLevel9CallResponseBlock` +
+  `sliceSongCallResponseBlock`.
+- ✅ Tests: NEW `generateBlock.test.js` (plain generate incl. 7/8; fixed+reference;
+  fixed-no-reference ostinato ×3 blocks; `'song'` modulo wrap; call-response over
+  fixed + generated). The 3 golden tests + `randomizeScaleAndGenerate.characterization.test.js`
+  pass UNCHANGED. `npm run test:run` 1062 pass / 1 skip, `build` clean, `lint` 0 new.
+- 📄 docs/architecture.md §3 "Step 0" + §349, §12 file table.
+
+**Status:** ✅ impl klaar → test (Han UAT). Next: #1165 (Opus/high) consumes `generateBlock`.
+
 ## 2026-08-27 — ✅ Bestiary: nieuwe entries (Carriage, Coachwoman, Ferryman)
 
 Han dropte nieuwe sprites:

@@ -113,6 +113,57 @@ Application-level UI preferences (theme, etc.) — not music-theory state.
 
 A new melody is generated at the start of each sequence block (or on demand). Generation is a linear pipeline: trigger → chords → melody → slices.
 
+### Step 0 — one block: `generateBlock.js` (the shared entry point, #1164 / #1163a)
+
+**Purpose.** Continuous playback and every level must build a block of music through the
+*same* code, not hand-rolled copies (CLAUDE.md §6c). `Sequencer.randomizeScaleAndGenerate`
+cannot itself be that shared function — it reads ~10 `this.refs.*`, calls setters, mutates
+`this.displayChordProgression`, and randomizes the scale (which a level must never do). So its
+CLEANLY-PURE inner half is extracted to **`src/generation/generateBlock.js`**:
+
+1. the shared **RHYTHM GRID** — `globalTemplate` via `generateDeterministicRhythm` (steps 4a–4b's
+   cross-instrument grid);
+2. the **rhythmic chord track** — `MelodyGenerator` (`randomizationRule: 'progression'`) +
+   `insertPassingChords`;
+3. the **multi-track build** — `generateNextSeries` → `{ treble, bass, percussion }` (itself the
+   Han 2026-06-19 §4 extraction).
+
+`generateBlock({ activeScale, timeSignature, numMeasures, chordProgression, seriesArgs, … }) →
+{ treble, bass, percussion, chordProgression /* alias: chords */, globalTemplate, rhythmicGrouping,
+fixedOstinato, trebleSettings?, bassSettings? }`. It is **pure**: no React, no `this`, no setters,
+no module-level mutable state. `randomizeScaleAndGenerate` keeps scale randomization, progression
+authorship + transposition, the `setDisplayChordProgression` side effect, and the
+`_measureSpan` / `generatedNumMeasures` computation, and delegates 1–3 to it.
+
+**Per-track SOURCE routing — driven by parameters that already exist, no new knob.** There is no
+`source: 'generate' | 'fixed' | 'none'` vocabulary (an earlier plan draft proposed one; removed).
+
+- **Chords** route on the chord-progression strategy key **`'song'`** (§17 / `progressionDefinitions.js`).
+  When `chordStrategy === 'song'` and a whole-song chord `Melody` + its measure count are supplied,
+  the block's chords **follow** that progression by `(blockStartMeasure + localMeasure) mod
+  songMeasureCount` — a per-measure wrap, not a fresh `generateProgression`. Absent those args
+  (the Sequencer passes none) the chord track is built exactly as before.
+- **Treble / bass / percussion** route on the per-track **`InstrumentSettings.randomizationRule ===
+  'fixed'`** (step 4e). `generateNextSeries` already owns the *"a reference melody exists → slice /
+  modulate it"* half. `generateBlock` **adds** the other half: when a track is `'fixed'` but has
+  **no** reference (no song loaded), block 0's generated chunk is captured into the returned
+  `fixedOstinato` and the caller threads it back into every later block, which replays it verbatim →
+  an **ostinato**. `randomizationRule !== 'fixed'` → generated fresh per block, unchanged.
+- Optional **`shape: 'call-response'`** is a post-transform on the treble track only
+  (`collapseToCallRests` on the first `groupMeasures`, then the raw material shifted one group
+  later). Applied to a *generated* source it reproduces `generateLevel9CallResponseBlock`; applied
+  to a *sliced* source it reproduces `sliceSongCallResponseBlock` — one merged mechanism.
+
+**Invariants.** No per-instrument branching inside `generateBlock` (§6b) — the ostinato check is
+uniform across track names. The Sequencer passes none of the opt-in level params, so
+continuous-playback output is **byte-identical**; guarded by
+`generationPipeline.golden.test.js`, `quarterGrid.golden.test.js`,
+`generateNextSeries.test.js` (all unchanged) and `randomizeScaleAndGenerate.characterization.test.js`.
+See §349 for the full write-up.
+
+**Files:** `src/generation/generateBlock.js` (new), `src/audio/Sequencer.js` (delegates),
+`src/generation/__tests__/generateBlock.test.js` (new).
+
 ### Chord Authorship & State Management
 
 Two writers, strictly separated to prevent race conditions:
@@ -926,6 +977,7 @@ the header and the sheet:
 
 | File | Purpose |
 |---|---|
+| `generateBlock.js` | The ONE shared "generate one block" entry point (§3 Step 0 / §349) — shared rhythm grid + rhythmic chord track + `generateNextSeries`. Called by both `Sequencer.randomizeScaleAndGenerate` and (from #1165) the level pipeline. Pure. |
 | `melodyGenerator.js` | Top-level melody generation entry point; wires together rhythm generation, note selection, and difficulty filtering. |
 | `generateRankedRhythm.js` | Generates a weighted-random rhythmic pattern for a melody based on time signature and difficulty. |
 | `generateBackbeat.js` | Generates a percussion backbeat pattern aligned to the melody's rhythm. |

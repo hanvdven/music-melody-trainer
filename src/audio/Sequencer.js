@@ -10,10 +10,13 @@ import {
   updateScaleWithMode,
   getBestEnharmonicTonic,
 } from '../theory/scaleHandler';
-import { generateNextSeries } from '../generation/generateNextSeries';
+// #1164 / #1163a (Han 2026-08-29): the pure "generate ONE block" pipeline — shared RHYTHM
+// GRID + rhythmic chord track + per-track build — was extracted out of
+// randomizeScaleAndGenerate so a level (#1165) runs the SAME code (CLAUDE.md §6c).
+// generateNextSeries / insertPassingChords are now reached THROUGH generateBlock.
+import { generateBlock } from '../generation/generateBlock';
 
 import { generateProgression } from '../theory/chordGenerator';
-import { insertPassingChords } from '../generation/passingChords';
 import { generateDeterministicRhythm } from '../generation/rhythmicPriorities';
 import Chord from '../model/Chord';
 import ChordProgression from '../model/ChordProgression';
@@ -1383,21 +1386,10 @@ class Sequencer {
       }
     }
 
-    // 2. Generate Global Rhythm DNA (NEW STEP)
-    // We need to match useMelodyState logic
-    const measureSlots = (GLOBAL_RESOLUTION * timeSignature[0]) / timeSignature[1];
-
-    const globalTemplate = generateDeterministicRhythm(
-      1,
-      timeSignature,
-      measureSlots,
-      'default',
-      GLOBAL_RESOLUTION
-    );
-
     // Always ensure displayChordProgression is set — it may be null on the first call
     // when no randomization is active and the scale hasn't changed (neither branch fires above).
-    // Must happen before chordProgression becomes chordMelody (Melody, not ChordProgression).
+    // Must happen before chordProgression becomes chordMelody (Melody, not ChordProgression) —
+    // i.e. before generateBlock() below turns it into a rhythmic chord track.
     if (!this.displayChordProgression && chordProgression?.chords?.length) {
       this.displayChordProgression = chordProgression;
       if (!this.displayChordProgression.totalMeasures) {
@@ -1406,120 +1398,49 @@ class Sequencer {
       this.setters.setDisplayChordProgression?.(chordProgression);
     }
 
-    // 3. Generate Rhythmic Chords using MelodyGenerator
-
-    // If we have a chord progression (abstract), let's make it rhythmic
-    // Only if we actually have chords to play.
-    if (chordProgression && (chordProgression.chords || chordProgression.displayNotes)) {
-      const seqEnabledPassingTypes = chordSettings?.passingChordTypes ?? [];
-      const seqChordCount = chordSettings?.chordCount || 1;
-      // Must match useMelodyState: exactly 1 structural chord per measure when passing is on.
-      // Previously used Math.ceil(chordCount/2) which mismatched useMelodyState and (for
-      // chordCount > 2) caused the notePool to be sized wrong.
-      const seqStructuralCount = seqEnabledPassingTypes.length > 0 ? 1 : seqChordCount;
-
-      // notePool resolution — must yield a clean (passing-free) structural progression.
-      //   .chords      : abstract ChordProgression (fresh generation this tick, or transposed) — clean.
-      //   .displayNotes: Melody from a previous tick (after insertPassingChords ran) — MIXED.
-      //                  Filter out chords with meta.isPassing=true so the recovered structural
-      //                  pool matches what useMelodyState's original abstract progression looked like.
-      //                  Without this filter, already-inserted passing chords would be treated as
-      //                  structural slots and then insertPassingChords below would add MORE passing
-      //                  chords on top, doubling the per-measure count.
-      const rawNotePool = chordProgression.chords || chordProgression.displayNotes;
-      const notePool = chordProgression.chords
-        ? rawNotePool
-        : rawNotePool?.filter(c => c && !c.meta?.isPassing);
-
-      const chordGenSettings = {
-        notesPerMeasure: seqStructuralCount,
-        // #362: mirrors useMelodyState — chords' own smallest-note setting.
-        smallestNoteDenom: chordSettings?.smallestNoteDenom ?? (timeSignature[1] || 4),
-        rhythmVariability: chordSettings?.rhythmVariability || 0,
-        enableTriplets: false,
-        notePool, // Always Chord[]
-        playStyle: 'chord',
-        type: 'progression',
-        randomizationRule: 'progression'
-      };
-
-      const chordGen = new MelodyGenerator(
-        activeScale,
-        numMeasures,
-        timeSignature,
-        chordGenSettings,
-        null, // No chords needed *as context* for chord generation itself
-        null, // Range irrelevant
-        Date.now().toString(),
-        globalTemplate
-      );
-
-      let chordMelody = chordGen.generateMelody();
-
-      // Insert passing chords — mirrors useMelodyState. Without this, subsequent sequence
-      // blocks generated here in the Sequencer would lack passing chords.
-      // seqChordCount is passed so insertPassingChords derives passingProbability internally.
-      if (seqEnabledPassingTypes.length > 0) {
-        const complexity = chordProgression.complexity || chordSettings?.complexity || 'triad';
-        const firstChord = chordMelody.displayNotes?.find(c => c !== null) ?? null;
-        chordMelody = insertPassingChords(chordMelody, activeScale, timeSignature, complexity, seqEnabledPassingTypes, seqChordCount, firstChord);
-      }
-
-      // Now chordMelody IS the rhythmic progression.
-      // .notes = string[][] for audio, .displayNotes = Chord[] for SheetMusic.
-      chordMelody.type = chordProgression.type;
-      chordMelody.complexity = chordProgression.complexity;
-      chordMelody.modality = chordProgression.modality;
-
-      // Update local var for subsequent melody generation
-      chordProgression = chordMelody;
-      result.chordProgression = chordMelody;
-    } else {
-      result.chordProgression = chordProgression;
-    }
-
-    // Now chordProgression is a Melody object (rhythmic).
-    // MelodyGenerator for Treble/Bass handles this by looking at .notes properly.
-
-    // ── Per-track melody construction → pure generateNextSeries() ──────────────
-    // Han 2026-06-19 (ARCHITECTURE_AUDIT §4): the treble/bass/percussion build
-    // (transpose-without-regenerate AND full-regeneration paths) was ~220 lines of
-    // PURE generation logic living inside the audio class — violating the §8
-    // boundary (Sequencer owns scheduling, generation lives in src/generation/).
-    // It is extracted verbatim to src/generation/generateNextSeries.js. The
-    // Sequencer stays the thin orchestrator: it snapshots the refs it reads here
-    // (instrumentSettings already read above; melodiesRef / difficulty targets /
-    // percussionScale below) and passes them in. No `this`-ref read or setter side
-    // effect was moved — scale randomization, chord generation, setDisplayChordProgression,
-    // and the _measureSpan/generatedNumMeasures computation all remain in this method.
-    const series = generateNextSeries({
+    // ── Block build → pure generateBlock() ───────────────────────────────────
+    // Han 2026-08-29 (#1164 / #1163a): the shared RHYTHM GRID (globalTemplate via
+    // generateDeterministicRhythm), the rhythmic chord track (MelodyGenerator +
+    // insertPassingChords) and the per-track build (generateNextSeries, itself the
+    // Han 2026-06-19 §4 extraction) were ~110 lines of PURE generation inside this
+    // audio method. They are ONE function now — src/generation/generateBlock.js —
+    // so a level (#1165) runs the IDENTICAL pipeline instead of a hand-rolled copy
+    // (CLAUDE.md §6c / §8 boundary). The Sequencer stays the orchestrator: scale
+    // randomization, progression authorship + transposition, the
+    // setDisplayChordProgression side effect and the
+    // _measureSpan/generatedNumMeasures computation all remain here. It passes NONE
+    // of generateBlock's opt-in level params (chordStrategy 'song', fixedOstinato,
+    // shape:'call-response'), so continuous-playback output is unchanged.
+    const block = generateBlock({
       activeScale,
-      oldTonic,
-      oldMode,
-      oldFamily,
-      oldScaleNotes,
-      oldDisplayScale,
-      numMeasures,
       timeSignature,
+      numMeasures,
       chordProgression,
-      globalTemplate,
-      randConfig,
-      currentMelodies,
-      instrumentSettings,
-      currentMelodyContext: this.refs.melodiesRef?.current || {},
-      targetTrebleDifficulty: this.refs.targetTrebleDifficultyRef?.current,
-      targetBassDifficulty: this.refs.targetBassDifficultyRef?.current,
-      percussionScale: this.percussionScale,
+      seriesArgs: {
+        oldTonic,
+        oldMode,
+        oldFamily,
+        oldScaleNotes,
+        oldDisplayScale,
+        randConfig,
+        currentMelodies,
+        instrumentSettings,
+        currentMelodyContext: this.refs.melodiesRef?.current || {},
+        targetTrebleDifficulty: this.refs.targetTrebleDifficultyRef?.current,
+        targetBassDifficulty: this.refs.targetBassDifficultyRef?.current,
+        percussionScale: this.percussionScale,
+      },
     });
 
-    result.treble = series.treble;
-    result.bass = series.bass;
-    result.percussion = series.percussion;
+    result.chordProgression = block.chordProgression;
+    result.treble = block.treble;
+    result.bass = block.bass;
+    result.percussion = block.percussion;
     // The effective settings are surfaced ONLY when a difficulty target overrode them
     // (preserves the old behaviour where result.trebleSettings/bassSettings were set
     // inside the difficulty branches and otherwise left undefined).
-    if (series.trebleSettings) result.trebleSettings = series.trebleSettings;
-    if (series.bassSettings) result.bassSettings = series.bassSettings;
+    if (block.trebleSettings) result.trebleSettings = block.trebleSettings;
+    if (block.bassSettings) result.bassSettings = block.bassSettings;
 
     // Calculate the TRUE measure span of the generated tracks so the sequencer loop
     // stays tied to actual content even if the UI 'num measures' slider changes.
