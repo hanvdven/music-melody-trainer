@@ -63,16 +63,16 @@ import playMelodies from './audio/playMelodies';
 import { createMelodicInstrument } from './audio/localInstruments';
 import buildTimpaniPattern from './utils/timpaniPattern';
 import { LEVEL_TIMPANI_SLOT, LEVEL_CELLO_SLOT } from './constants/melodyInstances';
-import useLevelBackingStream from './hooks/useLevelBackingStream';
 import useLevelGatedRubatoAudio from './hooks/useLevelGatedRubatoAudio';
 import useTwoHandedBass from './hooks/useTwoHandedBass';
-import useLevelTrebleStream from './hooks/useLevelTrebleStream';
-import useLevelMixedStream from './hooks/useLevelMixedStream';
-import useLevelKeyModulationStream from './hooks/useLevelKeyModulationStream';
+// #1165: ONE content stream for every level, replacing useLevelTrebleStream /
+// useLevelBackingStream / useLevelMixedStream / useLevelKeyModulationStream and the classic
+// regenerate()-per-wave path — see docs/architecture.md §350.
+import useLevelContentStream from './hooks/useLevelContentStream';
 import useAdaptiveTempo from './hooks/useAdaptiveTempo';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { DEFAULT_RPG_FX_VOLUME, DEFAULT_RPG_MUSIC_VOLUME, rpgVolumeMultiplier } from './audio/dynamics';
-import { LEVELS, wavesForLevel, isJitTrebleLevel, usesTrebleJitStream, applyLevelVariant, totalNotesForLevel } from './levels/levels';
+import { LEVELS, wavesForLevel, applyLevelVariant, totalNotesForLevel } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
@@ -1301,26 +1301,12 @@ const App = () => {
     // changes. `bpmRef` stays the single source of truth for "the tempo now" — see useAdaptiveTempo.js
     // for why a decided-but-not-yet-due change still needs a one-element schedule of its own.
     const adaptiveTempo = useAdaptiveTempo({ bpmRef, setBpm, context });
-    // #1102: the DECIDER for a CLASSIC per-wave level (levels 4+), whose treble content is regenerated
-    // wave by wave (useLevel.js's `onWaveCleared` → `regenerate()`) rather than streamed in JIT blocks —
-    // so it has no block boundary for `useLevelTrebleStream` to decide at. `level.wave` is the same
-    // combat-driven counter `onWaveCleared` increments, so keying an effect on it fires exactly once per
-    // cleared wave, without adding an adaptive-tempo dependency to useLevel.js itself. Levels whose
-    // treble DOES stream via JIT are excluded here — `useLevelTrebleStream` is their sole decider, and
-    // two deciders on one level would double-adjust the same stretch of play.
-    useEffect(() => {
-        const lvl = level.current;
-        if (!level.active || !lvl?.adaptive || usesTrebleJitStream(lvl)) return;
-        // A wave spans `numMeasures * numRepeats` measures of the level's timeline (the same shape
-        // `wavesForLevel` divides by, §6c) — the cadence this level's treble content changes at.
-        const waveMeasures = (lvl.numMeasures || 1) * (lvl.numRepeats || 1);
-        adaptiveTempo.evaluate({
-            stats: level.statsRef.current,
-            fromMeasure: level.wave * waveMeasures,
-            units: [waveMeasures, lvl.leadInBars ?? 2],
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [level.wave, level.active]);
+    // #1165 (2026-08-29): the CLASSIC per-wave adaptive decider effect that used to live here — an
+    // effect keyed on `level.wave`, excluded for levels whose treble streamed via JIT — is GONE
+    // with the mechanism it served. There is no classic per-wave content path any more: every
+    // level's content comes from `useLevelContentStream`, which is therefore the SOLE tempo decider
+    // for every level (one boundary, one adjustment, no possibility of two deciders double-adjusting
+    // the same stretch of play). See docs/architecture.md §350.
 
     // #990 (Han 2026-08-14, RPG-level wrong-note feedback): SheetRpgLayer populates this with a
     // function returning "which note(s) are currently hittable" — the SAME inWindow/next-slime
@@ -1349,7 +1335,7 @@ const App = () => {
     // #661 rework (Han 2026-08-02: "ik wil dat je playAllMelodies gebruikt... via de bestaande play all
     // melody params"): the old §88 backing hand-rolled its OWN note-by-note scheduling on two throwaway
     // Soundfont instances (celloRef/timpaniRef) with a fixed C2-whole-note / [C2,C2,C3,r] pattern. That is
-    // gone. The bass line plays a REAL GENERATED melody (`useLevelBackingStream`'s growing `bass`), the
+    // gone. The bass line plays a REAL GENERATED melody (#1165: `useLevelContentStream`'s growing `bass`), the
     // SAME generation pipeline every other track uses. The metronome likewise plays `melodies.metronome`,
     // the SAME generated metronome every other playback path uses. Both are scheduled with the exact same
     // `playMelodies()` function + `namedInstruments`/`trackGains` params the Sequencer itself uses per
@@ -1419,9 +1405,8 @@ const App = () => {
     // derived per level from its own tempo + meter (levels.js `deriveLevelSpan`), replacing the former
     // global `LEVEL_LEAD_IN_BARS = 2`. Bundled into ONE object for the render path — see the
     // `levelSpan={…}` prop below for why a single object rather than four sibling props. The AUDIO
-    // consumers (useLevelBackingStream/useLevelTrebleStream/useLevelMixedStream/
-    // useLevelKeyModulationStream) read these same fields straight off `level.current` instead, since
-    // they already receive the whole normalized level object as `lvl`.
+    // consumer (#1165: the one `useLevelContentStream`) reads these same fields straight off
+    // `level.current` instead, since it already receives the whole normalized level object as `lvl`.
     const levelSpan = useMemo(() => {
         const lvl = level.current;
         if (!level.active || !lvl?.sideScroll) return null;
@@ -1550,8 +1535,8 @@ const App = () => {
         // Bug fix (Han 2026-08-06, "maat -1 is pas na anderhalve maat in beeld... metronoom/cello/melodie
         // zouden allemaal dezelfde timer moeten gebruiken"): they DO already share one AudioContext — the
         // remaining desync is that THIS anchor is picked once readiness fires, but bass/metronome/treble
-        // JIT scheduling (useLevelBackingStream/useLevelMixedStream/useLevelKeyModulationStream/
-        // SheetRpgLayer's own tick pickup) each fire in SEPARATE, chained React effects/commits after
+        // JIT scheduling (#1165: useLevelContentStream, plus SheetRpgLayer's own tick pickup) each
+        // fire in SEPARATE, chained React effects/commits after
         // this one — real wall-clock time passes between "anchor picked" and "every track's first note
         // actually scheduled". 0.35s was too tight a margin for that whole chain on a cold start;
         // playMelodies.js's own clamp then silently pulled straggling tracks' first notes forward to
@@ -1592,7 +1577,7 @@ const App = () => {
         if (!bassReady || !metronomeReady) return;
         // Bug fix (Han 2026-08-10, "die twee mogen nooit onafhankelijk beginnen"): timpani must never
         // schedule ahead of/independent from the treble melody either — same explicit gate as
-        // useLevelBackingStream.js's bass/metronome effect.
+        // useLevelContentStream.js's own redundant-by-design readiness gate (#1165).
         if (!levelMelodyReady) return;
         // Wait for the dedicated timpani Soundfont too when percussion is melodic — scheduling before
         // it's ready would silently skip it for the whole level session (backingScheduledForRef locks
@@ -1613,7 +1598,7 @@ const App = () => {
 
         // #663 (Han 2026-08-03, "hard code de timpani voor nu"): timpani stays the ONE Han-authorized
         // hardcoded pattern, scheduled ONCE for the whole piece (lead-in + content) from measure -1 —
-        // unlike bass/metronome below, which are now JIT-generated chunk by chunk (useLevelBackingStream)
+        // unlike bass/metronome below, which are now JIT-generated block by block (useLevelContentStream)
         // to fix the desync/measure-0-only/inaudible-cello bugs. Timpani never had those bugs (it isn't
         // racing an async instrument swap or a regenerated melody), so it needs no change in kind.
         // #1052 (Han 2026-08-17) originally excluded gated-scroll levels here ("no fixed tempo to click
@@ -1686,6 +1671,8 @@ const App = () => {
     // Dedicated stop-fns ref (NOT the shared `levelBackingStopFnsRef` — that's also used by bass/
     // metronome/timpani schedules and must not be blanket-cancelled from here).
     const wizardPreviewStopFnsRef = useRef([]);
+    // ── HISTORY (kept — SUPERSEDED by #1165's single stream below; the reasoning still explains
+    // WHY loop-forever JIT growth exists at all, which the merged stream inherits verbatim) ──────
     // #867 rework round 3 (Han 2026-08-20, "dynamisch genereren... hergebruik bestaande logica"):
     // Level 3 (gatedScroll, procedural — no songId, plain 'Slime' enemyType) used to regenerate its
     // treble melody from SCRATCH every wave via `onWaveCleared`'s `regenerate()` (the same route the
@@ -1702,116 +1689,56 @@ const App = () => {
     // Sluiten — only `done` marks "this level is actually over"). Mirrors the SAME `!level.done` gate
     // `useLevelBackingStream`'s own `active` prop already uses (App.jsx, round-1 fix) — one consistent
     // "is this level still genuinely running" gate for every JIT stream, not a second one that forgot it.
-    // #1101 (Han 2026-08-22): the "is this level's shape" half moved to `isJitTrebleLevel` (levels.js) —
-    // this same predicate used to be re-derived independently here AND in useLevel.js's `onWaveCleared`,
-    // and the two silently drifted apart from `wavesForLevel`'s own assumptions (see that function's
-    // header comment for the bug this consolidation fixes). Only the active/done gate stays local.
-    const isJitGatedSlimeLevel = level.active && !level.done && isJitTrebleLevel(level.current);
-    const levelTrebleStream = useLevelTrebleStream({
-        active: (level.active && !level.done && level.current?.enemyType === 'Wizard') || isJitGatedSlimeLevel,
+    // #1165 (Han 2026-08-29): FIVE activation conditions became ONE. This single stream owns every
+    // level's treble, bass (cello), metronome and percussion content — the JIT treble stream (Wizard +
+    // gated procedural), the Mixed stream, the key-modulation stream, the bass/metronome backing
+    // stream and the classic regenerate()-per-wave path all collapsed into it, generating one block of
+    // every track together off one shared rhythm grid via the same `generateBlock` continuous playback
+    // uses. Per-level shape (block size / block type / block scale / block count / lead-in) is DATA in
+    // `src/levels/levelBlockPlan.js`, never a branch here. See docs/architecture.md §350.
+    //
+    // `!level.done` (§867 rework round 5, kept): a gated level's `loopForever` branch never stops
+    // generating on its own and relies entirely on this gate — `level.active` stays true until the
+    // player clicks Sluiten, so without `!done` the backing kept re-looping behind the result screen,
+    // sounding like the level had restarted.
+    const levelContentStream = useLevelContentStream({
+        active: level.active && !level.done,
         lvl: level.current,
         scale,
         timeSignature,
         trebleSettings,
-        chordProgression: melodies.chordProgression,
-        context,
-        levelAudioStart,
-        wizardInstrument: wizardPreviewRef.current,
-        wizardVolume: LEVEL_BACKING_VOLUME,
-        stopFnsRef: wizardPreviewStopFnsRef,
-        // #1155 (call-response for songs): the song's own melody, as `handleLoadSong` loaded it into
-        // `melodies.treble` — only meaningful when `level.current.songId` is set (useLevelTrebleStream.js
-        // ignores it otherwise). `usesTrebleJitStream`'s own fix (§304) guarantees this stays stable for
-        // the whole level (regenerate() never fires once this stream is active), so it's safe to read.
-        songMelody: level.current?.songId ? melodies.treble : null,
-        // #1102: this stream is the sole tempo DECIDER for every level whose treble streams via JIT.
-        adaptiveTempo,
-        statsRef: level.statsRef,
-    });
-    // Level 10 (Han 2026-08-06, "mixed level - stuur 2 maten slimes, dan 2 maten wizard"): reuses the
-    // SAME wizard-cast Soundfont as Level 9 above, own dedicated stop-fns ref (§6c — mirrors
-    // wizardPreviewStopFnsRef's own rationale: never blanket-cancel a schedule that isn't this stream's).
-    // Scope note (see useLevelMixedStream.js's own header comment): only the MELODY/AUDIO mechanic
-    // alternates per block for now — the visual enemy stays rendered as Slime throughout (SheetRpgLayer
-    // gets `enemyType: 'Slime'` for a Mixed level, see the `enemyType` prop below), not a full
-    // slime↔wizard sprite swap, which would need a much deeper SheetRpgLayer rendering fork this pass
-    // couldn't safely verify without live testing.
-    const mixedPreviewStopFnsRef = useRef([]);
-    const levelMixedStream = useLevelMixedStream({
-        active: level.active && level.current?.enemyType === 'Mixed',
-        lvl: level.current,
-        scale,
-        timeSignature,
-        trebleSettings,
-        chordProgression: melodies.chordProgression,
-        context,
-        levelAudioStart,
-        wizardInstrument: wizardPreviewRef.current,
-        wizardVolume: LEVEL_BACKING_VOLUME,
-        stopFnsRef: mixedPreviewStopFnsRef,
-    });
-    // Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard... wisselt dan van toonladder"):
-    // JIT treble stream that alternates Major/Minor every 2 measures (tonic fixed) — see
-    // useLevelKeyModulationStream.js's own header for the full rationale (forward-only, reuses
-    // updateScaleWithMode). Active for a Slime-enemy level with `decorativeWizard: true`.
-    // Bug fix (Han 2026-08-24, §300/§304): this comment used to claim "mutually exclusive... only one
-    // is ever active" — WRONG once #1101's d/e call-response letters could force `enemyType: 'Wizard'`
-    // onto a `decorativeWizard` level (Level 15): both this stream AND `levelTrebleStream` above went
-    // active at once, racing over the same treble state. Han's fix (not exclusion): call-response's OWN
-    // block generation now does the modulating itself when `decorativeWizard` is set (see
-    // useLevelTrebleStream.js's `blockScale`) — so this stream must step ASIDE whenever call-response has
-    // taken over the job, i.e. whenever `enemyType === 'Wizard'`. The two really are mutually exclusive
-    // now, enforced here instead of just assumed.
-    const levelKeyModulationStream = useLevelKeyModulationStream({
-        active: level.active && !!level.current?.decorativeWizard && level.current?.enemyType !== 'Wizard',
-        lvl: level.current,
-        scale,
-        timeSignature,
-        trebleSettings,
-        chordProgression: melodies.chordProgression,
-        context,
-        levelAudioStart,
-    });
-
-    // #663: bass (cello) + metronome are generated + scheduled incrementally, `leadInBars` (#994: the
-    // level's own derived span; formerly the fixed LEVEL_LEAD_IN_BARS constant)
-    // ("one chunk") at a time — see useLevelBackingStream.js for the full rationale. `bass`/`metronome`
-    // here are the level's GROWING melodies, threaded into MelodyProvider below in place of
-    // `melodies.bass`/`melodies.metronome` while a side-scroll level is active.
-    const levelBackingStream = useLevelBackingStream({
-        // #867 (Han 2026-08-18, "zet voor de zekerheid het level af"): gated levels' `loopForever`
-        // branch (useLevelBackingStream.js) keeps regenerating/scheduling chunks — wrapping back to
-        // measure 0 — for as long as this stays active. `level.active` alone doesn't flip false until
-        // the player clicks Sluiten (useLevel.js's close()), so leaving the result screen open on a
-        // gated-scroll level re-looped the backing audio, sounding like the level restarted. Adding
-        // `!level.done` here stops the loop the INSTANT the song genuinely ends, mirroring the existing
-        // `active && !done` gating precedent used elsewhere (§191) — no new flag, no other behaviour
-        // change (already-scheduled audio still rings out; this only stops new chunks being queued).
-        active: level.active && !level.done && !!level.current?.sideScroll,
-        lvl: level.current,
-        scale,
-        timeSignature,
         bassSettings,
+        percussionSettings,
+        chordSettings,
+        metronomeSettings,
+        percussionScale,
         chordProgression: melodies.chordProgression,
+        // #1155 (call-response for songs) / #1165 side-effect (b): the song's own melody, as
+        // `handleLoadSong` loaded it into `melodies.treble` — the SOURCE the stream slices per block,
+        // never its own output. Only read when `level.current.songId` is set. `regenerate()` no longer
+        // fires mid-level for ANY level, so this stays stable for the whole run.
+        songMelody: level.current?.songId ? melodies.treble : null,
         context,
         levelAudioStart,
+        wizardInstrument: wizardPreviewRef.current,
+        wizardVolume: LEVEL_BACKING_VOLUME,
+        wizardStopFnsRef: wizardPreviewStopFnsRef,
+        // #871 follow-up (Han 2026-08-11): the level's cello track plays through its own dedicated
+        // `celloRef` Soundfont, never `instruments.bass`.
+        bassInstrument: celloRef.current,
+        metronomeInstrument: instruments.metronome,
+        backingStopFnsRef: levelBackingStopFnsRef,
         bassReady,
         metronomeReady,
         levelMelodyReady,
-        // #871 follow-up (Han 2026-08-11): the level's cello track now plays through its own dedicated
-        // `celloRef` Soundfont instead of `instruments.bass`.
-        bassInstrument: celloRef.current,
-        metronomeInstrument: instruments.metronome,
-        stopFnsRef: levelBackingStopFnsRef,
-        // #1102: ADOPTS a tempo commit at its own chunk boundary (never decides one) — the commit index
-        // is a shared multiple of this stream's and the treble stream's cadences, so both switch at the
-        // same measure.
+        // #1102: with one cadence there is one decider — this stream, for every level.
         adaptiveTempo,
+        statsRef: level.statsRef,
     });
     // #1096 (Han 2026-08-20, rubato cello/timpani synced to the gate): gated levels' cello/timpani AUDIO
-    // is now triggered here instead of `useLevelBackingStream`'s fixed-schedule chunks (excluded for
+    // is now triggered here instead of `useLevelContentStream`'s fixed-schedule blocks (excluded for
     // gated levels, see its own comment) / App.jsx's one-shot timpani `playMelodies` call (same
-    // exclusion) — reads the SAME growing `levelBackingStream.bass` content, just changes WHEN each note
+    // exclusion) — reads the SAME growing `levelContentStream.bass` content, just changes WHEN each note
     // sounds. `!level.done` mirrors every other JIT stream's own gate (§867 rework round 5) so this never
     // keeps triggering notes behind the result screen.
     useLevelGatedRubatoAudio({
@@ -1821,7 +1748,7 @@ const App = () => {
         context,
         levelAudioStart,
         gatedElapsedMsRef,
-        bassMelody: levelBackingStream.bass,
+        bassMelody: levelContentStream.bass,
         bassInstrument: celloRef.current,
         timpaniInstrument: percussionSettings?.melodic ? timpaniRef.current : null,
         bassVolume: level.current ? resolveLevelVolume(level.current, 'bass', LEVEL_BASS_VOLUME) * rpgMusicMultiplier : 1,
@@ -1829,25 +1756,25 @@ const App = () => {
     });
     // #861 (Han 2026-08-10, "de basnoten moeten pas komen vanaf maat 1, niet vanaf maat -1" — scoped to
     // twoHanded levels only, confirmed via interview: the cello GUIDE audio in ordinary levels 2-9 keeps
-    // starting at measure -1 on purpose, unchanged). `levelBackingStream.bass` still covers the lead-in
+    // starting at measure -1 on purpose, unchanged). `levelContentStream.bass` still covers the lead-in
     // (measures -1/0) because the AUDIO guide still plays there — only the RENDERED/combat-relevant bass
     // content for a twoHanded level's own bass staff should start at measure 1. Strips any note whose
     // offset is before that point; a truncation from the FRONT (not the end, unlike SheetRpgLayer's
     // trebleFinalBarTick clamp for the SAME reason: never orphan a tie-continuation slot).
     const twoHandedBassMelody = useMemo(() => {
-        if (!(level.active && level.current?.twoHanded) || !levelBackingStream.bass?.offsets?.length) {
-            return levelBackingStream.bass;
+        if (!(level.active && level.current?.twoHanded) || !levelContentStream.bass?.offsets?.length) {
+            return levelContentStream.bass;
         }
         const barBeats = timeSignature[0] || 4;
         const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
         // #994: per-level lead-in (was the fixed LEVEL_LEAD_IN_BARS constant).
         const contentStartTick = (level.current.leadInBars ?? 2) * measureLengthTicks;
-        const { notes, offsets, durations, displayNotes, volumes, ties } = levelBackingStream.bass;
+        const { notes, offsets, durations, displayNotes, volumes, ties } = levelContentStream.bass;
         let startIndex = 0;
         while (startIndex < offsets.length && (offsets[startIndex] == null || offsets[startIndex] < contentStartTick)) startIndex++;
-        if (startIndex === 0) return levelBackingStream.bass;
+        if (startIndex === 0) return levelContentStream.bass;
         return {
-            ...levelBackingStream.bass,
+            ...levelContentStream.bass,
             notes: notes.slice(startIndex),
             offsets: offsets.slice(startIndex),
             durations: durations.slice(startIndex),
@@ -1855,7 +1782,7 @@ const App = () => {
             volumes: volumes ? volumes.slice(startIndex) : volumes,
             ties: ties ? ties.slice(startIndex) : ties,
         };
-    }, [level.active, level.current, levelBackingStream.bass, timeSignature]);
+    }, [level.active, level.current, levelContentStream.bass, timeSignature]);
     // #FR2 (Han 2026-08-10, Level 15 "twee toetsen!!!"): the bass/left-hand keyboard's own simple
     // per-measure grading — see useTwoHandedBass.js. `twoHandedActive` gates BOTH this hook and the
     // second PianoView rendered below; only Level 15 (levels.json's `twoHanded: true`) turns it on.
@@ -1960,7 +1887,7 @@ const App = () => {
         levelAudioStart,
         bpm,
         timeSignature,
-        bassMelody: levelBackingStream.bass,
+        bassMelody: levelContentStream.bass,
         // #994: per-level lead-in — this hook locates content measure `m`'s expected root by absolute
         // tick, so it must offset by the SAME lead-in the backing stream generated against.
         leadInBars: level.current?.leadInBars ?? 2,
@@ -2110,7 +2037,7 @@ const App = () => {
         const lvl = level.current;
         const barBeats = timeSignature[0] || 4;
         // Bug fix (Han 2026-08-06, "de 6/8 maatsoort zorgt dat alles misloopt") — see
-        // useLevelBackingStream.js's comment: bar duration must derive from ticks, not
+        // useLevelContentStream.js's comment: bar duration must derive from ticks, not
         // beats×denominator-agnostic quarter-seconds.
         const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
         const barSec = measureLengthTicks * secondsPerTick(lvl.bpm || 80);
@@ -2128,8 +2055,8 @@ const App = () => {
         handleStopAllPlayback();
         // Re-anchor so a 1-measure metronome count-in starts NOW and the level's content resumes
         // exactly at the start of the measure the player left off in. Every side-scroll track
-        // (bass/metronome/percussion via useLevelBackingStream, treble/wizard via
-        // useLevelTrebleStream) is keyed off `levelAudioStart` and regenerates from its own start
+        // (#1165: treble/bass/metronome/wizard-cast, all via the one useLevelContentStream) is keyed
+        // off `levelAudioStart` and regenerates from its own start
         // relative to this new anchor — Han's "clear the input track's pending notes, don't touch
         // the other tracks" is honoured for what the PLAYER must still play (nothing carries over
         // as already-due/already-missed), though the backing/wizard content itself is freshly
@@ -2150,7 +2077,7 @@ const App = () => {
     // solves the identical "cleanly restart this level's audio" problem for pause/resume — reuse that
     // same stop-then-reanchor shape (§6c) rather than inventing a second one: stop everything, then null
     // the anchor so the EXISTING readiness-gated anchor-picking effect (line ~1199) naturally re-fires
-    // and every JIT stream (useLevelBackingStream/useLevelTrebleStream/etc.) tears down its stale timers
+    // and the JIT stream (#1165: useLevelContentStream) tears down its stale timers
     // via their own effect cleanup and starts clean.
     const handleReplayLevel = useCallback(() => {
         stopAllBackingAudio();
@@ -2792,11 +2719,13 @@ const App = () => {
     // while `level.active` / `characterScreen === 'levelResult'`, then returns to true on level exit.
     const inWorld = worldMode && !level.active && characterScreen !== 'levelResult';
 
-    // #UI-overhaul Stap 3 (Han 2026-08-27): pixel-perfect 3-block layout for world mode — one integer
-    // scale N shared by the world block and the two bottom content blocks. See utils/worldLayout.js.
+    // #UI-overhaul Stap 3 (Han 2026-08-27): pixel-perfect 3-block layout for world mode — one shared
+    // scale N for the world block and the two bottom content blocks. See utils/worldLayout.js.
     // Computed always (cheap, pure); only consulted while `inWorld && characterScreen === 'rpg-level'`.
+    // #347: `devicePixelRatio` gates the 1.5 half-step. A dpr change (browser zoom, monitor move)
+    // fires `resize` in practice, so keying the memo on window size is enough to pick it up.
     const worldLayout = useMemo(
-        () => computeWorldLayout(windowSize.width, windowSize.height),
+        () => computeWorldLayout(windowSize.width, windowSize.height, window.devicePixelRatio || 1),
         [windowSize.width, windowSize.height],
     );
     const inWorldLevel = inWorld && characterScreen === 'rpg-level';
@@ -3009,29 +2938,31 @@ const App = () => {
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
         <MelodyProvider
-            // #693 (round 6): while Level 9 is streaming its JIT-generated call-response blocks, the
-            // growing treble melody replaces the normal one — same override pattern bass/metronome
-            // already use below.
-            treble={((level.active && !level.done && level.current?.enemyType === 'Wizard') || isJitGatedSlimeLevel) ? levelTrebleStream.treble
-                : (level.active && level.current?.enemyType === 'Mixed') ? levelMixedStream.treble
-                : (level.active && level.current?.decorativeWizard) ? levelKeyModulationStream.treble
+            // #693 (round 6) → #1165: while ANY level is active its own growing, per-block-generated
+            // treble replaces the normal one. This used to be a three-way ternary chain (one branch per
+            // JIT stream) with a fourth, silent fall-through to `melodies.treble` for every classic and
+            // song level; there is ONE content stream now, so there is ONE condition. Kept on
+            // `level.active` alone (no `!level.done`): the notation must not swap to an unrelated
+            // ambient melody underneath the result splash — that was already the behaviour of the
+            // Mixed/key-modulation branches this replaces.
+            treble={level.active ? levelContentStream.treble
                 : (mergedRenderMelodies ? mergedRenderMelodies.treble : melodies.treble)}
             // #663: while a side-scroll level is streaming its JIT-generated backing, the growing
             // level bass/metronome melodies replace the normal ones — SheetMusic's scrollNotationBass
-            // (and the level's metronome audio, scheduled inside useLevelBackingStream) must show/play
+            // (and the level's metronome audio, scheduled inside useLevelContentStream) must show/play
             // exactly the same content, never the once-generated `melodies.bass`/`.metronome`.
             bass={(level.active && level.current?.sideScroll) ? twoHandedBassMelody
                 : (mergedRenderMelodies ? mergedRenderMelodies.bass : melodies.bass)}
             percussion={mergedRenderMelodies ? mergedRenderMelodies.percussion : melodies.percussion}
-            metronome={(level.active && level.current?.sideScroll) ? levelBackingStream.metronome : melodies.metronome}
+            metronome={(level.active && level.current?.sideScroll) ? levelContentStream.metronome : melodies.metronome}
             chordProgression={mergedRenderMelodies ? mergedRenderMelodies.chordProgression : chordProgression}
             // #858/#871 follow-up: timpani and (now) the level's cello backing are both audio-only
-            // instances — see the `timpaniMelody` useMemo above and `levelBackingStream.bass` below.
+            // instances — see the `timpaniMelody` useMemo above and `levelContentStream.bass` below.
             // `undefined` (not an empty object) when there's nothing to carry, so MelodyProvider's own
             // stable-empty-object default applies.
-            invisibleMelodies={(timpaniMelody || (level.active && level.current?.sideScroll && levelBackingStream.bass)) ? {
+            invisibleMelodies={(timpaniMelody || (level.active && level.current?.sideScroll && levelContentStream.bass)) ? {
                 ...(timpaniMelody ? { [LEVEL_TIMPANI_SLOT]: timpaniMelody } : {}),
-                ...((level.active && level.current?.sideScroll) ? { [LEVEL_CELLO_SLOT]: levelBackingStream.bass } : {}),
+                ...((level.active && level.current?.sideScroll) ? { [LEVEL_CELLO_SLOT]: levelContentStream.bass } : {}),
             } : undefined}
         >
         <PlaybackTransportProvider
@@ -3257,6 +3188,11 @@ const App = () => {
                         // #UI-overhaul Stap 3: the world block clips the level's cropped-off top sky
                         // (and, when squeezed below 240 gpx, its bottom 16 gpx).
                         overflow: inWorldLevel ? 'hidden' : undefined,
+                        // #348: when the ladder grows the world block past the 272-gpx level art
+                        // (`world.skyPadGpx > 0`), the RpgLevelPanel layer still renders 272·N tall,
+                        // bottom-anchored — this fill shows through the exposed strip on top. `#8fd0d9`
+                        // is the top colour of RpgLevelPanel's own sky gradient, so the seam is invisible.
+                        background: inWorldLevel ? '#8fd0d9' : undefined,
                         position: 'relative'
                     }}
                 >
@@ -3621,7 +3557,7 @@ const App = () => {
                         // apart kanaal als extra melodie... niet als bass melody"): the bass-hand keyboard
                         // plays through the SAME instrument the treble keyboard uses (piano) instead of
                         // `instruments.bass` — this ALSO satisfies the "separate channel" ask for free.
-                        // #871 follow-up (Han 2026-08-11): the level's cello guide (`levelBackingStream.bass`)
+                        // #871 follow-up (Han 2026-08-11): the level's cello guide (`levelContentStream.bass`)
                         // now plays through its own dedicated `celloRef` Soundfont, not `instruments.bass`
                         // at all anymore — the separation this comment originally called out is now even
                         // stronger than when it was written.

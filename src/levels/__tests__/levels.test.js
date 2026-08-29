@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
     LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12, LEVEL13,
-    LEVELS, wavesForLevel,
+    LEVELS, wavesForLevel, totalNotesForLevel, isJitTrebleLevel,
 } from '../levels';
+import { MELODIC_NOTE_POOLS } from '../../constants/generationFields';
 
 // #661 (Han 2026-08-02, "houd het simpel... introduceer stap voor stap: halve noten, achtste noten,
 // verbonden noten, etc." + "maak tussen level 2 en level 3 5 nieuwe levels, dus level 3 schuift door naar
@@ -121,5 +122,92 @@ describe('levels.js — ramp from Level 4 (Han 2026-08-02) + Level 13 Wizard (Ha
         expect(LEVEL13.fixedBass).toBe(LEVEL4.fixedBass);
         expect(LEVEL13.notesPerMeasure).toBe(2);
         expect(LEVEL13.wizardSpawnLeadMeasures).toBe(1);
+    });
+});
+
+// Bug fix (#1044, Han 2026-08-17/24, "levels met... akkoorden werken niet zo goed. Te onderzoeken"):
+// Levels 104/115/120 (the 101-120 example-level library) all authored `tracks.treble.notePool: 'all'`.
+// 'all' IS a valid `notePool` string — but only for PERCUSSION (`convertRankedArrayToMelody.js`'s
+// `getPool()` resolves it to the full drum-pad-id list, `percussionIDs`). For a melodic track (treble/
+// bass), the only valid values are `MELODIC_NOTE_POOLS` (generationFields.js, what the in-staff carousel
+// actually offers — it never offers 'all'). `getPool()` has no instrument-type awareness — it resolves
+// purely off the STRING VALUE — so a melodic track's `notePool: 'all'` silently fell into the percussion
+// branch and generated real DRUM PAD CODES ('sg','hp','tm','wh',...) as "treble notes". Nothing crashed:
+// `renderMelodyNotes.jsx` just couldn't compute a staff Y-position for a pad code and silently dropped
+// the note (`return null`), so the visible symptom was missing/gapped treble notes and console spam
+// ("Invalid note position"), not an error a level author would notice while writing the JSON. Fixed by
+// correcting the three levels' data to `'chromatic'` (the melodic equivalent of "use notes freely, not
+// just the diatonic scale" — closest to each level's evident intent). This test is the actual regression
+// guard: it would have caught all three levels' mistake immediately at write time, and catches any future
+// one the same way, instead of requiring a live playthrough + console-log archaeology to find (§1044).
+describe('levels.js — tracks.*.notePool must be a valid MELODIC pool for treble/bass (#1044 audit)', () => {
+    const melodicPoolValues = MELODIC_NOTE_POOLS.map((p) => p.value);
+
+    it('MELODIC_NOTE_POOLS does not include "all" (that string is percussion-only, see getPool())', () => {
+        expect(melodicPoolValues).not.toContain('all');
+    });
+
+    it('every level\'s tracks.treble/tracks.bass.notePool (when set) is a valid melodic pool value', () => {
+        const offenders = [];
+        Object.values(LEVELS).forEach((lvl) => {
+            ['treble', 'bass'].forEach((track) => {
+                const notePool = lvl.tracks?.[track]?.notePool;
+                if (notePool != null && !melodicPoolValues.includes(notePool)) {
+                    offenders.push(`Level ${lvl.id} (${lvl.name}) tracks.${track}.notePool=${notePool}`);
+                }
+            });
+        });
+        expect(offenders).toEqual([]);
+    });
+});
+
+// #1099 (Han 2026-08-22, ANPM stat): `totalNotesForLevel` is the "total notes in the level" half of Han's
+// own ANPM formula (App.jsx divides this by elapsed minutes) — was only exercised implicitly via the
+// ANPM EWMA tests (ProfileContext.test.jsx, which mock notesPerMinute directly), never tested in
+// isolation. Direct coverage closes that gap (§7b: a pure helper needs its own smoke test).
+describe('levels.js — totalNotesForLevel (#1099)', () => {
+    it('single-hand level: totalMeasures x treble notesPerMeasure only', () => {
+        expect(totalNotesForLevel({ totalMeasures: 8, notesPerMeasure: 3 })).toBe(24);
+    });
+
+    it('twoHanded level: totalMeasures x (treble + bass notesPerMeasure) — Han: "bij dual input: optellen"', () => {
+        expect(totalNotesForLevel({
+            totalMeasures: 8, notesPerMeasure: 3, twoHanded: true, tracks: { bass: { notesPerMeasure: 2 } },
+        })).toBe(40);   // 8 * (3+2)
+    });
+
+    it('twoHanded level with no explicit bass notesPerMeasure defaults bass to 1 per measure', () => {
+        expect(totalNotesForLevel({ totalMeasures: 4, notesPerMeasure: 2, twoHanded: true })).toBe(12);   // 4 * (2+1)
+    });
+
+    it('missing fields fall back to 0, never NaN/undefined', () => {
+        expect(totalNotesForLevel({})).toBe(0);
+        expect(totalNotesForLevel(null)).toBe(0);
+    });
+});
+
+// #1165 (Han 2026-08-29): `usesTrebleJitStream` is GONE, and so is the question it answered. It was
+// the SHARED predicate for "does this level's treble come from the JIT stream rather than
+// regenerate()-per-wave" — a question with one possible answer now: EVERY level's content comes from
+// `useLevelContentStream`, and `onWaveCleared` never calls `regenerate()` for any level (see
+// useLevel.test.js's own #1165 case). What still matters, and is asserted here, is the OTHER predicate
+// its comment was so often confused with: `isJitTrebleLevel` — which picks the wave-COUNTING model and
+// is deliberately narrower.
+describe('levels.js — isJitTrebleLevel (the wave-COUNTING model, NOT "where does content come from")', () => {
+    it('true for a JIT-gated plain level: one continuous stream, so exactly ONE wave to clear', () => {
+        const lvl = { sideScroll: true, gatedScroll: true, enemyType: 'Slime' };
+        expect(isJitTrebleLevel(lvl)).toBe(true);
+        expect(wavesForLevel(lvl)).toBe(1);
+    });
+
+    it('false for a Wizard/call-response level — it keeps the DISCRETE numRepeats-based wave model', () => {
+        const lvl = { sideScroll: true, gatedScroll: false, enemyType: 'Wizard', numMeasures: 2, numRepeats: 2, totalMeasures: 8 };
+        expect(isJitTrebleLevel(lvl)).toBe(false);
+        expect(wavesForLevel(lvl)).toBe(2);
+    });
+
+    it('false for a plain non-gated level (discrete waves), and for a gated SONG level', () => {
+        expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: false, enemyType: 'Slime' })).toBe(false);
+        expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: true, enemyType: 'Slime', songId: 'x' })).toBe(false);
     });
 });

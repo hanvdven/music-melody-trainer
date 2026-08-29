@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes, LEVEL_BASS_SIMPLE, LEVEL_BASS_DEFAULT, DEFAULT_LEVEL_COLOR_MODE } from '../levels/levels';
+import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes, LEVEL_BASS_SIMPLE, LEVEL_BASS_DEFAULT, DEFAULT_LEVEL_COLOR_SCHEME, DEFAULT_LEVEL_COLOR_SCOPE } from '../levels/levels';
 import { DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE } from '../constants/generatorDefaults';
 
 // #659/#660 Level orchestration. Applies a level's config (snapshotting the prior config to restore on
@@ -31,6 +31,12 @@ const emptyStats = () => ({
     // #693 round 8 (Han: "critters killed" → later reframed as the positive "critters saved y/m"):
     // `critterKilled` is the raw running count; the splash derives `saved = totalCritters - critterKilled`.
     critterKilled: 0,
+    // #1099 (Han 2026-08-22, ANPM stat): a plain wall-clock timestamp, stamped fresh every `begin()`
+    // (this function is only ever called via `setStats(emptyStats())`) — App.jsx's `level.done` effect
+    // reads it to compute elapsed real minutes for the notes-per-minute calculation. Lives on `stats`
+    // rather than a separate ref since `stats` is already the one per-run state bucket that resets
+    // exactly once per level start (§6c: no second "when did this run begin" tracker).
+    startedAt: Date.now(),
 });
 
 // Level editor (Han 2026-08-06): per-track notation visibility, shared by applyConfig's initial
@@ -74,6 +80,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     const snapRef = useRef(null);
     const activeRef = useRef(false); activeRef.current = active;
     const currentRef = useRef(current); currentRef.current = current;
+    // #1102 (adaptive tempo): the JIT streaming hooks need to read LIVE combat performance at each block
+    // boundary WITHOUT subscribing to `stats` in their own effect deps (which would tear down/rebuild the
+    // whole JIT stream on every single hit/miss — same "read via ref, not a dependency" convention as
+    // activeRef/currentRef above, §6c).
+    const statsRef = useRef(stats); statsRef.current = stats;
     const totalWaves = wavesForLevel(current);
 
     // apply a level's config (takes the level explicitly so it never reads a stale `current`).
@@ -117,9 +128,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // #1045 (Han 2026-08-17, "voeg color mode toe aan de settings van een level"): forces the app's
         // note-coloring scheme for the level's duration, same unconditional-apply/restore-on-close
         // pattern as `key`/`bpm`/`timeSignature` above — `normalizeLevel` (levels.js) always fills
-        // `lvl.colorMode` in (explicit level field, else DEFAULT_LEVEL_COLOR_MODE), so the `??` here is
-        // just the same defensive fallback every other level-applied field also carries.
-        setters.setNoteColoringMode?.(lvl.colorMode ?? DEFAULT_LEVEL_COLOR_MODE);
+        // `lvl.colorScheme`/`lvl.colorScope` in (explicit level field, else the DEFAULT_LEVEL_COLOR_*
+        // constants), so the `??` here is just the same defensive fallback every other level-applied
+        // field also carries. #1103: the old single colorMode field is now two independent ones.
+        setters.setColorScheme?.(lvl.colorScheme ?? DEFAULT_LEVEL_COLOR_SCHEME);
+        setters.setColorScope?.(lvl.colorScope ?? DEFAULT_LEVEL_COLOR_SCOPE);
         // #1046 (Han 2026-08-17, "voor elke noot met een kruis of mol een courtesy accidental... zet
         // maar aan voor elk level"): color and courtesy are deliberately SEPARATE params (Han's own
         // words) — this forces the EXISTING app-wide courtesyAccidentals toggle on for every level,
@@ -245,11 +258,15 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // (it already lives on its own dedicated `timpaniRef`/`LEVEL_TIMPANI_SLOT`, never the visible
         // percussion staff). The percussion STAFF stays hidden for a no-percussion song regardless
         // (computeEyes's `songHasPercussion` check below, unchanged).
-        // #1052 (Han 2026-08-17, gated-scroll levels): a gated level never schedules timpani at all
-        // (App.jsx's one-shot scheduling call is gated on `!lvl.gatedScroll` — see its own comment), so
-        // showing "melodic" percussion notation there would promise pitched timpani audio that never
-        // plays. Excluded the same way a non-side-scroll level already is.
-        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll && !lvl.gatedScroll }));
+        // #1052 (Han 2026-08-17) excluded gated-scroll levels here because timpani promised audio that
+        // never played there — REVERTED by #867 rework (Han 2026-08-20: "ik dacht voor gated scroll gezegd
+        // te hebben wel timpanen, geen metronoom"): timpani DOES now play for gated levels (App.jsx's
+        // one-shot schedule is no longer gatedScroll-excluded), so melodic percussion notation is correct
+        // again for every side-scroll level. Timpani deliberately stays the simple one-shot schedule — it
+        // can still go silent if a freeze outlasts it, same as it always could for a non-gated level; Han
+        // confirmed that's the wanted behaviour ("A niet B", not extended into the chunked/loop-forever
+        // mechanism bass/metronome use).
+        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
@@ -279,7 +296,26 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // this level's bpm/timeSignature/numMeasures/etc. from the song definition (levels.js's
         // songLevelDefaults), so nothing else here needs to branch on songId.
         if (lvl.songId) {
-            setters.loadSong(lvl.songId);
+            // Bug fix (Han 2026-08-22, #1100 UAT: "B C F -> selectie heeft geen daadwerkelijke impact op
+            // snelheid van het level"): `applyConfig` above already called `setters.setBpm(lvl.bpm)`
+            // (possibly a #1100 speed-variant-scaled value), but `loadSong` (App.jsx's `levelLoadSong` ->
+            // `handleLoadSong`) unconditionally does its OWN `setBpm(loaded.defaultTempo)` — the SONG's
+            // raw tempo, on the NEXT animation frame, silently clobbering whatever `applyConfig` just set.
+            // This was invisible before #1100 because every songId level's own `bpm` field happened to
+            // equal its song's `defaultTempo` (nobody had ever made them diverge on purpose) — the level's
+            // OWN bpm should always win, per the "explicit field wins" convention the rest of this schema
+            // already follows (levels.js). Passing it through lets `levelLoadSong` re-assert it AFTER the
+            // song load's own bpm-set, instead of a second, parallel "which bpm wins" mechanism.
+            // #1153/#1154/#1155 bug fix: forward g's modulateToMode / h's forceTrebleSettings / d-e's
+            // callResponseMeasures (levels.js's applyLevelVariant already computed them) to App.jsx's
+            // handleLoadSong — see that function's own comment for how each is applied. Mutually
+            // exclusive by construction (LevelStartSplash's picker is single-select, only one letter is
+            // ever chosen). `null` for every level without any of these selected, byte-identical to before.
+            const levelOverride = lvl.modulateToMode ? { modulateToMode: lvl.modulateToMode }
+                : lvl.randomizeSongMelody ? { forceTrebleSettings: lvl.forceTrebleSettings }
+                : lvl.callResponseMeasures != null ? { callResponseGroupMeasures: lvl.callResponseMeasures }
+                : null;
+            setters.loadSong(lvl.songId, lvl.bpm, levelOverride);
         } else {
             // #663: force a fresh chord regeneration on the level's FIRST wave only — applyConfig just set
             // chordSettings.strategy to 'tonic-tonic-tonic' for side-scroll levels; without forceNewChords,
@@ -351,6 +387,37 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
 
     // a cleared slime-wave. Returns true if the level consumed it (so the app skips its default regen). At the
     // target wave count → done (splash); otherwise spawn the next wave.
+    //
+    // #867 rework round 3 (Han 2026-08-20): a gated, procedurally-generated, plain (non-Wizard/Mixed,
+    // no songId) level's treble is now driven by `useLevelTrebleStream`'s own JIT one-block-ahead growth
+    // (App.jsx's `isJitGatedSlimeLevel`) instead of this `regenerate()` call — content is already
+    // flowing continuously, generated ahead of time on its own real-time schedule, independent of
+    // combat/wave pacing. Calling `regenerate()` here too would be redundant AND actively harmful: it
+    // toggles `levelMelodyReady` false→true, which `useLevelBackingStream`'s bass/metronome/timpani
+    // effect depends on — re-firing it mid-level would restart the backing audio on every wave clear,
+    // reintroducing a variant of the exact "sounds like the level restarted" bug this rework fixes. Wave
+    // advancement here stays purely a COMBAT/spawn-gating counter for this class of level; the treble
+    // content itself never needs (or gets) a fresh regenerate.
+    // #1101 (Han 2026-08-22): now the SAME shared predicate `wavesForLevel` itself uses (levels.js) —
+    // was a local re-derivation that could (and did) drift from `wavesForLevel`'s own assumptions; see
+    // that function's header comment for the full story of the bug this consolidation fixes.
+    // Bug fix (Han 2026-08-24 UAT, call-response "enemies vanquished"/"missed" miscounts): the
+    // regenerate-guard below used to be `!isJitTrebleLevel(...)` — correct for the WAVE-COUNTING model,
+    // wrong for "does this level's treble come from the JIT stream." Call-response (Wizard-forced)
+    // levels use the discrete wave model (`isJitTrebleLevel` false) but STILL stream treble via
+    // the JIT stream (App.jsx activated it on `enemyType === 'Wizard'` too) — so `regenerate()`
+    // kept firing on every wave clear, racing that stream.
+    //
+    // #1165 (Han 2026-08-29) — the guard is GONE because the thing it guarded is gone: `regenerate()`
+    // is NEVER called on a wave clear for ANY level any more. Every level's content now streams from
+    // `useLevelContentStream`, block by block, on its own real-time schedule, so a wave clear has no
+    // content work to do at all. `wave` stays exactly what it always was underneath the naming — a
+    // pure COMBAT/spawn-gating counter — and `regenerate` is still used by `begin()` (the level's ONE
+    // initial generation, which also authors the chord progression every block then draws its harmony
+    // from) and by `close()` (rebuild a normal melody from the restored config).
+    // This also removes the last way a mid-level `levelMelodyReady` false→true flip could tear down
+    // and restart the content stream's own effect — the root cause of §867/§304's "sounds like the
+    // level restarted" bug class.
     const onWaveCleared = useCallback(() => {
         if (!activeRef.current) return false;
         const tw = wavesForLevel(currentRef.current);
@@ -359,11 +426,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
             if (next >= tw) {
                 if (currentRef.current?.sideScroll) pendingSongEndRef.current = true;
                 else setDone(true);
-            } else regenerate();
+            }
             return next;
         });
         return true;
-    }, [regenerate]);
+    }, []);
 
     const restore = useCallback(() => {
         const s = snapRef.current;
@@ -391,9 +458,11 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // Level editor (Han 2026-08-06): revert a level's `theme` override (if any) to whatever the
         // user had selected before the level started.
         setters.setTheme?.(s.theme);
-        // #1045 (Han 2026-08-17): revert a level's `colorMode` override to whatever note-coloring
-        // scheme the user had selected before the level started (same pattern as theme above).
-        setters.setNoteColoringMode?.(s.noteColoringMode);
+        // #1045 (Han 2026-08-17): revert a level's colorScheme/colorScope override to whatever
+        // note-coloring the user had selected before the level started (same pattern as theme above).
+        // #1103: the old single `s.noteColoringMode` snapshot field is now two independent ones.
+        setters.setColorScheme?.(s.colorScheme);
+        setters.setColorScope?.(s.colorScope);
         // #1046 (Han 2026-08-17): revert the forced-on courtesyAccidentals to whatever the player had
         // set before the level started (same pattern as colorMode/theme above).
         setters.setCourtesyAccidentals?.(s.courtesyAccidentals);
@@ -406,7 +475,7 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     }, [restore, regenerate]);
 
     return {
-        active, done, wave, totalWaves, stats, current, start, replay, close, onHit, onMiss, onWaveCleared, onSongEnd,
+        active, done, wave, totalWaves, stats, statsRef, current, start, replay, close, onHit, onMiss, onWaveCleared, onSongEnd,
         onCritterKilled, totalEnemies, totalCritters, setTotalEnemies, setTotalCritters,
     };
 }

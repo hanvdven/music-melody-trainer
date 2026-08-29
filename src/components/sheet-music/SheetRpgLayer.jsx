@@ -32,7 +32,10 @@ import { StaffQuarterNote } from './staffNoteGlyph';
 import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
-import { blockTypeAt } from '../../hooks/useLevelMixedStream';
+// #1165: moved verbatim (same signature, same 2-measure period) out of the retired
+// useLevelMixedStream into the pure per-level block-policy module, so the alternation this
+// renders and the alternation the content stream GENERATES can never be two different rules.
+import { blockTypeAt } from '../../levels/levelBlockPlan';
 import useFrameLoop from '../../hooks/useFrameLoop';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:

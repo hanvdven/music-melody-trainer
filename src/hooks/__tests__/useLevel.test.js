@@ -47,7 +47,11 @@ describe('useLevel (#659 Level 1)', () => {
         expect(setters.setPlaybackConfig).toHaveBeenCalled();
         expect(setters.setShowChordsOddRounds).toHaveBeenCalledWith(false);
         // #1053: a songId level calls loadSong instead of regenerate(true) (useLevel.js's begin()).
-        expect(setters.loadSong).toHaveBeenCalledWith('level1-intro');
+        // #1100 bug fix (Han 2026-08-22): the level's own bpm is passed through as a 2nd arg so
+        // App.jsx's levelLoadSong can re-assert it AFTER loadSong's own setBpm(song.defaultTempo) —
+        // see useLevel.js's begin() comment for why this was silently clobbering variant-scaled bpm.
+        // #1153/#1154: 3rd arg is the g/h levelOverride — null for a level without either selected.
+        expect(setters.loadSong).toHaveBeenCalledWith('level1-intro', LEVEL1.bpm, null);
         expect(regenerate).not.toHaveBeenCalled();
         expect(result.current.stats).toMatchObject({ defeated: 0, misses: 0, longestStreak: 0 });
     });
@@ -84,25 +88,53 @@ describe('useLevel (#659 Level 1)', () => {
         });
     });
 
-    it('clears 4 waves then flags done; regenerates between waves only', () => {
+    // #1165 (Han 2026-08-29): this test used to be "clears 4 waves then flags done; regenerates
+    // between waves only" and asserted regenerate() firing once per cleared wave. That mechanism is
+    // RETIRED: every level's content now streams block by block from `useLevelContentStream`, so a
+    // wave clear has no content work to do at all and `wave` is purely a combat/spawn counter.
+    // `regenerate` survives only for begin() (the level's ONE initial generation, which also authors
+    // the chord progression) and close().
+    it('clears 4 waves then flags done; NEVER regenerates between waves (#1165)', () => {
         // #1053: Level 1 is now a fixed 5-measure song (1 wave, see songLevels.test.js's own coverage) so
         // it can no longer serve as this generic "N waves" mechanism test's example — a standalone
         // 4-wave level object (totalMeasures/numMeasures = 4) decouples this test from the real roster's
         // structure entirely, so it can never break again from an unrelated future renumbering.
         const fourWaveLevel = { id: 999, sideScroll: true, numMeasures: 2, numRepeats: 1, totalMeasures: 8 };
         const { regenerate, result } = setup();
-        act(() => result.current.start(fourWaveLevel));                 // regenerate #1
-        act(() => { result.current.onWaveCleared(); });                 // wave 1 → regenerate #2
-        act(() => { result.current.onWaveCleared(); });                 // wave 2 → #3
-        act(() => { result.current.onWaveCleared(); });                 // wave 3 → #4
+        act(() => result.current.start(fourWaveLevel));                 // regenerate #1 (begin() only)
+        act(() => { result.current.onWaveCleared(); });                 // wave 1 → no regen
+        act(() => { result.current.onWaveCleared(); });                 // wave 2 → no regen
+        act(() => { result.current.onWaveCleared(); });                 // wave 3 → no regen
         expect(result.current.done).toBe(false);
-        act(() => { result.current.onWaveCleared(); });                 // wave 4 → NO regen
+        act(() => { result.current.onWaveCleared(); });                 // wave 4 → reaches total waves
+        expect(result.current.wave).toBe(4);
         expect(result.current.done).toBe(false);
         // #688: a side-scroll level's splash must wait for `onSongEnd()` (the final barline visually
         // reaching the strike line), not fire the instant the last wave resolves.
         act(() => { result.current.onSongEnd(); });
         expect(result.current.done).toBe(true);
-        expect(regenerate).toHaveBeenCalledTimes(4);
+        expect(regenerate).toHaveBeenCalledTimes(1);
+    });
+
+    // Bug fix (Han 2026-08-24 UAT, call-response levels: "enemies vanquished" underreported + a burst of
+    // extra "missed" judgments): a multi-wave call-response (Wizard-forced) level streams its treble via
+    // the JIT treble stream (App.jsx activated it on `enemyType === 'Wizard'`), same as a JIT gated
+    // level — `onWaveCleared` must NOT call `regenerate()` for it either, even though `isJitTrebleLevel`
+    // itself is (correctly, for wave-COUNTING purposes) false for Wizard levels.
+    // #1165: this is now true for EVERY level, not just this shape — kept as its own case because it is
+    // the exact regression that first proved the guard was needed.
+    it('never regenerates between waves for a call-response (Wizard) multi-wave level — only the wave count advances', () => {
+        const callResponseLevel = {
+            id: 998, sideScroll: true, enemyType: 'Wizard', gatedScroll: false,
+            numMeasures: 2, numRepeats: 2, totalMeasures: 8,
+        };
+        const { regenerate, result } = setup();
+        act(() => result.current.start(callResponseLevel));   // regenerate #1 (start() always regenerates once)
+        act(() => { result.current.onWaveCleared(); });       // wave 1 of 2 → must NOT regenerate again
+        expect(result.current.wave).toBe(1);
+        expect(regenerate).toHaveBeenCalledTimes(1);
+        act(() => { result.current.onWaveCleared(); });       // wave 2 of 2 → reaches total waves, done path
+        expect(regenerate).toHaveBeenCalledTimes(1);
     });
 
     it('Level 4/7 set the quarter-grid generator fields; Level 7 (half notes) explicitly clears insertBeatRests (Han 2026-08-02, no cross-level leakage)', () => {
@@ -237,26 +269,27 @@ describe('useLevel (#659 Level 1)', () => {
         expect(setters.setChordSettings.mock.calls.at(-1)[0]({})).toMatchObject({ strategy: 'tonic-tonic-tonic', fixedTonic: 'C4', chordCount: 1 });
     });
 
-    it('gated levels keep percussion melodic off (no timpani pulse); a normal side-scroll level turns it on; close() restores it (Han 2026-08-02, #1052 follow-up)', () => {
-        // #1053/#1052: repointed the "melodic: true" case from the former Level 2 to Level 4 — Level 2 is
-        // gated now (gatedScroll levels never get timpani, see useLevel.js's melodic formula), so it
-        // belongs on the "off" side of this test alongside Level 1/3, not the "on" side.
+    it('every side-scroll level turns percussion melodic on, gated or not (Han 2026-08-20, #867 rework "b"); close() restores it', () => {
+        // #867 rework: REVERTED #1052's gated-scroll exclusion — timpani now rides
+        // `useLevelBackingStream`'s chunked/loop-forever mechanism (same as cello) instead of a one-shot
+        // schedule that went silent during a long gated freeze, so gated levels (1-3) get melodic
+        // percussion again too, same as every other side-scroll level.
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL4));
         const percApplied = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: false });
         expect(percApplied).toMatchObject({ melodic: true });
 
         act(() => result.current.start(LEVEL1));
-        const percLevel1 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: true });
-        expect(percLevel1).toMatchObject({ melodic: false });
+        const percLevel1 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: false });
+        expect(percLevel1).toMatchObject({ melodic: true });
 
         act(() => result.current.start(LEVEL2));
-        const percLevel2 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: true });
-        expect(percLevel2).toMatchObject({ melodic: false });
+        const percLevel2 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: false });
+        expect(percLevel2).toMatchObject({ melodic: true });
 
         act(() => result.current.start(LEVEL3));
-        const percLevel3 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: true });
-        expect(percLevel3).toMatchObject({ melodic: false });
+        const percLevel3 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: false });
+        expect(percLevel3).toMatchObject({ melodic: true });
 
         act(() => result.current.start(LEVEL4));
         act(() => result.current.close());

@@ -858,6 +858,15 @@ export const availableVariantLetters = (lvl, letters) => letters.filter((letter)
 export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll && !lvl?.songId
     && lvl?.enemyType !== 'Wizard' && lvl?.enemyType !== 'Mixed' && !lvl?.decorativeWizard);
 
+// ── HISTORY: `usesTrebleJitStream` (REMOVED by #1165, Han 2026-08-29) ────────────────────────────
+// The predicate below is kept as a comment because the BUG it documents is the exact class #1165's
+// merge makes structurally impossible, and the trace is worth keeping. It answered "does this level's
+// treble come from the JIT stream (rather than `regenerate()`)?" — a question with only one possible
+// answer now: EVERY level's content comes from `useLevelContentStream`, and `onWaveCleared` no longer
+// calls `regenerate()` for any level at all, so nothing can race the stream any more. The function
+// itself is deleted (CLAUDE.md §7 — delete unused code, don't comment it out); this note is the
+// audit trail its own comment asked future readers to follow.
+//
 // Bug fix (Han 2026-08-24 UAT, call-response levels: "enemies vanquished" underreported + a burst of
 // extra "missed" judgments at level end). `isJitTrebleLevel` above deliberately EXCLUDES `enemyType ===
 // 'Wizard'` — that's correct for ITS OWN job (picking the discrete numRepeats-based wave-count model,
@@ -877,7 +886,8 @@ export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll 
 // keeps re-publishing right after `regenerate()` just wiped App.jsx's copy of it).
 // Single shared predicate (§6c) — App.jsx's 3 inline `enemyType === 'Wizard' || isJitGatedSlimeLevel`
 // call sites should eventually consume this too, not re-derive it a 4th time.
-export const usesTrebleJitStream = (lvl) => !!(lvl?.enemyType === 'Wizard' || isJitTrebleLevel(lvl));
+//     export const usesTrebleJitStream = (lvl) => !!(lvl?.enemyType === 'Wizard' || isJitTrebleLevel(lvl));
+// ── END HISTORY ─────────────────────────────────────────────────────────────────────────────────
 
 export const wavesForLevel = (lvl) => (isJitTrebleLevel(lvl)
     ? 1
