@@ -1152,13 +1152,20 @@ const SheetMusic = ({
   // real generated melody — `bassMelody` prop is already the level's JIT-generated backing stream
   // (App.jsx's useLevelBackingStream) when a side-scroll level is active, spanning -1..numMeasures like
   // any other chunk-generated content, so no per-level pattern branch is needed here any more.
-  const levelTotalMeasures = leadInBars + numMeasures;
+  // #1163c (Han 2026-08-29): the timpani/percussion NOTATION span is the level's TRUE length, not the
+  // per-block `numMeasures` prop — `levelFullTotalMeasures` (App.jsx passes `level.current.totalMeasures`)
+  // the exact same way `scrollBarlines.numMeasures` already threads it below (§867 round 3). Before
+  // #1163c's `numMeasures: 8→2` edit this was `leadInBars + numMeasures` and happened to be right only
+  // because the ramp levels had `numMeasures === totalMeasures === 8`; it also silently truncated Level
+  // 3 (numMeasures 2 / totalMeasures 10) to 2 measures.
+  const levelTotalMeasures = leadInBars + (levelFullTotalMeasures ?? numMeasures);
   const leadInTicks = leadInBars * measureLengthSlots;
   const scrollBassMelody = adjustedBassMelody;
   // #994: this call must stay ARGUMENT-IDENTICAL to App.jsx's timpani AUDIO call (`timpaniMelody`) —
   // that identity is what keeps §108's "notation is built from the same pattern the audio schedules
-  // from" invariant true for the variable-length lead-in. Timpani spans the whole lead-in (Han: "alle
-  // opmaten cello+timpanen"), so neither call passes any leading-silence argument.
+  // from" invariant true for the variable-length lead-in. #1163c: BOTH now derive the span from the
+  // level's `totalMeasures` (App.jsx directly; here via `levelFullTotalMeasures`). Timpani spans the
+  // whole lead-in (Han: "alle opmaten cello+timpanen"), so neither call passes any leading-silence arg.
   const scrollPercussionMelody = percussionSettings?.melodic
     ? buildTimpaniPattern(levelTotalMeasures, timeSignature)
     : adjustedPercussionMelody;

@@ -7,6 +7,97 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-29 — ✅ #1166 (#1163c): levels.json ramp levels `numMeasures` 8 → 2
+
+Sub-ticket 3 van 3 onder epic #1163 (na #1164 = `generateBlock.js`, #1165 = de
+één-content-stream). Data-migratie + de `numMeasures`-consumers die meebewegen.
+
+**De edit:** `src/levels/levels.json`, `numMeasures: 8 → 2` voor de 11 ids
+`4,7,8,9,10,11,12,13,14,15,19`. `totalMeasures: 8` en `numRepeats: 1` ONGEMOEID.
+Zelfde lengte (8 maten), nu 4 chunks van 2 i.p.v. 1 blok van 8.
+
+**Consumers gefikst:**
+
+- `App.jsx timpaniMelody`: span-bron `lvl.numMeasures` → `lvl.totalMeasures` (anders
+  kromp de timpani van ~10 naar ~4 maten). Fikst meteen de latente Level-3-bug
+  (timpani dekte 2 van 10 maten sinds §994). Bewuste, geteste wijziging — UAT-flag.
+- `SheetMusic.jsx levelTotalMeasures`: `leadInBars + numMeasures` →
+  `leadInBars + (levelFullTotalMeasures ?? numMeasures)` — dezelfde threading als
+  `scrollBarlines.numMeasures` (§867 r3); blijft argument-identiek aan de audio-call (§108).
+- `wavesForLevel`: 1 → 4 voor alle 11 (bedoeld — Han beslissing 5, combat volgt de
+  chunk-grens). `blockCountFor === wavesForLevel` per level (pinned test).
+- `totalNotesForLevel` / #1102 baseline: leest alleen `totalMeasures` → byte-identiek
+  (per-id pinned test).
+- `levelBlockPlan.js`: de 3 `blockMeasuresFor`-branches NIET verwijderd. Wizard-branch
+  MOET blijven (variant 'e': `callResponseMeasures 2` + `numMeasures 2` → cadans `2*2=4`,
+  fall-through zou 2 geven). Mixed/decorativeWizard-branches redundant voor de shipped
+  levels maar bewust behouden (documenteren Han's "elke 2 maten", beschermen toekomstige
+  levels). Module-header comment gecorrigeerd (§350's claim "alle drie kunnen weg" was fout).
+
+**Tests:** `levels.test.js` — de 2 oude `#688`/`#693` "1 continu blok"-cases herschreven
+naar de 4-chunk realiteit + nieuw `#1163c`-blok (per-id waarde-pins, `totalNotesForLevel`
+byte-identiteit, `blockCountFor === wavesForLevel`, 13/13d/13e/14/15 cadans-guard,
+timpani-span-uit-`totalMeasures` guard). #1164/#1165 tests ongemoeid en groen.
+
+**Verify:** `npm run test:run` 1171 pass / 1 skip (was 1146/1, +25 nieuw) · `npm run build`
+clean · `npm run lint` 0 errors / 2747 warnings (baseline). docs/architecture.md §353.
+
+**Status:** ✅ impl klaar → `test`. UAT-focus: levels 4/7/8/9/10/11/12/19 nu 4 waves elk
+(combat-pacing); timpani beslaat nu het hele level op Level 3 + de omgezette levels.
+
+## 2026-08-29 — ⏳ FR: "Toonladders" bottom-view in de RPG-wereld (icoon-galerij per scale)
+
+Han: nieuwe bottom-view tussen Bestiary en RPG Level. Grid: rij = scale-familie
+(pent/hex/dia/…), kolom = modus I–VII (alléén voor de 5 echt-modale families:
+Diatonic, Melodic, Harmonic Major, Harmonic Minor, Double Harmonic). Elk vakje = een
+ability-icon (32×32) voor die toonladder, met het Romeinse cijfer in het **wit** over
+het icoon. Icon↔scale-mapping: eerste aanzet uit een **CSV** (kolommen Name, Class,
+Scale, set, set-id; Scale leeg of als mode-code `D6`=aeolian / `M3`=lydian augmented,
+prefixes D/M/Hm/HM/HH). Ongelabelde scales → willekeurig ongebruikt icoon.
+Vervolgvraag Han: "logisch voorstel" = match dier-icoon met de **kleur van de
+toonladder**; hernoem de gebruikte bestanden met de diernaam er achteraan
+(`..._lion.png`).
+
+### Interview-antwoorden (Han 2026-08-29)
+
+1. CSV: `src/assets/ASSET DROP/ability icons/Animals-Icons-scalesl.csv` (kolommen
+   `Name,Class,Scle,class-id,set,set-id,subset`). Icon-bestand:
+   `set-id = class-id + (subset−1)×50`; sets 1–10 → `Ability_icons{set}_{id2}.png`,
+   sets 11–15 → `Ability_icon_{set}_{id2}.png` (id 2-cijferig gepad).
+2. "Kleur van de toonladder" = **emotionele kleur**, "doe maar gewoon een gok".
+3. De CSV `Name`-kolom IS de icon→dier mapping.
+4. Gebruikte PNG's kopiëren naar vaste map + hernoemen met diernaam (`..._lion.png`);
+   originelen in ASSET DROP ongemoeid. ✅ akkoord.
+5. Rijen = **alle 9 families**.
+6. Niet-modale families: **uitlijnen** op het 7-koloms grid (links→rechts vullen).
+7. Vakje **klikbaar** → selectiekadertje + naam zichtbaar (details later leesbaar).
+8. Nav-knop icoon = **`Music`** (lucide) — zelfde als de klassieke view's SCALES-tab
+   (`App.jsx` `{ id: 'scale', Icon: Music }`). ⚠ WorldNavBar heeft al `Music` voor
+   "music-view" → 2× Music in de wereld-nav; bij bouw aan Han melden.
+
+### Stap 1 — CSV verrijken ✅ (2026-08-29)
+
+`scripts/build-scale-icon-map.mjs`: parseert `scaleDefinitions` uit scaleHandler.js
+(67 scales), houdt Han's 12 toewijzingen, vult de andere **55** in — dier↔scale
+gematcht op emotionele kleur/sfeer, per familie gegroepeerd. Leidt `scale-colour`
+(hsl/hex, modale helderheid × familie-karakter) en `emotion` af. Idempotent (leest
+alleen de eerste 7 kolommen, herbouwt de rest; BOM gestript). Validatie: 67/67 scales
+gedekt, elk icoonbestand bestaat. CSV nu 12 kolommen (+`scale-family,scale-colour,
+emotion,by,icon-file`), 2 spare-rijen (37 Snake, 51 Bull-nose-ring).
+
+Code-conventie `Scle`: `D# MM# HMin# HMaj# DH#` (modus 1–7) voor de 5 modale families;
+letterlijke scale-naam voor de rest (zoals Han's `In`/`Inen`).
+
+### Stap 2 — de view zelf ⏳ (nog niet begonnen — GROOT, aparte pass)
+
+Nieuw `characterScreen === 'scales'` + `SCREENS`-entry tussen `bestiary` en
+`rpg-level` + Top/Bottom-paneel (analoog aan Bestiary). Grid 9 rijen × 7 kolommen,
+icoon + wit Romeins cijfer, klik → selectiekader + naam. Asset-pijplijn: gebruikte
+PNG's → `src/assets/scale-icons/{scale}_{animal}.png` + `scaleIconMap.generated.js`
+(via hetzelfde script). Debug-hitboxes (§3a). docs/architecture.md §352.
+
+**Status:** Stap 1 ✅. Stap 2 wacht op go van Han.
+
 ## 2026-08-29 — ✅ #1165 (#1163b): één level-content-stream — 5 mechanismen samengevoegd
 
 Sub-ticket 2 van 3 onder epic #1163 (na #1164 = `generateBlock.js`, vóór #1166 = de
@@ -64,21 +155,27 @@ Doelen:
 - accidentals `♯♭♮𝄫𝄪` (U+266F/266D/266E/1D12B/1D12A) in CelticTime — Han traceerde de fallback
 - SandyForest: `0` (U+0030) — ontbrak in het font, Han tekende hem
 
-Stappen:
-1. ⏳ `scripts/extract-pixel-glyphs.mjs` (pngjs) — leest de getekende cellen uit de HUIDIGE atlas
-   (section-tops 16 / 886 / 1756, cell 104px, 8px/design-pixel, 13×13), threshold isoleert Han's
-   zwarte inkt van de grijze `#9aa0a6` fallback → ingecheckte `scripts/pixel-glyphs.json` (grid per
-   glyph). Dit ís het "netjes maken". ASCII-preview ter controle door Han.
-2. ⏳ `scripts/inject-glyphs.mjs` (opentype.js, nieuwe devDependency) — `pixel-glyphs.json` →
-   outline-paden (horizontale runs samengevoegd), verankerd op CelticTime x-hoogte 5dp / baseline;
-   overschrijft `CelticTime.ttf` + `SandyForest.ttf` ter plekke (git = back-up). JSON = bron.
-3. ⏳ `render-font-atlas.mjs` — per-font `EXTRA_ROWS` (CelticTime-only): 3 nieuwe rijen
-   (subscript / superscript / Romeins). Accidentals worden zwart in de bestaande rij 8. Sectie-
-   hoogte per fontrij-telling.
-4. ⏳ verify: test:run / build / lint; atlas her-renderen + visueel checken (nieuwe rijen zwart uit
-   font, A–Z/0–9 ongewijzigd); docs/architecture.md pixel-font sectie bijwerken.
+Knopen (Han): subscript/superscript op de getekende hoogte laten (niet omhoog schuiven),
+exact overnemen (geen regularisatie), Romeinse nu meteen mee.
 
-**Status:** 🔨 stap 1.
+Stappen:
+1. ✅ `scripts/extract-pixel-glyphs.mjs` (pngjs) — leest de getekende cellen uit de PRE-injectie
+   atlas (section-tops 16 / 886 / 1756, cell 104px, 8px/design-pixel, 13×13), threshold ink<95
+   isoleert Han's zwarte inkt van de grijze `#9aa0a6` fallback → `scripts/pixel-glyphs.json`
+   (grid per glyph, 0 dubbelzinnige pixels) + `pixel-glyphs-preview.svg`. **JSON = bron.**
+2. ✅ `scripts/inject-glyphs.mjs` (opentype.js devDependency) — grid → TrueType-outline (horizontale
+   runs, 64 units/design-pixel, baseline = design-rij 8), append in-place aan de GlyphSet zodat
+   name/OS-2/head/hhea behouden. CelticTime 110→142 glyphs, SandyForest 114→115. Round-trip
+   geverifieerd (alle codepoints resolven, 'A' ook; cmap format 12 voor 𝄫𝄪).
+3. ✅ `render-font-atlas.mjs` — per-font `EXTRA_ROWS` (CelticTime: subscript / superscript /
+   Romeins), sectie-hoogte per `f.rows.length`. Atlas her-gerenderd — nieuwe rijen zwart uit
+   het font, accidentals nu zwart in rij 8, A–Z/0–9 ongewijzigd.
+4. ✅ verify: test:run 1146 pass / 1 skip · build clean · lint 0 errors. docs/architecture.md §351.
+
+⚠️ `docs/font-atlas.png` was untracked en is her-gerenderd → Han's ruwe tekening bestaat nu
+alleen nog als `scripts/pixel-glyphs.json` (volledige capture, exact overgenomen).
+
+**Status:** ✅ impl klaar. Romeinse cijfers staan in het font; modus-UI = later (los).
 
 ## 2026-08-29 — ✅ #1164 / #1163a — extract shared per-block generator `generateBlock.js`
 

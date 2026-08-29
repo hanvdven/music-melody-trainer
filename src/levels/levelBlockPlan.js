@@ -29,18 +29,35 @@ import { updateScaleWithMode } from '../theory/scaleHandler';
  * rationale: "any UAT regression here is provably a MECHANISM bug, not a content change"):
  *
  *   • call-response (`enemyType: 'Wizard'`) — a block is one CALL group plus one RESPONSE
- *     group, i.e. `callResponseMeasures * 2` (#1101). Level 13 authors `numMeasures: 8`
- *     while its real block cadence is 2.
+ *     group, i.e. `callResponseMeasures * 2` (#1101). Level 13 authors `numMeasures: 2`
+ *     (post-#1163c) but its real block cadence is STILL 2 = `1 * 2` (native levels omit
+ *     `callResponseMeasures`, so `callGroupMeasuresFor` → 1).
  *   • Mixed (`enemyType: 'Mixed'`) — Han's literal spec is "stuur 2 maten slimes, dan 2
- *     maten wizard": the alternation PERIOD is 2 measures, not the level's `numMeasures`.
- *     `blockTypeAt` (below, and SheetRpgLayer's 4 call sites) encodes the same 2.
+ *     maten wizard": the alternation PERIOD is 2 measures. `blockTypeAt` (below, and
+ *     SheetRpgLayer's 4 call sites) encodes the same 2.
  *   • decorativeWizard — Han's literal spec is "elke 2 maten een spell en wisselt dan van
  *     toonladder": the modulation PERIOD is 2 measures (§994 decision D already separated
  *     this musical period from the JIT lookahead for exactly this reason).
  *
- * #1166 sets `numMeasures: 2` on the ramp levels, at which point all three special cases
- * collapse into the `numMeasures` fall-through and can be deleted. Until then they are
- * what keeps levels 13/14/15 sounding and rendering exactly as they do today.
+ * ── STATE OF THESE THREE BRANCHES AFTER #1163c (Han 2026-08-29) ────────────────────────
+ * #1163c set `numMeasures: 2` on the ramp levels (4/7-15/19). An EARLIER draft of this
+ * comment claimed all three branches then "collapse into the `numMeasures` fall-through
+ * and can be deleted". That is WRONG for the Wizard branch and a judgement call for the
+ * other two:
+ *   • Wizard — MUST STAY. `applyLevelVariant`'s call-response variant 'e'
+ *     (`callResponseMeasures: 2`) sets BOTH `callResponseMeasures: 2` AND `numMeasures: 2`
+ *     (see `callResponseOverrides` in levels.js). The correct cadence for 'e' is
+ *     `2 * 2 = 4`; the fall-through (`numMeasures || 2` = 2) would be WRONG. Variant 'd'
+ *     (`callResponseMeasures: 1`, `numMeasures: 1`) needs `1 * 2 = 2`, also not the
+ *     fall-through's 1. This branch is load-bearing regardless of any JSON edit.
+ *   • Mixed / decorativeWizard — for the SHIPPED levels 14/15 (`numMeasures: 2`) the
+ *     fall-through now returns the same 2, so these two branches are redundant *for those
+ *     levels*. They are KEPT DELIBERATELY: they cost nothing, they state Han's authored
+ *     "elke 2 maten" musical period explicitly (rather than as a coincidence of the ramp
+ *     `numMeasures` default), and a FUTURE Mixed / decorativeWizard level authored with a
+ *     different `numMeasures` would silently lose its alternation/modulation period under
+ *     the fall-through. `MIXED_BLOCK_MEASURES` / `blockTypeAt` stay regardless —
+ *     SheetRpgLayer imports them.
  */
 
 // Han's own spec for both 2-measure musical periods (see the cadence note above). Kept as

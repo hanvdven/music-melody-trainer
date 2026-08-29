@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
     LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12, LEVEL13,
-    LEVELS, wavesForLevel, totalNotesForLevel, isJitTrebleLevel,
+    LEVELS, wavesForLevel, totalNotesForLevel, isJitTrebleLevel, applyLevelVariant,
 } from '../levels';
+import { blockMeasuresFor, blockCountFor } from '../levelBlockPlan';
+import buildTimpaniPattern from '../../utils/timpaniPattern';
 import { MELODIC_NOTE_POOLS } from '../../constants/generationFields';
 
 // #661 (Han 2026-08-02, "houd het simpel... introduceer stap voor stap: halve noten, achtste noten,
@@ -83,33 +85,29 @@ describe('levels.js — ramp from Level 4 (Han 2026-08-02) + Level 13 Wizard (Ha
         expect(LEVEL13.intro.length).toBeGreaterThan(0);
     });
 
-    // #688 (Han 2026-08-04): every OTHER side-scroll level in the ramp is one continuous 8-measure wave.
-    it('every side-scroll ramp level (4, 7-12) clears in exactly 1 wave (one continuous 8-measure piece)', () => {
+    // #688 → #1163c (Han 2026-08-29): the ramp levels used to author `numMeasures: 8` /
+    // `totalMeasures: 8` = ONE continuous 8-measure wave. #1163c sets `numMeasures: 2` (the real
+    // generation chunk size, Han's data model) while `totalMeasures` stays 8 — so the piece is the
+    // SAME LENGTH, generated in 4 chunks, and combat is now keyed to that chunk boundary (4 waves).
+    it('every side-scroll ramp level (4, 7-12) is 4 chunks of 2 measures — same 8-measure length, 4 waves (#1163c)', () => {
         [LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12].forEach((lvl) => {
-            expect(wavesForLevel(lvl)).toBe(1);
+            expect(lvl.numMeasures).toBe(2);
+            expect(lvl.numRepeats).toBe(1);
+            expect(lvl.totalMeasures).toBe(8);
+            expect(lvl.totalMeasures / (lvl.numMeasures * lvl.numRepeats)).toBe(4);
+            expect(wavesForLevel(lvl)).toBe(4);
         });
     });
 
-    // #693 (Han 2026-08-04, round 5): `numMeasures=1/numRepeats=2` turned out to drive
-    // `playbackConfig.repsPerMelody` (a ROUND repeat) rather than a second VISUAL measure — reverted to the
-    // two-measure structure (numMeasures=2, numRepeats=1) with measure 2 duplicated from measure 1 in
-    // App.jsx.
-    // #693 (round 6, Han 2026-08-04 — "nu is de lengte van het level maar 2 maten; maar daar 8 van (dus
-    // genereer sequentieel 4 blokken zoals maat 1 en 2"): the level's full length is now 8 measures — 4
-    // INDEPENDENTLY-generated 2-measure call-response blocks (each its own random pitches), grown
-    // JUST-IN-TIME by useLevelTrebleStream.js (half a measure of lead time per block, Han's explicit
-    // choice over generating all 8 measures up front) rather than App.jsx's old single-melody
-    // restify/duplicate post-process (round 5, now removed — superseded by generation-time baking in
-    // generateLevel9CallResponseBlock.js). `numMeasures` here is the level's TOTAL content length (matches
-    // how bass/metronome's `useLevelBackingStream` already treats it), not a per-block size — the hook
-    // internally chunks it into 2-measure blocks. `totalMeasures` stays equal to `numMeasures` so this
-    // remains exactly 1 wave (one continuous piece, §130's proven "no per-wave regeneration" precedent) —
-    // the 4-block structure is an internal JIT-generation detail invisible to the wave-counting system.
-    it('Level 13 (Wizard) is one continuous 8-measure wave, generated as 4 independent JIT call-response blocks', () => {
-        expect(LEVEL13.numMeasures).toBe(8);
+    // #693 → #1163c: Level 13's block cadence was ALWAYS 2 measures (one call group + one response
+    // group — `blockMeasuresFor`'s Wizard branch, `1 * 2`). #1163c makes the authored `numMeasures`
+    // agree with that real cadence (8 → 2); `totalMeasures` stays 8, so the level is the same length
+    // but now clears in 4 discrete call-response waves instead of being counted as one.
+    it('Level 13 (Wizard) authors numMeasures 2 / totalMeasures 8 → 4 call-response waves (#1163c)', () => {
+        expect(LEVEL13.numMeasures).toBe(2);
         expect(LEVEL13.numRepeats).toBe(1);
         expect(LEVEL13.totalMeasures).toBe(8);
-        expect(wavesForLevel(LEVEL13)).toBe(1);
+        expect(wavesForLevel(LEVEL13)).toBe(4);
     });
 
     it('Level 13 (Wizard) keeps Level 4\'s quarter-grid/range/sideScroll settings, with enemyType "Wizard"', () => {
@@ -209,5 +207,87 @@ describe('levels.js — isJitTrebleLevel (the wave-COUNTING model, NOT "where do
     it('false for a plain non-gated level (discrete waves), and for a gated SONG level', () => {
         expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: false, enemyType: 'Slime' })).toBe(false);
         expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: true, enemyType: 'Slime', songId: 'x' })).toBe(false);
+    });
+});
+
+// #1163c (Han 2026-08-29): `numMeasures` 8 → 2 for ids 4,7,8,9,10,11,12,13,14,15,19. `numMeasures` IS the
+// generation chunk size (Han's data model, #1163); `totalMeasures` stays 8, so every level is the SAME
+// LENGTH — it just generates and fights in 4 two-measure chunks instead of one 8-measure block. This
+// block is the regression net: it pins the 11 values, the derived wave count, the fact that
+// `totalNotesForLevel` (the ANPM / #1102 adaptive baseline) is BYTE-IDENTICAL across the edit (it reads
+// `totalMeasures` only), and that combat stays keyed to the chunk boundary (`blockCountFor === wavesForLevel`).
+describe('levels.js — #1163c: ramp levels are 4 two-measure chunks, same 8-measure length', () => {
+    const CONVERTED_IDS = [4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19];
+
+    // Pinned PRE-EDIT `totalNotesForLevel` values. `totalNotesForLevel` = totalMeasures × (treble
+    // notesPerMeasure + bass notesPerMeasure-if-twoHanded); it does NOT read `numMeasures` at all, so
+    // these must be unchanged by #1163c. Hard-pinned (not re-derived from the function) precisely so a
+    // future change to either `totalNotesForLevel` OR the level data is caught.
+    const PINNED_TOTAL_NOTES = {
+        4: 24, 7: 24, 8: 24,          // notesPerMeasure 3 × 8 measures
+        9: 32, 10: 32, 11: 32,        // notesPerMeasure 4 × 8
+        12: 16, 13: 16, 14: 16, 15: 16, // notesPerMeasure 2 × 8
+        19: 32,                        // twoHanded: (treble 3 + bass 1) × 8
+    };
+
+    it.each(CONVERTED_IDS)('level %i: numMeasures 2, numRepeats 1, totalMeasures 8, 4 chunks, 4 waves', (id) => {
+        const lvl = LEVELS[id];
+        expect(lvl.numMeasures).toBe(2);
+        expect(lvl.numRepeats).toBe(1);
+        expect(lvl.totalMeasures).toBe(8);
+        expect(lvl.totalMeasures / (lvl.numMeasures * lvl.numRepeats)).toBe(4);
+        expect(wavesForLevel(lvl)).toBe(4);
+    });
+
+    it.each(CONVERTED_IDS)('level %i: totalNotesForLevel is byte-identical to the pre-edit value', (id) => {
+        expect(totalNotesForLevel(LEVELS[id])).toBe(PINNED_TOTAL_NOTES[id]);
+    });
+
+    it('combat stays keyed to the chunk boundary — blockCountFor === wavesForLevel for every converted level (Han decision 5)', () => {
+        for (const id of CONVERTED_IDS) {
+            const lvl = LEVELS[id];
+            expect(blockCountFor(lvl)).toBe(wavesForLevel(lvl));
+        }
+    });
+
+    // The three `blockMeasuresFor` special-case branches (Wizard / Mixed / decorativeWizard): after the
+    // edit levels 14/15 hit the same 2 via the fall-through, but levels 13/14/15 must keep IDENTICAL
+    // cadence + block count, and the Wizard branch must still win for the d/e call-response variants
+    // (where `numMeasures` and `callResponseMeasures` diverge).
+    it('levels 13 (native + d + e), 14, 15 keep an identical block cadence and block count', () => {
+        // Native level 13: Wizard branch → 1*2 = 2; 8 measures / 2 = 4 blocks.
+        expect(blockMeasuresFor(LEVELS[13])).toBe(2);
+        expect(blockCountFor(LEVELS[13])).toBe(4);
+        // Variant d: callResponseMeasures 1 → 1*2 = 2 (NOT the numMeasures fall-through, which is also 1).
+        const d13 = applyLevelVariant(LEVELS[13], 'd');
+        expect(d13.callResponseMeasures).toBe(1);
+        expect(d13.numMeasures).toBe(1);
+        expect(blockMeasuresFor(d13)).toBe(2);
+        // Variant e: callResponseMeasures 2 → 2*2 = 4. The fall-through (numMeasures = 2) would be WRONG —
+        // this is why the Wizard branch of blockMeasuresFor must never be deleted.
+        const e13 = applyLevelVariant(LEVELS[13], 'e');
+        expect(e13.callResponseMeasures).toBe(2);
+        expect(e13.numMeasures).toBe(2);
+        expect(blockMeasuresFor(e13)).toBe(4);
+        // Mixed (14) + decorativeWizard (15): authored 2-measure musical period, block count 8/2 = 4.
+        expect(blockMeasuresFor(LEVELS[14])).toBe(2);
+        expect(blockCountFor(LEVELS[14])).toBe(4);
+        expect(blockMeasuresFor(LEVELS[15])).toBe(2);
+        expect(blockCountFor(LEVELS[15])).toBe(4);
+    });
+
+    // #1163c consumer: App.jsx's `timpaniMelody` and SheetMusic.jsx's `scrollPercussionMelody` now derive
+    // the timpani span from `leadInBars + totalMeasures`, NOT `+ numMeasures` (which would cover only the
+    // first chunk). Level 3 (numMeasures 2 / totalMeasures 10) exercises the same latent bug and is fixed
+    // by the same change.
+    it('timpani span must derive from totalMeasures: for a converted level and Level 3 it differs from numMeasures', () => {
+        expect(LEVEL4.totalMeasures).not.toBe(LEVEL4.numMeasures);   // 8 vs 2
+        expect(LEVEL3.totalMeasures).not.toBe(LEVEL3.numMeasures);   // 10 vs 2
+        const leadInBars = LEVEL4.leadInBars ?? 2;
+        const beatsPerMeasure = 4;   // 4/4
+        const full = buildTimpaniPattern(leadInBars + LEVEL4.totalMeasures, LEVEL4.timeSignature ?? [4, 4]);
+        const truncated = buildTimpaniPattern(leadInBars + LEVEL4.numMeasures, LEVEL4.timeSignature ?? [4, 4]);
+        expect(full.offsets.length).toBe((leadInBars + LEVEL4.totalMeasures) * beatsPerMeasure);
+        expect(full.offsets.length).toBeGreaterThan(truncated.offsets.length);
     });
 });

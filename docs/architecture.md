@@ -23337,3 +23337,144 @@ the #1102 re-fit + append-only + a roster-wide "every shipped level generates wi
 migration guard), `src/hooks/__tests__/useLevel.test.js`, `src/levels/__tests__/levels.test.js`;
 `useLevelTrebleStream.test.js` / `useLevelBackingStream.test.js` /
 `generateLevelBackingChunk.test.js` deleted (absorbed).
+
+### §351. CelticTime pixel font — Han's hand-drawn glyphs injected (subscript/superscript digits, Roman numerals, accidentals) + SandyForest `0` (Han 2026-08-29)
+
+**Purpose:** The pixel-art keyboard needs small digits for octave marks (subscript) and chord
+extensions like `⁵ ⁷ ⁹` (superscript), and Roman numerals `Ⅰ–Ⅶ` for mode labels (the mode UI
+comes later). `'BestiaryPixel'` normal = `CelticTime.ttf` had none of these — nor `♯ ♭ ♮ 𝄫 𝄪` —
+so they fell back to a serif and broke the pixel look. `SandyForest.ttf` was also genuinely
+missing `0` (U+0030).
+
+**How it works — the atlas → JSON → TTF pipeline (all under `scripts/`, none in the build):**
+
+1. Han draws the glyphs directly into the generated `docs/font-atlas.png`, on top of the grey
+   `#9aa0a6` fallback tracing guides `render-font-atlas.mjs` renders for missing characters.
+2. `extract-pixel-glyphs.mjs` (pngjs) reads those cells back out at the atlas's own geometry —
+   `RENDER_SCALE 8` → 8 screen-px per design-pixel, `CELL 13` → 104-px cells, section tops
+   `16 / 886 / 1756` — thresholds Han's near-black ink (`< 95` luminance) away from the grey
+   guide, and quantises each glyph to the 13×13 design-pixel grid. Output: **`pixel-glyphs.json`
+   — the editable source of truth** (grid strings per glyph) + `pixel-glyphs-preview.svg`.
+3. `inject-glyphs.mjs` (opentype.js, a devDependency) turns each grid into a TrueType outline and
+   writes it into the real `.ttf` **in place** (git history is the backup). Geometry: both fonts
+   are `unitsPerEm 1024` with a 320-unit (= Han's 5 design-pixel) x-height → **64 units per
+   design-pixel**; cap height 448 = 7 dp = the atlas `CAP_PX`. Glyph origin x sits at the atlas
+   cell's `PAD` (design-pixel column 1); baseline is design-row 8 (`PAD 1 + cap 7`); ink below
+   row 8 becomes a descender (the natural sign uses this). Each grid row's ink is merged into
+   horizontal run rectangles (one clockwise contour per run) so TrueType non-zero winding fills
+   solid. New glyphs are appended to the `GlyphSet` in place so every other table (`name`,
+   `OS/2`, `head`, `hhea`) is preserved; the script re-parses its own output to verify every
+   codepoint resolves and that an original glyph (`A`) still does.
+4. `render-font-atlas.mjs` gained a per-font `EXTRA_ROWS` map (CelticTime only): three appended
+   rows — subscript digits, superscript digits, Roman numerals — so the atlas now renders them
+   from the real font (black, grid-aligned) instead of grey. Accidentals stay in the shared
+   row 8 and simply turn black. Section height is now per-font (`f.rows.length`).
+
+**Codepoints injected into CelticTime:** subscript `₀–₉` U+2080–2089; superscript `⁰¹²³⁴⁵⁶⁷⁸⁹`
+U+2070/00B9/00B2/00B3/2074–2079 (**same outlines, same height** as the subscripts — Han asked to
+keep the position he drew, not raise them); Roman `Ⅰ–Ⅶ` U+2160–2166; accidentals `♯ ♭ ♮`
+U+266F/266D/266E and `𝄫 𝄪` U+1D12B/1D12A (astral plane — opentype.js writes cmap format 12).
+Into SandyForest: `0` U+0030.
+
+**Invariants:**
+- `pixel-glyphs.json` is the source; to change a glyph, edit its grid there and re-run
+  `inject-glyphs.mjs` (then `render-font-atlas.mjs`). Do **not** hand-edit the `.ttf`.
+- `extract-pixel-glyphs.mjs` targets the **pre-injection** atlas geometry (section tops
+  `16 / 886 / 1756`, 8 shared rows). Re-running it against the regenerated atlas (CelticTime now
+  has 11 rows, so SandyForest/Bitfantasy shifted down) would read the wrong regions — there is
+  nothing left to extract, the drawing is fully captured in the JSON.
+- The 64-units-per-design-pixel anchor and design-row-8 baseline mirror `render-font-atlas.mjs`'s
+  `CAP_PX`/`PAD` — the atlas and the font must stay on the same grid (§6d: single source of
+  truth for notation geometry).
+- `docs/font-atlas.png` is a regenerable artifact (untracked); Han's raw drawing lives on only
+  as `pixel-glyphs.json`.
+
+**Files:** `scripts/extract-pixel-glyphs.mjs` (new), `scripts/inject-glyphs.mjs` (new),
+`scripts/pixel-glyphs.json` (new, source of truth), `scripts/pixel-glyphs-preview.svg` (new,
+generated), `scripts/render-font-atlas.mjs` (`EXTRA_ROWS`, per-font row count),
+`src/assets/fonts/pixel_fonts/CelticTime.ttf` (110 → 142 glyphs),
+`src/assets/fonts/pixel_fonts/SandyForest.ttf` (114 → 115 glyphs), `package.json` /
+`package-lock.json` (`opentype.js` devDependency), `docs/font-atlas.png` (regenerated).
+
+### §353. `levels.json` ramp levels: `numMeasures` 8 → 2 — the content-granularity migration (#1166 / #1163c, Han 2026-08-29)
+
+**Purpose / Symptom.** §350 merged five content mechanisms into ONE per-block stream *without*
+touching any level's data, so `numMeasures` stayed at whatever each level authored — for the ramp
+levels (4, 7–15, 19) that was `8`, i.e. ONE 8-measure block per level. Han's data model (#1163) is
+that **`numMeasures` IS the generation chunk size**, default `2`; those levels were authored `8`
+only because the old classic path generated a whole level in one pass. #1163c brings the data in
+line with the model now that the pipeline can honour it.
+
+**The edit.** In `src/levels/levels.json`, `numMeasures: 8 → 2` for the **11** ids
+`4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19`. `totalMeasures: 8` and `numRepeats: 1` are **untouched**.
+Nothing else in the JSON. Result: every level is the **same length** (8 measures), generated and
+fought in **4 two-measure chunks** instead of one 8-measure block.
+
+| id | name | numMeasures | numRepeats | totalMeasures | chunks (`tM/(nM·nR)`) | wavesForLevel | before → after |
+|---|---|---|---|---|---|---|---|
+| 4 | Level 4 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 7 | Level 7 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 8 | Level 8 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 9 | Level 9 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 10 | Level 10 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 11 | Level 11 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 12 | Level 12 | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+| 13 | Level 13 (Wizard) | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | cadence was already 2 (call+response); now the authored value agrees |
+| 14 | Level 14 (Mixed) | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | alternation period was already 2; authored value now agrees |
+| 15 | Level 15 (Toonladderwissel) | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | modulation period was already 2; authored value now agrees |
+| 19 | Level 19 (Twee handen) | 8 → **2** | 1 | 8 | 1 → **4** | 1 → **4** | 1 block → 4 blocks |
+
+**Consumers that move with `numMeasures` — audited and fixed.**
+
+- **App.jsx `timpaniMelody`** — was `buildTimpaniPattern(leadInBars + lvl.numMeasures, …)`, which
+  would have shrunk the scheduled timpani from ~10 bars to ~4. Changed to **`lvl.totalMeasures`**
+  (the same field `totalNotesForLevel` and the #1102 adaptive baseline already read). This ALSO
+  fixes a latent bug present since §994: **Level 3** (`numMeasures: 2` / `totalMeasures: 10`) had
+  its timpani span cut to 2 of 10 measures. Deliberate, tested change — flag for UAT.
+- **SheetMusic.jsx `levelTotalMeasures`** (`leadInBars + numMeasures`, the timpani/percussion
+  **notation** span, which §108 requires to stay argument-identical to the audio call above) — now
+  `leadInBars + (levelFullTotalMeasures ?? numMeasures)`, threading the level's `totalMeasures` the
+  exact way `scrollBarlines.numMeasures` already does (§867 round 3). Same Level 3 fix.
+- **`wavesForLevel`** — `round(totalMeasures / (numMeasures · numRepeats))` goes `1 → 4` for all
+  11 levels. **Intended** (Han decision 5: combat stays keyed to the chunk boundary, and the chunk
+  is now 2 measures). `blockCountFor(lvl) === wavesForLevel(lvl)` for every converted level — a
+  pinned test asserts this "combat == chunk boundary" identity. This activates SheetRpgLayer's
+  `levelWaveIndex` / `levelTotalWaves` wave-reset path (§867 round 4 / §304's miscount fix) on
+  eleven levels that previously only ever saw the single terminal increment — the multi-wave path
+  itself is already exercised by the call-response variants and by `useLevel.test.js`'s generic
+  `{ numMeasures: 2, numRepeats: 1, totalMeasures: 8 }` guard, but the ramp levels now hitting it
+  live is a **UAT focus** (combat pacing on levels 4/7/8/9/10/11/12/19 — 4 waves each).
+- **`totalNotesForLevel` / the #1102 adaptive baseline** — reads `totalMeasures` only, so it is
+  **byte-identical** before/after. A per-id pinned test proves it (24/24/24/32/32/32/16/16/16/16/32
+  for ids 4/7/8/9/10/11/12/13/14/15/19).
+
+**`levelBlockPlan.js` — the three `blockMeasuresFor` special cases were NOT deleted.** §350's own
+note claimed all three "collapse into the `numMeasures` fall-through and can be deleted" after this
+edit. That is **wrong for the Wizard branch** and a judgement call for the other two:
+
+- **Wizard** (`callGroupMeasuresFor(lvl) * 2`) — **MUST STAY.** `applyLevelVariant`'s call-response
+  variant **'e'** sets `callResponseMeasures: 2` **and** `numMeasures: 2`; the correct cadence is
+  `2 · 2 = 4`, and the fall-through (`numMeasures || 2` = 2) would be wrong. Variant 'd'
+  (`callResponseMeasures: 1`, `numMeasures: 1`) needs `1 · 2 = 2`, also not the fall-through's 1.
+  Load-bearing regardless of any JSON edit.
+- **Mixed** (`MIXED_BLOCK_MEASURES = 2`) and **decorativeWizard** (`KEY_MODULATION_BLOCK_MEASURES =
+  2`) — for the shipped levels 14/15 (`numMeasures: 2`) the fall-through now returns the same 2, so
+  these branches are redundant *for those levels*. **Kept deliberately:** they cost nothing, they
+  state Han's authored "elke 2 maten" musical period explicitly rather than as a coincidence of the
+  ramp `numMeasures` default, and a future Mixed / decorativeWizard level authored with a different
+  `numMeasures` would silently lose its alternation/modulation period under the fall-through.
+  `MIXED_BLOCK_MEASURES` / `blockTypeAt` stay regardless — SheetRpgLayer imports them. The
+  module-header comment in `levelBlockPlan.js` was corrected to say all this.
+
+**`totalMeasures` is still authored, not derived.** `normalizeLevel` computes
+`totalMeasures = merged.totalMeasures ?? (numBlocks ? numMeasures · numRepeats · numBlocks : numMeasures)`
+— every one of the 11 levels has an explicit `totalMeasures: 8` in the JSON, so the `numMeasures`
+edit cannot touch it. This is the guard that makes "same length" true by construction.
+
+**Files:** `src/levels/levels.json` (11 × `numMeasures` 8→2), `src/App.jsx` (`timpaniMelody` span
+→ `totalMeasures`), `src/components/sheet-music/SheetMusic.jsx` (`levelTotalMeasures` →
+`levelFullTotalMeasures ?? numMeasures`), `src/levels/levelBlockPlan.js` (module-header comment
+corrected — no code change), `src/levels/__tests__/levels.test.js` (the two `#688`/`#693`
+"1 continuous wave" cases updated to the 4-chunk reality + a new `#1163c` block: per-id value pins,
+`totalNotesForLevel` byte-identity pins, `blockCountFor === wavesForLevel`, the 13/13d/13e/14/15
+cadence guard, the timpani-span-from-`totalMeasures` guard).

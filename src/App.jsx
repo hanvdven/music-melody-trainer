@@ -1452,10 +1452,18 @@ const App = () => {
     // the identical call, which is what keeps §108's "notation is built from the pattern the audio is
     // scheduled from" invariant true.
     const timpaniMelody = useMemo(() => {
-        if (!percussionSettings?.melodic || !level.current?.numMeasures) return null;
+        if (!percussionSettings?.melodic || !level.current?.totalMeasures) return null;
         const leadInBars = level.current.leadInBars ?? 2;
-        return buildTimpaniPattern(leadInBars + level.current.numMeasures, timeSignature);
-    }, [percussionSettings?.melodic, level.current?.numMeasures, level.current?.id,
+        // #1163c (Han 2026-08-29): span the WHOLE level (`totalMeasures`), not one generation
+        // chunk (`numMeasures`). #1163c sets `numMeasures: 2` on the ramp levels (4/7-15/19), so
+        // `leadInBars + numMeasures` would have covered only the first 2 of 8 measures. `totalMeasures`
+        // is the level's TRUE timeline length — the SAME field `totalNotesForLevel` and the #1102
+        // adaptive baseline already read. This also fixes a latent bug present since #994: Level 3
+        // authors `numMeasures: 2` / `totalMeasures: 10`, so its percussion NOTATION span (and the
+        // audio call this must stay argument-identical to, SheetMusic.jsx §108) covered only 2 of
+        // its 10 measures — deliberate, tested change, flag for UAT.
+        return buildTimpaniPattern(leadInBars + level.current.totalMeasures, timeSignature);
+    }, [percussionSettings?.melodic, level.current?.totalMeasures, level.current?.id,
         level.current?.leadInBars, timeSignature]);
     // #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
     // melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle levels."):
