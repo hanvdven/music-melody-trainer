@@ -332,7 +332,13 @@ const App = () => {
     }, [bpm]);
 
 
-    const percussionScale = Scale.defaultPercussionScale();
+    // Stable identity (#1165 UAT bug fix, Han 2026-08-29): this is an argument-free constant
+    // factory, but a bare `Scale.defaultPercussionScale()` call returns a NEW object every
+    // render. It is in `useLevelContentStream`'s effect dependency array, so an unmemoized value
+    // re-ran that effect on every render — which itself calls setTreble/setBass/setMetronome/
+    // setPercussion, forcing another render: an infinite regenerate-and-reschedule loop (Han:
+    // "elke tik een nieuwe melodie... duizend cello's... noten verspringen 20× per seconde").
+    const percussionScale = useMemo(() => Scale.defaultPercussionScale(), []);
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
