@@ -88,15 +88,90 @@ emotion,by,icon-file`), 2 spare-rijen (37 Snake, 51 Bull-nose-ring).
 Code-conventie `Scle`: `D# MM# HMin# HMaj# DH#` (modus 1–7) voor de 5 modale families;
 letterlijke scale-naam voor de rest (zoals Han's `In`/`Inen`).
 
-### Stap 2 — de view zelf ⏳ (nog niet begonnen — GROOT, aparte pass)
+### Stap 2 — de view zelf ✅ (2026-08-29)
 
-Nieuw `characterScreen === 'scales'` + `SCREENS`-entry tussen `bestiary` en
-`rpg-level` + Top/Bottom-paneel (analoog aan Bestiary). Grid 9 rijen × 7 kolommen,
-icoon + wit Romeins cijfer, klik → selectiekader + naam. Asset-pijplijn: gebruikte
-PNG's → `src/assets/scale-icons/{scale}_{animal}.png` + `scaleIconMap.generated.js`
-(via hetzelfde script). Debug-hitboxes (§3a). docs/architecture.md §352.
+- `scripts/build-scale-icon-map.mjs` uitgebreid: kopieert de 67 gebruikte PNG's naar
+  `src/assets/scale-icons/{scale-code}_{dier}.png` (originelen in ASSET DROP ongemoeid)
+  + emit `src/theory/scaleIconMap.generated.js` (`SCALE_ICON_MAP` keyed `"familie|naam"`,
+  `SCALE_FAMILY_ORDER`).
+- `src/theory/scaleIcons.js`: `import.meta.glob` → asset-URLs; `getScaleIcon()` +
+  `buildScaleGrid()` (9 rijen; modale families = 7 cellen op modus-index, rest = 1 cel
+  per scale).
+- `src/components/character/ScalesPanel.jsx`: `ScalesTopPanel` (grid: icoon +
+  emotie-kleur wash/streep + wit pixel-font Romeins `Ⅰ–Ⅶ` + gele selectie-outline +
+  debugMode oranje hitbox §3a) + `ScalesBottomPanel` (familie/parent/dier/emotie/
+  kleurstaal/intervals).
+- Wiring: `characterScreen === 'scales'` in `SCREENS` (AvatarSubHeader, `WheelIcon` =
+  zelfde als klassieke WHEEL-toggle) tussen `bestiary` en `rpg-level` → WorldNavBar
+  pikt 'm automatisch op. `selectedScale` state in App.jsx → beide panelen (net als
+  `bestiaryEditor`). TabView krijgt `selectedScale` prop.
+- `NAV_ICON_COUNT` 8 → 9 in `worldLayout.js` (WorldNavBar heeft nu 9 knoppen); alle 35
+  worldLayout-tests blijven groen.
+- Nieuwe test `src/theory/__tests__/scaleIcons.test.js` (7). docs/architecture.md §352.
+- Verify: `test:run` 1178 pass / 1 skip · `build` clean · `lint` 0 errors.
 
-**Status:** Stap 1 ✅. Stap 2 wacht op go van Han.
+### Stap 2 — round 2 (Han-feedback) ✅
+
+Icons op wereld-gpx (`32·worldScale`), geen kader/gap (kale 32×32 grid), grid 9 kolommen,
+rijnamen in pixel-font.
+
+### Stap 2 — round 3 (Han-feedback) ✅
+
+- **Rij-volgorde**: Pentatonic, Hexatonic, Diatonic, Melodic, Harm Min, Harm Maj, Double
+  Harm, Other Hepta, Supertonic.
+- **Niet-modale families gesorteerd op hepta ref** (Ionisch links → Locrisch rechts) via
+  `def.diatonic` in `buildScaleGrid`.
+- **Kleur puur op hepta ref**: 7 kleuren per diatonische modus, benoemd met RPG-class —
+  I Paladin `#d9a520` · II Geomancer · III Hydrosophist · IV Hunter · V Priest · VI
+  Aerotheurge · VII Warlock. `SCALE_HEPTA_REF` legenda-strip boven het grid; elke cel-bg =
+  die kleur (schijnt door de PNG-marge → gradient per rij). Selectie = cel schaalt 1.12×
+  (geen kader).
+- CSV-kolommen nu `…,scale-family,hepta-class,scale-colour,by,icon-file`. Map-entries
+  krijgen `heptaNum/heptaRoman/heptaClass`.
+- `scaleIcons.test.js` uitgebreid (legenda-kleuren, rij-volgorde, non-modaal sort).
+- Verify: `test:run` 1200 pass / 1 skip · `build` clean · `lint` 0 errors.
+
+### Stap 2 — round 4 (Han-feedback) ✅
+
+- **Icons ge-recolored** naar het kleurschema: 7 class-paletten (5 tinten elk) gesampled
+  uit `.../ability icons/Color_palette{,2}.png` (Paladin uit palette2). `recolourIcon` in
+  het build-script: per opaak pixel → luminantie gestretcht over de icoon-eigen min/max →
+  1 van de 5 tinten. Class-namen zijn puur palette-labels.
+- **Paletten in CSS**: `src/styles/classPalettes.generated.css` (`--class-<naam>-<0..4>`,
+  licht→donker), geïmporteerd in App.jsx. Han hergebruikt ze elders.
+- **Legenda + cel-achtergrond + border weg** — de ge-recolorde art draagt nu de kleur.
+  Selectie = cel schaalt 1.12×. Onderpaneel: geen class-naam/swatch meer.
+- `SCALE_HEPTA_REF` heeft nu ook `palette` (5). Test uitgebreid (8).
+- Verify: `test:run` groen · `build` clean · `lint` 0 errors. Live gescreenshot: elke rij
+  toont z'n links→rechts palet-gradient, dieren blijven herkenbaar.
+
+### Stap 2 — round 5 (Han-feedback) ✅
+
+- Oranje "waas + kader" = de §3a debug-hitbox (alleen in debugMode). Teruggebracht tot
+  een dunne outline zonder fill-wash.
+- `transform: scale(1.12)` weg → cellen 100% gpx-perfect (integer `32·worldScale`).
+  Selectie nu = `worldScale`-px inset gele outline (pixel-perfect, geen layout-shift).
+- Romeins cijfer schaalt nu mee: `fontSize 16·worldScale` (BestiaryPixel native = 16px →
+  1 design-px == 1 gpx). Was ~3gpx hoog, nu 7gpx — leesbaar.
+
+### Stap 2 — round 6 (Han-feedback) ✅
+
+- Romeins cijfer: drop-shadow weg; nu 2 gpx in vanaf de linker- en onderrand van de cel.
+- Rijnamen (familie-labels) schalen nu mee met gpx (`8·worldScale`, BestiaryPixel).
+- Kleur-remap (te gelijkende paletten): **II Dorian → Warrior** (was Geomancer),
+  **VII Locrian → Occultist** (was Warlock). Warrior/Occultist/Witch-paletten toegevoegd;
+  alle 10 paletten nu in `classPalettes.generated.css`.
+- CSV-fixes (Han): rijen Crow/Frog/Snake-viper `Occultist → Witch` + `set 11 → 12` (andere
+  icoon-art). Bull-icoon van **D5** ↔ **Hungarian major** omgewisseld (D5 krijgt de set-6
+  bull, Hungarian major de set-1 bull). Nieuwe spare-rij `Tentacles / Occultist` (set 11,
+  id 80) — nog geen scale toegewezen.
+- Regenerated: CSV 70 rijen (3 spare), 67 icons ge-recolored, map + CSS bij. `build` +
+  `lint` groen (geen `test:run` op verzoek).
+
+**Status:** ✅ Stap 1 + 2 (6 rondes) klaar → Han UAT.
+
+⏳ Open voor later: Romeinse-cijfer-UI voor modus-selectie elders; subscript/superscript
+in het pixel-art klavier.
 
 ## 2026-08-29 — ✅ #1165 (#1163b): één level-content-stream — 5 mechanismen samengevoegd
 
@@ -6939,3 +7014,45 @@ daarna #1102 afmaken. Die vier zijn klaar; dit is de afrondingsronde.
 **Status:** 🔨 impl klaar → Han UAT. Let vooral op: (a) voelt ±5% per blok goed? (b) is 3× doorspelen
 niet te lang? (c) **de timpani wordt NIET mee-versneld** en loopt nu over ~24 maten — dat is het
 duidelijkste hoorbare risico van deze ronde (§354 known limitation 1).
+
+### #1102 UAT-ronde 2 (Han 2026-08-29/31) — level eindigt niet + leesbaarheid + audiosync
+
+Han UAT Level 4 + `i`: ✅ bpm stijgt zichtbaar ("precies wat ik wil"). 3 punten terug:
+
+- 🐞→✅ **Level eindigt niet; na de eindstreep een reeks MISSES, geen resultaatscherm.** Een
+  #1165-regressie die #1102's 3× blootlegde (raakt ook #1166's omgezette 4-waves levels).
+  Na #1165 heeft "wave cleared" nog maar één trigger in de hele app (SheetRpgLayer
+  `killedCount >= total`, allebei cumulatief over het hele lied) → kan maar 1× vuren, aan het eind.
+  `wavesForLevel` gaf nog 4 (ramp) of 12 (3× adaptive) → `onWaveCleared` bleef eeuwig wachten op
+  clears die niet komen → `pendingSongEndRef` nooit gezet → `onSongEnd` vuurt in een no-op en
+  vergrendelt → nooit `done`. Fix (commit `3decfcb`): `wavesForLevel` → `() => 1` onvoorwaardelijk,
+  `isJitTrebleLevel` verwijderd (enige caller was die branch); SheetRpgLayer wave-reset conditie
+  `gatedScroll && levelWaveIndex > 0` → `levelWaveIndex > 0` (de `gatedScroll &&`-helft was sinds
+  #1165 achterhaald en liet de niet-gated `else`-tak de cumulatieve kill-state mid-level wissen =
+  de "80x MISSED"-burst). test:run 1203 pass, build/lint groen.
+- 🐞→✅ **~1,5 maat in beeld, te weinig om vooruit te lezen.** `deriveLevelSpan` `visibleMeasures`
+  vloer 1 → 2 (`Math.max(2, …)`, zoals Hans eigen `idealVisibleMeasures`-regel). Bij Level 4's
+  0,7×-baseline (80→56) gaf de "~6 s in beeld"-formule maar 1 maat. §108-invariant blijft gelden.
+  Scherm-breedte-cap = follow-up (input nog niet zo diep doorgegeven). Commit `3decfcb` +
+  docs `020d1ce` (§354 "UAT bounce round 2").
+- 🐞 **NIEUW, HOGE PRIO — audiosync niet frame-perfect.** Han: "de noot valt niet EXACT tegelijk met
+  de metronoom-klik op de perfect-hit-mark (rode streep). Dit moet 100% frame-perfect zijn; de hele
+  app staat of valt bij audiosync." Nog niet onderzocht. Verdacht: `useLevelContentStream` schedulet
+  treble/bass/metronoom per blok op een geaccumuleerde seconden-cursor met per-blok `barSec(bpm)`;
+  een off-by-een-fractie tussen die cursor, de metronoom-tick-timeline en SheetRpgLayer's
+  `tempoScrollMs`/strike-positie kan een paar ms verschil geven. Eigen ticket + gerichte pass nodig.
+  Kan al vóór adaptive spelen (test op een gewoon niet-adaptief level of dit ook speelt).
+
+**Kanban-bord (localhost:5500) lag eruit** tijdens deze ronde — de volgende updates staan nog OPEN
+en moeten alsnog gebeuren zodra het bord terug is:
+- `POST /api/task/1102/reanalyzed` (needs_reanalysis stond aan van ronde 1) + `feedback/:id/address`
+  voor elk rework-item.
+- Impl-note op #1102 met bovenstaande + test/build/lint output; `#1102 → test`.
+- #1167 (timpani/cello mee met de chunks) — Han bevestigd "doe idd 1167", richting genoteerd; nog niet gedaan.
+- NIEUW ticket voor de audiosync-bug (hoge prio).
+
+**Nog te doen (concern C + audiosync):** #1167 timpani per-blok in `useLevelContentStream` op het
+adaptieve bpm (met behoud §867: eindig, valt stil met de muziek); cello-drift verifiëren (content
+wordt al per blok op het blok-bpm gescheduled — mogelijk alleen waargenomen timpani-drift). Daarna
+de frame-perfecte audiosync-bug. Beide vragen een Opus-pass (Sonnet/main deed ronde-2 concern A+B
+omdat Opus op de sessielimiet zat).
