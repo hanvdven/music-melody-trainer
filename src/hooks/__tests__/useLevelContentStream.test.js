@@ -6,6 +6,7 @@ import { blockMeasuresFor, blockTypeAt } from '../../levels/levelBlockPlan';
 import Scale from '../../model/Scale';
 import InstrumentSettings from '../../model/InstrumentSettings';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../../constants/timing';
+import buildTimpaniPattern from '../../utils/timpaniPattern';
 
 vi.mock('../../audio/playMelodies', () => ({ default: vi.fn(() => 0) }));
 import playMelodies from '../../audio/playMelodies';
@@ -43,6 +44,7 @@ const metronomeSettings = InstrumentSettings.defaultMetronomeInstrumentSettings(
 const wizardInstrument = { name: 'wizard-cast' };
 const bassInstrument = { name: 'cello' };
 const metronomeInstrument = { name: 'woodblock' };
+const timpaniInstrument = { name: 'timpani' };
 
 const ANCHOR = 10;   // levelAudioStart
 
@@ -77,6 +79,7 @@ function renderStream(lvl, overrides = {}) {
 const castCalls = () => playMelodies.mock.calls.filter((c) => c[1][0] === wizardInstrument);
 const bassCalls = () => playMelodies.mock.calls.filter((c) => c[1][0] === bassInstrument);
 const metronomeCalls = () => playMelodies.mock.calls.filter((c) => c[1][0] === metronomeInstrument);
+const timpaniCalls = () => playMelodies.mock.calls.filter((c) => c[1][0] === timpaniInstrument);
 
 /** Offsets of a growing Melody must be strictly non-decreasing and never rewritten. */
 const isAppendOnly = (prev, next) => {
@@ -478,4 +481,97 @@ describe('#1165 — every shipped level generates through the ONE pipeline witho
             handle.unmount();
         });
     }
+});
+
+// ── #1167 — TIMPANI, generated and scheduled WITH the chunks ─────────────────────────────────
+// Han 2026-08-29 (UAT of #1102): "Genereer de timpanen en cello gewoon mee met de chunks."
+// The timpani used to be ONE whole-level `playMelodies` call in App.jsx, fixed at the level's
+// STARTING tempo — so on an adaptive level (or any multi-block level whose bar duration is
+// re-derived per block) it drifted against the music. It now rides the stream's own per-block
+// cadence. Two properties must survive that move: the notes are byte-identical to Han's authorized
+// hardcoded pattern (§663), and it stays FINITE — falling silent with the music (§867).
+describe('#1167 — timpani is scheduled per block, on the same cursor as cello/metronome', () => {
+    const lvl = LEVELS[4];   // plain procedural side-scroll level: bpm 80, 4/4, 8 measures, B = 2
+    const withTimpani = { timpaniInstrument, timpaniVolume: 0.5 };
+
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('schedules one timpani chunk per block, at the SAME start time and bpm as that block', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(lvl, withTimpani);
+        act(() => { vi.advanceTimersByTime(60_000); });
+        const timp = timpaniCalls();
+        const met = metronomeCalls();
+        // One lead-in call + one per content block — exactly the metronome's own cadence.
+        expect(timp.length).toBe(met.length);
+        expect(timp.length).toBeGreaterThan(3);
+        // Index 0 is the LEAD-IN, where the two deliberately DON'T coincide: timpani sounds through
+        // every lead-in measure while only the metronome is staggered into the last `metronomeBars`
+        // (Han, §248: "alle opmaten cello+timpanen. de tweede helft (round up) + metronoom erbij").
+        // Every CONTENT block must share the cursor and the tempo exactly.
+        timp.slice(1).forEach((call, k) => {
+            expect(call[4]).toBeCloseTo(met[k + 1][4], 9);   // scheduledStart — the same cursor
+            expect(call[3]).toBe(met[k + 1][3]);             // bpm — the same tempo
+        });
+        expect(timp[0][3]).toBe(met[0][3]);                  // the lead-in still shares the tempo
+        unmount();
+    });
+
+    it('the lead-in chunk starts at the anchor and covers ALL leadInBars measures (§994)', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(lvl, withTimpani);
+        const [melodies, , , , scheduledStart] = timpaniCalls()[0];
+        expect(scheduledStart).toBeCloseTo(ANCHOR, 9);
+        // Han: "alle opmaten cello+timpanen" — no silent lead-in measure, so the slice starts at
+        // tick 0 and reaches into the last lead-in measure.
+        expect(Math.min(...melodies[0].offsets)).toBe(0);
+        expect(Math.max(...melodies[0].offsets)).toBeGreaterThanOrEqual((lvl.leadInBars - 1) * MLT);
+        unmount();
+    });
+
+    it('the scheduled chunks reassemble EXACTLY into Han\'s hardcoded whole-level pattern (§663/§108)', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(lvl, withTimpani);
+        act(() => { vi.advanceTimersByTime(60_000); });
+        const B = blockMeasuresFor(lvl);
+        // Rebuild the absolute-tick timeline from the chunks: the lead-in chunk covers pattern
+        // measures [0, leadInBars); block k covers [leadInBars + k*B, +B).
+        const rebuilt = [];
+        timpaniCalls().forEach(([melodies], k) => {
+            const startMeasure = k === 0 ? 0 : lvl.leadInBars + (k - 1) * B;
+            melodies[0].offsets.forEach((o, i) => {
+                rebuilt.push({ tick: startMeasure * MLT + o, note: melodies[0].notes[i] });
+            });
+        });
+        const full = buildTimpaniPattern(lvl.leadInBars + lvl.totalMeasures, lvl.timeSignature ?? timeSignature);
+        expect(rebuilt.map((e) => e.tick)).toEqual(full.offsets);
+        expect(rebuilt.map((e) => e.note)).toEqual(full.notes);
+        unmount();
+    });
+
+    it('is FINITE — it stops with the music and never loops forever (§867)', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(lvl, withTimpani);
+        act(() => { vi.advanceTimersByTime(120_000); });
+        const after = timpaniCalls().length;
+        act(() => { vi.advanceTimersByTime(120_000); });
+        expect(timpaniCalls().length).toBe(after);
+        unmount();
+    });
+
+    it('a GATED level gets NO timpani from this schedule — useLevelGatedRubatoAudio owns it (#1096)', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(LEVELS[3], withTimpani);
+        act(() => { vi.advanceTimersByTime(20_000); });
+        expect(timpaniCalls().length).toBe(0);
+        unmount();
+    });
+
+    it('a level with no melodic percussion schedules no timpani at all', () => {
+        vi.useFakeTimers();
+        const { unmount } = renderStream(lvl);   // timpaniInstrument defaults to null
+        act(() => { vi.advanceTimersByTime(60_000); });
+        expect(timpaniCalls().length).toBe(0);
+        unmount();
+    });
 });

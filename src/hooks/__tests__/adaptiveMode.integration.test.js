@@ -49,6 +49,7 @@ const metronomeSettings = InstrumentSettings.defaultMetronomeInstrumentSettings(
 const wizardInstrument = { name: 'wizard-cast' };
 const bassInstrument = { name: 'cello' };
 const metronomeInstrument = { name: 'woodblock' };
+const timpaniInstrument = { name: 'timpani' };
 
 const ANCHOR = 10;   // levelAudioStart, in AudioContext seconds
 // Module-level, never a per-render literal: `timeSignature` is in the stream effect's dependency
@@ -105,6 +106,10 @@ function mountAdaptiveLevel(lvl, statsRef) {
             wizardStopFnsRef,
             bassInstrument,
             metronomeInstrument,
+            // #1167: timpani rides the same per-block schedule now, so it is part of what
+            // "every track switches at the same measure" has to mean.
+            timpaniInstrument,
+            timpaniVolume: 1,
             backingStopFnsRef,
             bassReady: true,
             metronomeReady: true,
@@ -147,7 +152,7 @@ function mountSpiedStream(lvl, evaluate) {
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
         percussionScale, chordProgression: null, context, levelAudioStart: ANCHOR,
         wizardInstrument, wizardVolume: 1, wizardStopFnsRef,
-        bassInstrument, metronomeInstrument, backingStopFnsRef,
+        bassInstrument, metronomeInstrument, timpaniInstrument, timpaniVolume: 1, backingStopFnsRef,
         bassReady: true, metronomeReady: true, levelMelodyReady: true,
         adaptiveTempo, statsRef,
     }));
@@ -167,6 +172,7 @@ const callsFor = (instrument) => playMelodies.mock.calls.filter((c) => c[1][0] =
 /** Index 0 is the LEAD-IN; index k+1 is content block k. */
 const bassBlock = (k) => callsFor(bassInstrument)[k + 1];
 const metronomeBlock = (k) => callsFor(metronomeInstrument)[k + 1];
+const timpaniBlock = (k) => callsFor(timpaniInstrument)[k + 1];
 const castBlock = (k) => callsFor(wizardInstrument)[k];
 
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); });
@@ -300,6 +306,26 @@ describe('#1102 end-to-end — treble and bass/metronome switch at the SAME cont
         expect(commit.cast).toBe(commit.bass);
         expect(commit.bass).toBe(commit.metronome);
         expect(commit.bass).toBeGreaterThan(before.bass);
+        unmount();
+    });
+
+    // #1167 (Han 2026-08-29, "Genereer de timpanen en cello gewoon mee met de chunks"): the timpani
+    // used to be ONE whole-level schedule at the STARTING tempo, so it drifted against exactly the
+    // tempo change this describe block is about (§354 limitation 1). It is now a block of the same
+    // stream, which is the only thing that makes "every track, same measure, same value" complete.
+    it('the TIMPANI adopts the same tempo at the same block as cello and metronome', () => {
+        const lvl = applyLevelVariant(base, 'i', ANPM);
+        const statsRef = { current: stats() };
+        const { unmount, run } = mountAdaptiveLevel(lvl, statsRef);
+        statsRef.current = CLEAN;
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + 8 * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+
+        expect(timpaniBlock(2)[3]).toBe(bassBlock(2)[3]);       // before the commit — old tempo
+        expect(timpaniBlock(3)[3]).toBe(bassBlock(3)[3]);       // at the commit — the new one
+        expect(timpaniBlock(3)[3]).toBeGreaterThan(timpaniBlock(2)[3]);
+        // …and it rides the identical cursor, not a timeline of its own.
+        expect(timpaniBlock(3)[4]).toBeCloseTo(bassBlock(3)[4], 9);
         unmount();
     });
 

@@ -61,7 +61,6 @@ import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound, { resolveNotePitch } from './audio/playSound';
-import playMelodies from './audio/playMelodies';
 import { outputLatencySeconds } from './audio/audioOutputLatency';
 import { createMelodicInstrument } from './audio/localInstruments';
 import buildTimpaniPattern from './utils/timpaniPattern';
@@ -1598,61 +1597,33 @@ const App = () => {
         });
         setLevelAudioStart(anchor);
     }, [level.active, level.current, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, percussionSettings?.melodic, timpaniReady]);
-    const backingScheduledForRef = useRef(null);   // the levelAudioStart we already scheduled TIMPANI for
+    // The `levelAudioStart` this effect has already run for — one channel-volume setup and one stale-
+    // handle reset per anchor, never repeated on an unrelated re-render.
+    //
+    // #1167 (Han 2026-08-29, "Genereer de timpanen en cello gewoon mee met de chunks"): this effect
+    // ALSO used to fire the level's timpani as ONE whole-piece `playMelodies` call from measure -1, at
+    // the level's STARTING tempo. That call now lives in `useLevelContentStream` (see the long
+    // history/rationale comment there — §663's hardcoded-pattern authorization, §994's "alle opmaten
+    // cello+timpanen", and the #1052 → §867 → #1096 gated-level routing all moved with it), scheduled
+    // block by block at each block's own tempo like every other track. What stays here is what was
+    // never about timpani: the level's cello/metronome CHANNEL volumes, and dropping any stale audio
+    // handles from a previous level.
+    const backingScheduledForRef = useRef(null);
     useEffect(() => {
         const lvl = level.current;
         if (!level.active || !lvl?.sideScroll || levelAudioStart == null || !context) return;
-        if (backingScheduledForRef.current === levelAudioStart) return;   // already scheduled this anchor
+        if (backingScheduledForRef.current === levelAudioStart) return;   // already set up for this anchor
         if (!bassReady || !metronomeReady) return;
-        // Bug fix (Han 2026-08-10, "die twee mogen nooit onafhankelijk beginnen"): timpani must never
-        // schedule ahead of/independent from the treble melody either — same explicit gate as
-        // useLevelContentStream.js's own redundant-by-design readiness gate (#1165).
-        if (!levelMelodyReady) return;
-        // Wait for the dedicated timpani Soundfont too when percussion is melodic — scheduling before
-        // it's ready would silently skip it for the whole level session (backingScheduledForRef locks
-        // in). Bug fix (Han 2026-08-20): checked via `timpaniReady` (a top-level const, in this effect's
-        // dependency array below) — NOT `timpaniRef.current` read directly here, which never triggers a
-        // re-run when the ref's value changes and could permanently skip timpani for the whole session.
-        if (percussionSettings?.melodic && !timpaniReady) return;
         backingScheduledForRef.current = levelAudioStart;
         levelBackingStopFnsRef.current = [];   // fresh schedule — drop any stale handles from a prior level
-        const bpm = lvl.bpm || 80;
         // #992 — rpgMusicMultiplier applied on top of the resolved value, not replacing it (relative-
         // to-default semantics, see its own comment above); == 1.0 at the shipped default.
         const bassVolume = resolveLevelVolume(lvl, 'bass', LEVEL_BASS_VOLUME) * rpgMusicMultiplier;
         const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_METRONOME_VOLUME) * rpgMusicMultiplier;
-        const percussionVolume = resolveLevelVolume(lvl, 'percussion', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier;
         setVolume('bass', bassVolume);
         setVolume('metronome', metronomeVolume);
-
-        // #663 (Han 2026-08-03, "hard code de timpani voor nu"): timpani stays the ONE Han-authorized
-        // hardcoded pattern, scheduled ONCE for the whole piece (lead-in + content) from measure -1 —
-        // unlike bass/metronome below, which are now JIT-generated block by block (useLevelContentStream)
-        // to fix the desync/measure-0-only/inaudible-cello bugs. Timpani never had those bugs (it isn't
-        // racing an async instrument swap or a regenerated melody), so it needs no change in kind.
-        // #1052 (Han 2026-08-17) originally excluded gated-scroll levels here ("no fixed tempo to click
-        // to") — REVERTED by #867 rework (Han 2026-08-20: "ik dacht voor gated scroll gezegd te hebben wel
-        // timpanen, geen metronoom", confirmed "A niet B" at the time — timpani plays for gated levels
-        // too via this one-shot fixed-real-time schedule). SUPERSEDED again by #1096 (same day, later):
-        // Han asked for gated timpani to wait for the GATE instead of any fixed clock ("timpaan tel 3,
-        // wacht rustig tot tel 3 komt") — `useLevelGatedRubatoAudio.js` now triggers gated timpani in
-        // real time instead, so this one-shot call is excluded for gated levels again, for a DIFFERENT
-        // reason than #1052's original exclusion (routing to a different mechanism, not silencing it).
-        if (percussionSettings?.melodic && timpaniReady && timpaniMelody && !lvl.gatedScroll) {
-            playMelodies(
-                [timpaniMelody], [timpaniRef.current],
-                // #1186: `levelAudioStart` is a "heard at" time (it is the visual clock's own t=0), so
-                // the schedule is issued `outputLatency` earlier — the identical correction
-                // useLevelContentStream's `scheduleInto` applies to cello/metronome/cast, so timpani
-                // cannot drift away from the tracks it plays under. See audioOutputLatency.js.
-                context, bpm, levelAudioStart - outputLatencySeconds(context),
-                null, null, { ...instruments, percussion: timpaniRef.current }, null,
-                { treble: 0, bass: 0, percussion: percussionVolume, chords: 0, metronome: 0 },
-                levelBackingStopFnsRef,
-            );
-        }
-    }, [level.active, level.current, levelAudioStart, context, instruments, bassReady, metronomeReady,
-        levelMelodyReady, setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature, timpaniMelody, timpaniReady, rpgMusicMultiplier]);
+    }, [level.active, level.current, levelAudioStart, context, bassReady, metronomeReady,
+        setVolume, LEVEL_BASS_VOLUME, LEVEL_METRONOME_VOLUME, rpgMusicMultiplier]);
 
     // #688 (Han 2026-08-04, Level 9 rework: "ik hoor te veel tonen. lijkt of er meerdere melodieën
     // gegenereerd zijn" + "ik verwacht een soepele aangesloten reeks maten... alle 10 maten naadloos"):
@@ -1760,6 +1731,13 @@ const App = () => {
         // `celloRef` Soundfont, never `instruments.bass`.
         bassInstrument: celloRef.current,
         metronomeInstrument: instruments.metronome,
+        // #1167 (Han 2026-08-29, "Genereer de timpanen en cello gewoon mee met de chunks"): timpani is
+        // scheduled block by block by the stream now, at each block's own (possibly adaptive) tempo —
+        // it used to be one whole-level `playMelodies` call in App.jsx, fixed at the STARTING tempo.
+        // Same "melodic percussion or nothing" gate `useLevelGatedRubatoAudio` below already uses, so
+        // a level's timpani routing is decided in exactly one place.
+        timpaniInstrument: percussionSettings?.melodic ? timpaniRef.current : null,
+        timpaniVolume: level.current ? resolveLevelVolume(level.current, 'percussion', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier : 1,
         backingStopFnsRef: levelBackingStopFnsRef,
         bassReady,
         metronomeReady,
