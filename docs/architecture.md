@@ -23406,6 +23406,85 @@ generated), `scripts/render-font-atlas.mjs` (`EXTRA_ROWS`, per-font row count),
 `src/assets/fonts/pixel_fonts/SandyForest.ttf` (114 → 115 glyphs), `package.json` /
 `package-lock.json` (`opentype.js` devDependency), `docs/font-atlas.png` (regenerated).
 
+### §352. World "Scales" view — an icon gallery of every scale, grouped family × mode (Han 2026-08-29)
+
+**Purpose:** A browsable overview of every scale the app knows, as a grid of ability-art icons —
+one row per scale family, the mode (I–VII) as the column for the 5 genuinely-modal families
+(Diatonic, Melodic, Harmonic Major, Harmonic Minor, Double Harmonic). Each modal icon carries its
+white Roman numeral (the CelticTime `Ⅰ–Ⅶ` pixel glyphs from §351). Clicking a cell frames it and
+shows the scale's name + details. Sits in the world nav between **Bestiary** and **RPG Level**.
+
+**How it works — data pipeline (`scripts/build-scale-icon-map.mjs`, not in the build):**
+- Han authored `src/assets/ASSET DROP/ability icons/Animals-Icons-scalesl.csv` — `Name` (the animal
+  an icon depicts), `Class`, `Scle` (scale code / literal name / blank), `class-id`, `set`,
+  `set-id`, `subset`. Icon file: `set-id = class-id + (subset−1)·50`; sets 1–10 →
+  `Ability_icons{set}_{id2}.png`, sets 11–15 → `Ability_icon_{set}_{id2}.png` (2-digit padded).
+- The script parses `scaleDefinitions` out of `scaleHandler.js` (67 scales), keeps Han's 12
+  hand-assignments, and fills the other 55 so **every scale gets exactly one icon** (animal ↔ scale
+  is a rough thematic guess — "doe maar gewoon een gok").
+- **Colour by HEPTA REF** (Han 2026-08-29 rounds 3–6): a scale's colour is determined *only* by
+  its parent diatonic mode (`diatonic` field), Ionian I → Locrian VII. Each degree maps to a
+  **5-shade class palette** sampled from `…/ability icons/Color_palette{,2,3}.png` (the class names
+  are just palette labels): I Paladin · II Warrior · III Hydrosophist · IV Hunter · V Priest ·
+  VI Aerotheurge · VII Occultist (r6 swapped II off Geomancer and VII off Warlock — too close to
+  their neighbours). The script **re-colours every icon PNG** into its class palette: each opaque
+  pixel's luminance is stretched across the icon's own min–max range and quantised to one of the
+  5 shades (`recolourIcon`), so the grid is colour-grouped by the art itself — no borders or
+  legend. `CLASS_PALETTES` also carries the unused palettes (Geomancer, Warlock, Witch); ALL of
+  them are emitted to `src/styles/classPalettes.generated.css` as `--class-<name>-<0..4>`
+  (lightest → darkest) for reuse elsewhere.
+- **Row order** (Han): Pentatonic, Hexatonic, Diatonic, Melodic, Harmonic Minor, Harmonic Major,
+  Double Harmonic, Other Heptatonic, Supertonic. The 4 non-modal families' scales are ordered by
+  hepta ref (Ionian left → Locrian right); the 5 modal families stay in mode order I–VII.
+- Outputs: the enriched CSV (+`scale-family,hepta-class,scale-colour,by,icon-file`, 2 spare rows);
+  `src/assets/scale-icons/{scale-code}_{animal}.png` (67 renamed copies of the used icons — the
+  ASSET DROP originals are left untouched); and `src/theory/scaleIconMap.generated.js`
+  (`SCALE_ICON_MAP` keyed `"family|name"` with `heptaNum/heptaRoman/heptaClass/colour`,
+  `SCALE_FAMILY_ORDER`, `SCALE_HEPTA_REF`). Idempotent (re-reads only the first 7 CSV columns,
+  rebuilds the rest; `ASSIGN` in the script — not the CSV — is authoritative for the fill).
+
+**Runtime:** `src/theory/scaleIcons.js` resolves the generated map to hashed asset URLs via
+`import.meta.glob('../assets/scale-icons/*.png', …)` and exposes `getScaleIcon(family, name)` +
+`buildScaleGrid()` (9 rows; modal rows are exactly 7 cells indexed by mode−1, non-modal rows one
+cell per scale). `src/components/character/ScalesPanel.jsx` renders `ScalesTopPanel` and
+`ScalesBottomPanel` (selected scale's family / parent mode / animal / intervals). Layout per Han's
+spec: a **9-column, borderless 32×32 grid** — each icon is 32 game-pixels drawn at `32·worldScale`
+screen-px (`imageRendering: pixelated`); every dimension is an integer multiple of `worldScale`, so
+the whole grid is gpx-perfect (no fractional transforms). No cell borders/frames/gaps/background —
+the re-coloured art carries the colour, so no legend. The white pixel-font Roman numeral (`Ⅰ–Ⅶ`,
+U+2160, no drop shadow) sits 2 gpx in from the modal icon's bottom-left corner at
+`fontSize 16·worldScale`; **row (family) names also scale with the game pixel** (`8·worldScale`) —
+both in `'BestiaryPixel'` (native 16px → 1 font-design-px == 1 game-pixel). The selected cell gets
+a `worldScale`-px inset `--accent-yellow` outline (pixel-perfect, no layout shift). `debugMode`
+adds the §3a hit-box as a thin outline only (no fill wash). Selection state (`selectedScale`) lives in `App.jsx`
+and is threaded to both panels (same pattern as `bestiaryEditor`). The new
+`characterScreen === 'scales'` slots into `AvatarSubHeader`'s shared `SCREENS` list (so
+`WorldNavBar` picks it up automatically), using the `WheelIcon` from `CustomIcons.jsx` — the same
+glyph the classic scale selector's WHEEL toggle uses (§6d).
+
+**Invariants:**
+- `NAV_ICON_COUNT` in `src/utils/worldLayout.js` MUST equal the number of buttons `WorldNavBar`
+  renders (now 9 = 6 screens + start/debug/music-view). Adding/removing a `SCREENS` entry means
+  bumping it (this feature bumped 8 → 9).
+- `scaleIconMap.generated.js`, `src/assets/scale-icons/*.png` (re-coloured) and
+  `src/styles/classPalettes.generated.css` are ALL generated — never hand-edit; change the CSV (or
+  the script's `ASSIGN` / `CLASS_PALETTES`) and re-run `node scripts/build-scale-icon-map.mjs`.
+- `SCALE_ICON_MAP` must cover every scale in `scaleHandler.js` exactly once (the script throws
+  otherwise; `scaleIcons.test.js` guards it).
+- Roman numerals over icons are the real `Ⅰ–Ⅶ` U+2160 codepoints in `'BestiaryPixel'` — text, not
+  a notation font (§1a).
+
+**Files:** `scripts/build-scale-icon-map.mjs` (CSV enrich + icon re-colour + generated map + CSS),
+`src/theory/scaleIconMap.generated.js` (new, generated), `src/theory/scaleIcons.js` (new),
+`src/styles/classPalettes.generated.css` (new, generated), `src/components/character/ScalesPanel.jsx`
+(new), `src/assets/scale-icons/*.png` (67 new, re-coloured),
+`src/assets/ASSET DROP/ability icons/Animals-Icons-scalesl.csv` (enriched),
+`src/components/layout/AvatarSubHeader.jsx` (`scales` screen + `ScalesIcon`),
+`src/components/layout/WorldNavBar.jsx` (comment), `src/components/layout/TabView.jsx`
+(`ScalesBottomPanel` branch + `selectedScale` prop), `src/App.jsx` (`selectedScale` state,
+`ScalesTopPanel` render, `TabView` prop, `classPalettes.generated.css` import),
+`src/utils/worldLayout.js` (`NAV_ICON_COUNT` 8 → 9), `src/theory/__tests__/scaleIcons.test.js` (new).
+
 ### §353. `levels.json` ramp levels: `numMeasures` 8 → 2 — the content-granularity migration (#1166 / #1163c, Han 2026-08-29)
 
 **Purpose / Symptom.** §350 merged five content mechanisms into ONE per-block stream *without*
@@ -23548,6 +23627,60 @@ Both halves of that bounce are now closed:
 
 ---
 
+#### UAT bounce round 2 (Han 2026-08-29) — the level-end regression + readability floor
+
+Han played Level 4 + `i`: *"de bpm stijgt idd — precies wat ik wil"*, but *"na de eindstreep krijg
+ik een reeks MISSES en het resultaatscherm komt nooit"*, and *"maar ~1,5 maat in beeld — te weinig
+om vooruit te lezen."* Two fixes, both landed on top of the wiring above.
+
+**A — the level never ended (the §289 class, 3rd occurrence).** This was a **#1165 regression that
+#1102's ×3 exposed** (it also affects #1166's converted 4-wave ramp levels, independent of
+adaptive). After #1165 merged all five content mechanisms into one append-only per-level stream, a
+"wave clear" has exactly ONE trigger in the whole app: SheetRpgLayer's `killedCount >= total`, and
+**both sides are now whole-song cumulative** — `total` is `slimeData.length` over the one growing
+melody, `killedCount` never resets. The stream always has unresolved published slimes in flight
+(it generates `lookaheadMeasures + B` ahead of the strike line), so the two sides can meet only
+ONCE, after the last block's last slime resolves. With `wavesForLevel` still returning 4 (ramp) or
+12 (×3 adaptive), `onWaveCleared` bumped `wave` 0→1 at that one event and then waited forever:
+`pendingSongEndRef` never got set, and by the time the final barline crossed the strike `onSongEnd`
+fired into a false-`pendingSongEndRef` no-op and latched `songEndFiredRef` — `done` unreachable.
+
+- **`wavesForLevel` → `() => 1`, unconditionally.** One continuous stream per level ⇒ one clear
+  event per level ⇒ one wave, whatever the chunk shape. `isJitTrebleLevel` is **deleted** (its only
+  caller was `wavesForLevel`'s branch; #1101's gated-only qualifier is obsolete now every level is
+  that shape). Retained-history comments kept per §4. This retires #1163c's *"combat stays keyed to
+  the chunk boundary"* identity — but that identity described a per-wave clear event the same merge
+  had already removed. `wave` / `totalWaves` are never displayed (the splash counts
+  `totalEnemies` / `defeated`); `wave`'s only readers are SheetRpgLayer's own "did combat advance"
+  signals. Non-sideScroll static levels (101/107/112) are fixed by the same change for the same
+  reason — one synchronous generation pass ⇒ one clear ⇒ `next >= tw` (the branch that calls
+  `setDone` for them) is now reached.
+- **SheetRpgLayer wave-reset effect:** condition `gatedScroll && levelWaveIndex > 0` →
+  `levelWaveIndex > 0`. The `gatedScroll &&` half encoded *"only a gated level's content is one
+  continuous stream"* — obsolete since #1165. Without dropping it, the non-gated `else` branch wiped
+  cumulative `killedCount` / `killedSet` / `judgments` mid-level on any multi-wave level,
+  resurrecting every already-hit slime — the "80x MISSED" burst re-entering through the branch built
+  to prevent it. The `else` branch is now exactly one thing (the level's own start, wave 0) and is
+  kept, not deleted, so a cumulative-combat-state wipe stays unreachable by accident if a future
+  model ever re-introduces real waves.
+
+**B — readability floor.** `deriveLevelSpan`'s `visibleMeasures` floor **1 → 2** (`Math.max(2, …)`).
+At Level 4's 0.7× baseline (80 → 56) the *"~6 s of on-screen time"* formula yielded
+`roundHalfDown(6/4) = 1` measure — too little to read ahead on a narrow screen even though the TIME
+was right. Matches the floor in Han's own classic-mode `idealVisibleMeasures` rule (BACKLOG.md,
+`Math.max(2, …)`). The §108 invariant (`beatsOnScreen · TICKS_PER_BEAT === leadInBars ·
+measureLengthTicks`) holds for any integer `visibleMeasures`, so raising the floor is safe. A
+screen-width cap (Han's rule also does `round((width − 70) / 120)`) is a **follow-up** — that input
+isn't threaded down to `deriveLevelSpan` yet. Consequence to note: a slow speed-variant (`b` = 0.5×)
+on a level whose base already sits at 2 visible measures no longer shrinks the window below 2; the
+`levelVariants` "span is recomputed, not stale" test was rewritten to assert *recomputed* rather
+than *differs*.
+
+**Still open after round 2:** limitation 1 (timpani one-shot not re-rated) is now its own ticket
+**#1167** — Han's direction: *"genereer de timpanen en cello gewoon mee met de chunks."*
+
+---
+
 #### Picker and level application (`levels.js`)
 
 `LEVEL_MODE_VARIANTS.i` carries `adaptive: true` (icon `adaptiveSpeed`).
@@ -23648,10 +23781,12 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
 
 #### INVARIANTS
 
-- **The level always ENDS.** `blockCountFor` stays finite for a non-gated level (the repeat only
-  multiplies it), and `wavesForLevel` scales with it, so `onWaveCleared` still reaches its target and
-  `pendingSongEndRef` → `onSongEnd` still fires exactly once. A gated level keeps `wavesForLevel === 1`
-  and simply runs 3× longer before its (3× further out) final barline crosses the strike line.
+- **The level always ENDS.** `wavesForLevel` is now `1` for **every** level (see "UAT bounce round 2"
+  below): there is exactly one combat-clear event per level — SheetRpgLayer's `killedCount >= total`,
+  both whole-song-cumulative — so `onWaveCleared` arms `pendingSongEndRef` on that single event and
+  `onSongEnd` fires once when the (3× further out) final barline crosses the strike line.
+  `blockCountFor` still multiplies by 3 for GENERATION cadence; the combat wave count no longer
+  follows it.
 - **Never applied retroactively.** A decision taken while generating block `k` can only affect a
   block at index `>= commitIndexFor(...)`; content already generated and scheduled is never re-rated.
 - **Spatial layout is FIXED for the whole level** — `beatsOnScreen`, `dist`, `scrollPPT`,
@@ -23687,7 +23822,9 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
    accumulated error.
 4. **A faster adapted tempo means less on-screen TIME, not more notes on screen** — `beatsOnScreen`
    stays fixed at the baseline value. That is the intended "only the rate varies" behaviour, but it
-   is worth confirming it feels right.
+   is worth confirming it feels right. (Round 2 raised the `deriveLevelSpan` floor to 2 visible
+   measures so the *baseline* itself is never narrower than that; a screen-width cap is still a
+   follow-up.)
 5. **Song-backed levels get the baseline but effectively no live adaptation.** Their
    `blockMeasuresFor` is the whole song (`numMeasures` was never migrated to the #1163 "chunk size"
    model for songs), so `blockCountFor` is 1 and the decider runs once — a seed, never a decision.
