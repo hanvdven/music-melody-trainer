@@ -8,7 +8,7 @@ import { runFlyInCascade, MORPH_MS } from '../utils/flyInCascade';
 // detecting a surface-kind change and resolving which SVG groups are the OLD vs NEW.
 //
 // `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'color' | 'instrument' | 'legacy' |
-// 'playback' | 'generation' | 'generation-advanced' | 'melody'.
+// 'playback' | 'generation' | 'generation-advanced' | 'exercise' | 'levelResult' | 'melody'.
 export { MORPH_MS };
 
 // Resolve the SVG group(s) for a given overlay kind, as an ARRAY (clef mode shows the clef
@@ -38,6 +38,10 @@ const groupsForKind = (svg, kind) => {
   if (kind === 'generation-advanced') return [svg.querySelector('.generation-advanced-overlay')].filter(Boolean);
   // Exercise selector (#266, Han 2026-07-02) — single group, mirrors colour/instrument.
   if (kind === 'exercise') return [svg.querySelector('.exercise-overlay')].filter(Boolean);
+  // #867/#1096 rework (Han 2026-08-20, "gebruik exact de settings overlay logica... veel
+  // cleaner"): the level-result view joins this SAME morph family instead of its own bespoke
+  // covering-rect — single group, mirrors colour/instrument (no sibling chord row).
+  if (kind === 'levelResult') return [svg.querySelector('.level-result-overlay')].filter(Boolean);
   return [];
 };
 

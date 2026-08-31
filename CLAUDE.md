@@ -48,6 +48,15 @@ record it as a short entry in `IMPLEMENTATION_PLAN.md` (the running scratch-plan
 (✅ done · 🔨 in progress · ⏳ backlog · 🐞 bug). BACKLOG.md remains the user's
 source-of-truth feature text; `IMPLEMENTATION_PLAN.md` is the live working plan.
 
+**Terminology: "world" vs "LEVEL" (Han 2026-08-27).** **world** = the RPG world
+with the walkable character, NPCs, scenery, foliage, ambient life (code:
+`RpgLevelPanel` / `characterScreen === 'rpg-level'`). **LEVEL** = a *music* level
+where the player reads/plays notes and fights slimes (code: the level flow +
+`SheetRpgLayer`). The world is the app's shell/home; entering a LEVEL (or the
+classic "music mode" view) may temporarily offload the world; on LEVEL exit the
+app returns to the world. Never use "level" to mean the world, or "world" to mean
+a music level.
+
 **TEXT never uses the Maestro font (Han 2026-08-02).** Maestro is the MUSIC
 NOTATION font (noteheads, clefs, rests, accidentals) — it is NOT a text font and
 must never be applied to plain words/labels (judgment labels, chart labels, UI
@@ -435,6 +444,11 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
 - **E033-LDTK-TILE-IMAGE-LOAD** — one tileset image referenced by an LDtk tile bucket failed to load
   (`ldtkTileCompositing.js`, shared by `LdtkScenery.jsx` and `useLdtkLitGroundTextures.js`); that tileset's
   tiles are just skipped by the composite rather than failing the whole layer
+- **E034-FRAME-LOOP-SUBSCRIBER** — a subscriber callback registered via the shared `useFrameLoop` ticker
+  (`src/hooks/useFrameLoop.js`) threw during a tick; caught per-subscriber so one failing subscriber can
+  never stop `requestAnimationFrame` from being re-requested for the OTHER subscribers sharing the same
+  ticker — same "one bad frame doesn't permanently freeze everything" pattern as E023-FOLIAGE-DRAW-FRAME
+  and E028-SHEETRPG-IMPERATIVE-FRAME, generalized across every subsystem now sharing one rAF loop
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

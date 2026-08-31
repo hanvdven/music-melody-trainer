@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 // #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
@@ -11,6 +11,8 @@ import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalM
 import WorkerNpc from './WorkerNpc';
 import useWorkerNpcAudio from '../../hooks/useWorkerNpcAudio';
 import useWorkerHitState from '../../hooks/useWorkerHitState';
+import useFrameLoop from '../../hooks/useFrameLoop';
+import { WORKER_SOUND_CONFIG } from '../../model/workerSoundConfig';
 import { LEVEL_MIN_X, LEVEL_MAX_X } from '../../hooks/useRpgLevelState';
 import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
 import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
@@ -20,7 +22,8 @@ import WaterReflectionLayer from './WaterReflectionLayer';
 import useLdtkWaterInstances from './useLdtkWaterInstances';
 import LdtkScenery from './LdtkScenery';
 import LdtkAnimatedTiles from './LdtkAnimatedTiles';
-import useLdtkFoliageInstances from './useLdtkFoliageInstances';
+import useLdtkFoliageAtlas from './useLdtkFoliageAtlas';
+import FoliageInstancingTest from './FoliageInstancingTest';
 import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
 import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, WATER_STAND_HEIGHT_PX, WATER_REFLECTION_AXIS_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH, groundHeightAt, reflectableTilesFor } from '../../levels/ldtk/ldtkWorld';
 import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
@@ -63,6 +66,10 @@ import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background 
 const TILE = 32;
 const ZOOM = 3;
 const T = TILE * ZOOM;
+// Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): hoisted to module scope so
+// `useCulledAnimatedTiles` below (a module-level helper hook, needs it at definition time) and the
+// component's own cull margin stay the exact same value — see that hook's own comment for the full story.
+const CULL_MARGIN_PX = 400;
 
 // #693 (Han round 2, "gebruik voor het gras: floor tiles 2. onderverdeel in 16x16 (was 32x32) en pak tiles
 // (2,3,4,5; 8,9,10,11) in willekeurige volgorde"): Floor Tiles2.png is the SAME 288×576 sheet as Floor
@@ -158,6 +165,13 @@ const GRASS_TUFT_SPACING = FLOOR_TILE * 3;
 // marker. TREE_X/TENT_X stay hand-tuned: they're legacy-scenery-only positions (no Tree/Tent entity exists
 // in the file), used only when `sceneryMode === 'Legacy'`.
 const NPC_X = ENTITY_WORLD_X.Wisp ?? -140;
+// #UI-overhaul (Han 2026-08-27): the ONE correct Wisp sprite — same file RpgLevelBottomPanel's dialogue
+// portrait resolves (`wispUrl` there). Kept as a literal string on both sides (the bestiary manifest
+// resolves this exact `public/` path to a variant `url`).
+const WISP_URL = '/ASSORTED/characters/animals/pets/Pet companion/Wisp.png';
+// #UI-overhaul (Han 2026-08-27, "clickzone moet 16x16 zijn"): the wisp/slime interaction hit box, in
+// game px.
+const HIT_ZONE_GPX = 16;
 const TREE_X = -220;
 const TENT_X = 220;
 // #141 round 10 (Han, NL: "om te testen, zet een paar kisten (linker boven cell (32x32) van decor.png) op
@@ -312,13 +326,13 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 
 // #1093 (Han 2026-08-20, open-world worker NPCs): a MODULE-level component (not defined inline inside
 // RpgLevelPanel's render body, unlike the local `EntityReflection` below) — `useWorkerHitState` holds
-// real state (hitActive) across renders; a function redefined every render would give React a new
+// real state (active/idle) across renders; a function redefined every render would give React a new
 // component identity each time and force-remount this, silently resetting the hit/idle state machine on
 // every RpgLevelPanel re-render. `EntityReflection` (which has no state of its own) is passed in as a
 // prop specifically so this can still use the parent's ponds-aware reflection logic without needing to
 // live inside the parent's closure itself.
-function WorkerNpcSlot({ variant, hitConfig, petFrame, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX }) {
-    const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell, worldX, getListenerX);
+function WorkerNpcSlot({ variant, hitConfig, petFrame, timeSignature, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX }) {
+    const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, timeSignature, context, triggerBell, worldX, getListenerX);
     if (!variant || !anim) return null;
     return (
         <>
@@ -481,15 +495,39 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
     // #924 round 2 (Han: "vogel en butterfly gaan veel te snel, verlaag snelheid naar 20% (dus -80%)").
     const WANDER_SPEED = 0.6 * 0.2;
 
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328) —
+    // each WorldWanderer instance (birds/critters, several mounted concurrently) used to run its OWN
+    // independent rAF chain; now they all dispatch off one shared ticker. The one-time init (reset
+    // posRef/stateRef/etc. on mount or when spawn/range/etc. change) and the extra unmount cleanup
+    // (release bird registry entry + slot claim) stay in a plain `useEffect` with the SAME deps — only the
+    // requestAnimationFrame/cancelAnimationFrame mechanics moved to `useFrameLoop`.
     useEffect(() => {
         if (!variant) return undefined;
-        let raf;
         posRef.current = { x: spawnX, y: spawnY };
         stateRef.current = 'wander';
         perchedRef.current = false;
         perchTargetRef.current = { x: spawnX, y: spawnY };
         claimedSlotIndexRef.current = null;
-        const tick = () => {
+        return () => {
+            // #1162 Fase 8: `birdPositionsRef`/`birdSlotClaimsRef` are long-lived shared registries owned by
+            // RpgLevelPanel (not DOM refs), so their `.current` container identity is stable for the whole
+            // level's lifetime — the exhaustive-deps "ref value may have changed by cleanup time" warning
+            // doesn't apply here (that check is aimed at DOM refs nulled on unmount).
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            if (isBird && birdPositionsRef) birdPositionsRef.current.delete(birdId);
+            // #1092: release a held slot claim on unmount too, or it would stay permanently locked
+            // (e.g. the level closing while this bird happened to be perched).
+            if (claimedSlotIndexRef.current != null && birdSlotClaimsRef) {
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+                birdSlotClaimsRef.current.delete(claimedSlotIndexRef.current);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom]);
+
+    useFrameLoop(() => {
+        if (!variant) return;
+        {
             const now = performance.now();
             if (swim && waterSpan) {
                 const dt = 1 / 60;   // rAF-driven, near-enough-constant step at this very low speed
@@ -576,20 +614,9 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
             // (owned by RpgLevelPanel, read by useWorldAmbientMusic) so bird-audio visibility/panning can
             // track the SAME position the sprite itself renders at, not just its static spawn point.
             if (isBird && birdPositionsRef) birdPositionsRef.current.set(birdId, posRef.current.x);
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => {
-            cancelAnimationFrame(raf);
-            if (isBird && birdPositionsRef) birdPositionsRef.current.delete(birdId);
-            // #1092: release a held slot claim on unmount too, or it would stay permanently locked
-            // (e.g. the level closing while this bird happened to be perched).
-            if (claimedSlotIndexRef.current != null && birdSlotClaimsRef) {
-                birdSlotClaimsRef.current.delete(claimedSlotIndexRef.current);
-            }
-        };
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom]);
+    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom], { priority: 'critical' });
 
     if (!variant) return null;
     return (
@@ -685,7 +712,339 @@ function EdgeHoldZone({ side, widthPx, onHoldStart, onHoldEnd }) {
     );
 }
 
-export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, onGenerateVoice, rpgMusicVolumeMultiplier = 1 }) {
+// Perf (#1162, Fase 3, Han 2026-08-27, "nog steeds drops to 41fps... wat kun je nog voor perf opt
+// bedenken?"): Fase 1/2 made every entity's OWN positioning stable during a pure camera pan (local
+// position helpers + the imperative `entityScrollRef` transform), but `RpgLevelPanel` itself still had to
+// re-run its ENTIRE ~2000-line render body every panning frame (its own `cameraX` state forces that,
+// unavoidably) — which means React still had to construct a fresh JSX element tree for ALL of this
+// content every frame, even though the CHILDREN would ultimately memo-skip their own deeper work.
+// Constructing that many `jsx()`/`createElement()` calls is real, measured cost (see docs/architecture.md
+// §318's very first profile, where `jsxDEV`/`createElement` alone was ~46% of sampled time) — `React.memo`
+// only ever skips a re-render once the RECONCILER reaches a component and compares its props; it never
+// stops the PARENT from building the element descriptors for its children in the first place. Extracting
+// this whole block into its own component lets THIS memo boundary actually apply: `RpgLevelPanel`'s own
+// panning-frame render now does ONE cheap `<EntityLayer {...props}/>` call instead of constructing Wisp/
+// Slime/6 workers/critters/hero/pet's whole subtree inline every single frame. All of EntityLayer's props
+// are already stable during a pure pan (per Fase 1/2's own work) or are refs/module-level values, so this
+// memo genuinely hits. `EntityReflection` stays a closure PASSED IN (defined in `RpgLevelPanel`, depends on
+// `waterPonds`/`foliageParams` — same convention `WorkerNpcSlot` already uses for it).
+// #UI-overhaul (Han 2026-08-27): a fixed HIT_ZONE_GPX × HIT_ZONE_GPX click target for a talkable
+// entity, replacing "click anywhere on the whole (mostly-transparent) sprite box". Anchored the SAME
+// way the sprite anchors: bottom-centre on the ground point for a grounded entity, centre-on-the-hover
+// (one tile up, matching WorldCreature's `hoverPx = TILE * zoom`) for a flying one. Visible as an
+// orange overlay in debug mode (CLAUDE.md §3a). `zIndex` above the sprite so it always catches the tap.
+function EntityHitZone({ screenX, standAnchor, zoom, flying, onClick, debugMode }) {
+    const s = HIT_ZONE_GPX * zoom;
+    const bottom = flying ? standAnchor + (TILE - HIT_ZONE_GPX / 2) * zoom : standAnchor;
+    return (
+        <div
+            onClick={onClick}
+            style={{
+                position: 'absolute', left: screenX, bottom, width: s, height: s,
+                transform: 'translateX(-50%)', cursor: 'pointer', zIndex: 6,
+                ...(debugMode ? { background: 'rgba(255,140,0,0.35)', outline: '1px solid orange' } : null),
+            }}
+        />
+    );
+}
+
+const EntityLayer = React.memo(function EntityLayer({
+    entityScrollRef, wispVariant, wispFlying, debugMode, clickNpc, worldToScreenXLocal, standAnchorFor, petFrame, zoom,
+    EntityReflection, sceneryMode, clickSlime, workerNpcs, timeSignature, context, workerNpcAudio,
+    playerXRef, critterWanderers, foliageParams, birdPositionsRef, birdSlots, birdSlotClaimsRef,
+    char, noPetChar, moving, running, walkAnim, runAnim, idleAnim, walkFrame, facing, playerX,
+    petUrl, petVariant, petX, petMoving,
+}) {
+    return (
+        <div ref={entityScrollRef} style={{ position: 'absolute', inset: 0 }}>
+            {/* Whisp NPC — "zet de whisp NPC neer... als ik erop klik loopt personage erheen, en verschijnt
+                een tekstballon". Same classified Wisp creature the Bestiary tab uses (§6d — one asset/one
+                classification, two render contexts), fixed in the world — it has no 'move' animation
+                (never walks itself) so `WorldCreature` falls back to its 'idle'. stopPropagation so
+                clicking it doesn't ALSO walk-to-tap-point on top of walk-to-NPC. */}
+            {wispVariant && (
+                <>
+                    <div style={{ position: 'absolute', left: worldToScreenXLocal(NPC_X), bottom: standAnchorFor(NPC_X), transform: 'translateX(-50%)' }}>
+                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
+                    </div>
+                    <EntityHitZone
+                        screenX={worldToScreenXLocal(NPC_X)} standAnchor={standAnchorFor(NPC_X)} zoom={zoom}
+                        flying={wispFlying} debugMode={debugMode}
+                        onClick={(e) => { e.stopPropagation(); clickNpc(); }}
+                    />
+                    {/* #1032: a SIBLING, never nested inside the entity's own `transform`-ed wrapper above
+                        — CSS makes a transformed element a new containing block for `position:absolute`
+                        descendants, which would silently break this reflection's own left/bottom math. */}
+                    <EntityReflection worldX={NPC_X}>
+                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
+                    </EntityReflection>
+                </>
+            )}
+
+            {/* Slime — #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"):
+                standing at the Slime entity marker, same z-slot as Wisp/hero/pet.
+                #922 (Han 2026-08-12, "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou
+                die op de slime van de RPG-wereld"): now clickable, same walk-then-talk pattern as the Wisp
+                (stopPropagation so it doesn't ALSO walk-to-tap-point on top of walk-to-Slime). */}
+            {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
+                <>
+                    <div style={{ position: 'absolute', left: worldToScreenXLocal(ENTITY_WORLD_X.Slime), bottom: standAnchorFor(ENTITY_WORLD_X.Slime), transform: 'translateX(-50%)' }}>
+                        <WorldSlime frame={petFrame} zoom={zoom} />
+                    </div>
+                    <EntityHitZone
+                        screenX={worldToScreenXLocal(ENTITY_WORLD_X.Slime)} standAnchor={standAnchorFor(ENTITY_WORLD_X.Slime)} zoom={zoom}
+                        flying={false} debugMode={debugMode}
+                        onClick={(e) => { e.stopPropagation(); clickSlime(); }}
+                    />
+                    <EntityReflection worldX={ENTITY_WORLD_X.Slime}>
+                        <WorldSlime frame={petFrame} zoom={zoom} />
+                    </EntityReflection>
+                </>
+            )}
+
+            {/* #1093 (Han 2026-08-20, open-world worker NPCs): 6 stationary workers standing at Level_1's
+                own "NPC" LDtk markers (workerNpcs above) — same stand-anchor/reflection treatment as
+                Wisp/Slime, no click handler (decorative only, no dialogue). Each gets its OWN
+                WorkerNpcSlot instance (one useWorkerHitState hook call per NPC, React's normal
+                one-component-per-list-item pattern — see that component's header for why the state
+                machine must NOT live inside the twice-rendered WorkerNpc itself). */}
+            {sceneryMode === 'LDtk' && workerNpcs.map((w) => (
+                <WorkerNpcSlot
+                    key={w.name}
+                    variant={w.variant} hitConfig={w.hitConfig} petFrame={petFrame} timeSignature={timeSignature}
+                    context={context} triggerBell={workerNpcAudio} zoom={zoom}
+                    worldX={w.x} worldToScreenX={worldToScreenXLocal} standAnchorFor={standAnchorFor}
+                    EntityReflection={EntityReflection}
+                    getListenerX={() => playerXRef.current}
+                />
+            ))}
+
+            {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
+                (flying/ground/water)"): one WorldWanderer per spawned Critter_* marker (see
+                critterWanderers above) — each variant already carries its own habitat's wander box/perch
+                behaviour from HABITAT_WANDER. */}
+            {sceneryMode === 'LDtk' && critterWanderers.map((w, i) => (
+                <WorldWanderer
+                    key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                    rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
+                    swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
+                    frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenXLocal}
+                    isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
+                    birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
+                />
+            ))}
+
+            {/* Hero — same paper-doll renderer as everywhere else (§6d), standing on the floor, walking
+                left/right (A/D, arrow keys, edge-hold, or tap-to-move) via `useRpgLevelState`. `noPetChar`:
+                the pet is rendered as its OWN trailing sprite below, so the doll's built-in pet LAYER is
+                stripped here to avoid double-drawing it glued to the character's hip. */}
+            {char && (
+                <>
+                    <div style={{
+                        position: 'absolute', left: worldToScreenXLocal(playerX), bottom: standAnchorFor(playerX),
+                        transform: `translateX(-50%) scaleX(${facing})`,
+                    }}>
+                        {/* #924 (Han 2026-08-12, "mijn personage heeft geen animatie. Hero moet ook idle
+                            animatie tonen"): idle frame was hardcoded to 0 — a single frozen frame, no cycling
+                            at all. `petFrame` already ticks at the shared bpm-coupled idle cadence
+                            (frameMsForBpm, #923) for the pet/wisp/slime — reused here (§6c) instead of a second
+                            idle-frame counter. */}
+                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
+                    </div>
+                    <EntityReflection worldX={playerX} extraTransform={`scaleX(${facing})`}>
+                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
+                    </EntityReflection>
+                </>
+            )}
+
+            {/* Pet — trails the player at a delay (useRpgLevelState's PET_FOLLOW_GAP leash). #693 round 8
+                ("gebruik dezelfde pet als in de avatar selector") / round 12 (dog clipped: "gebruik toch
+                gewoon de sprites uit de bestiary"): renders via `WorldCreature` + its classified bestiary
+                variant (`petVariant`, resolved above by URL match) whenever one is found — same renderer,
+                same walk/run/fly-aware animation lookup as every other classified creature — falling back
+                to the old hand-rolled `WorldPet`/`PET_CROP` convention only if a pet sheet has no bestiary
+                match. Renders nothing if no pet is equipped. */}
+            {petUrl && (
+                <>
+                    <div style={{ position: 'absolute', left: worldToScreenXLocal(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
+                        {petVariant
+                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
+                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
+                    </div>
+                    <EntityReflection worldX={petX}>
+                        {petVariant
+                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
+                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
+                    </EntityReflection>
+                </>
+            )}
+        </div>
+    );
+});
+
+// Perf (#1162, Fase 4, Han 2026-08-27, "doe maar" — extending Fase 3's own extraction to the scenery
+// blocks, flagged there as "the logical continuation"): same rationale as `EntityLayer` above — moves the
+// LDtk-mode ground/lit-ground/animated-tiles/water-reflection/foliage JSX construction out of
+// `RpgLevelPanel`'s own render body (which still has to run every panning frame) into its own memo
+// boundary, so a pure-pan frame skips reconstructing this subtree entirely. Two separate components
+// (`SceneryBack`/`SceneryFront`), not one parametrized one — the back pass has `backgroundLayers` +
+// `WaterReflectionLayer` the front pass doesn't, and mirroring the existing back/front code split exactly
+// (rather than introducing new branching inside a shared component) keeps this a pure, low-risk
+// extraction, not a redesign. Legacy-mode scenery (the OLD hand-rolled parallax/decor JSX, interleaved
+// with the LDtk block in `RpgLevelPanel`'s render) is untouched — same "Legacy stays as-is" scope boundary
+// every perf round this ticket has kept.
+const SceneryBack = React.memo(function SceneryBack({
+    sceneryMode, groundAndFoliageBack, world, leftPxForFactor, sceneryScrollBackRef, groundLeftPxLocal,
+    zoom, litGroundTexturesBack, size, ldtkLights, foliageParams, foliageDebugChannel, overlayScrollBackRef,
+    culledAnimatedTilesBack, localWorldToScreenXLocal, reflectableTiles, waterPonds, worldToScreenXLocal,
+    waterInstancesBack, localFoliageInstancesBack, cameraOffsetRef,
+    // Perf (#1162, Fase 10c): the shared atlas + this pass's culled/positioned atlas instance list — see
+    // `RpgLevelPanel`'s own `atlasFoliageInstanceFor`/`foliageAtlas` comments for how these are built.
+    foliageAtlas, atlasFoliageInstancesBack,
+}) {
+    return (
+        <>
+            {sceneryMode === 'LDtk' && (
+                <LdtkScenery
+                    groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
+                    gridSize={world.gridSize} leftPxForFactor={leftPxForFactor}
+                    groundScrollRef={sceneryScrollBackRef} groundLeftPx={groundLeftPxLocal}
+                    zoom={zoom} groundAnchor={0}
+                />
+            )}
+            {sceneryMode === 'LDtk' && litGroundTexturesBack && (
+                <LdtkLitGround
+                    widthPx={size.w} heightPx={size.h}
+                    textures={litGroundTexturesBack} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
+                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    lights={ldtkLights}
+                    params={foliageParams} edgeLitOnly={false} debugChannel={foliageDebugChannel}
+                />
+            )}
+            <div ref={overlayScrollBackRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                {sceneryMode === 'LDtk' && (
+                    <LdtkAnimatedTiles
+                        animatedTiles={culledAnimatedTilesBack} worldToScreenX={localWorldToScreenXLocal}
+                        groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
+                    />
+                )}
+                {sceneryMode === 'LDtk' && (
+                    <WaterReflectionLayer
+                        reflectableTiles={reflectableTiles} gridSize={world.gridSize} ponds={waterPonds}
+                        worldToScreenX={worldToScreenXLocal} leftPxForFactor={() => groundLeftPxLocal} zoom={zoom}
+                        globalIllumination={foliageParams.globalIllumination}
+                    />
+                )}
+            </div>
+            {sceneryMode === 'LDtk' && (atlasFoliageInstancesBack.length > 0 || waterInstancesBack.length > 0) && (
+                <ForegroundFoliageLayer
+                    widthPx={size.w}
+                    heightPx={size.h}
+                    instances={localFoliageInstancesBack}
+                    atlas={foliageAtlas}
+                    atlasInstances={atlasFoliageInstancesBack}
+                    cameraOffsetRef={cameraOffsetRef}
+                    debugChannel={foliageDebugChannel}
+                    lights={ldtkLights}
+                    params={foliageParams}
+                />
+            )}
+        </>
+    );
+});
+
+const SceneryFront = React.memo(function SceneryFront({
+    sceneryMode, groundAndFoliageFront, world, leftPxForFactor, sceneryScrollFrontRef, groundLeftPxLocal,
+    zoom, litGroundTexturesFront, size, ldtkLights, foliageParams, foliageDebugChannel, overlayScrollFrontRef,
+    culledAnimatedTilesFront, localWorldToScreenXLocal, waterInstancesFront,
+    localFoliageInstancesFront, cameraOffsetRef,
+    // Perf (#1162, Fase 10c): same shared atlas as SceneryBack, this pass's own instance list.
+    foliageAtlas, atlasFoliageInstancesFront,
+}) {
+    return (
+        <>
+            {sceneryMode === 'LDtk' && (
+                <LdtkScenery
+                    groundTiles={groundAndFoliageFront} gridSize={world.gridSize}
+                    leftPxForFactor={leftPxForFactor}
+                    groundScrollRef={sceneryScrollFrontRef} groundLeftPx={groundLeftPxLocal}
+                    zoom={zoom} groundAnchor={0}
+                />
+            )}
+            {sceneryMode === 'LDtk' && litGroundTexturesFront && (
+                <LdtkLitGround
+                    widthPx={size.w} heightPx={size.h}
+                    textures={litGroundTexturesFront} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
+                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    lights={ldtkLights}
+                    params={foliageParams} edgeLitOnly={true} debugChannel={foliageDebugChannel}
+                />
+            )}
+            <div ref={overlayScrollFrontRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                {sceneryMode === 'LDtk' && (
+                    <LdtkAnimatedTiles
+                        animatedTiles={culledAnimatedTilesFront} worldToScreenX={localWorldToScreenXLocal}
+                        groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
+                    />
+                )}
+            </div>
+            {sceneryMode === 'LDtk' && (atlasFoliageInstancesFront.length > 0 || waterInstancesFront.length > 0) && (
+                <ForegroundFoliageLayer
+                    widthPx={size.w}
+                    heightPx={size.h}
+                    instances={localFoliageInstancesFront}
+                    atlas={foliageAtlas}
+                    atlasInstances={atlasFoliageInstancesFront}
+                    cameraOffsetRef={cameraOffsetRef}
+                    debugChannel={foliageDebugChannel}
+                    lights={ldtkLights}
+                    params={foliageParams}
+                />
+            )}
+        </>
+    );
+});
+
+// Perf (Han 2026-08-27, "ongeveer elke schermbreedte, de animatie een klein beetje vertraagt, en dan terug
+// versnelt" — reported as present since one of the first RPG-world builds, everywhere, not tied to any one
+// biome): the animated-tiles (campfire) cull list used to be a `useMemo` keyed on a CAMERA-AWARE screenX
+// function (`localWorldToScreenX`, which depends on `cameraX` state — changes every rAF frame while
+// moving), so despite the surrounding comment claiming it was memoized, the "memoized" array was actually
+// rebuilt from scratch on literally every animation frame during any camera movement. That's a genuinely
+// unbounded per-frame heap allocation (a fresh filtered array + fresh child-prop identity every tick,
+// defeating `React.memo` on `LdtkAnimatedTiles` downstream too) — exactly the class of constant allocation
+// pressure that produces periodic GC-pause stutters. GC pauses are time-periodic; at a roughly constant
+// walk speed, a time-periodic stutter reads as spatially periodic — "every screen width" is consistent
+// with that, though this fix is a strong, well-reasoned hypothesis from code-reading, not something proven
+// via a live profile (Han chose "fix now, then test" over "trace first").
+//
+// Fix: the recompute moves onto the shared `useFrameLoop` ticker at a coarse 'throttled' cadence (150ms —
+// comfortably inside the existing `CULL_MARGIN_PX`=400 buffer's own slack at any normal walk/run speed:
+// even at the RUN speed of ~540 screen-px/sec, 150ms is only ~81px of travel, well under the 400px
+// margin), using the CAMERA-INDEPENDENT `localWorldToScreenXLocal` + the live `cameraOffsetRef` (the exact
+// same pattern `ForegroundFoliageLayer`'s own draw-loop culling already uses, §322/§331), with a dedup
+// check so `setState` only fires when the actual VISIBLE SET of tiles changed, not on every throttled tick.
+function useCulledAnimatedTiles(tiles, localWorldToScreenXLocal, cameraOffsetRef, sizeRef) {
+    const [culled, setCulled] = useState(tiles);
+    const prevRef = useRef(tiles);
+    useFrameLoop(() => {
+        const camOffsetPx = cameraOffsetRef.current;
+        const w = sizeRef.current.w;
+        const next = tiles.filter((t) => {
+            const x = localWorldToScreenXLocal(t.worldX) + camOffsetPx;
+            return x > -CULL_MARGIN_PX && x < w + CULL_MARGIN_PX;
+        });
+        const prev = prevRef.current;
+        const same = prev.length === next.length && prev.every((t, i) => t === next[i]);
+        if (!same) {
+            prevRef.current = next;
+            setCulled(next);
+        }
+    }, [tiles, localWorldToScreenXLocal, cameraOffsetRef, sizeRef], { priority: 'throttled', throttleMs: 150 });
+    return culled;
+}
+
+export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, setVolume, onGenerateVoice, rpgMusicVolumeMultiplier = 1, worldScale = null }) {
     const containerRef = useRef(null);
     const [size, setSize] = useState({ w: 0, h: 0 });
     const [petFrame, setPetFrame] = useState(0);
@@ -700,8 +1059,8 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // flies off again (see WorldWanderer's own perch-target logic). Plain ref (not React state), same
     // "written by an rAF loop, never triggers a render" reasoning as birdPositionsRef above.
     const birdSlotClaimsRef = useRef(new Set());
-    // #925 follow-up: see the useWorldAmbientMusic call further down (after localWorldToScreenX/water
-    // tiles are computed) for what this ref actually holds each render.
+    // #925 follow-up: see the useWorldAmbientMusic call further down (after water tiles are computed) for
+    // what this ref actually holds each render.
     const envAudioRef = useRef(null);
     // #141 round 2 (Han: "Can you implement 3 maps and let me toggle?" — in the spirit of the Factorio FFF's
     // own color-coded shader debug view): cycles ForegroundFoliageLayer's debugChannel (0 final shimmer, 1
@@ -734,8 +1093,16 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // the CURRENT zoom too — it used to hardcode the module `ZOOM`, which silently mismatched the actual
     // on-screen scale as soon as this dynamic zoom diverged from 3, throwing off the dead-zone boundaries
     // (a likely contributor to "de scrolling is schokkerig").
+    // #UI-overhaul Stap 3 (Han 2026-08-27): in world mode App passes an explicit INTEGER `worldScale`
+    // (utils/worldLayout.js) — one global scale factor so every game pixel is exactly the same size in
+    // every layer (see docs/architecture.md §327/§334). It wins outright when set. Otherwise LDtk mode
+    // falls back to the old height-driven fit (`size.h / LEVEL_PX_HEIGHT`, non-integer) and legacy mode
+    // to the fixed module `ZOOM`. The Stap 1 interim `size.w / 320` clamp is gone — `worldScale` is
+    // chosen with the ≥320 gpx width rule already baked in.
     const dynamicZoom = size.h > 0 ? size.h / LEVEL_PX_HEIGHT : ZOOM;
-    const zoom = sceneryMode === 'LDtk' ? dynamicZoom : ZOOM;
+    const zoom = worldScale != null
+        ? worldScale
+        : (sceneryMode === 'LDtk' ? dynamicZoom : ZOOM);
     // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten"): debug-
     // only click track, off by default even when debugMode is on (Han still has to explicitly enable it) —
     // see useDebugMetronome.js for the rAF/AudioContext-clock design. #924 round 4 ("die kan nooit in sync
@@ -744,7 +1111,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // every open-world audio system now shares.
     const [metronomeOn, setMetronomeOn] = useState(false);
     const { beat: metronomeBeat, pulseTick: metronomePulse } = useDebugMetronome({
-        enabled: debugMode && metronomeOn, context, instruments,
+        enabled: debugMode && metronomeOn, context, instruments, setVolume,
     });
     const { appFps, pixelFps, reportPixelFrame } = useFpsCounters();
     const world = useMemo(
@@ -776,11 +1143,25 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     );
     // #RAM-level (Han 2026-08-11, "alle foliage lagen (via tag) moeten reageren op de wind"): foliage
     // tiles render as ForegroundFoliageLayer instances (real wind-shimmer) instead of baked into the
-    // static ground canvas — see useLdtkFoliageInstances.js for why (runtime normal maps, cached per
-    // distinct source tile rather than per placed instance). Called twice — back/front of the Entities
-    // layer render in two separate passes (see "houd goed de volgorde van lagen aan" below).
-    const foliageInstancesBack = useLdtkFoliageInstances(world.foliageTilesBack, world.gridSize, sceneryMode);
-    const foliageInstancesFront = useLdtkFoliageInstances(world.foliageTilesFront, world.gridSize, sceneryMode);
+    // static ground canvas.
+    // Perf (#1162, Fase 10c): `useLdtkFoliageInstances` (the per-instance sheet-space UV + its own separate
+    // runtime normal-map generation) is REMOVED — superseded by the atlas-backed instances built below
+    // (`atlasFoliageInstancesBack/Front`, from the SAME `foliageAtlas` this file already builds one section
+    // up). Keeping both would have meant generating every foliage crop's normal map TWICE (once into the
+    // atlas, once into `useLdtkFoliageInstances`'s own per-URL cache) for data the atlas path never reads —
+    // real wasted work, not just dead code, so it's deleted rather than left dormant.
+    // Perf (#1162, Fase 10a, docs/architecture.md §337): builds a SHARED texture atlas from every distinct
+    // foliage crop across BOTH passes (back+front share the same tilesets/crops in practice, so one atlas
+    // covers both) — not wired to rendering yet, this phase only builds+verifies the atlas itself (see the
+    // debug canvas below). `useMemo`, not an inline spread, so the combined list is a STABLE array
+    // reference across renders that don't actually change back/front content — an unmemoized fresh array
+    // here would re-trigger the atlas hook's whole build on every render, the exact bug just fixed for
+    // `cullTilesToViewport` (§335) one section below this one.
+    const allFoliageTilesForAtlas = useMemo(
+        () => [...world.foliageTilesBack, ...world.foliageTilesFront],
+        [world.foliageTilesBack, world.foliageTilesFront],
+    );
+    const foliageAtlas = useLdtkFoliageAtlas(allFoliageTilesForAtlas, world.gridSize, sceneryMode);
     // #925 round 2 (Han 2026-08-16, "doe ook de diffusie, gewoon een exacte kopie van de logica voor
     // boomblaadjes"): water tiles pulled OUT of `animatedTilesBack/Front` (kind:'water') and rendered
     // through the SAME shimmer shader as foliage instead of `LdtkAnimatedTiles`'s plain DOM frame-cycling
@@ -854,6 +1235,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // the axis reflects to `d` px BELOW it, i.e. the wrapper's `bottom` must be `2*axis - entityHeight`,
     // not `axis`. Matches Han's own worked example exactly (entity height 48, axis 32 in his example →
     // reflected bottom 2*32-48=16).
+    // Perf (#1162, Fase 2a): `worldToScreenXLocal` (camera-independent) — this component renders entity
+    // reflections, which now live inside the SAME imperatively-scrolled `entityScrollRef` wrapper as the
+    // entities themselves (see that ref's own declaration/comment) — see `worldToScreenXLocal`'s own
+    // comment for the full rationale.
     const EntityReflection = ({ worldX, extraTransform, children }) => {
         const pond = waterPonds.find((p) => worldX >= p.minX && worldX <= p.maxX);
         if (!pond) return null;
@@ -862,7 +1247,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const reflectedBottomPx = 2 * axisPx - entityHeightPx;
         return (
             <div style={{
-                position: 'absolute', left: worldToScreenX(worldX), bottom: reflectedBottomPx,
+                position: 'absolute', left: worldToScreenXLocal(worldX), bottom: reflectedBottomPx,
                 transform: `translateX(-50%) scaleY(-1)${extraTransform ? ` ${extraTransform}` : ''}`,
                 transformOrigin: 'bottom', opacity: 0.35,
                 // #1032 round 5 (Han: "lijkt van onder belicht te worden"): same day/night brightness
@@ -894,17 +1279,35 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         return () => ro.disconnect();
     }, []);
 
-    // Pet idle/walk animation ticks independently of the movement rAF loop (a plain interval is plenty —
-    // mirrors useBestiaryEditor's own frame-advance convention).
+    // Pet idle/walk animation ticks independently of the movement rAF loop.
     // #923 (Han 2026-08-12, "zorg dat de rpg-framerate in world debug hiermee overeenstemt"): this used to
     // be a hardcoded 150ms, completely independent of the song's bpm — a SECOND cadence, drifted from the
-    // sheet-music view's own bpm-coupled sprite loop (SheetRpgLayer.jsx). Now reuses that SAME shared
-    // formula (§6c/§6d — one cadence, not two hand-tuned copies) so wisp/pet/slime idle animation in the
-    // open world matches the in-song sprite cadence at any bpm/timeSignature.
-    useEffect(() => {
-        const id = setInterval(() => setPetFrame((f) => f + 1), frameMsForBpm(bpm, timeSignature));
-        return () => clearInterval(id);
-    }, [bpm, timeSignature]);
+    // sheet-music view's own bpm-coupled sprite loop (SheetRpgLayer.jsx). Reuses that SAME shared formula
+    // (§6c/§6d — one cadence, not two hand-tuned copies) so wisp/pet/slime idle animation in the open world
+    // matches the in-song sprite cadence at any bpm/timeSignature.
+    // Perf (#1161, Han 2026-08-27, "misschien moet het RPG-world frame ticks krijgen, bijvoorbeeld 60/s...
+    // op 60fps is 'meest nabije frame' goed genoeg"): `setInterval` isn't frame-aligned (same "hakkelig"
+    // reasoning SheetRpgLayer.jsx's own rAF-vs-setInterval header comment already documents for the level
+    // view) and, being its own independent timer, can drift out of sync with the metronome over a long
+    // session. Replaced with the SAME rAF+AudioContext-sampling pattern: sample `context.currentTime` every
+    // animation frame (~60/s), derive which tempo-locked sprite frame is nearest, and only call `setPetFrame`
+    // when that computed value actually changes — React bails out on a same-value primitive `setState`
+    // (`Object.is` equality), so this commits to state at EXACTLY the same cadence as the old interval did
+    // (no extra re-renders), just precisely metronome-locked instead of drifting.
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328) —
+    // 'critical' priority (runs every rAF frame, same as before). `useFrameLoop` always calls the LATEST
+    // callback closure via a ref (see its own header comment) rather than re-running an effect body per
+    // tick, so `startMs` can no longer live as a plain closure `let` inside the tick body (that would reset
+    // on every RENDER, not just on bpm/timeSignature/context changes) — moved to a ref, explicitly reset
+    // only when those deps change, matching the old effect's exact reset semantics.
+    const petFrameStartMsRef = useRef(null);
+    useEffect(() => { petFrameStartMsRef.current = null; }, [bpm, timeSignature, context]);
+    useFrameLoop(() => {
+        const nowMs = (context && typeof context.currentTime === 'number') ? context.currentTime * 1000 : performance.now();
+        if (petFrameStartMsRef.current === null) petFrameStartMsRef.current = nowMs;
+        const nextFrame = Math.floor((nowMs - petFrameStartMsRef.current) / frameMsForBpm(bpm, timeSignature));
+        setPetFrame((f) => (f === nextFrame ? f : nextFrame));
+    }, [bpm, timeSignature, context], { priority: 'critical' });
 
     const { char } = characterEditor;
     const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, setHeldDirection } = rpgLevel;
@@ -965,14 +1368,37 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // latest `size`/`zoom` through refs updated every render instead of restarting on every change.
     const sizeRef = useRef(size); sizeRef.current = size;
     const zoomRef = useRef(zoom); zoomRef.current = zoom;
-    useEffect(() => {
-        let raf;
-        const tick = () => {
-            // #RAM-level (Han 2026-08-11, "toon ook de pixel art FPS"): this IS the game-world's own
-            // render-driving loop (camera follow) — counting its ticks is what "Pixel art FPS" measures,
-            // distinct from the generic browser paint rate ("App FPS", useFpsCounters' own rAF).
-            reportPixelFrame();
-            setCameraX((cam) => {
+    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders"): 4 ground-plane wrapper `<div>`s
+    // (back-of-entities / front-of-entities passes × "scenery" / "overlay" z-order groups — see their
+    // render sites below, and `worldToScreenXLocal`'s own comment for the full rationale) whose
+    // `transform` this SAME loop now writes directly every frame, bypassing `cameraX` React state/props
+    // for the pan offset entirely. Split into two groups per pass (not one) because `LdtkLitGround` sits
+    // BETWEEN them in the level's own z-order (scenery → lit-ground → animated-tiles/water-reflection)
+    // and isn't wrapped this round (see that same comment) — a single wrapper spanning all of them would
+    // have silently reordered the stack.
+    const sceneryScrollBackRef = useRef(null);
+    const sceneryScrollFrontRef = useRef(null);
+    const overlayScrollBackRef = useRef(null);
+    const overlayScrollFrontRef = useRef(null);
+    // Perf (#1162, Fase 2a): the entity layer (Wisp/Slime/workers/critters/hero/pet) shares this SAME
+    // imperative-transform treatment — see `worldToScreenXLocal`'s own comment for the full rationale.
+    const entityScrollRef = useRef(null);
+    // Perf (#1162, Fase 2b): the WebGL-instance-layer counterpart to the 5 CSS-transform refs above —
+    // `ForegroundFoliageLayer`'s own draw loop reads this directly (see its own `cameraOffsetRef` prop
+    // comment) instead of a wrapper `<div>` transform, since its instances are positioned via a per-draw-
+    // call WebGL uniform, not a single CSS property.
+    const cameraOffsetRef = useRef(0);
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328) —
+    // 'critical' priority, since this drives the visual camera/scroll position and must never skip a
+    // frame (same reasoning as SheetRpgLayer's own clock-driven scroll, which stays on its own separate
+    // migration — see that hook's own header comment). Behavior is unchanged: this ran every rAF frame
+    // before, and still does; only the browser-level rAF REGISTRATION is now shared instead of separate.
+    useFrameLoop(() => {
+        // #RAM-level (Han 2026-08-11, "toon ook de pixel art FPS"): this IS the game-world's own
+        // render-driving loop (camera follow) — counting its ticks is what "Pixel art FPS" measures,
+        // distinct from the generic browser paint rate ("App FPS", useFpsCounters' own rAF).
+        reportPixelFrame();
+        setCameraX((cam) => {
                 const w = sizeRef.current.w;
                 if (w === 0) return cam;
                 // #RAM-level BUG FIX (Han 2026-08-11, "de scrolling is schokkerig"): was hardcoded to the
@@ -988,15 +1414,38 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 const minCam = LEVEL_MIN_X + viewHalfWorld, maxCam = LEVEL_MAX_X - viewHalfWorld;
                 if (minCam <= maxCam) next = Math.min(maxCam, Math.max(minCam, next));
                 else next = (LEVEL_MIN_X + LEVEL_MAX_X) / 2;   // level narrower than viewport — just center it
+                // Perf (#1162): the ground-plane wrapper's own `left`-space offset is `-cameraX * zoom`
+                // (the exact term `worldToScreenXLocal` below drops from the full `worldToScreenX`
+                // formula) — writing it here, on the FRESH `next` value, means the transform is never a
+                // frame stale waiting for React to commit `cameraX` back down as a prop.
+                const offsetPx = -next * z;
+                const transform = `translateX(${offsetPx}px)`;
+                if (sceneryScrollBackRef.current) sceneryScrollBackRef.current.style.transform = transform;
+                if (sceneryScrollFrontRef.current) sceneryScrollFrontRef.current.style.transform = transform;
+                if (overlayScrollBackRef.current) overlayScrollBackRef.current.style.transform = transform;
+                if (overlayScrollFrontRef.current) overlayScrollFrontRef.current.style.transform = transform;
+                if (entityScrollRef.current) entityScrollRef.current.style.transform = transform;
+                // Perf (#1162, Fase 2b): SAME offset, read by ForegroundFoliageLayer's own draw loop.
+                cameraOffsetRef.current = offsetPx;
                 return next;
             });
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-    }, []);
+    }, [], { priority: 'critical' });
 
-    const wispVariant = useMemo(() => findCreatureByName('Wisp'), []);
+    // #UI-overhaul bug (Han 2026-08-27, "de verkeerde wisp is gebruikt in het level (wisp alt) — ik moet
+    // wisp hebben"): `findCreatureByName('Wisp')` returns the 'Plain'-or-first variant, which for the Wisp
+    // creature is an alt sprite. Match by the SAME URL the dialogue portrait uses (RpgLevelBottomPanel's
+    // `wispUrl`) so the world sprite and the portrait are the one correct Wisp; fall back to the by-name
+    // pick only if that URL somehow isn't in the scanned bestiary.
+    const wispVariant = useMemo(
+        () => findVariantByUrl(WISP_URL) || findCreatureByName('Wisp'),
+        [],
+    );
+    // Whether the Wisp's idle animation is a flying/float one — the 16×16 click zone anchors like the
+    // sprite does: mid-bottom for a grounded entity, centre-on-the-hover for a flying one.
+    const wispFlying = useMemo(
+        () => (wispVariant ? isFlyingAnim(findIdleAnim(wispVariant), wispVariant) : false),
+        [wispVariant],
+    );
     // #1093 (Han 2026-08-20, "gebruik de 5 NPC entities uit LDtk"): Level_1's 6 anonymous "NPC" markers
     // (the LDtk entity type carries no per-instance identifying field, confirmed via the .ldtk file's own
     // entity defs) get Han's 6 workers assigned in x-order — Han's own confirmed default, adjustable later
@@ -1005,19 +1454,19 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // tick (§6c — 5 frames/beat, tempo-locked, no new interval). `hitConfig` is null for the 3 NPCs Han
     // gave no sound spec for (lumberjack/lady potions/steampunker) — WorkerNpc renders them silently.
     const workerNpcAudio = useWorkerNpcAudio(context);
+    // #1096 (Han 2026-08-20, follow-up to #1093/#1095): "Blacksmith Slow"/"Blacksmith Fast" renamed to
+    // "Blacksmith" (SSW, "de laatste heet gewoon blacksmith")/"Blacksmith Woman" (blacksmith_f, now a
+    // STANDALONE creature — Han's own correction, no longer a variant of "Blacksmith Man"). `hitConfig` for
+    // all 3 sound-bearing workers now comes from `WORKER_SOUND_CONFIG` (workerSoundConfig.js) — the SAME
+    // data the bestiary manifest generator reads to derive the 'audio' tag and the bestiary preview reads
+    // to play the sound while browsing, so the note/frame numbers live in exactly one place.
     const workerNpcs = useMemo(() => {
         const markers = [...(ENTITY_INSTANCES.NPC || [])].sort((a, b) => a.x - b.x);
-        const roster = [
-            { name: 'Blacksmith Slow', hitConfig: { mode: 'random', chancePerBeat: 0.125, hitFrameIndex: 3, note: 'C6' } },
-            { name: 'Lumberjack', hitConfig: null },
-            { name: 'Town crier', hitConfig: { mode: 'idle-triggers', frameIndices: [2, 7], note: 'G5' } },
-            { name: 'Blacksmith Fast', hitConfig: { mode: 'idle-triggers', frameIndices: [0], note: 'G6' } },
-            { name: 'Lady Potions', hitConfig: null },
-            { name: 'Steampunker', hitConfig: null },
-        ];
-        return roster.map((w, i) => ({
-            ...w,
-            variant: findCreatureByName(w.name),
+        const names = ['Blacksmith', 'Lumberjack', 'Town crier', 'Blacksmith Woman', 'Lady Potions', 'Steampunker'];
+        return names.map((name, i) => ({
+            name,
+            hitConfig: WORKER_SOUND_CONFIG[name] || null,
+            variant: findCreatureByName(name),
             x: markers[i]?.x,
         })).filter((w) => w.variant && w.x != null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1092,11 +1541,29 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // dubbele snelheid"): `running` (useRpgLevelState.js) flips once movement has been continuous for 2s;
     // the frame-advance rate doubles along with movement speed so the run cycle doesn't look like the walk
     // cycle just sliding faster across the ground.
-    useEffect(() => {
-        if (!moving) { setWalkFrame(0); return undefined; }
-        const id = setInterval(() => setWalkFrame((f) => f + 1), running ? 60 : 120);
-        return () => clearInterval(id);
-    }, [moving, running]);
+    // Perf (#1162, Han 2026-08-27, "kun je nog meer optimalisaties vinden?"): same `setInterval` → rAF
+    // conversion as `petFrame` above (§318/§319) — `setInterval` isn't frame-aligned and, being its own
+    // independent timer, adds avoidable per-tick overhead on top of the shared rAF loop already running.
+    // Samples elapsed time every animation frame, only commits `setWalkFrame` when the computed frame
+    // actually changes (React's `Object.is` bailout keeps the commit cadence identical to the old
+    // interval — no new re-render frequency, just jitter-free timing).
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328).
+    // Unlike the old effect (which registered NO rAF at all while `!moving`), this subscription now stays
+    // registered even when idle and early-exits each tick instead — a cheap no-op check, and exactly the
+    // point of consolidation: one fewer DISTINCT rAF registration for the browser to track regardless of
+    // whether this particular subsystem currently has real work to do. `startMs` moved to a ref for the
+    // same reason as `petFrameStartMsRef` above (see that migration's own comment).
+    const walkStartMsRef = useRef(null);
+    useEffect(() => { if (!moving) setWalkFrame(0); }, [moving]);
+    useEffect(() => { walkStartMsRef.current = null; }, [moving, running]);
+    useFrameLoop(() => {
+        if (!moving) return;
+        const frameMs = running ? 60 : 120;
+        const nowMs = performance.now();
+        if (walkStartMsRef.current === null) walkStartMsRef.current = nowMs;
+        const nextFrame = Math.floor((nowMs - walkStartMsRef.current) / frameMs);
+        setWalkFrame((f) => (f === nextFrame ? f : nextFrame));
+    }, [moving, running], { priority: 'critical' });
 
     // #693 round 3: strip the pet LAYER from the doll — it's rendered as its own trailing sprite instead
     // (see the standalone `<WorldCreature>` below), so the doll must not ALSO draw its built-in glued-on
@@ -1107,15 +1574,53 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // — a fixed mapping that only worked because the camera never moved) so introducing the scrolling
     // camera couldn't silently miss a spot. Uses `zoom` (mode-aware) rather than the module `ZOOM` directly
     // so hero/pet/Wisp/Slime — shared between both scenery modes — scale correctly in either.
-    const worldToScreenX = (worldX) => centerX + (worldX - cameraX) * zoom;
+    // Perf (#1161, Han 2026-08-27): `useCallback`-wrapped so these keep a STABLE function identity across
+    // renders where `cameraX`/`zoom`/`centerX` genuinely haven't changed (e.g. a `petFrame`-only tick while
+    // the hero stands still) — plain function expressions got a fresh reference every render regardless,
+    // which silently defeated `React.memo` on every consumer below (`LdtkScenery`, `WaterReflectionLayer`,
+    // `LdtkAnimatedTiles`) even when NONE of their actual inputs had changed. Still changes every frame
+    // while the camera is genuinely panning (moving hero) — that part is unavoidable with the current
+    // React-state-driven camera and intentionally NOT addressed this round (see this ticket's own notes on
+    // `cameraX`'s 60×/sec rAF-driven `setCameraX` loop — a separate, larger follow-up if still needed).
+    const worldToScreenX = useCallback((worldX) => centerX + (worldX - cameraX) * zoom, [centerX, cameraX, zoom]);
     // LdtkScenery's canvases are drawn in LDtk's own native (unshifted) coordinate space, i.e. their own
     // x=0 = this app's `LEVEL_MIN_X`. `factor` scales how much of the camera's movement a layer reacts to
     // (1 = the ground plane, <1 = a background layer that lags behind — parallax depth).
-    const leftPxForFactor = (factor) => centerX + (LEVEL_MIN_X - cameraX * factor) * zoom;
-    // LDtk ground-plane tiles (animated water/campfire, foliage) are stored LEVEL-LOCAL (0..pxWid) — this
-    // adds the level's own world offset before projecting, so callers can pass a local px straight through
-    // exactly like `LdtkScenery`'s canvas positioning does.
-    const localWorldToScreenX = (localX) => worldToScreenX(LEVEL_MIN_X + localX);
+    const leftPxForFactor = useCallback((factor) => centerX + (LEVEL_MIN_X - cameraX * factor) * zoom, [centerX, cameraX, zoom]);
+    // Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): the camera-aware
+    // `localWorldToScreenX` wrapper that used to live here (LDtk ground-plane tiles are stored LEVEL-LOCAL,
+    // 0..pxWid — it added the level's own world offset before projecting through `worldToScreenX`) is gone
+    // — its only caller, the animated-tiles cull, was switched to the camera-INDEPENDENT
+    // `localWorldToScreenXLocal` + a live `cameraOffsetRef` read instead (see `useCulledAnimatedTiles`'s own
+    // header comment for why). Nothing else needs the camera-aware "local" variant.
+    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders" — Fase 1): `worldToScreenX`/
+    // `leftPxForFactor(1)` above are STILL unstable while the camera genuinely pans (they depend on
+    // `cameraX`, by design — the deps comment above already says so). This is the fix for that: a ground-
+    // plane (factor=1) wrapper `<div>`s (`sceneryScrollBackRef`/`sceneryScrollFrontRef`/
+    // `overlayScrollBackRef`/`overlayScrollFrontRef`, declared above next to the camera rAF loop that
+    // writes them) whose
+    // `transform: translateX(...)` is written IMPERATIVELY every rAF frame by the SAME loop that already
+    // computes `cameraX` (see that effect's own comment), bypassing React/props entirely for the pan
+    // offset — exactly the pattern `SheetRpgLayer.jsx`'s `frozenScrollPxRef` already uses for its own
+    // scroll transform (§1050). Content placed INSIDE that wrapper positions itself with these LOCAL
+    // variants — `centerX + worldX*zoom`, i.e. the SAME formula with the `- cameraX` term dropped — which
+    // depend on `centerX`/`zoom` only, genuinely stable while only the camera (not the viewport size or
+    // zoom level) changes, so consumers wrapped this way keep a real `React.memo` hit while panning.
+    // Scoped to the plain DOM/2D-canvas layers only this round (`LdtkScenery`'s ground `CanvasLayer` —
+    // whose OWN header comment already says panning-via-CSS-`left` was the original intent —
+    // `WaterReflectionLayer`, `LdtkAnimatedTiles`): those position themselves with a single CSS
+    // `left`/`background-position` write, so wrapping them is a straightforward "drop the camera term,
+    // let the ancestor transform supply it" change. The WebGL INSTANCE layers (`LdtkLitGround`,
+    // `ForegroundFoliageLayer`) bake each instance's camera-aware `screenX` into per-frame draw-call data
+    // rather than a single CSS transform — giving THEM the same treatment needs a live camera-offset
+    // shader uniform instead, a separate, GLSL-touching follow-up, not done this round. Background
+    // parallax layers (factor <1, inside `LdtkScenery`'s own `backgroundLayers` loop) are few in number
+    // (a handful of hand-authored layers, not hundreds of placed tiles) and also left on the existing
+    // camera-dependent `leftPxForFactor` path for the same reason — lower cost, not worth the same
+    // wrapper machinery this round.
+    const worldToScreenXLocal = useCallback((worldX) => centerX + worldX * zoom, [centerX, zoom]);
+    const localWorldToScreenXLocal = useCallback((localX) => worldToScreenXLocal(LEVEL_MIN_X + localX), [worldToScreenXLocal]);
+    const groundLeftPxLocal = useMemo(() => centerX + LEVEL_MIN_X * zoom, [centerX, zoom]);
     // #925 follow-up (Han 2026-08-16, "env audio moet aanpassen aan wat in beeld is" — round 2, 2026-08-17,
     // "definieer audio in chunks, niet in beeldlengtes"): rebuilt fresh every render (cheap — just
     // references, no computation) and stashed in a ref so useWorldAmbientMusic's own internal timers
@@ -1141,9 +1646,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const standAnchorFor = (absoluteWorldX) => sceneryMode === 'LDtk'
         ? groundHeightAt(absoluteWorldX - LEVEL_MIN_X) * zoom
         : GROUND_ANCHOR;
-    const foliageInstanceProps = (inst) => ({
+    // Perf (#1161): useCallback for the same reason as worldToScreenX/leftPxForFactor above — a stable
+    // identity so useMemo below (the actual per-frame culled-instance arrays) can skip recomputing when
+    // nothing it reads has genuinely changed.
+    // Perf (#1162, Fase 2b): `localWorldToScreenXLocal` (camera-independent) — culling AND the camera
+    // offset both moved into `ForegroundFoliageLayer`'s own draw loop (see its `cameraOffsetRef` prop
+    // comment), so `screenX` here is now LOCAL, not the final on-screen position.
+    const foliageInstanceProps = useCallback((inst) => ({
         diffuseUrl: inst.diffuseUrl, diffuseUV: inst.diffuseUV, normalUrl: inst.normalUrl,
-        screenX: localWorldToScreenX(inst.localX),
+        screenX: localWorldToScreenXLocal(inst.localX),
         screenY: size.h - inst.localBottomFromLevelBottom * zoom,
         widthPx: inst.gridSize * zoom, heightPx: inst.gridSize * zoom,
         worldX: inst.localX, worldWidth: inst.gridSize, worldHeight: inst.gridSize,
@@ -1160,30 +1671,93 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // #1032: passed through so ForegroundFoliageLayer's draw loop can swap in water's own pixel-switch
         // uniforms (`foliageInstanceProps` explicitly whitelists fields, so this needs listing here too).
         isWater: inst.isWater,
-    });
+    }), [localWorldToScreenXLocal, size.h, zoom]);
+    // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): builds the ATLAS-backed instance shape
+    // straight from the raw LDtk tiles (`world.foliageTilesBack/Front`) — deliberately NOT derived from the
+    // now-removed `useLdtkFoliageInstances` output above, since that hook's `diffuseUV` was in SHEET space
+    // (fraction of the whole tileset image); this needs ATLAS space (fraction of `foliageAtlas`'s packed
+    // canvas), looked up by the exact same `${tilesetUrl}|${src[0]},${src[1]}` key `useLdtkFoliageAtlas.js`
+    // itself dedupes by (§6c: reuse the identity scheme, don't invent a second one). Mirrors
+    // `useLdtkFoliageInstances.js`'s own `instanceFor` position/flip math line-for-line (`localX`,
+    // `localBottomFromLevelBottom`, the flipX/flipY UV-rect mirror) — that's proven-correct positioning
+    // logic, only the UV SOURCE changes.
+    // A tile whose crop hasn't been packed into the atlas YET (still-pending idle-callback batch, or atlas
+    // hasn't started for a freshly mounted world) is simply skipped this render — it reappears the next
+    // time `foliageAtlas` publishes a newer batch and this `useMemo` re-runs, same "pops in over a few idle
+    // slices" tolerance `useLdtkFoliageAtlas.js`'s own header comment already documents.
+    const atlasFoliageInstanceFor = useCallback((tile) => {
+        if (!foliageAtlas) return null;
+        const key = `${tile.tilesetUrl}|${tile.src[0]},${tile.src[1]}`;
+        const uv = foliageAtlas.uvByKey.get(key);
+        if (!uv) return null;
+        const [u0, v0, u1, v1] = uv;
+        const localX = tile.worldX + world.gridSize / 2;
+        const localBottomFromLevelBottom = LEVEL_PX_HEIGHT - tile.worldY - world.gridSize;
+        return {
+            diffuseUV: [
+                tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
+                tile.flipX ? u0 : u1, tile.flipY ? v0 : v1,
+            ],
+            screenX: localWorldToScreenXLocal(localX),
+            screenY: size.h - localBottomFromLevelBottom * zoom,
+            widthPx: world.gridSize * zoom, heightPx: world.gridSize * zoom,
+            worldX: localX, worldWidth: world.gridSize, worldHeight: world.gridSize,
+            groundDistOffset: localBottomFromLevelBottom,
+            // Same as `useLdtkFoliageInstances.js`'s `instanceFor`: all LDtk foliage tiles wave+skew, none
+            // are `kind:'floor'` or water (water stays on the un-atlased path — see `useLdtkFoliageAtlas.js`
+            // header comment) or edge-lit-only.
+            wave: true, skew: true,
+        };
+    }, [foliageAtlas, world.gridSize, localWorldToScreenXLocal, size.h, zoom]);
+    const atlasFoliageInstancesBack = useMemo(
+        () => world.foliageTilesBack.map(atlasFoliageInstanceFor).filter(Boolean),
+        [world.foliageTilesBack, atlasFoliageInstanceFor],
+    );
+    const atlasFoliageInstancesFront = useMemo(
+        () => world.foliageTilesFront.map(atlasFoliageInstanceFor).filter(Boolean),
+        [world.foliageTilesFront, atlasFoliageInstanceFor],
+    );
     // #RAM-level (Han 2026-08-11, "de animatie is behoorlijk schokkerig... hoe is de performance?"):
     // `ForegroundFoliageLayer` draws ONE `gl.drawArrays` call per instance, not batched (its own file
     // header) — a level with ~1000 foliage tiles (Pine_forest_foliage2 alone has ~800) meant ~1000
     // uncullled draw calls EVERY frame regardless of camera position, the dominant cost behind the choppy
     // animation/scrolling Han measured (LCP 5.37s, INP 816ms). Foliage/animated tiles scattered across the
-    // whole level only need to draw the handful currently on-screen — this filters by already-projected
-    // `screenX` (a fixed pixel margin around the viewport) right before handing instances to the shader,
-    // cutting the typical per-frame instance count from ~1000 to whatever's actually visible.
+    // whole level only need to draw the handful currently on-screen — filtered by projected `screenX` (a
+    // fixed pixel margin around the viewport) before reaching the shader, cutting the typical per-frame
+    // instance count from ~1000 to whatever's actually visible.
     // #925 follow-up (Han 2026-08-16, "de watertiles zijn soms niet zichtbaar (despawn), vooral tijdens
     // veel schermbeweging"): widened from 200 — a fast camera pan can move a tile from "just inside the
     // old margin" to "just outside the viewport" across a couple of frames, and the reverse on re-entry;
     // a bigger buffer gives more slack before a genuinely visible tile gets culled. Mitigation, not a
     // structural fix — flag if this doesn't fully resolve it, since cull-margin size can only ever reduce
     // the WINDOW where a fast-enough pan still outruns it, not eliminate it category.
-    const CULL_MARGIN_PX = 400;
-    const cullToViewport = (instances) => instances.filter((inst) => inst.screenX > -CULL_MARGIN_PX && inst.screenX < size.w + CULL_MARGIN_PX);
-    // Same idea for the (cheaper, DOM-based) animated water/campfire overlay — filtered by raw world
-    // position before it ever reaches `LdtkAnimatedTiles`, so off-screen tiles don't even mount a
-    // per-instance `useNaturalSize` effect.
-    const cullTilesToViewport = (tiles) => tiles.filter((t) => {
-        const x = localWorldToScreenX(t.worldX);
-        return x > -CULL_MARGIN_PX && x < size.w + CULL_MARGIN_PX;
-    });
+    //
+    // Perf (#1162, Fase 2b): the FOLIAGE culling this comment originally described moved into
+    // `ForegroundFoliageLayer`'s own draw loop (its own `cameraOffsetRef`-adjacent cull check, same
+    // 400px margin, kept in sync manually).
+    // Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): the animated-tiles
+    // (campfire) cull — the cheaper DOM-based `LdtkAnimatedTiles` path, which has no draw loop of its own
+    // — used to be a camera-aware `useMemo` that silently rebuilt every rAF frame during movement despite
+    // its own comment claiming otherwise (see `useCulledAnimatedTiles`'s own header comment for the full
+    // story). Moved onto that throttled hook, which uses the SAME `CULL_MARGIN_PX` and camera-independent
+    // positioning `ForegroundFoliageLayer`'s own culling already relies on.
+    const culledAnimatedTilesBack = useCulledAnimatedTiles(nonWaterAnimatedTilesBack, localWorldToScreenXLocal, cameraOffsetRef, sizeRef);
+    const culledAnimatedTilesFront = useCulledAnimatedTiles(nonWaterAnimatedTilesFront, localWorldToScreenXLocal, cameraOffsetRef, sizeRef);
+    // Perf (#1162, Fase 2b): no longer culled here — `ForegroundFoliageLayer`'s own draw loop culls
+    // against the LIVE camera offset every frame instead (see its `cameraOffsetRef` prop comment). These
+    // two stay `useMemo`'d so they're genuinely stable — and skip rebuilding entirely — while only the
+    // camera pans (only foliage/water CONTENT changes invalidate them now, not `cameraX`).
+    // Perf (#1162, Fase 10c): WATER-ONLY now — foliage moved to the atlas-backed instanced path above
+    // (`atlasFoliageInstancesBack/Front`). Water stays on this original per-instance-uniform path (see
+    // `useLdtkFoliageAtlas.js`'s own header comment for why it wasn't folded into the atlas too).
+    const localFoliageInstancesBack = useMemo(
+        () => waterInstancesBack.map((inst) => foliageInstanceProps(inst)),
+        [foliageInstanceProps, waterInstancesBack],
+    );
+    const localFoliageInstancesFront = useMemo(
+        () => waterInstancesFront.map((inst) => foliageInstanceProps(inst)),
+        [foliageInstanceProps, waterInstancesFront],
+    );
 
     // #141 round 12: the CSS-approximated day/night tint for DOM elements (backgrounds, tent, trunk) —
     // recomputed each render from the same `globalIllumination` value driving the WebGL shader, so both
@@ -1290,7 +1864,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 // #693 ("of op mobile, tap op scherm"): tap/click anywhere on the ground walks the player
                 // toward that world position — also works with a mouse, not just touch.
                 const rect = containerRef.current.getBoundingClientRect();
-                moveTo(cameraX + (e.clientX - rect.left - centerX) / ZOOM);
+                // #UI-overhaul Stap 3 bug: was `/ ZOOM` (the fixed module constant) — wrong whenever the
+                // live `zoom` differs (LDtk `dynamicZoom`, or an explicit integer `worldScale`), same
+                // class of bug as the #1032-round-4 DebugGrid fix ("gebruik je universele schalingfactor?").
+                moveTo(cameraX + (e.clientX - rect.left - centerX) / zoom);
             }}
             style={{
                 position: 'relative', width: '100%', height: '100%', overflow: 'hidden',
@@ -1354,8 +1931,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             {/* #141 round 12 (Han, NL: "pas de illum ook toe op alle achtergronden") — one overlay covering
                 every background layer rendered so far (this div's own bottom edge sits right where they do,
                 and nothing else has been drawn yet at this point in the stack, so the multiply only ever
-                touches the backgrounds, never double-darkens anything drawn later). */}
-            <div style={domDarkenOverlayStyle} />
+                touches the backgrounds, never double-darkens anything drawn later).
+                Perf (#1162, Fase 5, Han 2026-08-27): gated to Legacy-mode only. This is a CSS
+                `mix-blend-mode: multiply` approximation of day/night tint predating the LDtk/RAM-level
+                scenery pipeline (§141 predates the #RAM-level tags below by months) — RAM-level has its OWN
+                proper WebGL-shader `globalIllumination` lighting (`ldtkLights`/`foliageParams`, consumed by
+                `LdtkLitGround`/`ForegroundFoliageLayer`/`SceneryBack`/`SceneryFront`), so this CSS overlay
+                was pure dead weight there: full-viewport, `pointerEvents:'none'`, `inset:0`, blending
+                nothing underneath in LDtk mode (Legacy's own background layers are the only thing it was
+                ever meant to darken — see this comment's own first line). `mix-blend-mode` forces the
+                browser to composite an isolated blending surface every frame regardless of whether its
+                content changed — a real per-frame paint/composite cost invisible to a JS CPU profile (a
+                #1162 profiling pass found >85% of frame time during movement falling outside JS execution
+                entirely, in the profiler's unattributed "(program)" bucket — this overlay was the first
+                concrete lead found there). Never mounting it at all outside Legacy mode removes that cost
+                for RAM-level without touching anything RAM-level actually uses for its own lighting. */}
+            {sceneryMode === 'Legacy' && <div style={domDarkenOverlayStyle} />}
 
             {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
                 layer sits BEHIND the `Entities` layer in the .ldtk file's own paint order (ldtkWorld.js's
@@ -1374,53 +1965,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 hero walked (a perf tradeoff from round 1 of this feature); Han re-measured and found the
                 impact small enough to keep shimmer running while moving too — the `!moving` gate is gone,
                 the flat DOM fallback above remains only as the pre-load/no-textures-yet fallback. */}
-            {sceneryMode === 'LDtk' && (
-                <LdtkScenery
-                    groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
-                    gridSize={world.gridSize} leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
-                />
-            )}
-            {/* #925 follow-up (Han 2026-08-16): lit ground/building/decor, drawn ON TOP of the flat
-                LdtkScenery composite above — covers it with opaque, normal-map-lit pixels once its own
-                textures are ready, same "flat fallback stays underneath until the WebGL layer is ready"
-                pattern foliage already uses (see that layer's own comment). Back-of-entities = full
-                lighting (edgeLitOnly=false). */}
-            {sceneryMode === 'LDtk' && litGroundTexturesBack && (
-                <LdtkLitGround
-                    widthPx={size.w} heightPx={size.h}
-                    textures={litGroundTexturesBack} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
-                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
-                    lights={ldtkLights}
-                    params={foliageParams} edgeLitOnly={false} debugChannel={foliageDebugChannel}
-                />
-            )}
-            {sceneryMode === 'LDtk' && (
-                <LdtkAnimatedTiles
-                    animatedTiles={cullTilesToViewport(nonWaterAnimatedTilesBack)} worldToScreenX={localWorldToScreenX}
-                    groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
-                />
-            )}
-            {/* #1032: mounted BEFORE the water shimmer instances below (z-order = behind them), so the
-                water's own semi-transparent ripple composites on top of this mirrored decor/tree layer —
-                "animatie-reflectie-shimmer" ordering, via z-order rather than distorting the reflection's
-                own pixels. */}
-            {sceneryMode === 'LDtk' && (
-                <WaterReflectionLayer
-                    reflectableTiles={reflectableTiles} gridSize={world.gridSize} ponds={waterPonds}
-                    worldToScreenX={worldToScreenX} leftPxForFactor={leftPxForFactor} zoom={zoom}
-                    globalIllumination={foliageParams.globalIllumination}
-                />
-            )}
-            {sceneryMode === 'LDtk' && (foliageInstancesBack.length > 0 || waterInstancesBack.length > 0) && (
-                <ForegroundFoliageLayer
-                    widthPx={size.w}
-                    heightPx={size.h}
-                    instances={cullToViewport([...foliageInstancesBack, ...waterInstancesBack].map((inst) => foliageInstanceProps(inst)))}
-                    debugChannel={foliageDebugChannel}
-                    lights={ldtkLights}
-                    params={foliageParams}
-                />
-            )}
+            {/* Perf (#1162, Fase 4): extracted into a memoized `SceneryBack` (defined above, before
+                `RpgLevelPanel`) — same rationale as `EntityLayer`'s own header comment. Bundles
+                `LdtkScenery` + `LdtkLitGround` + the `LdtkAnimatedTiles`/`WaterReflectionLayer` wrapper +
+                `ForegroundFoliageLayer` for the back-of-entities pass. */}
+            <SceneryBack
+                sceneryMode={sceneryMode} groundAndFoliageBack={groundAndFoliageBack} world={world}
+                leftPxForFactor={leftPxForFactor} sceneryScrollBackRef={sceneryScrollBackRef}
+                groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesBack={litGroundTexturesBack}
+                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams}
+                foliageDebugChannel={foliageDebugChannel} overlayScrollBackRef={overlayScrollBackRef}
+                culledAnimatedTilesBack={culledAnimatedTilesBack} localWorldToScreenXLocal={localWorldToScreenXLocal}
+                reflectableTiles={reflectableTiles} waterPonds={waterPonds} worldToScreenXLocal={worldToScreenXLocal}
+                waterInstancesBack={waterInstancesBack}
+                localFoliageInstancesBack={localFoliageInstancesBack} cameraOffsetRef={cameraOffsetRef}
+                foliageAtlas={foliageAtlas} atlasFoliageInstancesBack={atlasFoliageInstancesBack}
+            />
 
             {/* Decor layer — #141 round 15 (Han: "je hebt de trunk aan de foliage layer toegevoegd. ik wil
                 hem verlicht, maar geen onderdeel van foliage. Tent en trunk should be op de decor background
@@ -1528,163 +2088,41 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 />
             )}
 
-            {/* Whisp NPC — "zet de whisp NPC neer... als ik erop klik loopt personage erheen, en verschijnt
-                een tekstballon". Same classified Wisp creature the Bestiary tab uses (§6d — one asset/one
-                classification, two render contexts), fixed in the world — it has no 'move' animation
-                (never walks itself) so `WorldCreature` falls back to its 'idle'. stopPropagation so
-                clicking it doesn't ALSO walk-to-tap-point on top of walk-to-NPC. */}
-            {wispVariant && (
-                <>
-                    <div
-                        onClick={(e) => { e.stopPropagation(); clickNpc(); }}
-                        style={{ position: 'absolute', left: worldToScreenX(NPC_X), bottom: standAnchorFor(NPC_X), transform: 'translateX(-50%)', cursor: 'pointer' }}
-                    >
-                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
-                    </div>
-                    {/* #1032: a SIBLING, never nested inside the entity's own `transform`-ed wrapper above
-                        — CSS makes a transformed element a new containing block for `position:absolute`
-                        descendants, which would silently break this reflection's own left/bottom math. */}
-                    <EntityReflection worldX={NPC_X}>
-                        <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
-                    </EntityReflection>
-                </>
-            )}
-
-            {/* Slime — #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"):
-                standing at the Slime entity marker, same z-slot as Wisp/hero/pet.
-                #922 (Han 2026-08-12, "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou
-                die op de slime van de RPG-wereld"): now clickable, same walk-then-talk pattern as the Wisp
-                (stopPropagation so it doesn't ALSO walk-to-tap-point on top of walk-to-Slime). */}
-            {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
-                <>
-                    <div
-                        onClick={(e) => { e.stopPropagation(); clickSlime(); }}
-                        style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchorFor(ENTITY_WORLD_X.Slime), transform: 'translateX(-50%)', cursor: 'pointer' }}
-                    >
-                        <WorldSlime frame={petFrame} zoom={zoom} />
-                    </div>
-                    <EntityReflection worldX={ENTITY_WORLD_X.Slime}>
-                        <WorldSlime frame={petFrame} zoom={zoom} />
-                    </EntityReflection>
-                </>
-            )}
-
-            {/* #1093 (Han 2026-08-20, open-world worker NPCs): 6 stationary workers standing at Level_1's
-                own "NPC" LDtk markers (workerNpcs above) — same stand-anchor/reflection treatment as
-                Wisp/Slime, no click handler (decorative only, no dialogue). Each gets its OWN
-                WorkerNpcSlot instance (one useWorkerHitState hook call per NPC, React's normal
-                one-component-per-list-item pattern — see that component's header for why the state
-                machine must NOT live inside the twice-rendered WorkerNpc itself). */}
-            {sceneryMode === 'LDtk' && workerNpcs.map((w) => (
-                <WorkerNpcSlot
-                    key={w.name}
-                    variant={w.variant} hitConfig={w.hitConfig} petFrame={petFrame}
-                    context={context} triggerBell={workerNpcAudio} zoom={zoom}
-                    worldX={w.x} worldToScreenX={worldToScreenX} standAnchorFor={standAnchorFor}
-                    EntityReflection={EntityReflection}
-                    getListenerX={() => playerXRef.current}
-                />
-            ))}
-
-            {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
-                (flying/ground/water)"): one WorldWanderer per spawned Critter_* marker (see
-                critterWanderers above) — each variant already carries its own habitat's wander box/perch
-                behaviour from HABITAT_WANDER. */}
-            {sceneryMode === 'LDtk' && critterWanderers.map((w, i) => (
-                <WorldWanderer
-                    key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
-                    rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
-                    swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
-                    frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
-                    isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
-                    birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
-                />
-            ))}
-
-            {/* Hero — same paper-doll renderer as everywhere else (§6d), standing on the floor, walking
-                left/right (A/D, arrow keys, edge-hold, or tap-to-move) via `useRpgLevelState`. `noPetChar`:
-                the pet is rendered as its OWN trailing sprite below, so the doll's built-in pet LAYER is
-                stripped here to avoid double-drawing it glued to the character's hip. */}
-            {char && (
-                <>
-                    <div style={{
-                        position: 'absolute', left: worldToScreenX(playerX), bottom: standAnchorFor(playerX),
-                        transform: `translateX(-50%) scaleX(${facing})`,
-                    }}>
-                        {/* #924 (Han 2026-08-12, "mijn personage heeft geen animatie. Hero moet ook idle
-                            animatie tonen"): idle frame was hardcoded to 0 — a single frozen frame, no cycling
-                            at all. `petFrame` already ticks at the shared bpm-coupled idle cadence
-                            (frameMsForBpm, #923) for the pet/wisp/slime — reused here (§6c) instead of a second
-                            idle-frame counter. */}
-                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
-                    </div>
-                    <EntityReflection worldX={playerX} extraTransform={`scaleX(${facing})`}>
-                        <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
-                    </EntityReflection>
-                </>
-            )}
-
-            {/* Pet — trails the player at a delay (useRpgLevelState's PET_FOLLOW_GAP leash). #693 round 8
-                ("gebruik dezelfde pet als in de avatar selector") / round 12 (dog clipped: "gebruik toch
-                gewoon de sprites uit de bestiary"): renders via `WorldCreature` + its classified bestiary
-                variant (`petVariant`, resolved above by URL match) whenever one is found — same renderer,
-                same walk/run/fly-aware animation lookup as every other classified creature — falling back
-                to the old hand-rolled `WorldPet`/`PET_CROP` convention only if a pet sheet has no bestiary
-                match. Renders nothing if no pet is equipped. */}
-            {petUrl && (
-                <>
-                    <div style={{ position: 'absolute', left: worldToScreenX(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
-                        {petVariant
-                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
-                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
-                    </div>
-                    <EntityReflection worldX={petX}>
-                        {petVariant
-                            ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
-                            : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
-                    </EntityReflection>
-                </>
-            )}
+            {/* Perf (#1162, Fase 3): extracted into a memoized `EntityLayer` (defined above, before this
+                component) — see its own header comment for why. All the props below are either already
+                stable during a pure camera pan (Fase 1/2's own work), refs, or plain callbacks/booleans. */}
+            <EntityLayer
+                entityScrollRef={entityScrollRef} wispVariant={wispVariant} wispFlying={wispFlying} debugMode={debugMode} clickNpc={clickNpc}
+                worldToScreenXLocal={worldToScreenXLocal} standAnchorFor={standAnchorFor} petFrame={petFrame}
+                zoom={zoom} EntityReflection={EntityReflection} sceneryMode={sceneryMode}
+                clickSlime={clickSlime} workerNpcs={workerNpcs} timeSignature={timeSignature}
+                context={context} workerNpcAudio={workerNpcAudio} playerXRef={playerXRef}
+                critterWanderers={critterWanderers} foliageParams={foliageParams}
+                birdPositionsRef={birdPositionsRef} birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
+                char={char} noPetChar={noPetChar} moving={moving} running={running}
+                walkAnim={walkAnim} runAnim={runAnim} idleAnim={idleAnim} walkFrame={walkFrame}
+                facing={facing} playerX={playerX} petUrl={petUrl} petVariant={petVariant}
+                petX={petX} petMoving={petMoving}
+            />
 
             {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
                 layer sits IN FRONT of the `Entities` layer in the .ldtk file's own paint order —
                 Grass_decoration_fg's edge decoration, Blacksmith/Alchemist buildings, interior walls.
                 Rendered AFTER hero/pet/Wisp/Slime so it correctly draws on top of them, mirroring the
                 source file exactly (see the back-of-entities pass earlier in this render for the rest). */}
-            {sceneryMode === 'LDtk' && (
-                <LdtkScenery
-                    groundTiles={groundAndFoliageFront} gridSize={world.gridSize}
-                    leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
-                />
-            )}
-            {/* #925 follow-up (Han 2026-08-16): front-of-entities ground/building/decor — edge-lit only
-                (Han: "de lagen vóór entities worden alleen belicht op 2px van de rand"), see
-                EDGE_LIGHT_PIXELS in foliageLightingGLSL.js. */}
-            {sceneryMode === 'LDtk' && litGroundTexturesFront && (
-                <LdtkLitGround
-                    widthPx={size.w} heightPx={size.h}
-                    textures={litGroundTexturesFront} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
-                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
-                    lights={ldtkLights}
-                    params={foliageParams} edgeLitOnly={true} debugChannel={foliageDebugChannel}
-                />
-            )}
-            {sceneryMode === 'LDtk' && (
-                <LdtkAnimatedTiles
-                    animatedTiles={cullTilesToViewport(nonWaterAnimatedTilesFront)} worldToScreenX={localWorldToScreenX}
-                    groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
-                />
-            )}
-            {sceneryMode === 'LDtk' && (foliageInstancesFront.length > 0 || waterInstancesFront.length > 0) && (
-                <ForegroundFoliageLayer
-                    widthPx={size.w}
-                    heightPx={size.h}
-                    instances={cullToViewport([...foliageInstancesFront, ...waterInstancesFront].map((inst) => foliageInstanceProps(inst)))}
-                    debugChannel={foliageDebugChannel}
-                    lights={ldtkLights}
-                    params={foliageParams}
-                />
-            )}
+            {/* Perf (#1162, Fase 4): extracted into a memoized `SceneryFront` (defined above, before
+                `RpgLevelPanel`) — same rationale as `SceneryBack`/`EntityLayer`'s own header comments. */}
+            <SceneryFront
+                sceneryMode={sceneryMode} groundAndFoliageFront={groundAndFoliageFront} world={world}
+                leftPxForFactor={leftPxForFactor} sceneryScrollFrontRef={sceneryScrollFrontRef}
+                groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesFront={litGroundTexturesFront}
+                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams}
+                foliageDebugChannel={foliageDebugChannel} overlayScrollFrontRef={overlayScrollFrontRef}
+                culledAnimatedTilesFront={culledAnimatedTilesFront} localWorldToScreenXLocal={localWorldToScreenXLocal}
+                waterInstancesFront={waterInstancesFront}
+                localFoliageInstancesFront={localFoliageInstancesFront} cameraOffsetRef={cameraOffsetRef}
+                foliageAtlas={foliageAtlas} atlasFoliageInstancesFront={atlasFoliageInstancesFront}
+            />
 
             {/* #141 round 12's CSS "reveal near a light" radial-gradient glow — gated behind debugMode in
                 round 15, then REMOVED ENTIRELY in round 16 (Han: "haal de glow ook buiten debug mode weg" —
@@ -1772,6 +2210,40 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             {size.w > 0 && <EdgeHoldZone side="right" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
 
             {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraX} zoom={zoom} />}
+
+            {/* Perf (#1162, Fase 10a, docs/architecture.md §337): visual check for the new foliage texture
+                atlas, gated behind debugMode like every other debug affordance in this file (§3a) — this
+                phase deliberately does NOT wire the atlas into rendering yet, so this preview is the only
+                way to confirm the packing is correct (no gaps/overlaps between crops, normal-map crops
+                aligned with their diffuse counterparts) before Fase 10b builds anything on top of it. */}
+            {debugMode && foliageAtlas && (
+                <div style={{
+                    position: 'absolute', bottom: 8, right: 8, zIndex: 6, display: 'flex', gap: 4,
+                    background: 'rgba(0,0,0,0.6)', padding: 4, borderRadius: 4,
+                    border: '1px solid rgba(255,255,255,0.4)',
+                }}>
+                    <div>
+                        <div style={{ color: '#fff', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 10 }}>
+                            atlas diffuse {foliageAtlas.diffuseCanvas.width}×{foliageAtlas.diffuseCanvas.height} ({foliageAtlas.uvByKey.size} crops)
+                        </div>
+                        <img alt="foliage diffuse atlas" src={foliageAtlas.diffuseCanvas.toDataURL()} style={{ width: 160, imageRendering: 'pixelated', display: 'block' }} />
+                    </div>
+                    <div>
+                        <div style={{ color: '#fff', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 10 }}>
+                            atlas normal
+                        </div>
+                        <img alt="foliage normal atlas" src={foliageAtlas.normalCanvas.toDataURL()} style={{ width: 160, imageRendering: 'pixelated', display: 'block' }} />
+                    </div>
+                </div>
+            )}
+
+            {/* Perf (#1162, Fase 10b, docs/architecture.md §339): isolated instanced-draw mechanism test —
+                see FoliageInstancingTest.jsx's own header comment. Not real content, purely "does instancing
+                against the shared atlas draw correctly, lit correctly" verification before Fase 10c touches
+                the real rendering. */}
+            {debugMode && foliageAtlas && (
+                <FoliageInstancingTest atlas={foliageAtlas} foliageParams={foliageParams} lights={ldtkLights} />
+            )}
 
             {/* #141 round 2 (Han: "implement 3 maps and let me toggle") — cycles the foliage shader's debug
                 channel, gated on debugMode like every other debug affordance in this file (§3a). #141 round

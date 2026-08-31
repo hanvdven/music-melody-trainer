@@ -27,7 +27,7 @@ import { TICKS_PER_WHOLE } from '../../constants/timing.js';
  * byte-identical to the old inline closures for every case.
  *
  * The two parent helpers `getLyricFill` and `getSolfegeForNote` capture a large
- * slice of SheetMusic state (theme, noteColoringMode, processedChords, tonic,
+ * slice of SheetMusic state (theme, colorScheme, colorScope, processedChords, tonic,
  * scaleNotes, lyricsMode, chordTransSemitones, …). Rather than re-thread all of
  * that, they are passed in as function props so the colour/syllable resolution
  * stays single-sourced and identical to before.

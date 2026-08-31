@@ -35,8 +35,8 @@ const RangeControls = ({
     setSettings,
     activeClef,
     setInstrument,
-    noteColoringMode,
-    setNoteColoringMode,
+    colorScheme,
+    setColorScheme,
     onSettingsInteraction,
     // rangeOnly (Han 2026-05-30): the range-edit-mode variant of this control —
     // hides the note-coloring (palette) and instrument columns so only the
@@ -153,45 +153,47 @@ const RangeControls = ({
             {/* 1b. Palette Toggler (between lower bound and clef) — hidden in rangeOnly */}
             {!rangeOnly && (
             <div className="rc-col">
-                {setNoteColoringMode && (
+                {setColorScheme && (
                     <button
                         onClick={() => {
-                            // Order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
-                            const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
-                            const idx = COLOR_MODES.indexOf(noteColoringMode);
-                            setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
+                            // #1103: quick-cycle button, colorSCHEME only (not colorScope) — same
+                            // scope-out-of-band choice as SettingsPanel.jsx's own identical control.
+                            // Order (Han 2026-06-17, preserved): none → root → highlight → chroma → subtle-chroma.
+                            const COLOR_SCHEMES = ['none', 'root', 'highlight', 'chroma', 'subtle-chroma'];
+                            const idx = COLOR_SCHEMES.indexOf(colorScheme);
+                            setColorScheme(COLOR_SCHEMES[(idx + 1) % COLOR_SCHEMES.length]);
                         }}
                         className="rc-palette-btn"
                     >
                         <div
                             className="rc-palette-icon-wrap"
                             style={{
-                                color: noteColoringMode === 'none' ? 'var(--text-primary)' :
-                                    noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
-                                        noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' :
-                                            noteColoringMode === 'chords' ? '#90EE90' :
+                                color: colorScheme === 'none' ? 'var(--text-primary)' :
+                                    colorScheme === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
+                                        colorScheme === 'chroma' ? 'url(#chromatone-gradient-hdr)' :
+                                            colorScheme === 'root' ? '#90EE90' :
                                                 'var(--note-tonic)'
                             }}
                         >
-                            <Palette size={22} color={noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' : noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' : 'currentColor'} fill="none" />
+                            <Palette size={22} color={colorScheme === 'chroma' ? 'url(#chromatone-gradient-hdr)' : colorScheme === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' : 'currentColor'} fill="none" />
                         </div>
                         <span
                             className="rc-palette-label"
                             style={{
-                                color: noteColoringMode === 'none' ? 'var(--text-primary)' :
-                                    noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
-                                        noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' :
-                                            noteColoringMode === 'chords' ? '#90EE90' :
+                                color: colorScheme === 'none' ? 'var(--text-primary)' :
+                                    colorScheme === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
+                                        colorScheme === 'chroma' ? 'url(#chromatone-gradient-hdr)' :
+                                            colorScheme === 'root' ? '#90EE90' :
                                                 'var(--note-tonic)'
                             }}
                         >
                             {{
                                 none: 'NO COLOR',
-                                tonic_scale_keys: 'SCALE',
-                                chords: 'CHORDS',
-                                chromatone: 'CHROMATONE',
+                                highlight: 'HIGHLIGHT',
+                                root: 'ROOT',
+                                chroma: 'CHROMATONE',
                                 'subtle-chroma': 'SUBTLE CHROMA'
-                            }[noteColoringMode] || 'NO COLOR'}
+                            }[colorScheme] || 'NO COLOR'}
                         </span>
                     </button>
                 )}

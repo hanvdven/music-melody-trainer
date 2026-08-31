@@ -20,6 +20,67 @@ const isNoteInRange = (note, range) => {
     return idx !== -1 && idx >= minIdx && idx <= maxIdx;
 };
 
+// Hard rule for ALL melody generation (Han 2026-08-26, "de lengte van een noot mag geen twee
+// groepsgrenzen passeren... nog een regel: en nooit 2 maatgrenzen (ongeacht de smallest note
+// denum)"): without this, a run of consecutive null (inactive) slots after a note lets that note's
+// duration extend indefinitely — `Melody.fromFlattenedNotes` just keeps incrementing the active
+// note's duration for every following null. In call-response and high-variability random levels this
+// produced notes that "never end". A note may extend AT MOST through the end of the immediately-next
+// rhythmic group (never a second group boundary), and never past the end of the immediately-next
+// MEASURE (never a second measure boundary) — whichever cap is stricter.
+//
+// "Groups" here are recomputed at the melody's own GENERATION SLOT resolution
+// (`chooseGrouping(timeSignature[0] * slotsPerBeat)`), NOT the coarser beat-level `rhythmicGrouping`
+// already computed for rhythmic-DNA ranking (generateBaseMelody's own `rhythmicGrouping`) — confirmed
+// against Han's own worked example: 4/4 at smallestNoteDenom=8 groups the measure as eighth-note
+// slots {3,3,2} (`chooseGrouping(8)`), NOT a proportional {4,4} split of the beat-level {2,2} grouping.
+// Reuses `chooseGrouping`/`decomposeToGroupSizes` (already imported) — no new hardcoded table (§6c).
+// Applies UNCONDITIONALLY to every instrument type, never gated behind `insertBeatRests` — this is a
+// pipeline-wide invariant (§6b), not a per-instrument setting.
+//
+// Only REAL notes are capped (a token that is `null`, `'r'`, or already a rest is left alone) — once a
+// note's extension is cut short by inserting an explicit rest here, that rest is free to keep
+// extending via further nulls uncapped (a long REST isn't the reported problem; a long NOTE is).
+export const capNoteLengthAtGroupBoundaries = (melodyArray, numMeasures, timeSignature, smallestNoteDenom) => {
+    const numMeasureSlots = melodyArray.length / numMeasures;
+    const slotsPerBeat = Math.max(smallestNoteDenom || timeSignature[1], timeSignature[1]) / timeSignature[1];
+    const capGrouping = chooseGrouping(timeSignature[0] * slotsPerBeat);
+
+    // Cumulative END-of-group slot offsets within one measure, e.g. [3,6,8] for groups [3,3,2].
+    const groupEnds = [];
+    let acc = 0;
+    for (const size of capGrouping) { acc += size; groupEnds.push(acc); }
+
+    const result = melodyArray.slice();
+    let i = 0;
+    while (i < result.length) {
+        const note = result[i];
+        if (note == null || note === 'r') { i++; continue; }
+
+        const measureIndex = Math.floor(i / numMeasureSlots);
+        const posInMeasure = i % numMeasureSlots;
+        // Which group (within the measure) does this note START in?
+        const groupIdx = groupEnds.findIndex((end) => posInMeasure < end);
+        // End of the group immediately AFTER the starting group — wraps into the next measure's
+        // first group when the note starts in the LAST group of its own measure (matches Han's own
+        // [2,3] example, where the note starts in the 3-group of measure 1 and may extend through
+        // the entirety of measure 2's first 2-group).
+        const nextGroupEndInMeasure = groupEnds[groupIdx + 1] ?? (numMeasureSlots + groupEnds[0]);
+        const groupCapAbsolute = measureIndex * numMeasureSlots + nextGroupEndInMeasure;
+        const measureCapAbsolute = (measureIndex + 2) * numMeasureSlots; // never a 2nd measure boundary
+        const maxEndSlot = Math.min(groupCapAbsolute, measureCapAbsolute);
+
+        let j = i + 1;
+        while (j < result.length && result[j] == null && j < maxEndSlot) j++;
+        if (j < result.length && result[j] == null) {
+            // The next null slot would cross the cap — terminate this note's extension here.
+            result[j] = 'r';
+        }
+        i = j;
+    }
+    return result;
+};
+
 class MelodyGenerator {
     constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null, externalRhythmicGrouping = null) {
 
@@ -324,6 +385,13 @@ class MelodyGenerator {
             } else {
                 generatedMelodyWithRests = generatedMelody;
             }
+
+            // Hard rule for ALL melody generation (Han 2026-08-26) — see capNoteLengthAtGroupBoundaries's
+            // own comment. Runs unconditionally, after insertBeatRests, so it only needs to catch
+            // extensions that survive past whatever beat-level rests were already inserted above.
+            generatedMelodyWithRests = capNoteLengthAtGroupBoundaries(
+                generatedMelodyWithRests, numMeasures, timeSignature, smallestNoteDenom,
+            );
         }
 
         const finalMelody = Melody.fromFlattenedNotes(

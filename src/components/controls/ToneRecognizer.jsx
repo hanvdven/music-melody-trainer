@@ -66,7 +66,7 @@ function noteToString(noteInfo) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ToneRecognizer = ({ context, scale, noteColoringMode, onNoteInput, inputTestSubMode }) => {
+const ToneRecognizer = ({ context, scale, colorScheme, colorScope, onNoteInput, inputTestSubMode }) => {
     const [detectionMode, setDetectionMode] = useState('note'); // 'note' | 'chord'
     const [source, setSource] = useState('piano'); // 'piano' | 'guitar' | 'voice'
 
@@ -256,7 +256,8 @@ const ToneRecognizer = ({ context, scale, noteColoringMode, onNoteInput, inputTe
                     trebleInstrument={null}
                     minNote={range.min}
                     maxNote={range.max}
-                    noteColoringMode={noteColoringMode}
+                    colorScheme={colorScheme}
+                    colorScope={colorScope}
                     activeNote={activeNoteStr}
                     activePitchClasses={detectionMode === 'chord' ? activePitchClasses : null}
                     onNoteInput={onNoteInput}

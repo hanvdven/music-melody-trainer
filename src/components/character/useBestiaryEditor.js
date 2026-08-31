@@ -150,7 +150,9 @@ export const BESTIARY_FILTER_TAG_ROWS = [
     ['musician', 'worker', 'trader', 'tavern', 'military', 'bathhouse'],
     ['oriental', 'seasonal', 'roman', 'christian'],
     ['pet', 'critter', 'bird'],
-    ['portrait', 'move', 'attack', 'ranged'],
+    // #1096 (Han 2026-08-20, "voeg een tag toe: audio, zet naast portrait move attack ranged"): a creature
+    // with a worker bell/hammer sound (WORKER_SOUND_CONFIG-derived, see the generator's 'audio' tag).
+    ['portrait', 'move', 'attack', 'ranged', 'audio'],
 ];
 export const BESTIARY_FILTER_TAGS = BESTIARY_FILTER_TAG_ROWS.flat();
 // #870 (Han 2026-08-13, "dan mogen townsfolk en hostile twee tags zijn. ik wil een derde optie: nature; voeg

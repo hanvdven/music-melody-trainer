@@ -110,8 +110,28 @@ const modeAdjustments = {
  * - index: Roman numeral (I, II, III, etc.) or null for non-indexed modes
  * - name: Clean mode name without index prefix
  * - wheelName: Full display name (may include parenthetical notes)
- * - intervals: Array of semitone intervals
+ * - intervals: Array of semitone intervals — the scale's OWN notes (any length: 5 for pentatonic,
+ *   6 for hexatonic, 7 for a genuine diatonic mode). This is what `generateScale` uses to compute the
+ *   actual pitches — the only field that affects what a scale SOUNDS like.
  * - aliases: Optional array of alternative names for searchability
+ *
+ * The two fields below exist ONLY for scales whose `intervals` is NOT length 7 (a genuinely diatonic
+ * mode's `diatonic` trivially names itself, e.g. Ionian's `diatonic: 'Ionian'` above). They never affect
+ * which pitches the scale contains — only the KEY SIGNATURE (`generateNumAccidentals`) and MODULATION
+ * degree math (`modulateMelody`, src/theory/musicUtils.js) computed FOR it (#1156/#1158/#1153, Han
+ * 2026-08-25 — three bugs traced back to this one pair of fields being out of sync):
+ * - diatonic: the name of a REAL 7-note diatonic mode whose pitch-class set this scale's notes are a
+ *   SUBSET of, at the SAME tonic — a load-bearing lookup key into `modeAdjustments[diatonic]` below, not
+ *   a "reminds me of" label. Changing this WITHOUT also updating `heptaRefIntervals` (next) breaks the
+ *   key signature — confirmed live: relabeling "In" from `diatonic:'Lydian'` to `'Phrygian'` alone made
+ *   "In" on E compute 5 flats instead of 0.
+ * - heptaRefIntervals: that SAME diatonic mode's own canonical 7-note `intervals` array (e.g. Phrygian's
+ *   own `[1,2,2,2,1,2,2]`) — i.e. always one of the 7 arrays already listed under `Diatonic` above, never
+ *   a hand-invented array. `deriveReferenceTonicOffset` (below) uses it to find the semitone shift `d`
+ *   between this scale's own tonic and its reference scale's tonic; `d` should be 0 whenever a same-tonic
+ *   subset relationship exists (verify with `cumulativeOffsets(intervals)` ⊆ `cumulativeOffsets
+ *   (heptaRefIntervals)` before committing a value — see the Pentatonic family below for a worked
+ *   example of every entry's own subset check).
  */
 const scaleDefinitions = {
     Diatonic: [
@@ -192,17 +212,17 @@ const scaleDefinitions = {
     ],
     'Harmonic Minor': [
         {
-            index: 'I',
+            index: 'VI',
             name: 'Harmonic Minor',
             preferredName: 'Harmonic Minor',
             intervals: [2, 1, 2, 2, 1, 3, 1],
             isSimple: true,
             diatonic: 'Aeolian',
         },
-        { index: 'II', name: 'Locrian ♯6', intervals: [1, 2, 2, 1, 3, 1, 2], diatonic: 'Locrian' },
-        { index: 'III', name: 'Ionian ♯5', intervals: [2, 2, 1, 3, 1, 2, 1], diatonic: 'Ionian' },
+        { index: 'VII', name: 'Locrian ♯6', intervals: [1, 2, 2, 1, 3, 1, 2], diatonic: 'Locrian' },
+        { index: 'I', name: 'Ionian ♯5', intervals: [2, 2, 1, 3, 1, 2, 1], diatonic: 'Ionian' },
         {
-            index: 'IV',
+            index: 'II',
             name: 'Ukrainian Dorian',
             wheelName: 'Dorian ♯4',
             intervals: [2, 1, 3, 1, 2, 1, 2],
@@ -210,15 +230,15 @@ const scaleDefinitions = {
             diatonic: 'Dorian',
         },
         {
-            index: 'V',
+            index: 'III',
             name: 'Phrygian Dominant',
             wheelName: 'Phrygian ♯2',
             intervals: [1, 3, 1, 2, 1, 2, 2],
             aliases: ['Spanish Gypsy'],
             diatonic: 'Phrygian',
         },
-        { index: 'VI', name: 'Lydian ♯2', intervals: [3, 1, 2, 1, 2, 2, 1], diatonic: 'Lydian' },
-        { index: 'VII', name: 'Mixolydian ♯1', intervals: [1, 2, 1, 2, 2, 1, 3], diatonic: 'Locrian' },
+        { index: 'IV', name: 'Lydian ♯2', intervals: [3, 1, 2, 1, 2, 2, 1], diatonic: 'Lydian' },
+        { index: 'V', name: 'Mixolydian ♯1', intervals: [1, 2, 1, 2, 2, 1, 3], diatonic: 'Locrian' },
     ],
     'Double Harmonic': [
         {
@@ -242,13 +262,13 @@ const scaleDefinitions = {
         { index: 'VII', name: 'Locrian ♭3 ♭7', intervals: [1, 1, 3, 1, 2, 1, 3], diatonic: 'Locrian' },
     ],
     'Other Heptatonic': [
-        { name: 'Neapolitan major', intervals: [1, 2, 2, 2, 2, 2, 1], diatonic: 'Ionian' },
-        { name: 'Neapolitan minor', intervals: [1, 2, 2, 2, 1, 3, 1], diatonic: 'Aeolian' },
-        { name: 'Hungarian major', intervals: [3, 1, 2, 1, 2, 1, 2], diatonic: 'Ionian' },
+        { name: 'Neapolitan major', intervals: [1, 2, 2, 2, 2, 2, 1], diatonic: 'Phryigian' },
+        { name: 'Neapolitan minor', intervals: [1, 2, 2, 2, 1, 3, 1], diatonic: 'Phrygian' },
+        { name: 'Hungarian major', intervals: [3, 1, 2, 1, 2, 1, 2], diatonic: 'Lydian' },
         { name: 'Locrian major', intervals: [2, 2, 1, 1, 2, 2, 2], diatonic: 'Locrian' },
         { name: 'Lydian diminished', intervals: [2, 1, 3, 1, 2, 2, 1], diatonic: 'Lydian' },
         { name: 'Gypsy major', intervals: [2, 1, 3, 1, 1, 2, 2], diatonic: 'Locrian' },
-        { name: 'Enigmatic', intervals: [1, 3, 2, 2, 2, 1, 1], diatonic: 'Ionian' },
+        { name: 'Enigmatic', intervals: [1, 3, 2, 2, 2, 1, 1], diatonic: 'Locrian' },
         { name: 'Persian', intervals: [1, 3, 1, 1, 2, 3, 1], diatonic: 'Locrian' },
     ],
     Pentatonic: [
@@ -267,13 +287,19 @@ const scaleDefinitions = {
             diatonic: 'Aeolian',
             heptaRefIntervals: [2, 1, 2, 2, 1, 2, 2],
         },
-        { name: 'Iwato', intervals: [1, 4, 1, 4, 2], diatonic: 'Phrygian', heptaRefIntervals: [1, 2, 2, 2, 1, 2, 2] },
-        { name: 'In', intervals: [1, 4, 2, 1, 4], diatonic: 'Lydian', heptaRefIntervals: [2, 2, 2, 1, 2, 2, 1] },
-        { name: 'Insen', intervals: [1, 4, 2, 3, 2], diatonic: 'Mixolydian', heptaRefIntervals: [2, 2, 1, 2, 2, 1, 2] },
-        { name: 'Hirajoshi scale', intervals: [4, 2, 1, 4, 1], diatonic: 'Aeolian', heptaRefIntervals: [2, 1, 2, 2, 1, 2, 2] },
-        { name: 'Egyptian pentatonic', intervals: [2, 3, 2, 3, 2], diatonic: 'Ionian', heptaRefIntervals: [2, 2, 1, 2, 2, 2, 1] },
+        // #1158 (Han 2026-08-25): `diatonic`/`heptaRefIntervals` below were edited out of sync with each
+        // other (see the field doc above) — "In" on E briefly computed 5 flats instead of 0. Re-derived so
+        // each entry's OWN pitch-class offsets are an exact subset of its `diatonic` target's pattern, at
+        // ZERO reference-tonic offset (every one of these 6 happens to satisfy that — no exceptions
+        // needed): Iwato[0,1,5,6,10]⊆Locrian, In[0,1,5,7,8]⊆Phrygian, Insen[0,1,5,7,10]⊆Phrygian,
+        // Hirajoshi[0,4,6,7,11]⊆Lydian, Egyptian[0,2,5,7,10]⊆Aeolian, Minor six[0,3,5,6,10]⊆Locrian.
+        { name: 'Iwato', intervals: [1, 4, 1, 4, 2], diatonic: 'Locrian', heptaRefIntervals: [1, 2, 2, 1, 2, 2, 2] },
+        { name: 'In', intervals: [1, 4, 2, 1, 4], diatonic: 'Phrygian', heptaRefIntervals: [1, 2, 2, 2, 1, 2, 2] },
+        { name: 'Insen', intervals: [1, 4, 2, 3, 2], diatonic: 'Phrygian', heptaRefIntervals: [1, 2, 2, 2, 1, 2, 2] },
+        { name: 'Hirajoshi scale', intervals: [4, 2, 1, 4, 1], diatonic: 'Lydian', heptaRefIntervals: [2, 2, 2, 1, 2, 2, 1] },
+        { name: 'Egyptian pentatonic', intervals: [2, 3, 2, 3, 2], diatonic: 'Aeolian', heptaRefIntervals: [2, 1, 2, 2, 1, 2, 2] },
         { name: 'Kumoi', intervals: [2, 1, 4, 1, 4], diatonic: 'Aeolian', heptaRefIntervals: [2, 1, 2, 2, 1, 2, 2] },
-        { name: 'Minor six pentatonic', intervals: [3, 2, 1, 4, 2], diatonic: 'Aeolian', heptaRefIntervals: [2, 1, 2, 1, 2, 2, 2] },
+        { name: 'Minor six pentatonic', intervals: [3, 2, 1, 4, 2], diatonic: 'Locrian', heptaRefIntervals: [1, 2, 2, 1, 2, 2, 2] },
     ],
     Hexatonic: [
         { name: 'Minor Blues scale', intervals: [3, 2, 1, 1, 3, 2], diatonic: 'Aeolian', heptaRefIntervals: [2, 1, 2, 2, 1, 2, 2] },
@@ -628,7 +654,13 @@ const cumulativeOffsets = (intervals) => {
 // up by `d` semitones. For a genuine Diatonic mode, `refIntervals` is the mode's own `intervals` (no
 // separate `heptaRefIntervals`), so the sets are identical and d=0 is found immediately — the general
 // case subsumes the "same tonic" special case instead of assuming it.
-const deriveReferenceTonicOffset = (intervals, refIntervals) => {
+// Exported (Han 2026-08-25 bug: "de eerste noot moet een A zijn, maar ik zie... G#" — Sakura, "In" on E):
+// `musicUtils.js`'s `modulateMelody` needs this SAME offset (§6c, one source of truth) — its own
+// heptatonic-reference degree math anchors `heptaRefIntervals` at the scale's own tonic PLUS this offset,
+// which must be 0 whenever `diatonic`/`heptaRefIntervals` correctly describe a same-tonic subset
+// relationship (the normal case — see the field doc above) and only nonzero for a genuine
+// different-tonic reference. See musicUtils.js's `modulateMelody` and docs/architecture.md for the fix.
+export const deriveReferenceTonicOffset = (intervals, refIntervals) => {
     const ownOffsets = cumulativeOffsets(intervals);
     const refOffsets = cumulativeOffsets(refIntervals);
     for (let d = 0; d < 12; d++) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
+import useFrameLoop from '../../hooks/useFrameLoop';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
 
 // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en reageren
@@ -47,6 +48,12 @@ uniform float uLevelPxHeight;
 // anything at all for this bucket), 3 disabled (shows the flat LdtkScenery fallback underneath, for
 // comparison).
 uniform int uDebugChannel;
+// Perf (#1162, Fase 10b): declared locally now, not via the shared LIGHTING_PARAM_UNIFORMS_GLSL block —
+// edgeLightFactor (foliageLightingGLSL.js) takes this as an explicit parameter instead of reading a
+// shared global by name, since ForegroundFoliageLayer's instanced shader needs a per-instance varying
+// float version that can't share one declaration with this plain per-draw-call uniform int (see that
+// file's own comment). This layer's own value/behavior is unchanged.
+uniform int uEdgeLitOnly;
 
 ${LIGHT_UNIFORMS_GLSL}
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
@@ -76,7 +83,7 @@ void main() {
     vec3 sampledNormal = normalize(texture2D(uNormal, uv).rgb * 2.0 - 1.0);
     vec3 n = normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
     vec2 texelSize = vec2(1.0 / uLevelPxWidth, 1.0 / uLevelPxHeight);
-    float edgeFactor = edgeLightFactor(uDiffuse, uv, texelSize);
+    float edgeFactor = edgeLightFactor(uDiffuse, uv, texelSize, float(uEdgeLitOnly));
 
     // Same coordinate convention ForegroundFoliageLayer.jsx's instances already use for worldX
     // (canvas-local to the stitched multi-level strip, NOT LDtk's absolute world coords) and groundDist
@@ -155,7 +162,7 @@ function createTextureFromCanvas(gl, canvas) {
 // LdtkScenery's own `leftPxForFactor`/`groundAnchor` convention exactly. `edgeLitOnly`: true for the
 // front-of-entities bucket (Han: rand-belichting op 2px, zie EDGE_LIGHT_PIXELS), false for back-of-
 // entities (full lighting).
-export default function LdtkLitGround({
+function LdtkLitGround({
     widthPx, heightPx, textures, levelPxWidth, levelPxHeight, leftPx, canvasBottomScreenY, zoom,
     lights = [], params, edgeLitOnly, debugChannel = 0,
 }) {
@@ -165,6 +172,11 @@ export default function LdtkLitGround({
     const uniformsRef = useRef(null);
     const liveRef = useRef({});
     const loggedOnceRef = useRef(false);
+    // Perf (#1162, Fase 9, docs/architecture.md §331): holds the current `drawFrame` closure so the
+    // separate `useFrameLoop` subscription below (which must live at the component's top level, not
+    // nested inside the GL-setup effect) can call into it without needing every local GL variable
+    // (gl/program/uniform locations/buffers) hoisted out to its own ref.
+    const drawFrameRef = useRef(null);
     liveRef.current = { leftPx, canvasBottomScreenY, zoom, levelPxWidth, levelPxHeight, lights, params, edgeLitOnly, debugChannel };
 
     useEffect(() => {
@@ -245,18 +257,6 @@ export default function LdtkLitGround({
         const lightColorBuf = new Float32Array(MAX_LIGHTS * 3);
         const dpr = window.devicePixelRatio || 1;
 
-        let raf;
-        let cancelled = false;
-        const draw = () => {
-            if (cancelled) return;
-            try {
-                drawFrame();
-            } catch (err) {
-                logger.error('LdtkLitGround', 'E031-LDTK-LIT-GROUND-DRAW-FRAME', err);
-            } finally {
-                if (!cancelled) raf = requestAnimationFrame(draw);
-            }
-        };
         const drawFrame = () => {
             gl.viewport(0, 0, canvas.width, canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -321,14 +321,28 @@ export default function LdtkLitGround({
 
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
-        raf = requestAnimationFrame(draw);
+        drawFrameRef.current = drawFrame;
 
         return () => {
-            cancelled = true;
-            if (raf) cancelAnimationFrame(raf);
+            drawFrameRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- gl setup runs once; everything else reads live via liveRef/textureIds
     }, []);
+
+    // Perf (#1162, Fase 9, docs/architecture.md §331): migrated onto the shared `useFrameLoop` ticker —
+    // `drawFrame` is synchronous (no `await` inside), so unlike ForegroundFoliageLayer.jsx's own migration
+    // this needs no in-flight guard; it can subscribe directly. The specific `E031-LDTK-LIT-GROUND-DRAW-
+    // FRAME` error code is preserved here (rather than relying solely on useFrameLoop's own generic
+    // catch-all) so a failure here still shows up as instantly identifiable in logs, matching every other
+    // WebGL layer's per-component error code convention (CLAUDE.md §7a).
+    useFrameLoop(() => {
+        if (!drawFrameRef.current) return;
+        try {
+            drawFrameRef.current();
+        } catch (err) {
+            logger.error('LdtkLitGround', 'E031-LDTK-LIT-GROUND-DRAW-FRAME', err);
+        }
+    }, [], { priority: 'critical' });
 
     // Textures are re-uploaded only when the composited canvases themselves change (a new world config —
     // season/city/tier toggle) — NOT every frame, unlike the live uniform values above.
@@ -355,3 +369,9 @@ export default function LdtkLitGround({
         />
     );
 }
+
+// Perf (#1161, Han 2026-08-27): doesn't depend on `petFrame` — its own live-uniform values (leftPx/lights/
+// params/etc.) already flow through `liveRef` for its internal draw loop, but the React render itself (and
+// the `liveRef.current = {...}` assignment) still ran on every `petFrame` tick without this boundary. See
+// LdtkScenery.jsx's own comment for the same reasoning and the `cameraX`-panning caveat.
+export default React.memo(LdtkLitGround);

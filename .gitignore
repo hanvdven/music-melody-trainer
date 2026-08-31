@@ -45,3 +45,8 @@ temp_*.jsx
 temp_*.js
 test_chord_format.js
 test_chords_complex.js
+
+# Raw asset drops / one-off dumps — kept locally, never committed (Han 2026-08-31, "commit alles")
+# 622MB profiler trace + 381MB third-party SFZ sample pack: source material, not repo material.
+src/assets/ASSET DROP/Trace-*.json
+src/assets/ASSET DROP/MuldjordKit SFZ+WAV-*/

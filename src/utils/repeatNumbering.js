@@ -43,3 +43,49 @@ export const computeRepeatPass = ({ startMeasureIndex, blockPlayStart, passSpan,
     if (!passSpan || passSpan <= 0) return 1;
     return Math.max(1, Math.floor(((startMeasureIndex ?? 0) - (blockPlayStart ?? 0)) / passSpan) + 1);
 };
+
+// #1155 (Han 2026-08-24, "pas de labelconventie toe op alle call-response levels"): call-response needs
+// the SAME "N" / "N . 2" convention as `computeRepeatPass` above, but the mechanism can't be reused
+// as-is — `computeRepeatPass` computes ONE pass number per RENDER (correct for a repeat block that
+// cycles as a whole over TIME, so every currently-visible measure genuinely shares one pass at any
+// moment). Call-response is the opposite: the call measure(s) and response measure(s) are BOTH on
+// screen SIMULTANEOUSLY (a scrolling/growing melody, not a time-based repeat), so each barline needs
+// its OWN independent pass based on its own ordinal position, not one shared value.
+//
+// `barlineOrdinal` — the 0-based ordinal position of this barline among ALL 'm' markers rendered so far
+// (BarlinesLayer's own `measureNumForLabel`/`barlineCount`) — i.e. "the Nth measure generated since the
+// level started," NOT tied to combat/wave progress (deliberately independent of `levelWaveIndex` —
+// content generation and combat wave-clearing run at different paces for call-response, §304's own
+// `usesTrebleJitStream` fix already established this exact distinction for a different bug).
+// `groupMeasures` — the call's own length (1 for letter d, 2 for letter e) — `lvl.callResponseMeasures`.
+//
+// Each call-response CYCLE spans `2 * groupMeasures` real barlines: the first `groupMeasures` are the
+// call (pass 1), the next `groupMeasures` repeat the SAME song-measure numbers as the response (pass 2).
+//
+// Bug fix (Han 2026-08-25 UAT, Level 11/letter e: "de eerste noten van de tovenaar zijn maten 3 en 4...
+// maten 5 en 6 worden niet herhaald"): `barlineOrdinal` is `BarlinesLayer`'s raw `measureNumForLabel`,
+// which counts EVERY 'm' marker rendered — including the level's own synthetic lead-in bars
+// (`SheetMusic.jsx` prepends `leadInBars` extra 'm' entries ahead of the real content for wave 0, the
+// SAME mechanism the non-call-response path already accounts for via `blockMeasureStart = (1 -
+// leadInBars) + ...`). Without an equivalent offset here, the lead-in bars were fed straight into the
+// call/response cycle math as if they were real call/response measures — shifting the WHOLE cycle by
+// `leadInBars` barlines, so real call measures got mislabeled with "response" (.2) suffixes and vice
+// versa. `leadInBars` (default 0 — every other call-response level has none) is subtracted before the
+// cycle math runs; ordinals still inside the lead-in get the SAME plain, un-suffixed negative/zero
+// numbering the non-call-response path already uses (no call/response pass exists before content
+// starts).
+export const computeCallResponseLabel = ({ barlineOrdinal, groupMeasures, leadInBars = 0 }) => {
+    if (barlineOrdinal < leadInBars) {
+        return { measureNumber: (1 - leadInBars) + barlineOrdinal, pass: 1 };
+    }
+    const contentOrdinal = barlineOrdinal - leadInBars;
+    const span = groupMeasures > 0 ? groupMeasures : 1;
+    const cycleIndex = Math.floor(contentOrdinal / (2 * span));
+    const posInCycle = contentOrdinal % (2 * span);
+    const isResponse = posInCycle >= span;
+    const measureInGroup = isResponse ? posInCycle - span : posInCycle;
+    return {
+        measureNumber: cycleIndex * span + measureInGroup + 1,   // 1-based, shared by a call/response pair
+        pass: isResponse ? 2 : 1,
+    };
+};

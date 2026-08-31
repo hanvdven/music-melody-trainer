@@ -57,7 +57,7 @@ function useCompositedDataUrl(tiles, gridSize) {
 // spiegel-as... zet de lijn op 28px"): the mirror axis is Han's own hand-tuned `WATER_REFLECTION_AXIS_PX`
 // constant, NOT each pond's tile-derived `surfaceY` — same fix as `EntityReflection`'s round 6 (see that
 // component's own comment for the worked example that proves this).
-export default function WaterReflectionLayer({ reflectableTiles, gridSize, ponds, worldToScreenX, leftPxForFactor, zoom, globalIllumination = 1 }) {
+function WaterReflectionLayer({ reflectableTiles, gridSize, ponds, worldToScreenX, leftPxForFactor, zoom, globalIllumination = 1 }) {
     const dataUrl = useCompositedDataUrl(reflectableTiles, gridSize);
     if (!dataUrl || ponds.length === 0) return null;
     const canvasLeftPx = leftPxForFactor(1);
@@ -93,3 +93,7 @@ export default function WaterReflectionLayer({ reflectableTiles, gridSize, ponds
         </>
     );
 }
+
+// Perf (#1161, Han 2026-08-27): doesn't depend on `petFrame`. See LdtkScenery.jsx's own comment for the
+// same reasoning and the `cameraX`-panning caveat.
+export default React.memo(WaterReflectionLayer);

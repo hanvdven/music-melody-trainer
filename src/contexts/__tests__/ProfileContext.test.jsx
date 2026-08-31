@@ -109,7 +109,7 @@ describe('ProfileContext schema (v2)', () => {
         expect(summary.streakDays).toBe(1);
         // Persisted at the melodyComplete flush
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        expect(saved.version).toBe(3);
+        expect(saved.version).toBe(5);   // #1099: bumped from 4 to 5 (anpm axis added)
         expect(saved.totalXP).toBeGreaterThan(0);
         expect(Object.keys(saved.lifetime.scales)).toContain('Diatonic:Major');
     });
@@ -136,7 +136,82 @@ describe('ProfileContext schema (v2)', () => {
         // The run bump flushed to storage.
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         expect(saved.exerciseProgress['scale-runs'].runs).toBe(1);
-        expect(saved.version).toBe(3);
+        expect(saved.version).toBe(5);   // #1099: bumped from 4 to 5 (anpm axis added)
+    });
+
+    // #1054 (Han 2026-08-20, level-based stats/progression): recordLevelCompletion smoke tests.
+    it('recordLevelCompletion ratchets highestLevelAt80/knownScales at >=80%, never below', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 3, tonic: 'C4', mode: 'Major', accuracyPercent: 85 });
+        });
+        expect(result.current.levelMastery.highestLevelAt80).toBe(3);
+        expect(result.current.levelMastery.knownScales).toContain('C4:Major');
+        expect(result.current.levelMastery.playCounts[3]).toBe(1);
+        expect(result.current.levelMastery.perfectCounts[3]).toBeUndefined();
+
+        // A LOWER level completed afterwards must not lower the ratchet.
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 100 });
+        });
+        expect(result.current.levelMastery.highestLevelAt80).toBe(3);
+        expect(result.current.levelMastery.perfectCounts[1]).toBe(1);   // 100% bumps the perfect counter
+
+        // Below 80% must not move the ratchet, but still counts as a play.
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 4, tonic: 'C4', mode: 'Major', accuracyPercent: 60 });
+        });
+        expect(result.current.levelMastery.highestLevelAt80).toBe(3);
+        expect(result.current.levelMastery.playCounts[4]).toBe(1);
+
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        expect(saved.levelMastery.highestLevelAt80).toBe(3);
+    });
+
+    it('recordLevelCompletion tracks songId levels as knownSongs, not highestLevelAt80', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ songId: 'arirang', tonic: 'D4', mode: 'Minor', accuracyPercent: 90 });
+        });
+        expect(result.current.levelMastery.knownSongs).toContain('arirang');
+        expect(result.current.levelMastery.highestLevelAt80).toBeNull();
+        expect(result.current.levelMastery.knownScales).toContain('D4:Minor');
+        expect(result.current.levelMastery.playCounts.arirang).toBe(1);
+    });
+
+    // #1099 (Han 2026-08-22, ANPM stat): recordLevelCompletion's EWMA smoke tests.
+    it('recordLevelCompletion sets anpm directly on the FIRST qualifying (>=90%) completion', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        expect(result.current.anpm).toBeNull();
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 40 });
+        });
+        expect(result.current.anpm).toBe(40);
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        expect(saved.anpm).toBe(40);
+    });
+
+    it('recordLevelCompletion leaves anpm unchanged on a <90%-accuracy completion', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 40 });
+        });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 70, notesPerMinute: 100 });
+        });
+        expect(result.current.anpm).toBe(40);   // the 70%-accuracy run's rate must not pull it up OR down
+    });
+
+    it('recordLevelCompletion blends a SECOND qualifying completion via the EWMA alpha', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 40 });
+        });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 100, notesPerMinute: 60 });
+        });
+        // ANPM_EWMA_ALPHA = 0.3: 0.3*60 + 0.7*40 = 46
+        expect(result.current.anpm).toBeCloseTo(46, 5);
     });
 
     it('accumulates stats but no XP when gamification is off', () => {

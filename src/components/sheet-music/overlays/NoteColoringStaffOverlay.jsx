@@ -42,17 +42,26 @@ const FONT_ITEMS = [
 // adjustment controls moved HERE, onto the BASS staff, as hidden tap-to-open carousels (same
 // CarouselField + shared veil as the generation setter): HIGHLIGHTS, ANIMATION (pag/wipe/scroll)
 // and LYRICS (solfège). The colour-scheme carousel keeps the treble staff.
-const SCHEMES = [
-    // #361 (Han): order = none, SCALE, CHORD, chroma, subtle chroma.
-    { mode: 'none', label: 'None' },
-    { mode: 'tonic_scale_keys', label: 'Scale' },
-    { mode: 'chords', label: 'Chord' },
-    { mode: 'chromatone', label: 'Chromatone' },
-    { mode: 'subtle-chroma', label: 'Subtle chromatone' },
-    // #1049 (Han 2026-08-17, "scale x subtle chroma: kleur enkel de noten uit de toonladder in subtle
-    // chroma"): subtle chromatone's own colour gradient, but only for in-scale notes — reuses
-    // tonic_scale_keys' in-scale test, not a new filtering mechanism (see melodicNoteColor, §6c).
-    { mode: 'scale-subtle-chroma', label: 'Scale + subtle chromatone' },
+// #1103 (Han 2026-08-22, coloring 2.0 — chat interview): the old single flat SCHEMES enum (6 combined
+// values) is now TWO independent axes — colorScheme (WHICH color) x colorScope (WHICH notes) — see
+// noteUtils.js's own #1103 comment for the full model + the equivalence table mapping every old value
+// onto exactly one of these 4x4=16 combinations. Locked via interview: two SEPARATE carousels (this big
+// one for scheme, a small stacked CarouselField row below for scope — §6d, reuses the EXISTING
+// highlights/animation/lyrics stacking mechanism rather than inventing a second one), all 16 combos
+// valid/selectable (no exclusions).
+const COLOR_SCHEMES = [
+    // #361 (Han): order = none first, then the rest — kept from the old SCHEMES list's own convention.
+    { value: 'none', label: 'None' },
+    { value: 'chroma', label: 'Chroma' },
+    { value: 'subtle-chroma', label: 'Subtle chroma' },
+    { value: 'root', label: 'Root' },
+    { value: 'highlight', label: 'Highlight' },
+];
+const COLOR_SCOPES = [
+    { value: 'all', label: 'All notes', Icon: Music2 },
+    { value: 'scale', label: 'Scale', Icon: Music2 },
+    { value: 'chord', label: 'Chord', Icon: Music2 },
+    { value: 'tonic', label: 'Tonic', Icon: Music2 },
 ];
 // The full diatonic run so each scheme's colouring reads clearly (Han 2026-06-17: the shortened
 // 5-note run dropped too many in-between notes). #497 (Han 2026-07-19): on a BASS-clef top staff the
@@ -107,7 +116,7 @@ const CTRL_HIT_TOP = -30, CTRL_HIT_H = 60, CTRL_HEADER_DY = -31;
 
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, bassStart, percussionStart, clefTreble = 'treble',
-    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, setTheme,
+    colorScheme, setColorScheme, colorScope, setColorScope, tonic, scaleNotes, activeChord = null, theme, setTheme,
     appFont = 'default', setAppFont,
     // #427 rework (Han: "COLOUR: maak een hidden carousel hiervan") — hidden reveal-on-interaction
     // like the other setters (§6d shared hook). Default on; a caller can pass false to force-expand.
@@ -130,17 +139,28 @@ const NoteColoringStaffOverlay = ({
     const [activeFieldId, setActiveFieldId] = React.useState(null);
     if (startX == null || endX == null) return null;
     const centerX = startX + (endX - startX) / 2;
-    const activeIndex = Math.max(0, SCHEMES.findIndex(s => s.mode === noteColoringMode));
-    // The 'chords' scheme colours notes by the representative chord (no playback). Feed it to the
+    // Layout fix (Han 2026-08-24, "zet colour en scope boven elkaar, links van theme en font"): colour
+    // moves onto the BASS staff (left of theme, which already lives there) and scope moves onto the
+    // PERCUSSION staff (left of font, which already lives there) — colour ends up visually ABOVE scope
+    // simply because the bass staff sits above the percussion staff, no separate stacking needed. Mirrors
+    // `controlCx`'s existing right-side fraction (0.84) with a left-side one, rather than a new constant
+    // scheme. Falls back to the TREBLE staff (their old home) when bass/percussion aren't rendered at all
+    // (single-staff contexts) — never disappears just because this layout upgrade assumed 3 staves.
+    const leftCx = startX + 0.16 * (endX - startX);
+    const colourStaffY = bassStart ?? trebleStart;
+    const scopeStaffY = percussionStart ?? trebleStart;
+    const activeIndex = Math.max(0, COLOR_SCHEMES.findIndex(s => s.value === colorScheme));
+    // The 'root' scheme colours notes by the representative chord (no playback). Feed it to the
     // pipeline as a single-slot processedChords entry so renderMelodyNotes derives the activeChord.
     const previewChords = activeChord
         ? [{ absoluteOffset: 0, isSlash: false, chord: { root: activeChord.root, notes: activeChord.notes } }]
         : [];
 
-    // Render ONE scheme item: its C4→C5 example run coloured by THAT scheme, via the shared
-    // MiniMelody pipeline (§6d — the SAME renderMelodyNotes path as the staff + the note pool; no
-    // hand-rolled noteheads), plus the scheme label below. The carousel wraps this in
-    // translate+scale+opacity.
+    // Render ONE scheme item: its C4→C5 example run coloured by THAT scheme (combined with the
+    // CURRENTLY-SELECTED colorScope, so the preview always reflects what picking this scheme would
+    // actually look like right now), via the shared MiniMelody pipeline (§6d — the SAME renderMelodyNotes
+    // path as the staff + the note pool; no hand-rolled noteheads), plus the scheme label below. The
+    // carousel wraps this in translate+scale+opacity.
     const renderItem = (s, i) => {
         const active = i === activeIndex;
         return (
@@ -149,18 +169,19 @@ const NoteColoringStaffOverlay = ({
                     slots={NOTES}
                     durations={NOTES.map(() => MINI_QUARTER)}
                     width={RUN_WIDTH}
-                    staffStart={trebleStart}
+                    staffStart={colourStaffY}
                     clef={clefTreble}
-                    noteColoringMode={s.mode}
+                    colorScheme={s.value}
+                    colorScope={colorScope}
                     tonic={tonic}
                     scaleNotes={scaleNotes}
                     theme={theme}
-                    processedChords={s.mode === 'chords' ? previewChords : []}
+                    processedChords={s.value === 'root' ? previewChords : []}
                     groupBeats={8}
                 />
                 {/* Active-state colour convention (Han 2026-07-14): bright active (no category here →
                     --text-primary), dim inactive; item VALUE label sans-serif ALL CAPS. */}
-                <text x={0} y={trebleStart + LABEL_DY} textAnchor="middle" fontSize={11}
+                <text x={0} y={colourStaffY + LABEL_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
                     fill={active ? 'var(--text-primary)' : 'var(--text-lowlight)'}>
                     {s.label.toUpperCase()}
@@ -170,6 +191,8 @@ const NoteColoringStaffOverlay = ({
     };
 
     // ── #533: highlights / animation / lyrics — ONE PER STAFF, stacked on the right ────────────────
+    // Layout fix (2026-08-24): `colorScope` moved OUT of this right-side stack — it now lives on its own
+    // (percussion, left) alongside `colourStaffY`'s colour carousel — see its own CarouselField below.
     const animIndex = Math.max(0, ANIMATION_ITEMS.findIndex(a =>
         a.mode === animationMode && (a.variant == null || a.variant === (paginationVariant ?? 'mid'))));
     const controlCx = startX + 0.84 * (endX - startX);   // right of the scheme carousel
@@ -193,20 +216,52 @@ const NoteColoringStaffOverlay = ({
         // the cascade's delayed fade.)
         <g className="note-coloring-overlay">
             {/* #435 (Han 2026-07-19: "colour heeft nu geen header"): field header, same style + height
-                as every other setter header (serif italic, non-caps, --text-secondary, staffStart−11). */}
-            <text x={centerX} y={trebleStart + HEADER_DY} textAnchor="middle" fontSize={14}
+                as every other setter header (serif italic, non-caps, --text-secondary, staffStart−11).
+                Layout fix (2026-08-24): moved onto the bass staff, left of "theme" (which shares it) — see
+                `colourStaffY`/`leftCx` above. */}
+            <text x={leftCx} y={colourStaffY + HEADER_DY} textAnchor="middle" fontSize={14}
                 fontFamily="serif" fontStyle="italic" fill="var(--text-secondary)"
                 style={{ userSelect: 'none', pointerEvents: 'none' }}>colour</text>
             <NonLinearCarousel
-                items={SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
-                centerX={centerX} y={trebleStart - 22} baseWidth={BASE} height={104}
+                items={COLOR_SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
+                centerX={leftCx} y={colourStaffY - 22} baseWidth={BASE} height={104}
                 visibleHalf={1}
-                onSelect={(s) => { setNoteColoringMode(s.mode); if (hidden) resetHideTimer(); }}
+                onSelect={(s) => { setColorScheme(s.value); if (hidden) resetHideTimer(); }}
                 onPosChange={hidden ? (() => resetHideTimer()) : undefined}
                 collapsed={collapsed}
                 mountAllItems={mountAllItems}
                 onReveal={hidden ? reveal : undefined}
                 debugMode={debugMode} />
+
+            {/* #1103 layout fix (Han 2026-08-24): "scope" moved onto the PERCUSSION staff, left of "font"
+                (which shares it) — same CarouselField mechanism as highlights/animation/lyrics/theme/font
+                (§6d), just its own left-side column instead of the shared right-side stack. */}
+            <CarouselField
+                items={COLOR_SCOPES}
+                activeIndex={Math.max(0, COLOR_SCOPES.findIndex((sc) => sc.value === colorScope))}
+                onSelect={(it) => setColorScope(it.value)}
+                centerX={leftCx}
+                rowCenterY={scopeStaffY + 20}
+                baseWidth={CTRL_BASE}
+                hitTop={CTRL_HIT_TOP}
+                hitHeight={CTRL_HIT_H}
+                iconSize={CTRL_ICON}
+                iconDy={CTRL_ICON_DY}
+                labelDy={CTRL_LABEL_DY}
+                labelFontSize={11}
+                bracketDy={CTRL_HEADER_DY}
+                headerDy={CTRL_HEADER_DY}
+                labelAbove="scope"
+                staffLineYs={[-20, -10, 0, 10, 20].map((d) => scopeStaffY + 20 + d)}
+                staffX0={startX}
+                staffX1={endX}
+                fieldId="colorScope"
+                activeFieldId={activeFieldId}
+                onActivate={setActiveFieldId}
+                visibleHalf={2}
+                hidden
+                debugMode={debugMode}
+            />
 
             {/* #533: HIGHLIGHTS (treble) / ANIMATION (bass) / LYRICS (percussion) — ONE PER STAFF,
                 stacked vertically on the right of the scheme carousel, each a full CarouselField with a
@@ -388,7 +443,7 @@ const NoteColoringStaffOverlay = ({
     );
 };
 
-// #1045: exported so LevelZeroConfigForm.jsx's per-level colorMode picker can reuse the SAME
-// mode list/order instead of hand-copying a second one (§6c — single source of truth).
-export { SCHEMES };
+// #1045/#1103: exported so LevelZeroConfigForm.jsx's per-level colorScheme/colorScope pickers can reuse
+// the SAME lists/order instead of hand-copying a second one (§6c — single source of truth).
+export { COLOR_SCHEMES, COLOR_SCOPES };
 export default NoteColoringStaffOverlay;

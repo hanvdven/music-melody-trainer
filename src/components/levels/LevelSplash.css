@@ -81,3 +81,37 @@
   cursor: pointer;
 }
 .ls-btn.ls-replay { background-color: var(--accent-yellow); color: #000; border-color: var(--accent-yellow); }
+
+/* #1100 (split from #1087, Han 2026-08-22): a/b/c/f mode-variant picker on LevelStartSplash — same button
+   look as .ls-btn, just small/square/uppercase for a single letter, with the SAME active-selection accent
+   .ls-btn.ls-replay already uses (§6d: one "this is the selected/primary thing" convention, not a second
+   one invented here). */
+.ls-variant-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 6px; }
+/* Bug fix (Han 2026-08-23, "wat is E? is me niet geheel duidelijk"): always-visible label for the
+   currently-selected variant letter (or "Standaard" when none picked) — no hover/tooltip needed. */
+.ls-variant-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+/* Icon rollout (Han 2026-08-24): the button is now a pure icon tile — no letter text, same 36x36
+   footprint as before. Active state is an OUTLINE on the icon (border colour swap), not a background
+   fill — Han: "gewoon een outline op de geselecteerde icoon gooien". */
+.ls-variant-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: color-mix(in srgb, var(--panel-bg), var(--text-primary) 12%);
+  border: 1px solid var(--text-dim);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ls-variant-btn img {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;   /* these are small pixel-art sprites — keep them crisp, not blurred */
+}
+.ls-variant-btn.ls-variant-active { border: 2px solid var(--accent-yellow); }
+/* g/h/i (Han 2026-08-24): icon reserved, functionality not built yet — visibly inert rather than a
+   button that silently does nothing when clicked. */
+.ls-variant-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.ls-variant-btn:disabled img { filter: grayscale(1); }

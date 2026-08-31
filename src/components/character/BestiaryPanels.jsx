@@ -11,6 +11,7 @@ import { oscillate } from '../../utils/oscillate';
 // why the previous circular-import setup broke Vite Fast Refresh (an infinite HMR update loop).
 import { CreatureSprite, Frame64Overlay, FRAME_SIZE } from './CreatureSprite';
 import CharacterDoll from './CharacterDoll';
+import useBestiaryAnimationAudio from '../../hooks/useBestiaryAnimationAudio';
 // #1028 follow-up (Han 2026-08-17, "ik wil graag een grid, zoals in debug achter de hero, van 4x4 grijs/wit
 // blokken, achter de sprite"): reuses the EXACT canonical `.cc-checker` debug checkerboard (§6d,
 // CharacterCreator.css) the character creator's avatar/equipment slots already apply in debugMode
@@ -31,7 +32,10 @@ import './CharacterCreator.css';
 // buttons (TagRow), not the shared `.cc-toggle` CSS class itself, which CharacterOptionsPanel's unrelated
 // outfit-picker toggles also use and must stay untouched.
 const PILL_STYLE = {
-    fontFamily: 'Arial, sans-serif', fontSize: '16.5px', padding: '2px 8px',
+    // #UI-overhaul (Han 2026-08-27): world-mode `.bestiary-pixel` sets `--pill-pad: 1px` +
+    // `line-height: 1` so a pill/button is exactly one glyph tall + 2px ("de hoogte van de knoppen is
+    // meer dan tekst + 2px"). Classic view has no `--pill-pad`, so the fallback keeps `2px 8px`.
+    fontFamily: 'Arial, sans-serif', fontSize: '16.5px', padding: 'var(--pill-pad, 2px 8px)', lineHeight: 1,
     borderRadius: '10px', border: '1px solid var(--text-secondary)', background: 'var(--panel-bg)',
     color: 'var(--text-primary)', whiteSpace: 'nowrap',
 };
@@ -55,6 +59,8 @@ export const TAG_COLOR = {
     oriental: '#7a2e2e', seasonal: '#1e7a5a', roman: '#a05a2e', christian: '#8a7a1e',
     pet: '#4a8a3a', critter: '#5a7a2e', bird: '#c9a227',
     portrait: '#4a4a6a', move: '#2e6a8a', attack: '#a03a2e', ranged: '#c05a1e',
+    // #1096 (Han 2026-08-20, "voeg een tag toe: audio") — same row as portrait/move/attack/ranged.
+    audio: '#2e8a5a',
     // #870 (Han 2026-08-13): the townsfolk/hostile/nature group (own row, see BESTIARY_TOWNSFOLK_ROW).
     townsfolk: '#2e7ab8', hostile: '#a01e1e', nature: '#4a9c3a',
     // #870 (Han 2026-08-13, "geef ook kleurtjes aan de human humanoid animal other tags"): the being row —
@@ -291,6 +297,9 @@ function MovementDebugBlock({ movement, frameCount, frame, onSetPxPerFrame, onSe
 // staan; d.w.z. preview_scale zelf moet groter"): round 5 introduced a SEPARATE `PERSONA_SCALE` multiplier
 // used only by the persona preview — wrong; Han wants the WHOLE Bestiary UI (every top-view frame/portrait,
 // not just the persona) 1.6× bigger, so the increase belongs on `PREVIEW_SCALE` itself.
+// #UI-overhaul Stap 3 (Han 2026-08-27): this is the CLASSIC-view fallback scale only. In world mode
+// `BestiaryTopPanel` instead renders at the world's own integer scale `N` (see its `worldScale` prop)
+// so a bestiary creature is the exact same on-screen size it has out in the open world.
 export const PREVIEW_SCALE = 2.6 * 1.6;
 // #682 (Han: "maak de previews 30% groter (maar houd de vakjes even groot)") — the SPRITE scale grows 30%;
 // the thumb box itself (`.cc-enemy-thumb`, CSS) is untouched, so bigger previews now overflow it (allowed —
@@ -362,7 +371,12 @@ function PortraitImage({ url, cell, frame, size, animCols = 1, tick = 0, oscilla
     );
 }
 
-export function BestiaryTopPanel({ editor, debugMode = false }) {
+// #UI-overhaul Stap 3 (Han 2026-08-27, "schaal op dezelfde schaal als 'world'"): in world mode App
+// passes `worldScale` — the integer N computed for the world level (utils/worldLayout.js) — so a
+// creature in the bestiary renders at the SAME on-screen game-pixel size it has in the open world.
+// Falls back to the fixed `PREVIEW_SCALE` (4) in the classic view, where there is no world scale.
+export function BestiaryTopPanel({ editor, debugMode = false, context, worldScale = null }) {
+    const previewScale = worldScale ?? PREVIEW_SCALE;
     const {
         creature, variant, variantIndex, setVariantIndex, anim, frame, animKey, setAnimKey, visibleAnimations,
         activeAccessories, toggleAccessory, hasHatOverlay, hasSwordAnims, swordOn, toggleSword,
@@ -374,6 +388,10 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
         setAnimKeyOverride, toggleAnimFlying,
         formatCellsInput, setAnimCells, removeAnimation, addAnimation, setFrameSize,
     } = editor;
+    // #1096 (Han 2026-08-20, "ik wil in de bestiary ook de animatie-audio horen") — plays the worker's
+    // bell/hammer note in sync with whichever animation/frame is currently showing, same source of truth
+    // (workerSoundConfig.js) the real level and the 'audio' filter tag use.
+    useBestiaryAnimationAudio(context, creature.name, anim, frame);
     // #671 (Han: "kan je de kleur samplen?"): Doggy's swatch colour is SAMPLED per-file (variant.swatchColor,
     // §671), not a named colour keyword — checked alongside variantColor so both sources light up the same
     // swatch row. When NEITHER resolves for any variant (Covered/Uncovered, Wisp's Plain/Outline — a real
@@ -499,7 +517,10 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
         </div>
     );
     return (
-        <div className="cc-enemy-preview" style={{ margin: '0 auto', width: '100%' }}>
+        <div
+            className={`cc-enemy-preview${worldScale != null ? ' bestiary-pixel' : ''}`}
+            style={{ margin: '0 auto', width: '100%', ...(worldScale != null ? { '--bpx': `${worldScale}px` } : null) }}
+        >
             {/* #682 (Han 2026-08-04, "de titel / naam moet er boven staan") — moved above the frame(s). */}
             {/* #1028 follow-up (Han: "ik kan de naam niet aanpassen"): click-to-rename in debug mode, same
                 commit-on-Enter/blur pattern as EditableTagChip. Read-only outside debug mode. */}
@@ -537,7 +558,7 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                 before), it just doesn't ALSO drag the grid's column widths out of sync anymore. */}
             <div style={{
                 display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
-                gap: '12px', width: '100%', minHeight: FRAME_SIZE * PREVIEW_SCALE,
+                gap: '12px', width: '100%', minHeight: FRAME_SIZE * previewScale,
             }}>
                 {/* #1028 follow-up (Han 2026-08-17, "tags en kleuren zijn goed, maar mogen ipv aligned tegen
                     de schermrand, strak tegen portret. (dus wissel rechts/links alignment van de tags en de
@@ -552,11 +573,11 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                         `{row,frames}` shape CharacterDoll expects (avatarCreature's `animations: ANIMATIONS`,
                         useBestiaryEditor.js — no `cells` conversion needed, unlike every other creature). */}
                     {creature.isAvatar
-                        ? <CharacterDoll char={avatarChar} anim={anim} frame={frame} height={FRAME_SIZE * PREVIEW_SCALE} />
-                        : <CreatureSprite variant={variant} anim={anim} frame={frame} scale={PREVIEW_SCALE} overlayUrls={overlayUrls} mirror={currentFacing !== 'right'} debugMode={debugMode} checkerScrollPx={checkerScrollPx} />}
+                        ? <CharacterDoll char={avatarChar} anim={anim} frame={frame} height={FRAME_SIZE * previewScale} />
+                        : <CreatureSprite variant={variant} anim={anim} frame={frame} scale={previewScale} overlayUrls={overlayUrls} mirror={currentFacing !== 'right'} debugMode={debugMode} checkerScrollPx={checkerScrollPx} />}
                     {variant.portraitUrl && (
                         <PortraitImage url={variant.portraitUrl} cell={variant.portraitCell} frame={variant.portraitFrame}
-                            size={64 * PREVIEW_SCALE} animCols={variant.portraitAnimCols || 1} tick={frame}
+                            size={64 * previewScale} animCols={variant.portraitAnimCols || 1} tick={frame}
                             oscillateSeed={variant.portraitOscillate ? creature.id : null} />
                     )}
                     {/* #693 round 3 ("portait/wizard: add the animated projectile right of the portrait") — a
@@ -568,7 +589,7 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                         projectile's direction. */}
                     {variant.sidePortraitUrl && (
                         <PortraitImage url={variant.sidePortraitUrl} cell={variant.sidePortraitCell} frame={variant.sidePortraitFrame}
-                            size={64 * PREVIEW_SCALE} animCols={variant.sidePortraitAnimCols || 1} tick={frame}
+                            size={64 * previewScale} animCols={variant.sidePortraitAnimCols || 1} tick={frame}
                             oscillateSeed={creature.id} flip />
                     )}
                 </div>
@@ -718,10 +739,13 @@ function BestiaryFilterBar({ editor }) {
     );
 }
 
-export function BestiaryBottomPanel({ editor }) {
+export function BestiaryBottomPanel({ editor, worldScale = null }) {
     const { visibleCreatures, selId, selectCreature } = editor;
     return (
-        <div style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '12px' }}>
+        <div
+            className={worldScale != null ? 'bestiary-pixel' : undefined}
+            style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '12px', ...(worldScale != null ? { '--bpx': `${worldScale}px` } : null) }}
+        >
             <BestiaryFilterBar editor={editor} />
             <div className="cc-enemy-grid" style={{ justifyContent: 'center' }}>
                 {visibleCreatures.map((c) => {

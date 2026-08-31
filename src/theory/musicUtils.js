@@ -1,5 +1,6 @@
 import generateAllNotesArray from './allNotesArray';
 import { normalizeNoteChars, CANONICAL_MAP, ALL_NOTES } from './noteUtils';
+import { deriveReferenceTonicOffset } from './scaleHandler';
 
 const allNotes = generateAllNotesArray();
 
@@ -265,23 +266,38 @@ const getNoteDegreeIndex = (note, tonic, intervals) => {
 export const modulateMelody = (referenceMelodyNotes, referenceScale, targetScale) => {
     if (!referenceMelodyNotes || !referenceScale || !targetScale) return referenceMelodyNotes;
 
+    // Bug fix (Han 2026-08-25, "de eerste noot moet een A zijn, maar ik zie... G#" — Sakura, "In" on E):
+    // when a scale's own `intervals` isn't heptatonic (5 for a pentatonic mode like "In"), the code below
+    // falls back to `heptaRefIntervals` — a 7-note REFERENCE scale (e.g. "In" on E is a subset of F
+    // LYDIAN) — for the degree math. That reference scale's OWN tonic is NOT necessarily the mode's own
+    // tonic (F, not E, for "In") — `deriveReferenceTonicOffset` (scaleHandler.js, already used there for
+    // the KEY-SIGNATURE fifths count) derives exactly that semitone shift `d`. Anchoring the degree math
+    // at the scale's own tonic directly (no shift) silently used the WRONG reference frame, so even a
+    // same-scale-to-itself "no-op" modulation shifted every note by `d` semitones (confirmed: Sakura's
+    // first note 'A4', d=1, came out as 'A♭4' — a real pitch error, not a spelling/enharmonic one).
     let srcIntervals;
+    let srcRefOffset = 0;
     if (referenceScale.intervals && referenceScale.intervals.length === 7) {
         srcIntervals = referenceScale.intervals;
     } else if (referenceScale.heptaRefIntervals && referenceScale.heptaRefIntervals.length === 7) {
         srcIntervals = referenceScale.heptaRefIntervals;
+        srcRefOffset = deriveReferenceTonicOffset(referenceScale.intervals, srcIntervals);
     } else {
         srcIntervals = [2, 2, 1, 2, 2, 2, 1];
     }
+    const srcRefTonic = transposeNoteBySemitones(referenceScale.tonic, srcRefOffset);
 
     let tgtIntervals;
+    let tgtRefOffset = 0;
     if (targetScale.intervals && targetScale.intervals.length === 7) {
         tgtIntervals = targetScale.intervals;
     } else if (targetScale.heptaRefIntervals && targetScale.heptaRefIntervals.length === 7) {
         tgtIntervals = targetScale.heptaRefIntervals;
+        tgtRefOffset = deriveReferenceTonicOffset(targetScale.intervals, tgtIntervals);
     } else {
         tgtIntervals = [2, 2, 1, 2, 2, 2, 1];
     }
+    const tgtRefTonic = transposeNoteBySemitones(targetScale.tonic, tgtRefOffset);
 
     const isHeptaHepta = srcIntervals.length === 7 && tgtIntervals.length === 7;
     const tgtPositions = isHeptaHepta ? getCumulativePositions(tgtIntervals) : [];
@@ -291,14 +307,14 @@ export const modulateMelody = (referenceMelodyNotes, referenceScale, targetScale
         if (!note || ['k', 'c', 'b', 'hh', 's', '/', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wm', 'wl'].includes(note)) return note;
 
         if (isHeptaHepta) {
-            const signedIndex = getNoteDegreeIndex(note, referenceScale.tonic, srcIntervals);
+            const signedIndex = getNoteDegreeIndex(note, srcRefTonic, srcIntervals);
 
             if (signedIndex !== null) {
                 const scaleLength = 7;
                 const targetOctave = Math.floor(signedIndex / scaleLength);
                 const targetDegree = ((signedIndex % scaleLength) + scaleLength) % scaleLength;
                 const semitoneShift = tgtPositions[targetDegree];
-                return transposeNoteBySemitones(targetScale.tonic, semitoneShift + (targetOctave * 12));
+                return transposeNoteBySemitones(tgtRefTonic, semitoneShift + (targetOctave * 12));
             }
         }
 

@@ -41,7 +41,29 @@ export default function useAppUIState() {
     const [percussionVoiceSplit, setPercussionVoiceSplit] = useState(false);
 
     const [debugMode, setDebugMode] = useState(false);
-    const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
+
+    // #UI-overhaul Stap 1 (Han 2026-08-27): "world mode" — the RPG world is the app's shell/home and
+    // the first thing shown on launch. When true, App hides the AppHeader and moves navigation into a
+    // bottom WorldNavBar so the world reaches the top of the viewport. When false, the classic
+    // practice view renders exactly as before. Persisted so a returning user stays wherever they last
+    // chose (default: world). Same "loose persisted UI flag" shape as the theme/appFont state above;
+    // a private-mode localStorage throw must not break boot, hence the try/catch.
+    const [worldMode, setWorldMode] = useState(() => {
+        try {
+            const v = localStorage.getItem('mmt.worldMode');
+            return v === null ? true : v === 'true';
+        } catch {
+            return true;
+        }
+    });
+    useEffect(() => {
+        try { localStorage.setItem('mmt.worldMode', String(worldMode)); } catch { /* private mode / storage disabled */ }
+    }, [worldMode]);
+    // #1103 (Han 2026-08-22): the old single `noteColoringMode` enum ('tonic_scale_keys' default) is now
+    // TWO independent axes — see noteUtils.js's own #1103 comment for the full model + the equivalence
+    // table. 'tonic_scale_keys' (today's actual default) = colorScheme 'highlight' + colorScope 'scale'.
+    const [colorScheme, setColorScheme] = useState('highlight');
+    const [colorScope, setColorScope] = useState('scale');
     const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
     const clearHighlightStateRef = useRef(false);
 
@@ -119,7 +141,9 @@ export default function useAppUIState() {
         courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit,
         debugMode, setDebugMode,
-        noteColoringMode, setNoteColoringMode,
+        worldMode, setWorldMode,
+        colorScheme, setColorScheme,
+        colorScope, setColorScope,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
         clearHighlightStateRef,
         startMeasureIndex, setStartMeasureIndex,

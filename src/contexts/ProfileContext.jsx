@@ -22,7 +22,32 @@ import {
 const STORAGE_KEY = 'music-trainer-profile';
 // v2 (#129 rework): branchXP → ELO-style skillRatings + consistencyXP scalar.
 // v3 (#268): + exerciseProgress — per-exercise persistent counters (additive).
-const PROFILE_VERSION = 3;
+// v4 (#1054): + levelMastery — a FOURTH, separate progress axis (highest level cleared at >=80%, known
+// scales/songs, play/perfect counts), independent of skillRatings/consistencyXP (docs/architecture.md
+// §43) and the on-hold 11-dimension profile-schema.md design. Additive, like v3.
+// v5 (#1099): + anpm — a single scalar (accurate notes per minute), NOT part of levelMastery: unlike
+// every levelMastery field (all ratchets, only ever grow), anpm is an EWMA that can rise OR fall — it
+// estimates the player's CURRENT sustainable reading speed, not a lifetime best. Additive, like v3/v4.
+const PROFILE_VERSION = 5;
+
+// #1099 (Han 2026-08-22, "dit is een getal dat steeds aanpast" — confirmed via chat interview: an
+// exponential moving average, not a ratchet, so it can track a player getting slower again, not just
+// their all-time peak). ALPHA is the EWMA smoothing weight given to the LATEST qualifying sample — named
+// and exported so recordLevelCompletion's math is self-documenting instead of a bare literal.
+export const ANPM_EWMA_ALPHA = 0.3;
+
+// #1054 (Han 2026-08-20): the level-mastery axis's empty shape — its own function (not inlined in
+// defaultProfile) so `recordLevelCompletion` can fall back to it for a pre-v4 save that predates the
+// field (§6c, one source of truth for "what an empty levelMastery looks like").
+function defaultLevelMastery() {
+    return {
+        highestLevelAt80: null,
+        knownScales: [],   // ratchet — "tonic:mode" keys, e.g. "C4:Major"; never removed once earned
+        knownSongs: [],    // ratchet — songId strings; never removed once earned
+        playCounts: {},    // key (songId ?? numeric levelId) -> completion count
+        perfectCounts: {}, // same keys -> count of completions at exactly 100% accuracy
+    };
+}
 
 // Scale families in display order (matches scaleDefinitions keys + Simple)
 export const ALL_SCALE_FAMILIES = [
@@ -65,6 +90,11 @@ function defaultProfile() {
         // In rubato a melody cannot be failed, so "progress" = completions,
         // not a pass/fail score (per the ticket).
         exerciseProgress: {},
+        // #1054: level-based progress — see defaultLevelMastery()'s own comment.
+        levelMastery: defaultLevelMastery(),
+        // #1099: accurate notes per minute — see PROFILE_VERSION's own v5 comment. null until the first
+        // level completion at >=90% accuracy (no reading yet, not "zero speed").
+        anpm: null,
     };
 }
 
@@ -102,6 +132,19 @@ function loadProfile() {
         },
         // #268 (v3, additive): older saves simply lack the field.
         exerciseProgress: { ...(saved.exerciseProgress || {}) },
+        // #1054 (v4, additive): per-field merge so a pre-v4 save (missing the whole field) still gets
+        // the full default shape, and a partial v4 save never drops a sibling array/object.
+        levelMastery: {
+            ...defaultLevelMastery(),
+            ...(saved.levelMastery || {}),
+            knownScales: [...(saved.levelMastery?.knownScales || [])],
+            knownSongs: [...(saved.levelMastery?.knownSongs || [])],
+            playCounts: { ...(saved.levelMastery?.playCounts || {}) },
+            perfectCounts: { ...(saved.levelMastery?.perfectCounts || {}) },
+        },
+        // #1099 (v5, additive): a plain scalar, no nested shape to per-field merge — a pre-v5 save simply
+        // lacks the key, `??` supplies the "no reading yet" default.
+        anpm: saved.anpm ?? null,
     };
     // v1 → v2 (#129 rework): the old volume-based branchXP becomes the STARTING
     // rating (its displayed score carries over); consistency keeps its XP pool.
@@ -353,6 +396,61 @@ export function ProfileProvider({ children }) {
         if (runs > 0) flush();
     }, [flush]);
 
+    // #1054 (Han 2026-08-20, level-based stats/progression): the ONLY writer for `levelMastery`. Called
+    // once per level completion (App.jsx, at the same `level.done` transition `levelResultRows` already
+    // computes accuracy for — §6c, reuses that same `computeAccuracyPercent` call, never a second one).
+    // Ratchet semantics confirmed by Han (chat interview): `highestLevelAt80`/`knownScales`/`knownSongs`
+    // only ever GROW — a later, worse attempt never un-marks something already earned. `key` (the
+    // play/perfect-count identity) is the song's own id for a scripted level, or its numeric level id for
+    // a procedural one — the two id spaces never collide (`levels.json` ids are small integers, `songId`s
+    // are strings).
+    // #1099 (Han 2026-08-22): `notesPerMinute` is OPTIONAL (the caller may not always have a valid
+    // elapsed-time measurement) and, when present, updates `anpm` via EWMA — but ONLY on a >=90%-accuracy
+    // completion (Han: ANPM measures "how many notes/minute can the player handle AT that accuracy", so a
+    // sloppy run doesn't drag the estimate down artificially). This is a SEPARATE gate from levelMastery's
+    // own >=80% ratchet threshold above — the two axes are independent (v5 profile comment).
+    const recordLevelCompletion = useCallback(({ levelId, songId, tonic, mode, accuracyPercent, notesPerMinute }) => {
+        const p = profileRef.current;
+        const key = songId ?? levelId;
+        if (key == null) return;
+        const lm = p.levelMastery || defaultLevelMastery();
+
+        const playCounts = { ...lm.playCounts, [key]: (lm.playCounts[key] || 0) + 1 };
+        const perfectCounts = accuracyPercent >= 100
+            ? { ...lm.perfectCounts, [key]: (lm.perfectCounts[key] || 0) + 1 }
+            : lm.perfectCounts;
+
+        let highestLevelAt80 = lm.highestLevelAt80;
+        let knownScales = lm.knownScales;
+        let knownSongs = lm.knownSongs;
+        if (accuracyPercent >= 80) {
+            // Song vs numbered-level mastery are mutually exclusive per completion (a level either has a
+            // songId or doesn't) — "known scale" is orthogonal to both and tracked whenever a tonic/mode
+            // is known, regardless of which kind of level it was.
+            if (songId != null) {
+                if (!knownSongs.includes(songId)) knownSongs = [...knownSongs, songId];
+            } else if (typeof levelId === 'number') {
+                if (highestLevelAt80 == null || levelId > highestLevelAt80) highestLevelAt80 = levelId;
+            }
+            if (tonic && mode) {
+                const scaleKey = `${tonic}:${mode}`;
+                if (!knownScales.includes(scaleKey)) knownScales = [...knownScales, scaleKey];
+            }
+        }
+
+        let anpm = p.anpm;
+        if (accuracyPercent >= 90 && Number.isFinite(notesPerMinute)) {
+            anpm = anpm == null ? notesPerMinute : ANPM_EWMA_ALPHA * notesPerMinute + (1 - ANPM_EWMA_ALPHA) * anpm;
+        }
+
+        profileRef.current = {
+            ...p,
+            levelMastery: { highestLevelAt80, knownScales, knownSongs, playCounts, perfectCounts },
+            anpm,
+        };
+        flush();
+    }, [flush]);
+
     // Persist any unflushed per-note XP if the tab closes mid-session.
     useEffect(() => {
         const persist = () => saveProfile(profileRef.current);
@@ -401,10 +499,15 @@ export function ProfileProvider({ children }) {
         // #268: persistent per-exercise counters + the writer.
         exerciseProgress: snapshot.exerciseProgress || {},
         recordExerciseProgress,
+        // #1054: level-based mastery + the writer.
+        levelMastery: snapshot.levelMastery || defaultLevelMastery(),
+        recordLevelCompletion,
+        // #1099: accurate notes per minute (EWMA, null until a first qualifying completion).
+        anpm: snapshot.anpm ?? null,
     }), [unlockedFamilies, snapshot.debugMode, snapshot.gamificationEnabled, gamification,
-         snapshot.exerciseProgress,
+         snapshot.exerciseProgress, snapshot.levelMastery, snapshot.anpm,
          setDebugMode, toggleFamily, isFamilyUnlocked, setGamificationEnabled,
-         recordEvent, beginSession, endSession, recordExerciseProgress]);
+         recordEvent, beginSession, endSession, recordExerciseProgress, recordLevelCompletion]);
 
     return (
         <ProfileContext.Provider value={value}>

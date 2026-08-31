@@ -12,7 +12,10 @@ const doubleFlatSemitones = [9, 2, 7, 0, 5, 10, 3];    // Bbb, Ebb, Abb, Dbb, Gb
 
 // startY: absolute SVG y-coordinate of the top staff line for this staff.
 //   treble → trebleStart (11), bass → bassStart, etc.
-const renderAccidentals = (numAccidentals, clef = 'treble', startY = 11, noteColoringMode = 'none', startXOffset = 42, spacing = 8) => {
+// #1103 (Han 2026-08-22): key-signature accidentals only ever cared about the CHROMA scheme (never a
+// scope/eligibility filter — every accidental symbol gets chroma'd regardless of scale/chord/tonic
+// membership), so this only takes `colorScheme`, not `colorScope` — preserves the exact prior behaviour.
+const renderAccidentals = (numAccidentals, clef = 'treble', startY = 11, colorScheme = 'none', startXOffset = 42, spacing = 8) => {
   if (numAccidentals === 0) return null;
 
   const clefOffsets = {
@@ -55,7 +58,7 @@ const renderAccidentals = (numAccidentals, clef = 'treble', startY = 11, noteCol
       const symbol = isDouble ? doubleSymbol : singleSymbol;
 
       let fill = 'var(--text-primary)';
-      if (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma') {
+      if (colorScheme === 'chroma' || colorScheme === 'subtle-chroma') {
         let semitone;
         if (isSharp) {
           semitone = isDouble
@@ -68,7 +71,7 @@ const renderAccidentals = (numAccidentals, clef = 'treble', startY = 11, noteCol
         }
         const baseColor = `var(--chromatone-${semitone})`;
 
-        if (noteColoringMode === 'subtle-chroma') {
+        if (colorScheme === 'subtle-chroma') {
           fill = `color-mix(in srgb, ${baseColor}, var(--soft-mix-target, white) 60%)`;
         } else {
           fill = baseColor;

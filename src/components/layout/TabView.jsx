@@ -14,6 +14,7 @@ import ProfileTab from '../profile/ProfileTab';
 import SongsTab from '../songs/SongsTab';
 import CharacterOptionsPanel from '../character/CharacterOptionsPanel';
 import { BestiaryBottomPanel } from '../character/BestiaryPanels';
+import { ScalesBottomPanel } from '../character/ScalesPanel';
 import RpgLevelBottomPanel from '../character/RpgLevelBottomPanel';
 import { StatsBottomPanel } from '../character/CharacterStatsPanels';
 import InstrumentRow from '../controls/rows/InstrumentRow';
@@ -39,6 +40,11 @@ const TabView = ({
     characterScreen,
     characterEditor,
     bestiaryEditor,
+    // #UI-overhaul Stap 3: world's integer scale, forwarded to the bestiary bottom panel so it
+    // renders in the pixel font at the same scale as the open world. null outside world mode.
+    bestiaryWorldScale = null,
+    // #352: the scale cell picked in the world "Scales" grid (App.jsx state) — drives ScalesBottomPanel.
+    selectedScale = null,
     rpgLevel,
     activeTab,
     // Sheet music
@@ -137,7 +143,7 @@ const TabView = ({
         chordSettings, setChordSettings,
     } = useInstrumentSettings();
 
-    const { noteColoringMode, setNoteColoringMode, chordDisplayMode, setChordDisplayMode, debugMode } = useDisplaySettings();
+    const { colorScheme, colorScope, chordDisplayMode, setChordDisplayMode, debugMode } = useDisplaySettings();
     const { isPlaying } = usePlaybackTransport();
     const { inputTestSubMode } = useRoundState();
 
@@ -166,7 +172,8 @@ const TabView = ({
                     <CharacterOptionsPanel editor={characterEditor} debugMode={debugMode} />
                 )}
                 {characterScreen === 'stats' && <StatsBottomPanel />}
-                {characterScreen === 'bestiary' && <BestiaryBottomPanel editor={bestiaryEditor} />}
+                {characterScreen === 'bestiary' && <BestiaryBottomPanel editor={bestiaryEditor} worldScale={bestiaryWorldScale} />}
+                {characterScreen === 'scales' && <ScalesBottomPanel selected={selectedScale} />}
                 {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} context={context} getConversationProfile={getConversationProfile} />}
             </div>
         );
@@ -201,7 +208,7 @@ const TabView = ({
                                     instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
                                     keyboardTranspose={keyboardTranspose}
                                     setKeyboardTranspose={setKeyboardTranspose}
-                                    noteColoringMode={noteColoringMode}
+                                    colorScheme={colorScheme} colorScope={colorScope}
                                     activeChord={keyboardActiveChord}
                                     theme={theme}
                                 />
@@ -212,7 +219,7 @@ const TabView = ({
                                     activeClef={activeClef}
                                     settings={activeClef === 'treble' ? trebleSettings : bassSettings}
                                     setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
-                                    noteColoringMode={noteColoringMode}
+                                    colorScheme={colorScheme} colorScope={colorScope}
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
@@ -233,7 +240,7 @@ const TabView = ({
                                         activeClef={activeClef}
                                         minNote={activeClef === 'treble' ? trebleDisp.min : bassDisp.min}
                                         maxNote={activeClef === 'treble' ? trebleDisp.max : bassDisp.max}
-                                        noteColoringMode={noteColoringMode}
+                                        colorScheme={colorScheme} colorScope={colorScope}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
                                         transpose={keyboardTranspose}
@@ -257,7 +264,7 @@ const TabView = ({
                     <ToneRecognizer
                         context={context}
                         scale={scale}
-                        noteColoringMode={noteColoringMode}
+                        colorScheme={colorScheme} colorScope={colorScope}
                         onNoteInput={handleInputTestNote}
                         inputTestSubMode={inputTestSubMode}
                         activeTab={activeTab}
@@ -275,7 +282,7 @@ const TabView = ({
                                     instrument={manualInstruments.bass}
                                     keyboardTranspose={keyboardTranspose}
                                     setKeyboardTranspose={setKeyboardTranspose}
-                                    noteColoringMode={noteColoringMode}
+                                    colorScheme={colorScheme} colorScope={colorScope}
                                     activeChord={keyboardActiveChord}
                                     theme={theme}
                                 />
@@ -286,7 +293,7 @@ const TabView = ({
                                     activeClef={'bass'}
                                     settings={bassSettings}
                                     setSettings={setBassSettings}
-                                    noteColoringMode={noteColoringMode}
+                                    colorScheme={colorScheme} colorScope={colorScope}
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
@@ -301,7 +308,7 @@ const TabView = ({
                                         activeClef={'bass'}
                                         minNote={bassDisp.min}
                                         maxNote={bassDisp.max}
-                                        noteColoringMode={noteColoringMode}
+                                        colorScheme={colorScheme} colorScope={colorScope}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
                                         transpose={keyboardTranspose}
@@ -456,4 +463,10 @@ const TabView = ({
     );
 };
 
-export default TabView;
+// Perf (#1161, Han 2026-08-26): TabView was un-memoized while SheetMusic already had this treatment.
+// App.jsx's `combatNote` (set on EVERY note played, including during active RPG combat) is NOT one of
+// TabView's props — so before this, every note press forced TabView's full render body (and everything
+// inside it: PianoView, the active tab's whole panel) to re-run for zero functional reason, purely as a
+// side effect of being App's child. A stress-test CPU profile (button-mashing during active RPG combat,
+// 4x-throttled mobile emulation) showed this cascade contributing real, avoidable re-render cost.
+export default React.memo(TabView);

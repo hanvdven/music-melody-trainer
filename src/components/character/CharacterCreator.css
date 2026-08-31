@@ -385,3 +385,35 @@
 @media (max-width: 640px) {
   .cc-enemy-preview { flex-basis: 100%; }
 }
+
+/* #UI-overhaul Stap 3 (Han 2026-08-27, "pas ook toe op de navigatie precies zoals in world, en de
+   tekst. Zet alles naar pixel font, met 1 gpx padding in de tekstvakken"): world-mode bestiary — the
+   WHOLE panel in the pixel font (Bitfantasy — NOT Maestro, §1a), sized to the world's integer scale,
+   with 1-game-px padding in every text box. `--bpx` is one game pixel in CSS px (= scale N), set
+   inline on the `.bestiary-pixel` roots (BestiaryTopPanel / BestiaryBottomPanel). `!important` is the
+   only way to beat this file's many per-element inline font-family / font-size / padding declarations;
+   it is scoped to `.bestiary-pixel` so the classic view is untouched.
+   #UI-overhaul (Han 2026-08-27): font family `'BestiaryPixel'` — normal = CelticTime, italic =
+   SandyForest, bold = Bitfantasy (@font-face split in App.css). `--pill-pad` feeds PILL_STYLE's
+   `padding` var.
+   #UI-overhaul (Han 2026-08-28, "in de tekstbox (alle), voeg 4 gpx interne marge toe"): every text
+   box — tags/buttons/inputs — carries `4 · N` game-px of internal padding so text never sits flush
+   against the edge. `--bpx` is one game px (= scale N). */
+.bestiary-pixel {
+  --pill-pad: calc(var(--bpx, 4px) * 4);
+}
+.bestiary-pixel,
+.bestiary-pixel :where(span, div, button, input, label, p, a) {
+  font-family: 'BestiaryPixel', monospace !important;
+}
+.bestiary-pixel :where(span, div, button, input, label, p) {
+  /* Han 2026-08-27: match the conversation box, whose glyphs are ~10 game px high. DialogueBox's
+     `fontSizeFor(scale) / scale` (8·1024/448·0.75) ≈ 13.72 CSS px per unit of scale; --bpx is one
+     game px (= scale N), so this renders the same size the conv box does in world mode. */
+  font-size: calc(var(--bpx, 4px) * 13.72) !important;
+  line-height: 1.1;
+}
+.bestiary-pixel :where(input, .cc-search-input, .cc-anim, .cc-toggle) {
+  padding: calc(var(--bpx, 4px) * 4) !important;
+  line-height: 1 !important;
+}

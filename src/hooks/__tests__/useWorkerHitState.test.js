@@ -1,0 +1,69 @@
+// Smoke tests for useWorkerHitState (#1095, Han 2026-08-20: "rol elke 2 maten of de animatie start
+// (50%); draai de animatie voor 2 maten"). Covers the 3 behaviours the rewrite must get right: silent
+// idle looping when hitConfig is null, staying on idle when a roll fails, and — the part most likely to
+// regress — switching to the work animation on a successful roll, firing the note on EVERY loop
+// repetition (not just once), and returning to idle once the full measures-window has elapsed.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import useWorkerHitState from '../useWorkerHitState';
+
+const variant = {
+    animations: [
+        { key: 'idle', cells: [1, 2, 3, 4, 5] },
+        { key: 'work', cells: ['a', 'b', 'c', 'd', 'e'] },
+    ],
+};
+
+function setup(props) {
+    return renderHook(
+        (p) => useWorkerHitState(p.variant, p.hitConfig, p.petFrame, p.timeSignature, p.context, p.triggerBell, p.npcWorldX, p.getListenerX),
+        { initialProps: props }
+    );
+}
+
+describe('useWorkerHitState', () => {
+    let randomSpy;
+    beforeEach(() => { randomSpy = vi.spyOn(Math, 'random'); });
+    afterEach(() => { randomSpy.mockRestore(); });
+
+    it('loops the idle animation and never fires when hitConfig is null (silent worker)', () => {
+        const triggerBell = vi.fn();
+        const props = { variant, hitConfig: null, petFrame: 0, timeSignature: [4, 4], context: { currentTime: 0 }, triggerBell, npcWorldX: 0, getListenerX: () => 0 };
+        const { result, rerender } = setup(props);
+        expect(result.current.anim.key).toBe('idle');
+        rerender({ ...props, petFrame: 7 });
+        expect(result.current.frame).toBe(7);
+        expect(triggerBell).not.toHaveBeenCalled();
+    });
+
+    it('stays on idle when the roll fails at a measure-pair boundary', () => {
+        randomSpy.mockReturnValue(0.9);   // >= chance -> roll fails
+        const triggerBell = vi.fn();
+        const hitConfig = { workAnimKey: 'work', hitFrameIndices: [2], chance: 0.5, measures: 1, note: 'C4' };
+        const { result } = setup({ variant, hitConfig, petFrame: 0, timeSignature: [4, 4], context: { currentTime: 0 }, triggerBell, npcWorldX: 0, getListenerX: () => 0 });
+        expect(result.current.anim.key).toBe('idle');
+        expect(triggerBell).not.toHaveBeenCalled();
+    });
+
+    it('switches to work on a successful roll, fires the note every loop repetition, then returns to idle after the window', () => {
+        randomSpy.mockReturnValue(0);   // < chance -> roll succeeds
+        const triggerBell = vi.fn();
+        // 1 measure @ 4/4 * 5 frames/beat (FRAMES_PER_BEAT) = 20-frame window.
+        const hitConfig = { workAnimKey: 'work', hitFrameIndices: [2], chance: 0.5, measures: 1, note: 'C4' };
+        const props = { variant, hitConfig, petFrame: 0, timeSignature: [4, 4], context: { currentTime: 9 }, triggerBell, npcWorldX: 3, getListenerX: () => 30 };
+        const { result, rerender } = setup(props);
+
+        rerender({ ...props, petFrame: 1 });
+        expect(result.current.anim.key).toBe('work');
+
+        rerender({ ...props, petFrame: 2 });   // elapsed 2 % workLen(5) === 2 -> fires
+        expect(triggerBell).toHaveBeenCalledWith('C4', 9, 3, 30);
+        triggerBell.mockClear();
+
+        rerender({ ...props, petFrame: 7 });   // elapsed 7 % 5 === 2 -> fires again next loop
+        expect(triggerBell).toHaveBeenCalledTimes(1);
+
+        rerender({ ...props, petFrame: 20 });   // window elapsed (>=20) -> back to idle
+        expect(result.current.anim.key).toBe('idle');
+    });
+});

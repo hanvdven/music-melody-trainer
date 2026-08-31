@@ -7,7 +7,7 @@ import { DisplaySettingsProvider } from '../../../../contexts/DisplaySettingsCon
 // #502: the overlay now reads the moved adjustment controls (highlights/animation/lyrics) from
 // DisplaySettings, so tests must provide the context.
 const DS_VALUE = {
-    noteColoringMode: 'tonic_scale_keys', theme: 'default', chordDisplayMode: 'letters',
+    colorScheme: 'highlight', colorScope: 'scale', theme: 'default', chordDisplayMode: 'letters',
     showNoteHighlight: true, setShowNoteHighlight: () => {},
     animationMode: 'pagination', setAnimationMode: () => {},
     paginationVariant: 'mid', setPaginationVariant: () => {},
@@ -19,8 +19,8 @@ const renderOverlay = (props = {}) => render(
         <svg>
             <NoteColoringStaffOverlay
                 startX={100} endX={700} trebleStart={100} bassStart={210}
-                noteColoringMode="tonic_scale_keys"
-                setNoteColoringMode={() => {}}
+                colorScheme="highlight" colorScope="scale"
+                setColorScheme={() => {}} setColorScope={() => {}}
                 tonic="C" scaleNotes={['C', 'D', 'E', 'F', 'G', 'A', 'B']}
                 // #427 rework: these assertions cover the EXPANDED carousel; the hidden reveal-on-
                 // interaction behaviour is the shared hook (tested in useRevealOnInteraction). Default off.
@@ -39,16 +39,14 @@ describe('NoteColoringStaffOverlay', () => {
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
     });
 
-    it('renders the renamed/reordered scheme labels in ALL CAPS (standing carousel CR)', () => {
+    it('renders the colorScheme labels in ALL CAPS (#1103: chroma/subtle-chroma/root/highlight/none)', () => {
         const { container } = renderOverlay();
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        // 'tonic_scale_keys' mode is now LABELLED "Scale"; 'chords' → "Chord".
-        // ALL CAPS since 2026-07-03 (Han: carousel text conventions must not
-        // drift per consumer).
-        expect(labels).toContain('SCALE');
-        expect(labels).toContain('CHORD');
-        expect(labels).toContain('SUBTLE CHROMATONE');
-        expect(labels).not.toContain('Scale');
+        // ALL CAPS since 2026-07-03 (Han: carousel text conventions must not drift per consumer).
+        expect(labels).toContain('ROOT');
+        expect(labels).toContain('HIGHLIGHT');
+        expect(labels).toContain('SUBTLE CHROMA');
+        expect(labels).not.toContain('Root');
     });
 
     it('example notes ASCEND C4→C5 at real staff positions (Han 2026-06-17, not flat)', () => {

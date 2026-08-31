@@ -258,7 +258,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "move",
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -1415,6 +1416,87 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
+      "townsfolk",
+      "trader"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/blacksmith_f.png",
+    "base": "Blacksmith Woman",
+    "variant": null,
+    "width": 640,
+    "height": 64,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 19,
+      "w": 34,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "work",
+        "label": "Work",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "audio",
       "townsfolk"
     ]
   },
@@ -1544,7 +1626,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "magical",
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -7143,8 +7226,8 @@ export default [
   {
     "category": "passive",
     "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 4.png",
-    "base": "Blacksmith Fast",
-    "variant": null,
+    "base": "Blacksmith Man",
+    "variant": "Plain",
     "width": 640,
     "height": 896,
     "frame": {
@@ -8760,7 +8843,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -9456,7 +9540,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "military",
-      "townsfolk"
+      "townsfolk",
+      "musician"
     ]
   },
   {
@@ -9614,7 +9699,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "worker"
     ]
   },
   {
@@ -9772,7 +9858,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -10354,7 +10441,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -11050,7 +11138,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "military",
-      "townsfolk"
+      "townsfolk",
+      "musician"
     ]
   },
   {
@@ -11208,7 +11297,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "worker"
     ]
   },
   {
@@ -11366,7 +11456,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -11948,7 +12039,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -12644,7 +12736,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "military",
-      "townsfolk"
+      "townsfolk",
+      "musician"
     ]
   },
   {
@@ -12802,7 +12895,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "worker"
     ]
   },
   {
@@ -12960,7 +13054,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -13405,7 +13500,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "magical",
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -14796,7 +14892,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "tavern"
     ]
   },
   {
@@ -16187,7 +16284,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "military"
     ]
   },
   {
@@ -16266,7 +16364,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "military"
     ]
   },
   {
@@ -16418,7 +16517,8 @@ export default [
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -16490,7 +16590,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "bare",
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -19415,7 +19516,8 @@ export default [
     "being": "humanoid",
     "artist": "GandalfHardcore",
     "tags": [
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -19423,7 +19525,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_passive/Town crier.png",
     "base": "Town crier",
     "variant": null,
-    "width": 640,
+    "width": 960,
     "height": 64,
     "frame": {
       "w": 64,
@@ -19459,7 +19561,14 @@ export default [
           {
             "row": 0,
             "col": 4
-          },
+          }
+        ],
+        "removed": false
+      },
+      {
+        "key": "ring",
+        "label": "Ring",
+        "cells": [
           {
             "row": 0,
             "col": 5
@@ -19479,6 +19588,26 @@ export default [
           {
             "row": 0,
             "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          },
+          {
+            "row": 0,
+            "col": 14
           }
         ]
       }
@@ -19488,6 +19617,7 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "worker",
+      "audio",
       "townsfolk"
     ]
   },
@@ -19669,7 +19799,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "magical",
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -19727,19 +19858,19 @@ export default [
   {
     "category": "passive",
     "relPath": "../assets/ASSORTED/characters/SSW/Blacksmith.png",
-    "base": "Blacksmith Slow",
+    "base": "Blacksmith",
     "variant": null,
-    "width": 256,
-    "height": 192,
+    "width": 960,
+    "height": 64,
     "frame": {
       "w": 64,
       "h": 64
     },
     "crop": {
       "x": 9,
-      "y": 15,
+      "y": 14,
       "w": 39,
-      "h": 49
+      "h": 50
     },
     "animations": [
       {
@@ -19747,10 +19878,6 @@ export default [
         "label": "Idle",
         "cells": [
           {
-            "row": 2,
-            "col": 3
-          },
-          {
             "row": 0,
             "col": 0
           },
@@ -19765,53 +19892,57 @@ export default [
           {
             "row": 0,
             "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
           }
         ],
         "removed": false
       },
       {
-        "key": "hit",
-        "label": "Hit",
+        "key": "work",
+        "label": "Work",
         "cells": [
           {
-            "row": 1,
-            "col": 0
-          },
-          {
-            "row": 1,
-            "col": 1
-          },
-          {
-            "row": 1,
-            "col": 2
-          },
-          {
-            "row": 1,
-            "col": 3
-          },
-          {
-            "row": 2,
-            "col": 0
-          },
-          {
-            "row": 2,
-            "col": 1
-          },
-          {
-            "row": 2,
-            "col": 2
-          },
-          {
-            "row": 2,
-            "col": 3
+            "row": 0,
+            "col": 5
           },
           {
             "row": 0,
-            "col": 0
+            "col": 6
           },
           {
             "row": 0,
-            "col": 1
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          },
+          {
+            "row": 0,
+            "col": 14
           }
         ]
       }
@@ -19820,6 +19951,7 @@ export default [
     "artist": "Szadi Art",
     "tags": [
       "worker",
+      "audio",
       "townsfolk"
     ]
   },
@@ -20414,7 +20546,8 @@ export default [
     "artist": "Szadi Art",
     "tags": [
       "trader",
-      "townsfolk"
+      "townsfolk",
+      "magical"
     ]
   },
   {
@@ -20478,6 +20611,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer black sheet.png",
     "base": "Archer",
     "variant": "Black",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -20663,6 +20797,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -20677,6 +20812,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer blue sheet.png",
     "base": "Archer",
     "variant": "Blue",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -20862,6 +20998,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -20876,6 +21013,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer brown sheet.png",
     "base": "Archer",
     "variant": "Brown",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -21061,6 +21199,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -21075,6 +21214,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer green sheet.png",
     "base": "Archer",
     "variant": "Green",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -21260,6 +21400,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -21274,6 +21415,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer purple sheet.png",
     "base": "Archer",
     "variant": "Purple",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -21459,6 +21601,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -21473,6 +21616,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer red sheet.png",
     "base": "Archer",
     "variant": "Red",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -21658,6 +21802,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -21672,6 +21817,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer sheet.png",
     "base": "Archer",
     "variant": null,
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -21857,6 +22003,9 @@ export default [
       }
     ],
     "facing": "right",
+    "swatchColor": "#fdd835",
+    "swatchColor2": "#eeeeee",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -21871,6 +22020,7 @@ export default [
     "relPath": "../assets/ASSORTED/characters/char_with_attack/Archer yellow sheet.png",
     "base": "Archer",
     "variant": "Yellow",
+    "portraitRelPath": "../assets/ASSORTED/fx/arrow.png",
     "width": 704,
     "height": 320,
     "frame": {
@@ -22056,6 +22206,7 @@ export default [
       }
     ],
     "facing": "right",
+    "portraitOscillate": true,
     "being": "human",
     "artist": "GandalfHardcore",
     "tags": [
@@ -23010,6 +23161,434 @@ export default [
   },
   {
     "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/GandalfHardcore Carriage sheet.png",
+    "base": "Carriage",
+    "variant": "Carriage",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/64x64 Portrait.png",
+    "width": 2176,
+    "height": 384,
+    "frame": {
+      "w": 272,
+      "h": 96
+    },
+    "crop": {
+      "x": 14,
+      "y": 3,
+      "w": 248,
+      "h": 93
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "run",
+        "label": "Run",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "graze",
+        "label": "Graze",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "other",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk",
+      "worker",
+      "transport"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/GandalfHardcore Carriage Top Layer sheet.png",
+    "base": "Carriage",
+    "variant": "Front Layer",
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/64x64 Portrait.png",
+    "width": 2176,
+    "height": 384,
+    "frame": {
+      "w": 272,
+      "h": 96
+    },
+    "crop": {
+      "x": 14,
+      "y": 5,
+      "w": 131,
+      "h": 91
+    },
+    "animations": [
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "run",
+        "label": "Run",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          }
+        ]
+      },
+      {
+        "key": "graze",
+        "label": "Graze",
+        "cells": [
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 5
+          },
+          {
+            "row": 2,
+            "col": 6
+          },
+          {
+            "row": 2,
+            "col": 7
+          }
+        ]
+      },
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 5
+          },
+          {
+            "row": 3,
+            "col": 6
+          },
+          {
+            "row": 3,
+            "col": 7
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "other",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk",
+      "worker",
+      "transport"
+    ]
+  },
+  {
+    "category": "portrait",
+    "relPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/GandalfHardcore Coachwoman sheet.png",
+    "base": "Coachwoman",
+    "variant": null,
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/carriage/64x64 Portrait.png",
+    "width": 512,
+    "height": 128,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 22,
+      "y": 20,
+      "w": 20,
+      "h": 44
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      },
+      {
+        "key": "walk",
+        "label": "Walk",
+        "cells": [
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "portrait",
+      "move",
+      "townsfolk",
+      "worker",
+      "transport"
+    ]
+  },
+  {
+    "category": "portrait",
     "relPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art Character/Female Medieval Pixel Art character.png",
     "base": "Female Medieval Pixel Art Character",
     "variant": "Normal",
@@ -23304,7 +23883,8 @@ export default [
     "tags": [
       "portrait",
       "move",
-      "townsfolk"
+      "townsfolk",
+      "musician"
     ]
   },
   {
@@ -23601,7 +24181,8 @@ export default [
     "tags": [
       "portrait",
       "move",
-      "townsfolk"
+      "townsfolk",
+      "musician"
     ]
   },
   {
@@ -23693,7 +24274,8 @@ export default [
     "tags": [
       "portrait",
       "move",
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -29313,7 +29895,8 @@ export default [
     "tags": [
       "portrait",
       "move",
-      "townsfolk"
+      "townsfolk",
+      "worker"
     ]
   },
   {
@@ -29870,7 +30453,8 @@ export default [
     "tags": [
       "portrait",
       "move",
-      "townsfolk"
+      "townsfolk",
+      "noble"
     ]
   },
   {
@@ -55822,7 +56406,8 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "move",
-      "townsfolk"
+      "townsfolk",
+      "worker"
     ]
   },
   {
@@ -55919,6 +56504,121 @@ export default [
   },
   {
     "category": "walk",
+    "relPath": "../assets/ASSORTED/characters/char_with_walk/Ferryman.png",
+    "base": "Ferryman",
+    "variant": null,
+    "width": 480,
+    "height": 256,
+    "frame": {
+      "w": 96,
+      "h": 64
+    },
+    "crop": {
+      "x": 7,
+      "y": 4,
+      "w": 85,
+      "h": 60
+    },
+    "animations": [
+      {
+        "key": "move",
+        "label": "Move",
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 1,
+            "col": 0
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 3
+          },
+          {
+            "row": 1,
+            "col": 4
+          },
+          {
+            "row": 2,
+            "col": 0
+          },
+          {
+            "row": 2,
+            "col": 1
+          },
+          {
+            "row": 2,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 3
+          },
+          {
+            "row": 2,
+            "col": 4
+          },
+          {
+            "row": 3,
+            "col": 0
+          },
+          {
+            "row": 3,
+            "col": 1
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 3,
+            "col": 3
+          },
+          {
+            "row": 3,
+            "col": 4
+          }
+        ]
+      }
+    ],
+    "facing": "right",
+    "being": "humanoid",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "move",
+      "townsfolk",
+      "on_water",
+      "undead"
+    ]
+  },
+  {
+    "category": "walk",
     "relPath": "../assets/ASSORTED/characters/char_with_walk/Scribe.png",
     "base": "Scribe",
     "variant": null,
@@ -56005,7 +56705,8 @@ export default [
     "tags": [
       "move",
       "worker",
-      "townsfolk"
+      "townsfolk",
+      "library"
     ]
   },
   {
@@ -75999,6 +76700,110 @@ export default [
     "artist": "GandalfHardcore",
     "tags": [
       "hellish"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 5.png",
+    "base": "Blacksmith Man",
+    "variant": "Grey",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 19,
+      "w": 34,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
+    ]
+  },
+  {
+    "category": "passive",
+    "relPath": "../assets/ASSORTED/characters/char_passive/characters sheet 6.png",
+    "base": "Blacksmith Man",
+    "variant": "Blue",
+    "width": 640,
+    "height": 896,
+    "frame": {
+      "w": 64,
+      "h": 64
+    },
+    "crop": {
+      "x": 13,
+      "y": 19,
+      "w": 34,
+      "h": 45
+    },
+    "animations": [
+      {
+        "key": "idle",
+        "label": "Idle",
+        "cells": [
+          {
+            "row": 1,
+            "col": 5
+          },
+          {
+            "row": 1,
+            "col": 6
+          },
+          {
+            "row": 1,
+            "col": 7
+          },
+          {
+            "row": 1,
+            "col": 8
+          },
+          {
+            "row": 1,
+            "col": 9
+          }
+        ]
+      }
+    ],
+    "being": "human",
+    "artist": "GandalfHardcore",
+    "tags": [
+      "worker",
+      "townsfolk"
     ]
   },
   {

@@ -1,31 +1,208 @@
 {
-  "Blacksmith Slow": {
+  "Town crier": {
     "animOverrides": {
       "0": {
         "cells": [
-          { "row": 2, "col": 3 },
-          { "row": 0, "col": 0 },
-          { "row": 0, "col": 1 },
-          { "row": 0, "col": 2 },
-          { "row": 0, "col": 3 }
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
         ]
       }
     },
     "addedAnimations": [
       {
-        "key": "hit",
-        "label": "Hit",
+        "key": "ring",
+        "label": "Ring",
         "cells": [
-          { "row": 1, "col": 0 },
-          { "row": 1, "col": 1 },
-          { "row": 1, "col": 2 },
-          { "row": 1, "col": 3 },
-          { "row": 2, "col": 0 },
-          { "row": 2, "col": 1 },
-          { "row": 2, "col": 2 },
-          { "row": 2, "col": 3 },
-          { "row": 0, "col": 0 },
-          { "row": 0, "col": 1 }
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          },
+          {
+            "row": 0,
+            "col": 14
+          }
+        ]
+      }
+    ]
+  },
+  "Blacksmith Woman": {
+    "animOverrides": {
+      "0": {
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    },
+    "addedAnimations": [
+      {
+        "key": "work",
+        "label": "Work",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          }
+        ]
+      }
+    ]
+  },
+  "Blacksmith": {
+    "animOverrides": {
+      "0": {
+        "cells": [
+          {
+            "row": 0,
+            "col": 0
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 0,
+            "col": 3
+          },
+          {
+            "row": 0,
+            "col": 4
+          }
+        ]
+      }
+    },
+    "addedAnimations": [
+      {
+        "key": "work",
+        "label": "Work",
+        "cells": [
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          },
+          {
+            "row": 0,
+            "col": 9
+          },
+          {
+            "row": 0,
+            "col": 10
+          },
+          {
+            "row": 0,
+            "col": 11
+          },
+          {
+            "row": 0,
+            "col": 12
+          },
+          {
+            "row": 0,
+            "col": 13
+          },
+          {
+            "row": 0,
+            "col": 14
+          }
         ]
       }
     ]
@@ -94,7 +271,8 @@
     "tagsAdd": [
       "magical"
     ],
-    "tagsRemove": []
+    "tagsRemove": [],
+    "displayName": "Wisp (alt)"
   },
   "Slime": {
     "displayName": "Slime",
@@ -108,7 +286,11 @@
     "displayName": "Bishop Staff"
   },
   "Cuman Sitting": {
-    "facing": "right"
+    "facing": "right",
+    "tagsAdd": [
+      "military"
+    ],
+    "tagsRemove": []
   },
   "Drunk Dancing": {
     "facing": "right"
@@ -469,5 +651,134 @@
   },
   "Violin": {
     "facing": "right"
+  },
+  "Carriage": {
+    "tagsAdd": [
+      "worker",
+      "transport"
+    ],
+    "tagsRemove": []
+  },
+  "Coachwoman": {
+    "tagsAdd": [
+      "worker",
+      "transport"
+    ],
+    "tagsRemove": []
+  },
+  "Ferryman": {
+    "tagsAdd": [
+      "on_water",
+      "undead"
+    ],
+    "tagsRemove": []
+  },
+  "Male Apron": {
+    "tagsAdd": [
+      "worker"
+    ],
+    "tagsRemove": []
+  },
+  "Beekeeper": {
+    "tagsAdd": [
+      "worker"
+    ],
+    "tagsRemove": []
+  },
+  "Butcher": {
+    "tagsAdd": [
+      "worker"
+    ],
+    "tagsRemove": []
+  },
+  "Cuman Standing": {
+    "tagsAdd": [
+      "military"
+    ],
+    "tagsRemove": []
+  },
+  "Drunk Lady": {
+    "tagsAdd": [
+      "tavern"
+    ],
+    "tagsRemove": []
+  },
+  "Female Medieval Pixel Art Character": {
+    "tagsAdd": [
+      "musician"
+    ],
+    "tagsRemove": []
+  },
+  "Guard Lute": {
+    "tagsAdd": [
+      "musician"
+    ],
+    "tagsRemove": []
+  },
+  "King": {
+    "tagsAdd": [
+      "noble"
+    ],
+    "tagsRemove": []
+  },
+  "Baroness": {
+    "tagsAdd": [
+      "noble"
+    ],
+    "tagsRemove": []
+  },
+  "Lady Godiva": {
+    "tagsAdd": [
+      "noble"
+    ],
+    "tagsRemove": []
+  },
+  "Maid Reading": {
+    "tagsAdd": [
+      "library"
+    ],
+    "tagsRemove": []
+  },
+  "Male Noble": {
+    "tagsAdd": [
+      "noble"
+    ],
+    "tagsRemove": []
+  },
+  "Queen": {
+    "tagsAdd": [
+      "noble"
+    ],
+    "tagsRemove": []
+  },
+  "Scribe": {
+    "tagsAdd": [
+      "library"
+    ],
+    "tagsRemove": []
+  },
+  "Toad": {
+    "tagsAdd": [
+      "library"
+    ],
+    "tagsRemove": []
+  },
+  "Traveling Merchant": {
+    "tagsAdd": [
+      "magical"
+    ],
+    "tagsRemove": []
+  },
+  "Wizard (Camp)": {
+    "tagsAdd": [
+      "library"
+    ],
+    "tagsRemove": []
+  },
+  "Market Dealer": {
+    "tagsAdd": [
+      "trader"
+    ],
+    "tagsRemove": []
   }
 }

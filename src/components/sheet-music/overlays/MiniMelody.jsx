@@ -27,7 +27,7 @@ export const PREVIEW_SCALE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 export const MiniMelody = ({
     slots, durations, width, staffStart, clef = 'treble', staff = 'treble',
-    noteColoringMode, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE, theme,
+    colorScheme, colorScope, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE, theme,
     processedChords = [], previewColor = null, forcedAccidentals = null,
     // #435 (Han 2026-07-19): beats per group for the 'g' spacers. Default 2 (the sheet's [2,2]); the
     // note-pool + colour runs pass 8 → one group of 8 (no internal gaps, grouping [8]).
@@ -86,7 +86,8 @@ export const MiniMelody = ({
                 numAccidentals={0}
                 scaleNotes={scaleNotes}
                 tonic={tonic}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 theme={theme}
                 processedChords={processedChords}
                 inputTestState={null}

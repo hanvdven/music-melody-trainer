@@ -100,7 +100,7 @@ const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
 
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,
-    noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
+    colorScheme = 'none', colorScope = 'all', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
     activeChord = null, theme = 'dark',
 }) => {
     // Layout frozen during a drag so the selector keys don't shift under the
@@ -344,7 +344,8 @@ const KeyboardRangeSetter = ({
                     activeClef={activeClef}
                     minNote={win[0].name}
                     maxNote={win[nWhite - 1].name}
-                    noteColoringMode={noteColoringMode}
+                    colorScheme={colorScheme}
+                    colorScope={colorScope}
                     // #436 (Han: "pas de akkoordkleuring ook toe op de range preset setter") — this
                     // selector PianoView never received the chord context, so 'chords' mode left it
                     // uncoloured. It now gets the same representative chord (with the tritone
@@ -389,7 +390,8 @@ const KeyboardRangeSetter = ({
                     activeClef={activeClef}
                     minNote={range.min}
                     maxNote={range.max}
-                    noteColoringMode={noteColoringMode}
+                    colorScheme={colorScheme}
+                    colorScope={colorScope}
                     onNoteInput={onNoteInput}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     activeChord={activeChord}

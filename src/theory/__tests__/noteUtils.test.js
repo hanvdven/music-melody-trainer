@@ -306,8 +306,10 @@ describe('representativeChord (#432 — chords-mode preview colouring)', () => {
 // chroma"): the new hybrid mode reuses subtle-chroma's own chromatoneMix gradient for the color, but
 // only applies it to notes that are actually in the current scale (tonic included) — not a new
 // filtering mechanism, the same in-scale test tonic_scale_keys already uses.
-describe('melodicNoteColor — scale-subtle-chroma (#1049)', () => {
-    const opts = { noteColoringMode: 'scale-subtle-chroma', tonic: 'C4', scaleNotes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'], theme: 'dark' };
+// #1103 (Han 2026-08-22): scale-subtle-chroma is now expressed as colorScheme='subtle-chroma' +
+// colorScope='scale' — same exact behavior, verified by this same test suite (§6c equivalence table).
+describe('melodicNoteColor — scale-subtle-chroma (#1049, now colorScheme+colorScope per #1103)', () => {
+    const opts = { colorScheme: 'subtle-chroma', colorScope: 'scale', tonic: 'C4', scaleNotes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'], theme: 'dark' };
 
     it('colors an in-scale note with the subtle-chroma gradient for its own pitch class', () => {
         expect(melodicNoteColor('E4', opts)).toBe(chromatoneMix(getNoteSemitone('E4'), 60));

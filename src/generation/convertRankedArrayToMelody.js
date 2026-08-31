@@ -52,8 +52,19 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // wm (mid woodblock) and cb (cowbell) were missing — added for parity with PERC_POOLS.all in generateBackbeat.js
     const percussionIDs = ['k', 's', 'sg', 'sr', 'hh', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wm', 'wl', 'cb'];
-    // Pitched notes only — percussion sources ('kick_snare', 'all', 'claves', 'metronome')
-    // return their own hard-coded ID arrays from getPool and never use this pool.
+    // Pitched notes only — percussion sources ('kick_snare', 'all', 'claves', 'metronome') return their
+    // own hard-coded ID arrays from getPool below.
+    // Bug fix (#1044, Han 2026-08-24): `getPool()` dispatches purely on the STRING VALUE of `source` — it
+    // has no instrument-type awareness, so nothing stopped a MELODIC track's `notePool` from also being
+    // 'all' (levels 104/115/120 did exactly this, meaning "use notes freely" — a reasonable guess, since
+    // 'all' reads as a generic word, not obviously percussion-jargon) and silently getting `percussionIDs`
+    // back as its note pool. `MELODIC_NOTE_POOLS` (generationFields.js) is the actual valid-value list for
+    // treble/bass — 'all' is NOT in it. The fix was correcting the three levels' data (to 'chromatic', the
+    // melodic equivalent of "unrestricted") plus a levels.test.js regression guard checking every level's
+    // tracks.*.notePool against that list — not a change here, since `getPool` genuinely IS shared,
+    // correctly, by both melodic and percussion callers for every OTHER source string ('scale'/'chord'/
+    // 'root' resolve identically regardless of caller; only 'all' is a percussion-exclusive value that
+    // happens to look like a plausible melodic one).
     const fullAvailablePool = (() => {
         const allNotes = generateAllNotesArray();
         if (!range) return allNotes;

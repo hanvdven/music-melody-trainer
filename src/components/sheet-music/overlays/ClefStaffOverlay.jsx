@@ -128,7 +128,7 @@ const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
     tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
     startMeasureIndex: 0, transpositionSemitones: 0, debugMode: false, interactive: false,
-    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+    courtesyAccidentals: false, percussionVoiceSplit: false, colorScheme: 'none', colorScope: 'all',
 };
 
 // The 3-note reference melody drawn after each clickable clef so the transposition /
@@ -138,7 +138,7 @@ const Q = TICKS_PER_WHOLE / 4;
 const REF_LAYER_PROPS = {
     numAccidentals: 0, scaleNotes: [], tonic: '', processedChords: [], inputTestState: null,
     pixelsPerTick: null, startMeasureIndex: 0, debugMode: false, interactive: false,
-    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+    courtesyAccidentals: false, percussionVoiceSplit: false, colorScheme: 'none', colorScope: 'all',
     noteGroupSize: TICKS_PER_WHOLE, measureLengthSlots: TICKS_PER_WHOLE,
 };
 
@@ -147,7 +147,7 @@ const REF_LAYER_PROPS = {
 // a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
 // REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
 const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme,
-    active, noteColoringMode, tonic, scaleNotes, showNotes = true }) => {
+    active, colorScheme, colorScope, tonic, scaleNotes, showNotes = true }) => {
     // Note spacing tuned to Han's nudges (2026-06-03): first note +8 right, third −8 left
     // vs the doubled-width render → a tighter, centred triad. Fixed (not cardW-scaled) so
     // the nudge is predictable.
@@ -159,8 +159,8 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
     // exactly like the sheet (Han A3, 2026-06-03) — so previewMode is OFF and the real
     // colouring props flow in. NON-selected: flat lowlight so the card reads as greyed.
     const noteColourProps = active
-        ? { previewMode: false, noteColoringMode, tonic, scaleNotes }
-        : { previewMode: color, noteColoringMode: 'none', tonic: '', scaleNotes: [] };
+        ? { previewMode: false, colorScheme, colorScope, tonic, scaleNotes }
+        : { previewMode: color, colorScheme: 'none', colorScope: 'all', tonic: '', scaleNotes: [] };
     const refMelody = {
         notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
         displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
@@ -260,7 +260,7 @@ const ClefStaffOverlay = ({
     clefTreble, clefBass,
     trebleSettings, bassSettings,
     tonic, scaleNotes,           // current key — reference notes are tonic+5th+octave
-    noteColoringMode,            // selected card colours its notes per this scheme (A3)
+    colorScheme, colorScope,     // selected card colours its notes per this scheme (A3)
     activeChord = null,          // paused active chord (last-if-tonic-else-first) for chord colour
     isNarrow = false,            // narrow screens: only the selected card shows notes (A7)
     percussionVoiceSplit = false,
@@ -420,7 +420,7 @@ const ClefStaffOverlay = ({
                         staff={staff} clef={clef} staffStart={staffStart}
                         startX={startX} endX={endX}
                         transSemitones={totalTrans}
-                        noteColoringMode={noteColoringMode} tonic={tonic}
+                        colorScheme={colorScheme} colorScope={colorScope} tonic={tonic}
                         scaleNotes={scaleNotes} theme={theme} activeChord={activeChord}
                         onSelectTrans={(t) => {
                             const { key, octave } = decomposeTrans(t);
@@ -533,7 +533,7 @@ const ClefStaffOverlay = ({
                             allOffsets={allOffsets}
                             timeSignature={PERC_TS}
                             theme={theme}
-                            noteColoringMode={active ? noteColoringMode : 'none'}
+                            colorScheme={active ? colorScheme : 'none'} colorScope={active ? colorScope : 'all'}
                             previewMode={active ? false : color}
                         />
                     ))}
@@ -573,7 +573,7 @@ const ClefStaffOverlay = ({
                         allOffsets={allOffsets}
                         timeSignature={PERC_TS}
                         theme={theme}
-                        noteColoringMode={active ? noteColoringMode : 'none'}
+                        colorScheme={active ? colorScheme : 'none'} colorScope={active ? colorScope : 'all'}
                         previewMode={active ? false : color}
                     />
                 </g>

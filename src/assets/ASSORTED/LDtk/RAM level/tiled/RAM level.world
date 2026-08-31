@@ -1,9 +1,9 @@
 {
 	"maps": [
-		{ "fileName": "0001_Level_0.tmx", "x": -1792, "y": 0 },
-		{ "fileName": "0002_Level_1.tmx", "x": -832, "y": 0 },
-		{ "fileName": "0003_Level_2.tmx", "x": -128, "y": -272 },
-		{ "fileName": "0004_Level_3.tmx", "x": 2496, "y": 0 },
+		{ "fileName": "0001_Level_0.tmx", "x": -1792, "y": -16 },
+		{ "fileName": "0002_Level_1.tmx", "x": -832, "y": -16 },
+		{ "fileName": "0003_Level_2.tmx", "x": -128, "y": -304 },
+		{ "fileName": "0004_Level_3.tmx", "x": 2496, "y": -16 },
 		{ "fileName": "0005_Level_4.tmx", "x": 5184, "y": 0 },
 		{ "fileName": "0006_Level_5.tmx", "x": 600, "y": 272 }
 	],

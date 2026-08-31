@@ -1,0 +1,71 @@
+Name,Class,Scle,class-id,set,set-id,subset,scale-family,hepta-class,scale-colour,by,icon-file
+Snake,Hunter,D3,13,1,13,1,Diatonic,Hydrosophist,#276468,han,Ability_icons1_13.png
+Wolf,Hunter,D6,28,1,28,1,Diatonic,Aerotheurge,#384cbc,han,Ability_icons1_28.png
+Spider,Hunter,Two-semitone tritone scale,31,1,31,1,Hexatonic,Hydrosophist,#276468,claude,Ability_icons1_31.png
+Crow,Hunter,Tritone scale,45,1,45,1,Hexatonic,Occultist,#6b3ab3,claude,Ability_icons1_45.png
+Bull,Druid,D5,17,6,67,2,Diatonic,Priest,#ab5c1c,han,Ability_icons6_67.png
+Deer,Hydrosophist,In,49,2,99,2,Pentatonic,Hydrosophist,#276468,han,Ability_icons2_99.png
+Phoenix,Pyromancer,HMin1,39,2,39,1,Harmonic Minor,Paladin,#ab5c1c,claude,Ability_icons2_39.png
+Bird-arrow,Rogue,Hirajoshi scale,24,3,24,1,Pentatonic,Hunter,#a58c27,claude,Ability_icons3_24.png
+Crow II,Warlock,DH3,33,13,33,1,Double Harmonic,Hydrosophist,#276468,claude,Ability_icon_13_33.png
+Octopus-tentacle,Warlock,MM3,49,13,49,1,Melodic,Hunter,#a58c27,claude,Ability_icon_13_49.png
+Crow-flying,Aerotheurge,Whole Tone,50,4,100,2,Hexatonic,Hunter,#a58c27,claude,Ability_icons4_100.png
+Cat-roof,Rogue,HMaj3,14,3,14,1,Harmonic Major,Hydrosophist,#276468,claude,Ability_icons3_14.png
+Bear,Druid,Major Bebop,11,6,61,2,Supertonic,Paladin,#ab5c1c,claude,Ability_icons6_61.png
+Bull,Warrior,Hungarian major,18,1,68,2,Other Heptatonic,Hunter,#a58c27,claude,Ability_icons1_68.png
+Wolf-sillhouette,Druid,Spanish octatonic,24,6,74,2,Supertonic,Hydrosophist,#276468,claude,Ability_icons6_74.png
+Panther-silhouette,Druid,HMaj1,27,6,77,2,Harmonic Major,Paladin,#ab5c1c,han,Ability_icons6_77.png
+Lizard,Druid,Lydian diminished,29,6,79,2,Other Heptatonic,Hunter,#a58c27,claude,Ability_icons6_79.png
+Bear-howl,Druid,MM6,32,6,82,2,Melodic,Aerotheurge,#384cbc,han,Ability_icons6_82.png
+Owl,Druid,D7,37,6,87,2,Diatonic,Occultist,#6b3ab3,han,Ability_icons6_87.png
+Deer-silhouette,Druid,HMaj5,42,6,92,2,Harmonic Major,Priest,#ab5c1c,claude,Ability_icons6_92.png
+Panther-silhousette,Druid,HMaj7,45,6,95,2,Harmonic Major,Occultist,#6b3ab3,claude,Ability_icons6_95.png
+Toad,Druid,Neapolitan minor,48,6,98,2,Other Heptatonic,Hydrosophist,#276468,claude,Ability_icons6_98.png
+Unicorn-silhouette,Cavalier,HMaj4,5,7,5,1,Harmonic Major,Hunter,#a58c27,claude,Ability_icons7_05.png
+Horse,Cavalier,Pentatonic Major,41,7,41,1,Pentatonic,Paladin,#ab5c1c,claude,Ability_icons7_41.png
+Camel,Cavalier,DH5,42,7,42,1,Double Harmonic,Priest,#ab5c1c,claude,Ability_icons7_42.png
+Elephant,Cavalier,Neapolitan major,43,7,43,1,Other Heptatonic,Hydrosophist,#276468,claude,Ability_icons7_43.png
+Bear,Cavalier,Scale of harmonics,45,7,45,1,Hexatonic,Priest,#ab5c1c,claude,Ability_icons7_45.png
+Dog,Cavalier,Major blues scale,46,7,46,1,Hexatonic,Paladin,#ab5c1c,claude,Ability_icons7_46.png
+Eagle,Cavalier,Prometheus scale,47,7,47,1,Hexatonic,Hunter,#a58c27,claude,Ability_icons7_47.png
+Dinosaur,Cavalier,Augmented scale,48,7,48,1,Hexatonic,Paladin,#ab5c1c,claude,Ability_icons7_48.png
+Boar,Cavalier,D4,49,7,49,1,Diatonic,Hunter,#a58c27,han,Ability_icons7_49.png
+Ram,Cavalier,Pentatonic Minor,50,7,50,1,Pentatonic,Aerotheurge,#384cbc,claude,Ability_icons7_50.png
+Praying Mantis,Monk,HMin4,31,7,81,2,Harmonic Minor,Hunter,#a58c27,claude,Ability_icons7_81.png
+Monkey,Monk,Gypsy major,32,7,82,2,Other Heptatonic,Occultist,#6b3ab3,claude,Ability_icons7_82.png
+Dragon,Monk,HMin6,26,7,76,2,Harmonic Minor,Aerotheurge,#384cbc,claude,Ability_icons7_76.png
+Snake,Monk,,33,7,83,2,,,,,Ability_icons7_83.png
+Tiger,Monk,MM1,34,7,84,2,Melodic,Aerotheurge,#384cbc,han,Ability_icons7_84.png
+Panda,Monk,HMaj2,35,7,85,2,Harmonic Major,Warrior,#9b1a0a,claude,Ability_icons7_85.png
+Dragon-Chinese,Monk,HMin3,36,7,86,2,Harmonic Minor,Hydrosophist,#276468,claude,Ability_icons7_86.png
+Phoenix-Chinese,Monk,HMaj6,37,7,87,2,Harmonic Major,Hunter,#a58c27,claude,Ability_icons7_87.png
+Spider,Death Knight,Diminished,21,8,71,2,Supertonic,Occultist,#6b3ab3,claude,Ability_icons8_71.png
+Frog,Witch,Enigmatic,45,12,95,2,Other Heptatonic,Occultist,#6b3ab3,claude,Ability_icon_12_95.png
+Snake-viper,Witch,HMin2,37,12,87,2,Harmonic Minor,Warrior,#9b1a0a,claude,Ability_icon_12_87.png
+Crow,Witch,Locrian major,1,12,51,2,Other Heptatonic,Occultist,#6b3ab3,claude,Ability_icon_12_51.png
+Bat-Moon,Vampire,MM7,19,13,19,1,Melodic,Occultist,#6b3ab3,claude,Ability_icon_13_19.png
+Wolf-silhouette,Werewolf,Dominant Diminished,4,13,54,2,Supertonic,Priest,#ab5c1c,claude,Ability_icon_13_54.png
+Wolf-troupe,Werewolf,DH4,9,13,59,2,Double Harmonic,Hunter,#a58c27,claude,Ability_icon_13_59.png
+Crocodile,Werewolf,MM2,13,13,63,2,Melodic,Warrior,#9b1a0a,claude,Ability_icon_13_63.png
+Snake,Werewolf,DH2,33,13,83,2,Double Harmonic,Hunter,#a58c27,claude,Ability_icon_13_83.png
+Bull-nose-ring,Werewolf,,4,13,54,2,,,,,Ability_icon_13_54.png
+Butterfly,Fae,DH6,23,14,23,1,Double Harmonic,Paladin,#ab5c1c,claude,Ability_icon_14_23.png
+Snake,Summoner,Persian,32,15,32,1,Other Heptatonic,Occultist,#6b3ab3,claude,Ability_icon_15_32.png
+Hyena,Summoner,MM5,41,15,41,1,Melodic,Aerotheurge,#384cbc,claude,Ability_icon_15_41.png
+Snake,Summoner,Chromatic,42,15,42,1,Supertonic,Paladin,#ab5c1c,claude,Ability_icon_15_42.png
+Beast,Summoner,DH7,43,15,43,1,Double Harmonic,Occultist,#6b3ab3,claude,Ability_icon_15_43.png
+Imp,Summoner,HMin7,44,15,44,1,Harmonic Minor,Occultist,#6b3ab3,claude,Ability_icon_15_44.png
+Spider,Summoner,HMin5,45,15,45,1,Harmonic Minor,Occultist,#6b3ab3,claude,Ability_icon_15_45.png
+Bear,Summoner,Bebop Dominant,46,15,46,1,Supertonic,Paladin,#ab5c1c,claude,Ability_icon_15_46.png
+Dragon,Summoner,DH1,50,15,50,1,Double Harmonic,Paladin,#ab5c1c,claude,Ability_icon_15_50.png
+Parrot,Pirate,D2,43,15,93,2,Diatonic,Warrior,#9b1a0a,han,Ability_icon_15_93.png
+Koi,Pirate,Insen,6,15,56,2,Pentatonic,Hydrosophist,#276468,han,Ability_icon_15_56.png
+Octopus,Pirate,MM4,3,15,53,2,Melodic,Hunter,#a58c27,claude,Ability_icon_15_53.png
+Shark,Pirate,Minor Blues scale,29,15,79,2,Hexatonic,Aerotheurge,#384cbc,claude,Ability_icon_15_79.png
+Mollusk,Pirate,Iwato,30,15,80,2,Pentatonic,Occultist,#6b3ab3,claude,Ability_icon_15_80.png
+Ram-strike,Cavalier,Istrian scale,34,7,34,1,Hexatonic,Hydrosophist,#276468,claude,Ability_icons7_34.png
+Horse-prance,Cavalier,Kumoi,3,7,3,1,Pentatonic,Aerotheurge,#384cbc,claude,Ability_icons7_03.png
+Horse-front,Cavalier,Egyptian pentatonic,7,7,7,1,Pentatonic,Aerotheurge,#384cbc,claude,Ability_icons7_07.png
+Horse-call,Cavalier,Minor six pentatonic,32,7,32,1,Pentatonic,Occultist,#6b3ab3,claude,Ability_icons7_32.png
+Lion,Paladin,D1,44,8,44,1,Diatonic,Paladin,#ab5c1c,han,Ability_icons8_44.png
+Tentacles,Occultist,,30,11,80,2,,,,,Ability_icon_11_80.png

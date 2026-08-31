@@ -8,30 +8,25 @@ import { LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
 // `animatedTilesBack/Front`) into `ForegroundFoliageLayer` instances — diffuse AND shimmer both drawn
 // through the shimmer shader, exactly like `useLdtkFoliageInstances.js` does for tree/grass tiles (same
 // normal-map-per-crop generation via the SAME generic Sobel utility, CLAUDE.md §6d — no water-specific
-// normal-map asset). The one thing foliage doesn't need but water does: water's own frame-cycling
-// animation ("steeds de gehele rij" — cycles columns within its own row). That rule is copied VERBATIM
-// from `LdtkAnimatedTiles.jsx`'s water branch (which is UNCHANGED and no longer receives water tiles —
-// see RpgLevelPanel.jsx's kind:'water' filter) rather than touched or "improved":
-//   col = (tile.logicalCol + tick + startOffset) % totalLogicalCols; row = tile.logicalRow
-// #925 ROUND 2 (Han caught a live regression in round 1: "wateranimatie uit random plekken van de sheet"):
-// round 1's bug was keying each tile's random `startOffset` by its (tilesetUrl, src) IDENTITY — several
-// placed water tiles legitimately share the same src (a repeating water pattern), so round 1
-// accidentally FORCED every placement sharing one src into lockstep, which is NOT what
-// `LdtkAnimatedTiles.jsx`'s original `AnimatedTile` did: there, `useMemo(() => Math.random()*1000, [])`
-// runs ONCE PER REACT COMPONENT INSTANCE, i.e. per ARRAY POSITION (`key={i}`) — every individual PLACED
-// tile gets its OWN independent offset regardless of whether it shares a src with another tile. Fixed by
-// keying `startOffsetsRef` by ARRAY INDEX instead of by src, reproducing that exact per-placement
-// independence.
+// normal-map asset).
 //
-// #925 ROUND 3 (Han, "ik heb ook behoefte aan vsync" — clarified: the animation feels detached/choppy
-// from the screen, wants it smoother): `setInterval` callbacks are NOT synchronized to the display's own
-// refresh — they fire on an independent JS timer that can drift or bunch up relative to actual paints,
-// which is what reads as "not vsync'd." requestAnimationFrame callbacks, by contrast, fire once per
-// display refresh, right before paint. Replaced the flat interval with an rAF loop that accumulates real
-// elapsed time and only advances `tick` (still every ~FRAME_MS of elapsed time — same animation SPEED,
-// just delivered in lockstep with actual frames instead of an independent timer).
-const FRAME_MS = 150;   // matches LdtkAnimatedTiles.jsx's own FRAME_MS — same animation cadence
-
+// Perf (#1162, Han 2026-08-27, "maak de watertiles maar 'static'... animated tiles + reflectie + pixel
+// swap + shimmer is niet nodig. Enkel reflectie + shimmer volstaat"): water tiles used to cycle through
+// `totalLogicalCols` distinct source-tileset columns on a `tick` timer ("steeds de gehele rij", the
+// frame-swap animation copied from `LdtkAnimatedTiles.jsx`'s water branch) — every tick that landed on a
+// column this hook hadn't shown yet was a cache MISS in `normalCacheRef`, triggering a genuinely expensive
+// synchronous Sobel-filter normal-map generation (`normalMapCanvasFromCrop(...).toDataURL()`,
+// `getImageData`/`putImageData` under the hood) on the main thread, repeated for every water-tile ×
+// distinct-column combination before the cache finished warming up — confirmed via a sourcemap-resolved
+// CPU profile as the dominant mobile-perf cost in the RPG open world, FAR outweighing anything React-side
+// (see docs/architecture.md §318). Han's call: drop the frame-swap animation AND the white-cap "pixel
+// switch" sparkle (`isWater: true` below — see ForegroundFoliageLayer.jsx's own `uWhiteCap*` uniforms,
+// its only effect) entirely; the wave-lighting shimmer shader (`wave: true`) and `WaterReflectionLayer`'s
+// mirrored reflection (a completely separate component, untouched) already read as "water" on their own.
+// `col` is now computed ONCE per tile (still offset per-placement via `startOffsetsRef` so tiles sharing a
+// tileset don't all show the IDENTICAL static frame — pure visual variety, no animation), so
+// `normalCacheRef` reaches steady state (one entry per unique tile position) the FIRST time this runs,
+// never refilled again — no more timer, no more repeated cache misses.
 export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode) {
     const [instances, setInstances] = useState([]);
     const startOffsetsRef = useRef([]);   // index -> random offset, rolled once per array slot
@@ -40,8 +35,6 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
     useEffect(() => {
         if (sceneryMode !== 'LDtk' || waterTiles.length === 0) { setInstances([]); return undefined; }
         let cancelled = false;
-        let tick = 0;
-        let raf;
 
         (async () => {
             const urls = [...new Set(waterTiles.map((t) => t.tilesetUrl))];
@@ -49,71 +42,58 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
             if (cancelled) return;
             const imgByUrl = new Map(urls.map((u, i) => [u, imgs[i]]));
 
-            const publish = () => {
-                if (cancelled) return;
-                const out = [];
-                waterTiles.forEach((tile, i) => {
-                    const img = imgByUrl.get(tile.tilesetUrl);
-                    if (!img) return;
-                    const totalLogicalCols = Math.max(1, Math.floor(img.naturalWidth / 32));
+            const out = [];
+            waterTiles.forEach((tile, i) => {
+                const img = imgByUrl.get(tile.tilesetUrl);
+                if (!img) return;
+                const totalLogicalCols = Math.max(1, Math.floor(img.naturalWidth / 32));
 
-                    if (startOffsetsRef.current[i] === undefined) {
-                        startOffsetsRef.current[i] = Math.floor(Math.random() * 1000);
-                    }
-                    const startOffset = startOffsetsRef.current[i];
-                    // Verbatim copy of LdtkAnimatedTiles.jsx's water branch.
-                    const col = (tile.logicalCol + tick + startOffset) % totalLogicalCols;
-                    const row = tile.logicalRow;
-                    const srcX = col * 32 + tile.subX, srcY = row * 32 + tile.subY;
-
-                    const normalKey = `${tile.tilesetUrl}|${srcX},${srcY}`;
-                    let normalUrl = normalCacheRef.current.get(normalKey);
-                    if (!normalUrl) {
-                        normalUrl = normalMapCanvasFromCrop(img, srcX, srcY, gridSize, gridSize).toDataURL();
-                        normalCacheRef.current.set(normalKey, normalUrl);
-                    }
-
-                    const u0 = srcX / img.naturalWidth, u1 = (srcX + gridSize) / img.naturalWidth;
-                    const v0 = srcY / img.naturalHeight, v1 = (srcY + gridSize) / img.naturalHeight;
-                    out.push({
-                        diffuseUrl: tile.tilesetUrl,
-                        diffuseUV: [
-                            tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
-                            tile.flipX ? u0 : u1, tile.flipY ? v0 : v1,
-                        ],
-                        normalUrl,
-                        localX: tile.worldX + gridSize / 2,
-                        localBottomFromLevelBottom: LEVEL_PX_HEIGHT - tile.worldY - gridSize,
-                        gridSize,
-                        wave: true, skew: false,
-                        // #1032 (Han: "aparte slider voor pixel switch op het water"): lets
-                        // ForegroundFoliageLayer's draw loop swap in water's own waveSteps/ditherAmount
-                        // uniform values instead of the shared foliage preset for this instance.
-                        isWater: true,
-                    });
-                });
-                setInstances(out);
-            };
-
-            publish();
-            let lastTickTime = performance.now();
-            const loop = (now) => {
-                if (cancelled) return;
-                if (now - lastTickTime >= FRAME_MS) {
-                    // Catch up by exactly however many whole FRAME_MS windows elapsed (never more than
-                    // one per rAF callback in practice, but robust to a throttled/backgrounded tab
-                    // resuming after a long gap) instead of drifting behind real time.
-                    const steps = Math.floor((now - lastTickTime) / FRAME_MS);
-                    tick += steps;
-                    lastTickTime += steps * FRAME_MS;
-                    publish();
+                if (startOffsetsRef.current[i] === undefined) {
+                    startOffsetsRef.current[i] = Math.floor(Math.random() * 1000);
                 }
-                raf = requestAnimationFrame(loop);
-            };
-            raf = requestAnimationFrame(loop);
+                const startOffset = startOffsetsRef.current[i];
+                // Static now (no `tick` term) — one fixed frame per tile, offset per-placement for variety.
+                const col = (tile.logicalCol + startOffset) % totalLogicalCols;
+                const row = tile.logicalRow;
+                const srcX = col * 32 + tile.subX, srcY = row * 32 + tile.subY;
+
+                const normalKey = `${tile.tilesetUrl}|${srcX},${srcY}`;
+                let normalUrl = normalCacheRef.current.get(normalKey);
+                if (!normalUrl) {
+                    normalUrl = normalMapCanvasFromCrop(img, srcX, srcY, gridSize, gridSize).toDataURL();
+                    normalCacheRef.current.set(normalKey, normalUrl);
+                }
+
+                const u0 = srcX / img.naturalWidth, u1 = (srcX + gridSize) / img.naturalWidth;
+                const v0 = srcY / img.naturalHeight, v1 = (srcY + gridSize) / img.naturalHeight;
+                out.push({
+                    diffuseUrl: tile.tilesetUrl,
+                    diffuseUV: [
+                        tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
+                        tile.flipX ? u0 : u1, tile.flipY ? v0 : v1,
+                    ],
+                    normalUrl,
+                    localX: tile.worldX + gridSize / 2,
+                    localBottomFromLevelBottom: LEVEL_PX_HEIGHT - tile.worldY - gridSize,
+                    gridSize,
+                    wave: true, skew: false,
+                    // #1162 Fase 6 (Han 2026-08-27, "ik ben de shimmer op het water kwijt! de witte
+                    // schuimkoppen die moet je wel nog blijven renderen"): restored. The earlier "drop it"
+                    // call (this file's own header comment) conflated two different costs — the JS-side
+                    // `tick`-driven column-cycling (genuinely expensive: cache misses → synchronous Sobel
+                    // normal-map regeneration, the actual perf bug) and `isWater`, which is just a per-
+                    // instance boolean read once per already-happening draw call to pick a shader uniform
+                    // (ForegroundFoliageLayer.jsx's `uWhiteCapThreshold`/`uWhiteCapStrength`, set INSIDE the
+                    // existing per-frame draw loop — no extra draw call, no cache lookup, no JS timer).
+                    // Restoring it is free: the tick/column-cycling removal above (the part that actually
+                    // mattered for perf) stays exactly as it was.
+                    isWater: true,
+                });
+            });
+            if (!cancelled) setInstances(out);
         })();
 
-        return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); };
+        return () => { cancelled = true; };
     }, [waterTiles, gridSize, sceneryMode]);
 
     return instances;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { computeRepeatPass } from '../../utils/repeatNumbering';
+import { computeRepeatPass, computeCallResponseLabel } from '../../utils/repeatNumbering';
 import { BeginRepeatSign, EndRepeatSign } from './repeatSigns';
 
 /**
@@ -63,6 +63,21 @@ const iterMeasureLines = ({
   // computed from THIS body count, not the padded numMeasures. null = not merging → original
   // anacrusis-aware behaviour below is unchanged.
   mergedBodyMeasures = null,
+  // #1155 (Han 2026-08-24, "pas de labelconventie toe op alle call-response levels"): when set (a
+  // call-response level's `lvl.callResponseMeasures`, 1 for letter d / 2 for letter e), measure labels
+  // switch to the "N" (call) / "N . 2" (response) convention computed PURELY from each barline's own
+  // ordinal position (`computeCallResponseLabel`) — completely bypassing `blockMeasureStart`/
+  // `blockPlayStart`/`computeRepeatPass` below, which are tied to combat/wave progress (correct for
+  // their own job, wrong for call-response — see that function's own comment). null = every other
+  // level's existing numbering is COMPLETELY UNCHANGED by this prop's addition.
+  callResponseGroupMeasures = null,
+  // Bug fix (Han 2026-08-25 UAT): the level's own synthetic lead-in bars (see `anacrusisMeasureIndex`'s
+  // sibling mechanism above and `SheetMusic.jsx`'s `offsets: [...Array(leadInBars).fill('m'), ...]`)
+  // count as real 'm' markers too, so `computeCallResponseLabel` needs to know how many of them precede
+  // the real content to exclude them from the call/response cycle math — see that function's own
+  // comment for the full bug. 0 = no lead-in bars in this render (every non-call-response level, and
+  // any call-response wave beyond the first, already omit the synthetic lead-in markers entirely).
+  callResponseLeadInBars = 0,
 }) => {
   // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
   // blockMeasureStart and blockPlayStart so the preview's measure-number labels
@@ -134,10 +149,21 @@ const iterMeasureLines = ({
       // shift must NOT fire — the first rendered bar IS measure 1 (Han 2026-06-15).
       const hasAnacrusisInBlock = mergedBodyMeasures == null
         && anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
-      const measureLabel = (localIndex) => {
-        const N = bms + localIndex - (hasAnacrusisInBlock ? 1 : 0);
-        return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
-      };
+      // #1155: call-response levels use a DIFFERENT, isolated label path — see
+      // `callResponseGroupMeasures`'s own comment above. `measureNumForLabel` (this barline's own
+      // ordinal, captured before `barlineCount` incremented above) is exactly the `barlineOrdinal`
+      // `computeCallResponseLabel` needs.
+      const measureLabel = callResponseGroupMeasures != null
+        ? (localIndex) => {
+          const { measureNumber, pass } = computeCallResponseLabel({
+            barlineOrdinal: localIndex, groupMeasures: callResponseGroupMeasures, leadInBars: callResponseLeadInBars,
+          });
+          return pass > 1 ? `${measureNumber} . ${pass}` : `${measureNumber}`;
+        }
+        : (localIndex) => {
+          const N = bms + localIndex - (hasAnacrusisInBlock ? 1 : 0);
+          return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
+        };
 
       if (numRepeats > 1) {
         if (isStart) {
@@ -166,7 +192,13 @@ const isAnacrusisStart = mergedBodyMeasures == null && anacrusisMeasureIndex !==
                     fontFamily="Georgia, 'Times New Roman', serif"
                     style={{ userSelect: 'none' }}
                   >
-                    {measureLabel(0)}
+                    {/* #1155 bug fix: this branch used to hardcode `measureLabel(0)` — correct for the
+                        ORIGINAL practice-repeat-block use case (a self-contained block always numbers its
+                        own first measure "1" regardless of which repeat pass), but WRONG for
+                        call-response, whose labels are independent per real barline ordinal, not
+                        block-relative. Use the real ordinal for call-response; keep the original
+                        hardcoded 0 for every other numRepeats>1 case (unchanged behaviour). */}
+                    {measureLabel(callResponseGroupMeasures != null ? measureNumForLabel : 0)}
                   </text>
                 )}
                 {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
@@ -274,4 +306,7 @@ const BarlinesLayer = (props) => {
   return <>{iterMeasureLines(props)}</>;
 };
 
+// #1155: exported so `BarlinesLayer.test.jsx` can assert on the exact rendered label text without
+// needing to satisfy every prop a full SheetMusic/SheetRpgLayer render tree would otherwise require.
+export { iterMeasureLines };
 export default React.memo(BarlinesLayer);

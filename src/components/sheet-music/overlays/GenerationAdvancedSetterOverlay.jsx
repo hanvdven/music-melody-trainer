@@ -65,8 +65,8 @@ const LOW = 'var(--text-lowlight)';
 // the ACTIVE note-coloring rule against a C reference (like the generation previews). Falls back to
 // the active/inactive fill when the rule yields no colour (e.g. 'none' mode).
 const PREVIEW_SCALE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const spanNoteColor = (name, noteColoringMode, fallback) =>
-  melodicNoteColor(name, { noteColoringMode, tonic: 'C4', scaleNotes: PREVIEW_SCALE }) || fallback;
+const spanNoteColor = (name, colorScheme, colorScope, fallback) =>
+  melodicNoteColor(name, { colorScheme, colorScope, tonic: 'C4', scaleNotes: PREVIEW_SCALE }) || fallback;
 const SECONDARY = 'var(--text-secondary)';
 
 // Column anchors across the staff width (variability | span | tuplets | smallest note).
@@ -164,7 +164,7 @@ const TupletWordFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, rend
 // reference head sits at the left (Han UAT: "ik mis de gerenderde C4 noot"). ∞ (value null) renders a
 // serif infinity glyph at the 15th's pitch (top of the fan). Interval NAME sits BELOW the staff for
 // treble / ABOVE for bass (Han UAT). Heads carry data-fly so they slide in note-by-note (consistency).
-const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, onCommit, noteColoringMode, debugMode }) => {
+const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, onCommit, colorScheme, colorScope, debugMode }) => {
   // #162 rework (Han 2026-07-02): the setter is CLEF-dependent, not staff-dependent.
   // ascending (treble/vocal clefs): intervals rise from C4; the fixed C4 sits DIRECTLY
   // UNDER the selected note (same x = the fan centre) and the interval name reads ABOVE.
@@ -232,7 +232,7 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
             transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
             <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
               ledgerYs={dist < 1.5 ? ledgerYs(y, staffStart) : []}
-              color={spanNoteColor(name, noteColoringMode, fill)} />
+              color={spanNoteColor(name, colorScheme, colorScope, fill)} />
           </g>
         </g>,
       );
@@ -257,7 +257,7 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
       {c4Y != null && (
         <g data-fly="">
           <StaffQuarterNote x={anchorX} positionY={c4Y} staffYStart={staffStart}
-            ledgerYs={ledgerYs(c4Y, staffStart)} color={spanNoteColor('C4', noteColoringMode, COLOR)} />
+            ledgerYs={ledgerYs(c4Y, staffStart)} color={spanNoteColor('C4', colorScheme, colorScope, COLOR)} />
         </g>
       )}
       {out}
@@ -405,7 +405,7 @@ const GenerationAdvancedSetterOverlay = ({
     percussionSettings, setPercussionSettings,
     chordSettings, setChordSettings,
   } = useInstrumentSettings();
-  const { noteColoringMode } = useDisplaySettings();   // #434: pitch-colour the span example heads
+  const { colorScheme, colorScope } = useDisplaySettings();   // #434: pitch-colour the span example heads
   // Live centre of the passing-chord carousel (which type a tap toggles). Must precede any early
   // return (hooks rule).
   const [passingPos, setPassingPos] = React.useState(0);
@@ -492,7 +492,8 @@ const GenerationAdvancedSetterOverlay = ({
                 ascending={!isBassFamilyClef(spanClefFor(row, cfg))}
                 activeIndex={idxOf(SPAN_OPTIONS, cfg?.maxLeap ?? null)}
                 onCommit={(i) => { fireInteraction(); set(p => ({ ...p, maxLeap: SPAN_OPTIONS[i].value })); }}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 debugMode={debugMode}
               />
             )}

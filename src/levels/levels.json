@@ -602,7 +602,7 @@
     },
     "tracks": {
       "treble": {
-        "notePool": "all",
+        "notePool": "chromatic",
         "randomizationRule": "emphasize_roots",
         "voices": 1,
         "maxLeap": 24
@@ -993,7 +993,7 @@
     },
     "tracks": {
       "treble": {
-        "notePool": "all",
+        "notePool": "chromatic",
         "randomizationRule": "weighted",
         "voices": 1,
         "maxLeap": 12
@@ -1189,7 +1189,7 @@
     },
     "tracks": {
       "treble": {
-        "notePool": "all",
+        "notePool": "chromatic",
         "randomizationRule": "arp_var",
         "voices": 2,
         "maxLeap": 10,

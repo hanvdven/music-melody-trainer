@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
-import { normalizeNoteChars, melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
+import { normalizeNoteChars, melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
 // §6d single source of truth for the 'tangens' fan curve — shared with GenerationAdvancedSetterOverlay.
@@ -124,7 +124,7 @@ const TranspositionSetter = ({
     staff, clef, staffStart, startX, endX,
     transSemitones = 0,           // current concert→written offset
     onSelectTrans,                // (newTrans) => void — parent maps to key + clamps
-    noteColoringMode = 'off',     // colouring context — active/reference heads colour as concert C4
+    colorScheme = 'none', colorScope = 'all',     // colouring context — active/reference heads colour as concert C4
     tonic = 'C', scaleNotes = [], theme = 'dark',
     activeChord = null,           // paused active chord (last-if-tonic-else-first) for chord colour
 
@@ -178,18 +178,12 @@ const TranspositionSetter = ({
     // Notes are coloured by their SOUNDING (concert) pitch (Han 2026-06-09). colorForConcert maps
     // a concert note name → its colour in the current mode (chromatone/subtle/tonic-scale via the
     // shared helper; chords mode uses the setter's fixed "active chord" = C major triad, pc 0/4/7).
-    const colorForConcert = (note) => {
-        const base = melodicNoteColor(note, { noteColoringMode, tonic, scaleNotes, theme });
-        if (base) return base;
-        // Chords mode: colour by the PAUSED active chord (last-if-tonic-else-first), same as the
-        // main staff (Han 2026-06-10). A note in the active chord → the chord's root colour.
-        if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
-            if (activeChord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(note))) {
-                return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
-            }
-        }
-        return color;
-    };
+    // #1103: passing `activeChord` straight to the canonical helper makes the old manual duplicate
+    // (root scheme's chord-membership + chromatoneMix) unnecessary — same fix as RangeStaffOverlay.jsx's
+    // own #1103 comment. Colour by the PAUSED active chord (last-if-tonic-else-first), same as the main
+    // staff (Han 2026-06-10) — a note in the active chord → the chord's root colour.
+    const colorForConcert = (note) =>
+        melodicNoteColor(note, { colorScheme, colorScope, tonic, scaleNotes, theme, activeChord }) || color;
     // The RIGHT active head represents concert C4 (it sounds C4) → coloured as C4.
     const c4Color = colorForConcert('C4');
     const W = endX - startX;

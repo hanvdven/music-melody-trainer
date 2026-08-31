@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LEVEL_MIN_X as LDTK_MIN_X, LEVEL_MAX_X as LDTK_MAX_X, ENTITY_WORLD_X } from '../levels/ldtk/ldtkWorld';
 import { LOREM_IPSUM_PARAGRAPHS } from '../model/conversationContent';
+import useFrameLoop from './useFrameLoop';
 
 // #693 (Han 2026-08-04, RPG Level tab round 2): the movement/pet/NPC-dialogue state for the RPG Level
 // preview tab. Lives in its own hook (mirrors `useBestiaryEditor`'s pattern) so the SAME state can be read
@@ -33,6 +34,11 @@ const ARRIVE_EPSILON = 4;
 // distance (Han: "weglopen sluit het gesprek", no distinct value given — same 128px reads naturally as
 // "still close enough to be talking to it").
 const NPC_TALK_RANGE = 128;
+// #UI-overhaul (Han 2026-08-27, "in de buurt van slime / wisp staan en op enter/f/spatie drukken start
+// ook de interactie"): TIGHT range for the keyboard-interact key — you must be basically next to the
+// entity (~3 tiles). Clicking still walks-then-talks from any distance (that path uses NPC_TALK_RANGE);
+// the key only fires when already this close.
+const NPC_INTERACT_RANGE = 48;
 
 // #922 (Han: "wisp: geef een uit 5 random zinnen, als je erop klikt. Sommige korter, sommige langer."):
 // varying length on purpose — the typewriter reveal (useConversationTypewriter) reads noticeably different
@@ -92,6 +98,14 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     // closes it" works for either speaker, not just the wisp.
     const dialogueRef = useRef(dialogue); dialogueRef.current = dialogue;
     const dialogueAnchorXRef = useRef(npcX);
+    // #UI-overhaul (Han 2026-08-27): the mount-once keyboard effect below reads these at event time.
+    // `advanceDialogueRef` is populated by RpgLevelBottomPanel with `useConversationDialogue`'s
+    // `handleTextClick` (advance page / close on last) — the "Enter/F/Space is ook 'volgende'" behaviour.
+    // `clickNpcRef`/`clickSlimeRef` mirror the callbacks defined further down so the effect never
+    // captures a stale one.
+    const advanceDialogueRef = useRef(null);
+    const clickNpcRef = useRef(null);
+    const clickSlimeRef = useRef(null);
     const petFollowingRef = useRef(false);
     // Perf fix (Han 2026-08-06, "hakkelig beeld... te veel geladen?"): `moving`/`petMoving` used to be set
     // UNCONDITIONALLY every rAF tick (60/sec) even while standing still, which re-invokes App.jsx's render
@@ -109,6 +123,20 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
         const down = (e) => {
             if (e.code === 'KeyA' || e.code === 'ArrowLeft') { keysRef.current.left = true; targetRef.current = null; }
             if (e.code === 'KeyD' || e.code === 'ArrowRight') { keysRef.current.right = true; targetRef.current = null; }
+            // #UI-overhaul (Han 2026-08-27): Enter / F / Space — advance an open dialogue, else start an
+            // interaction with the nearest wisp/slime within NPC_INTERACT_RANGE. Skipped while typing in
+            // a field (the world-mode bestiary has a search box). Space is preventDefault'd so it doesn't
+            // scroll the page.
+            if (e.code === 'Enter' || e.code === 'KeyF' || e.code === 'Space') {
+                const t = e.target;
+                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+                if (dialogueRef.current) { e.preventDefault(); advanceDialogueRef.current?.(); return; }
+                const px = playerXRef.current;
+                const dNpc = Math.abs(px - npcX);
+                const dSlime = Math.abs(px - slimeX);
+                if (dNpc <= NPC_INTERACT_RANGE && dNpc <= dSlime) { e.preventDefault(); clickNpcRef.current?.(); }
+                else if (dSlime <= NPC_INTERACT_RANGE) { e.preventDefault(); clickSlimeRef.current?.(); }
+            }
         };
         const up = (e) => {
             if (e.code === 'KeyA' || e.code === 'ArrowLeft') keysRef.current.left = false;
@@ -167,14 +195,22 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     const clickSlime = useCallback(() => {
         openEntityDialogue(slimeX, 'slime', LOREM_IPSUM_PARAGRAPHS);
     }, [slimeX, openEntityDialogue]);
+    // Mirror the latest callbacks into the refs the mount-once keyboard effect reads.
+    clickNpcRef.current = clickNpc;
+    clickSlimeRef.current = clickSlime;
 
     // Single rAF loop drives player velocity (keys OR walk-to-target), facing, and the pet's delayed follow.
-    useEffect(() => {
-        let raf;
-        let last = performance.now();
-        const tick = (now) => {
-            const dt = Math.min(0.05, (now - last) / 1000);
-            last = now;
+    // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328) —
+    // 'critical' priority (must run every frame, drives player position). `last` moved to a ref: the old
+    // `let last` lived in an effect that only ever ran ONCE (deps=[]), persisting for the component's whole
+    // lifetime; `useFrameLoop` always calls the LATEST callback closure via its own ref (see that hook's
+    // header comment), and since this hook's callers re-render on every `setPlayerX`/`setPetX` etc. (i.e.
+    // very often), a plain closure `let` here would reset on every render instead of persisting per-tick.
+    const lastTickMsRef = useRef(performance.now());
+    useFrameLoop((now) => {
+        {
+            const dt = Math.min(0.05, (now - lastTickMsRef.current) / 1000);
+            lastTickMsRef.current = now;
             let vx = 0;
             if (keysRef.current.left && !keysRef.current.right) vx = -1;
             else if (keysRef.current.right && !keysRef.current.left) vx = 1;
@@ -225,15 +261,15 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
             // panel can pick the classified 'move' vs 'idle' animation cells (bestiaryAssets.js) instead
             // of always showing idle.
             if (petIsWalking !== petMovingRef.current) { petMovingRef.current = petIsWalking; setPetMoving(petIsWalking); }
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-    }, []);
+        }
+    }, [], { priority: 'critical' });
 
     return {
         playerX, petX, facing, moving, running, petMoving, dialogue, setDialogue,
         closeDialogue: () => setDialogue(null), moveTo, clickNpc, clickSlime, setHeldDirection,
         autoContinue, toggleAutoContinue: () => setAutoContinue((a) => !a),
+        // #UI-overhaul (Han 2026-08-27): RpgLevelBottomPanel points this at useConversationDialogue's
+        // `handleTextClick` so the Enter/F/Space key can advance the dialogue.
+        advanceDialogueRef,
     };
 }

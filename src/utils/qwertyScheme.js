@@ -44,7 +44,9 @@ export const whiteKeyOrdinal = (note) => {
     return parseInt(m[2], 10) * 7 + NATURAL_ORDER[m[1]];
 };
 
-const noteAtOrdinal = (ord) => {
+// Inverse of `whiteKeyOrdinal` — the natural note name at a given white-key ordinal. Exported so
+// other keyboard builders (WorldPiano's range window) reuse the one definition (§6c).
+export const noteAtOrdinal = (ord) => {
     const octave = Math.floor(ord / 7);
     const letter = NATURAL_LETTERS[((ord % 7) + 7) % 7];
     return `${letter}${octave}`;

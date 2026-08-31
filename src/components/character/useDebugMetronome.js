@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveNotePitch } from '../../audio/playSound';
 import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
+import { VOL_STEPS } from '../sheet-music/overlays/SettingsOverlay';
+
+// Han 2026-08-20 ("zet metronoom op ff in rpg-world" / "ik kan de metronoom niet horen"): loudest
+// step on the shared VOL_STEPS dynamics table (§6c — no second hand-picked fraction; the table tops
+// out at 'forte', there is no separate 'fortissimo' step to add gain headroom beyond unity gain).
+const DEBUG_METRONOME_VOLUME = VOL_STEPS.find((s) => s.label === 'forte').value; // 1.0 (f)
 
 // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten, bpm zelfde
 // als bladmuziek... een teller (1,2,3,4) die elk kwartnoot verspringt"): a debug-only click track for the
@@ -33,16 +39,36 @@ import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
 const ACCENT_NOTE = 'wh';     // downbeat — woodblock high (METRONOME_NOTE_IDS, drumKits.js)
 const CLICK_NOTE = 'wm';      // other beats — woodblock mid
 
-export default function useDebugMetronome({ enabled, bpm = WORLD_BPM, timeSignature = WORLD_TIME_SIGNATURE, context, instruments }) {
+export default function useDebugMetronome({ enabled, bpm = WORLD_BPM, timeSignature = WORLD_TIME_SIGNATURE, context, instruments, setVolume }) {
     const [beat, setBeat] = useState(1);   // 1..beatsPerMeasure, for display
     const [pulseTick, setPulseTick] = useState(0);   // increments on every beat edge, drives the swing animation
     const lastBeatIndexRef = useRef(-1);
     const bpmRef = useRef(bpm); bpmRef.current = bpm;
     const beatsPerMeasureRef = useRef(4); beatsPerMeasureRef.current = timeSignature?.[0] || 4;
     const instrumentsRef = useRef(instruments); instrumentsRef.current = instruments;
+    // #1100 (Han 2026-08-21, "klinkt als een geigenteller"): SAME bug class as the #RAM-level fix above,
+    // just via a different unstable reference this time — `setVolume` (useInstruments.js) is a plain arrow
+    // function re-created on every App.jsx render (not memoized), and App.jsx re-renders ~60x/sec while the
+    // hero moves. It was in this effect's dependency array, so the whole rAF click-loop tore down and
+    // restarted on every single render — each restart resets `lastBeatIndexRef` to -1, and the very next
+    // tick's edge-trigger fires immediately regardless of whether a real beat boundary occurred, so a click
+    // fired on nearly every render (~60/sec) instead of once per beat. Read through a ref instead, same
+    // convention as `instrumentsRef` just above.
+    const setVolumeRef = useRef(setVolume); setVolumeRef.current = setVolume;
 
     useEffect(() => {
         if (!enabled || !context) return undefined;
+        // Bug fix (Han 2026-08-20, "ik kan de metronoom niet horen"): every OTHER play path in the
+        // app resumes a suspended AudioContext before scheduling sound (usePlayback.js,
+        // useNoteInteraction.js, etc. — see MEMORY.md "AudioContext — eager init"). This loop never
+        // did, and a suspended context's `currentTime` does not advance — so `beatIndex` below computes
+        // the SAME value every frame, the edge-trigger only ever fires once (or never), and the debug
+        // metronome falls silent whenever it's the very first sound the player triggers this session.
+        if (context.state !== 'running') context.resume();
+        // Han 2026-08-20 ("zet metronoom op ff"): explicit, so this debug click track is always at the
+        // loudest step regardless of what a PREVIOUS level playthrough left the shared 'metronome'
+        // fader at (App.jsx's LEVEL_METRONOME_VOLUME/rpgMusicMultiplier can leave it lower than forte).
+        if (setVolumeRef.current) setVolumeRef.current('metronome', DEBUG_METRONOME_VOLUME);
         lastBeatIndexRef.current = -1;
         let raf;
         const tick = () => {

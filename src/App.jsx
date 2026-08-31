@@ -6,6 +6,7 @@ import {
 import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
+import './styles/classPalettes.generated.css';   // #352: --class-<name>-<0..4> hepta-ref palettes
 import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
 import { respellToKeySignature, getNoteSemitone, stripOctave, representativeChord } from './theory/noteUtils';
 import { updateScaleWithMode } from './theory/scaleHandler';
@@ -30,6 +31,7 @@ import useRpgLevelState from './hooks/useRpgLevelState';
 import CharacterAvatarPanel from './components/character/CharacterAvatarPanel';
 import CharacterOptionsPanel from './components/character/CharacterOptionsPanel';
 import { BestiaryTopPanel, BestiaryBottomPanel } from './components/character/BestiaryPanels';
+import { ScalesTopPanel } from './components/character/ScalesPanel';
 import RpgLevelPanel from './components/character/RpgLevelPanel';
 import { StatsTopPanel, StatsBottomPanel } from './components/character/CharacterStatsPanels';
 import { CHARACTER_CATEGORIES, catByKeyLabel } from './components/character/characterEditorShared';
@@ -293,8 +295,12 @@ const App = () => {
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
     // #667 (Han 2026-08-03): the character-creator popup is gone — avatar-context now REPLACES the
     // sheet-music area (top) and bottom panel (bottom) in-place. null = normal practice view; else one of
-    // 'character' | 'stats' | 'equipment' | 'bestiary' (the 4 avatar-context screens, see AvatarSubHeader).
+    // 'character' | 'stats' | 'equipment' | 'bestiary' | 'scales' | 'rpg-level' (the avatar-context
+    // screens, see AvatarSubHeader) — plus the transient 'levelResult'.
     const [characterScreen, setCharacterScreen] = useState(null);
+    // #352: the scale cell selected in the world "Scales" grid — shared between its top grid and its
+    // bottom detail panel (mirrors how `bestiaryEditor` is threaded to both bestiary panels).
+    const [selectedScale, setSelectedScale] = useState(null);
     // #UI-overhaul Stap 1 (Han 2026-08-27): the RPG world is the app's home. On launch, if the
     // persisted `worldMode` flag is on, land directly in the world instead of the classic practice
     // view. Runs once on mount only (empty deps) — later toggles between world/classic are driven by
@@ -3217,6 +3223,7 @@ const App = () => {
                     {characterScreen === 'equipment' && <CharacterAvatarPanel editor={characterEditor} screen="equipment" debugMode={debugMode} />}
                     {characterScreen === 'stats' && <StatsTopPanel />}
                     {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} context={context} worldScale={inWorld ? worldLayout.scale : undefined} />}
+                    {characterScreen === 'scales' && <ScalesTopPanel debugMode={debugMode} worldScale={inWorld ? worldLayout.scale : undefined} selected={selectedScale} onSelect={setSelectedScale} />}
                     {characterScreen === 'rpg-level' && (inWorldLevel ? (
                         // #UI-overhaul Stap 3: RpgLevelPanel always renders the FULL 272-gpx level at
                         // scale N inside a 272*N-tall layer; this box (height = world.screenH, overflow
@@ -3620,6 +3627,7 @@ const App = () => {
                     characterEditor={characterEditor}
                     bestiaryEditor={bestiaryEditor}
                     bestiaryWorldScale={inWorld ? worldLayout.scale : undefined}
+                    selectedScale={selectedScale}
                     rpgLevel={rpgLevel}
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}

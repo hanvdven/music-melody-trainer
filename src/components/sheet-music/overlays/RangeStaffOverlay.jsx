@@ -2,7 +2,7 @@ import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
-import { melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
+import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
@@ -88,7 +88,8 @@ const STATIC_LAYER_PROPS = {
     interactive: false,
     courtesyAccidentals: false,
     percussionVoiceSplit: false,
-    noteColoringMode: 'none',
+    colorScheme: 'none',
+    colorScope: 'all',
 };
 
 const mkMelody = (entries) => ({
@@ -325,7 +326,7 @@ const RangeStaffOverlay = ({
     timeSignature, theme, debugMode = false,
     // Coloring props (point 1): the in-band/selected notes follow the same note
     // coloring as the rendered sheet music; boundary + out-of-band keep flat colors.
-    noteColoringMode = 'none', scaleNotes = [], tonic = '', activeChord = null,
+    colorScheme = 'none', colorScope = 'all', scaleNotes = [], tonic = '', activeChord = null,
 }) => {
     // Active boundary being dragged: { staff, boundary, layout } | null. The layout
     // is frozen for the drag so notes don't jump; on release we force a re-render
@@ -676,19 +677,14 @@ const RangeStaffOverlay = ({
         // #436 (Han: "zorg dat ook de actieve noot EN de noten buiten range gekleurd zijn") — every
         // note (boundary / in-range / out-of-range) is now coloured by the ACTIVE note-coloring rule;
         // the old code white-ed the boundaries and flat-lowlit the out-of-range notes.
-        const ruleColorFor = (concertMidi, writtenNm) => {
-            const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
-            if (base) return base;
-            if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
-                const pc = ((concertMidi % 12) + 12) % 12;
-                if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-                    return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
-                }
-            }
-            return null;
-        };
+        // #1103: the old code called the canonical helper WITHOUT `activeChord`, so 'chords' mode always
+        // fell through to this manual duplicate (chromatoneMix on the externally-supplied activeChord) —
+        // now that the helper takes colorScope directly, passing `activeChord` straight through makes the
+        // duplicate unnecessary; the helper's own 'root'+'chord' branch computes the identical color.
+        const ruleColorFor = (writtenNm) =>
+            melodicNoteColor(writtenNm, { colorScheme, colorScope, tonic, scaleNotes, theme, activeChord });
         const colorFor = (concertMidi, writtenNm) => {
-            const rule = ruleColorFor(concertMidi, writtenNm);
+            const rule = ruleColorFor(writtenNm);
             // Boundary (active) note: the rule colour, falling back to the theme-safe highlight.
             if (concertMidi === selMin || concertMidi === selMax) return rule || 'var(--range-boundary-highlight)';
             if (concertMidi > selMin && concertMidi < selMax) return rule || 'var(--text-primary)';
@@ -1026,7 +1022,7 @@ const RangeStaffOverlay = ({
                             // colour mode"): BOTH enabled and disabled pads colour by the active rule
                             // (chromatone/chords per-drum colour); the disabled layer is just faded
                             // (its 0.4 opacity ≈ the 40%-colour blend).
-                            noteColoringMode={noteColoringMode}
+                            colorScheme={colorScheme} colorScope={colorScope}
                             previewMode={null}
                         />
                     </g>

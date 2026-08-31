@@ -202,10 +202,13 @@ const CHORD_MODE_PERC_PADS = new Set(['k', 's', 'hh', 'sr', 'sg', 'ho', 'hp']);
 const percussionChordModeColors = Object.fromEntries(
   Object.entries(percussionChromatoneColors).filter(([id]) => CHORD_MODE_PERC_PADS.has(id)),
 );
-// The per-drum colour map to use for a given colouring mode (null = don't colour percussion).
-const percColorMapFor = (mode) => (
-  mode === 'chords' ? percussionChordModeColors
-    : (mode === 'chromatone' || mode === 'subtle-chroma') ? percussionChromatoneColors
+// The per-drum colour map to use for a given colorScheme (#1103: was keyed by the old flat mode string;
+// percussion coloring has no per-note scope test of its own — drum hits have no pitch-class scale/chord
+// membership to test — so only `colorScheme` matters here, same restricted-vs-full-kit split as before).
+// null = don't colour percussion.
+const percColorMapFor = (colorScheme) => (
+  colorScheme === 'root' ? percussionChordModeColors
+    : (colorScheme === 'chroma' || colorScheme === 'subtle-chroma') ? percussionChromatoneColors
       : null
 );
 
@@ -291,7 +294,8 @@ const renderMelodyNotes = (
   measureLengthSlots = 48,
   timeSignature = [4, 4],
   clef = staff,
-  noteColoringMode = 'none',
+  colorScheme = 'none',
+  colorScope = 'all',
   tonic = 'C4',
   scaleNotes = [],
   processedChords = [],
@@ -703,34 +707,32 @@ const renderMelodyNotes = (
     }
 
     // Color helper for melodic (non-percussion) notes — shared by both chord and single-note paths.
-    // chromatone / subtle-chroma / chords defer to the canonical melodicNoteColor helper so the
-    // staff matches every other surface from ONE source of truth (CLAUDE.md §6c/§6d; SSOT
-    // consolidation Han 2026-06-19). Branch mapping confirmed byte-identical:
-    //  - chromatone   → `var(--chromatone-${getNoteSemitone(n)})`            (same string)
-    //  - subtle-chroma→ chromatoneMix(getNoteSemitone(n), 60, theme)         (same string)
-    //  - chords       → per-offset active chord derived here and passed as activeChord; helper
-    //                   returns chromatoneMix(root,30,theme) for in-chord notes and null otherwise,
-    //                   so `|| 'var(--text-primary)'` reproduces the old fallback exactly.
-    // tonic_scale_keys is INTENTIONALLY left on the local normalizePC path: the canonical helper
-    // compares by pitch class (getNoteSemitone), whereas this renderer historically compared by
-    // STRING (normalizePC), so 'C♯' vs 'D♭' would match in the helper but NOT here. Routing it
-    // through the helper would change behaviour, so it stays local (Han 2026-06-19).
+    // #1103: chroma / subtle-chroma / root / highlight (except highlight+scale, see below) all defer to
+    // the canonical melodicNoteColor helper so the staff matches every other surface from ONE source of
+    // truth (CLAUDE.md §6c/§6d; SSOT consolidation Han 2026-06-19, re-verified for the 2-axis model).
+    // highlight+scale is INTENTIONALLY left on the local normalizePC path: the canonical helper compares
+    // by pitch class (getNoteSemitone), whereas this renderer historically compared by STRING
+    // (normalizePC) for the old `tonic_scale_keys` mode (= highlight+scale), so 'C♯' vs 'D♭' would match
+    // in the helper but NOT here. Routing it through the helper would change behaviour for that ONE
+    // pre-existing combo, so it stays local (Han 2026-06-19) — every OTHER highlight+scope combo is NEW
+    // (didn't exist before #1103) so there's no historical behaviour to preserve; it goes through the
+    // canonical helper like every other scheme.
     const getMelodicColor = (n) => {
-      if (noteColoringMode === 'tonic_scale_keys') {
+      if (colorScheme === 'highlight' && colorScope === 'scale') {
         const nPC = normalizePC(n);
         if (nPC === normalizePC(tonic)) return 'var(--note-tonic)';
         if (scaleNotes.some(s => normalizePC(s) === nPC)) return 'var(--note-scale)';
         return 'var(--text-primary)';
       }
       let activeChord = null;
-      if (noteColoringMode === 'chords') {
+      if (colorScope === 'chord') {
         const offset = melodyOffsets[index];
         const activeItem = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= offset).at(-1);
         if (activeItem?.chord?.notes && Array.isArray(activeItem.chord.notes) && activeItem.chord.notes.length > 0) {
           activeChord = { root: activeItem.chord.root, notes: activeItem.chord.notes };
         }
       }
-      return melodicNoteColor(n, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+      return melodicNoteColor(n, { colorScheme, colorScope, tonic, scaleNotes, theme, activeChord })
         || 'var(--text-primary)';
     };
 
@@ -868,7 +870,7 @@ const renderMelodyNotes = (
 
       // Per-note colors (percussion chromatone coloring). #434/#436: 'chords' mode colours percussion
       // too, but only the CORE kit pieces (percColorMapFor restricts the map).
-      const drumColors = staff === 'percussion' ? percColorMapFor(noteColoringMode) : null;
+      const drumColors = staff === 'percussion' ? percColorMapFor(colorScheme) : null;
 
       const stemColor = previewColor ?? 'var(--text-primary)';
 
@@ -952,7 +954,7 @@ const renderMelodyNotes = (
           {/* Noteheads — rendered last to sit on top */}
           {chordNotes.map((pos, hi) => {
             const drumColorBase = drumColors ? (drumColors[pos.n] || 'var(--text-primary)') : null;
-            const finalDrumColor = drumColorBase && noteColoringMode === 'subtle-chroma'
+            const finalDrumColor = drumColorBase && colorScheme === 'subtle-chroma'
               // #628-S1: blend toward the theme text colour, not literal white/black on a
               // single hardcoded theme name — see chromatoneMix() in noteUtils.js.
               ? `color-mix(in srgb, ${drumColorBase}, var(--text-primary) 60%)`
@@ -1215,10 +1217,10 @@ const renderMelodyNotes = (
       // #434/#436: 'chords' mode colours percussion too, but only the CORE kit pieces —
       // percColorMapFor returns the restricted map for 'chords' (no toms/woodblocks/cymbals) and the
       // full map for chromatone/subtle-chroma. A pad missing from the map falls back to text-primary.
-      const percMap = staff === 'percussion' ? percColorMapFor(noteColoringMode) : null;
+      const percMap = staff === 'percussion' ? percColorMapFor(colorScheme) : null;
       let headColor = staff === 'percussion'
         ? (percMap
-          ? (noteColoringMode === 'subtle-chroma'
+          ? (colorScheme === 'subtle-chroma'
             // #628-S1: blend toward theme text colour (see chromatoneMix in noteUtils.js).
             ? `color-mix(in srgb, ${percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, var(--text-primary) 60%)`
             : (percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))

@@ -13,7 +13,7 @@ import PianoView from './PianoView';
 // are simply relabelled in the new transposition. Clicking C resets to concert (0).
 const KeyboardTransposeSetter = ({
     scale, instrument, keyboardTranspose = 0, setKeyboardTranspose,
-    noteColoringMode = 'none', activeChord = null, theme = 'dark',
+    colorScheme = 'none', colorScope = 'all', activeChord = null, theme = 'dark',
 }) => (
     <div className="kbd-transpose-setter" data-settings-keepalive=""
         style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -28,7 +28,8 @@ const KeyboardTransposeSetter = ({
                 interactionMode="set-transpose"
                 transpose={keyboardTranspose}
                 onTransposeSelect={setKeyboardTranspose}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 activeChord={activeChord}
                 theme={theme}
             />

@@ -22,7 +22,7 @@ const ctx = {
 
 const renderOverlay = (props = {}) => render(
   <InstrumentSettingsProvider value={ctx}>
-    <DisplaySettingsProvider value={{ noteColoringMode: 'chromatone', theme: 'default' }}>
+    <DisplaySettingsProvider value={{ colorScheme: 'chroma', colorScope: 'all', theme: 'default' }}>
     <svg>
       <GenerationAdvancedSetterOverlay
         startX={100} endX={700}

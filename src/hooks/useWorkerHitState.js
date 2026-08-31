@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { FRAMES_PER_BEAT } from '../components/sheet-music/SheetRpgLayer';
 
-// #1093 (Han 2026-08-20, open-world worker NPCs): the idle/hit animation state machine + beat-synced
+// #1093 (Han 2026-08-20, open-world worker NPCs): the idle/work animation state machine + beat-synced
 // audio trigger for ONE worker NPC. Called ONCE per NPC by RpgLevelPanel.jsx (never inside the
 // twice-rendered WorkerNpc component itself — see that file's header comment for why: this hook owns
 // real state and fires a real side effect, and rendering the SAME NPC's sprite a second time for its
@@ -10,19 +11,29 @@ import { useState, useRef, useEffect } from 'react';
 // for these yet) — the worker then just loops its bestiary `idle` animation via the shared `petFrame`
 // tick (Wisp/pet/Slime already tick this the same way, §6c — 5 frames/beat, tempo-locked to bpm).
 //
-// `hitConfig.mode`:
-//   - 'idle-triggers': the EXISTING idle animation plays unmodified; a note fires each time the idle
-//     loop's own frame index passes through one of `frameIndices` (0-based) — blacksmith fast (index 0,
-//     every beat) and town crier (indices 2 and 7, Han's "frame 3 en 8", 1-based) both work this way;
-//     neither needed a new bestiary animation.
-//   - 'random': blacksmith slow only — normally loops 'idle' (5 frames, bestiaryMetadata.json override),
-//     but at each beat boundary (idle frame 0) rolls `chancePerBeat` to switch to the separate 'hit'
-//     animation (10 frames/2 beats, added via bestiaryMetadata.json's addedAnimations) instead — Han:
-//     "mag random zijn". The hit sequence always STARTS at a beat boundary (never mid-frame) so it stays
-//     tempo-locked even though it isn't pinned to a fixed interval — Han: "die moet op de tel landen".
-//     The note fires once the hit animation reaches `hitFrameIndex` (array position — see
-//     RpgLevelPanel.jsx's `workerNpcs` table for the 1-based-sprite-cell -> array-index conversion),
-//     then the worker returns to idle.
+// #1095 (Han 2026-08-20, "rol elke 2 maten of de animatie start (50%); draai de animatie voor 2 maten"):
+// the ONLY mode now, replacing #1093's original 'idle-triggers' (always-on, fired mid-idle-loop) and
+// 'random' (per-beat chance, natural-length hit anim) modes — Han's new spec unified all 3 sound-bearing
+// workers (Blacksmith Slow's `hit`, Town crier's `ring`, Blacksmith Fast/blacksmith_f's `work`) onto the
+// SAME "roll at a measure-pair boundary, loop the work animation to fill exactly that window" shape, so
+// one mode covers all 3 instead of two divergent ones:
+//   `hitConfig.workAnimKey`      — the bestiary animation to switch to when a roll succeeds (`hit`/`ring`/`work`).
+//   `hitConfig.hitFrameIndices`  — 0-based indices WITHIN that animation's own cell list where the note fires;
+//                                  fires on EVERY loop repetition, not just the first (a bell mid-loop rings
+//                                  every time it swings past, not once ever).
+//   `hitConfig.chance`           — probability of starting at each roll boundary (Han: 0.5 for all 3 so far).
+//   `hitConfig.measures`         — the roll-interval AND the play-duration, in measures (Han: 2 for all 3).
+//   `hitConfig.note`             — tubular_bells note.
+// Beats-per-measure comes from the LIVE `timeSignature` prop (RpgLevelPanel's own prop, sourced from
+// App.jsx's current song — NOT a fixed open-world constant, confirmed by RpgLevelPanel's existing
+// `frameMsForBpm(bpm, timeSignature)` tick), so "2 measures" is genuinely 2 measures of whatever's
+// currently playing, not a hardcoded 8-beat window (CLAUDE.md §6c: derive from timeSignature, don't
+// hardcode) — same `timeSignature[0]` convention every other beats-per-measure site in this codebase uses
+// (useLevelBackingStream.js, useTwoHandedBass.js, etc.).
+//
+// The roll/window boundary is anchored to `petFrame % windowFrames === 0` — `petFrame` is the SAME shared
+// counter every worker NPC ticks from (RpgLevelPanel), so every worker's roll boundaries line up on the
+// same measure-pair grid, even though each worker's own coin flip is independent.
 //
 // #1094 (Han 2026-08-20, "NPC-geluid is niet afstandsgebonden"): `npcWorldX` (this NPC's fixed world
 // position) and `getListenerX` (a function returning the player's LIVE world X, read fresh at fire time —
@@ -34,54 +45,43 @@ import { useState, useRef, useEffect } from 'react';
 // like the Sequencer/level-backing-stream (CLAUDE.md §6's "never setTimeout for setCurrentMeasureIndex"
 // invariant is about THAT sheet-music measure-tracking system, a different subsystem with tighter
 // precision needs). Consistent with the open-world idle-animation timing model's existing precision.
-const CHANCE_PER_BEAT_DEFAULT = 0.125;   // Han said "mag random zijn" with no exact frequency — roughly
-// one hit-swing every 8 beats on average, an "occasional, not constant" hammering cadence; a single
-// easy-to-retune constant once Han hears it in-game.
-
-export default function useWorkerHitState(variant, hitConfig, petFrame, context, triggerBell, npcWorldX, getListenerX) {
-    const [hitActive, setHitActive] = useState(false);
-    const hitStartFrameRef = useRef(0);
+export default function useWorkerHitState(variant, hitConfig, petFrame, timeSignature, context, triggerBell, npcWorldX, getListenerX) {
+    const [active, setActive] = useState(false);
+    const startFrameRef = useRef(0);
     const idleAnim = variant?.animations?.find((a) => a.key === 'idle') || variant?.animations?.[0];
-    const hitAnim = hitConfig?.mode === 'random' ? variant?.animations?.find((a) => a.key === 'hit') : null;
+    const workAnim = hitConfig ? variant?.animations?.find((a) => a.key === hitConfig.workAnimKey) : null;
 
     useEffect(() => {
-        if (!variant || !hitConfig) return;
-        // #1094 (Han 2026-08-20, "NPC-geluid is niet afstandsgebonden"): read the player's position fresh
-        // at the exact moment a note actually fires (not a value captured when the effect was scheduled),
-        // so a hit that lands while the player is mid-stride still pans/attenuates correctly.
+        if (!variant || !hitConfig || !workAnim) return;
+        const beatsPerMeasure = timeSignature?.[0] || 4;
+        const windowFrames = hitConfig.measures * beatsPerMeasure * FRAMES_PER_BEAT;
+        // #1094: read the player's position fresh at the exact moment a note actually fires (not a value
+        // captured when the effect was scheduled), so a hit that lands while the player is mid-stride
+        // still pans/attenuates correctly.
         const fire = (note) => triggerBell(note, context?.currentTime ?? 0, npcWorldX, getListenerX());
-        if (hitConfig.mode === 'idle-triggers') {
-            const len = idleAnim?.cells.length || 1;
-            const localFrame = petFrame % len;
-            if (hitConfig.frameIndices.includes(localFrame)) {
-                fire(hitConfig.note);
+
+        if (!active) {
+            if (petFrame % windowFrames === 0 && Math.random() < hitConfig.chance) {
+                startFrameRef.current = petFrame;
+                setActive(true);
             }
             return;
         }
-        if (hitConfig.mode === 'random') {
-            const idleLen = idleAnim?.cells.length || 5;
-            const hitLen = hitAnim?.cells.length || 1;
-            if (!hitActive) {
-                if (petFrame % idleLen === 0 && Math.random() < (hitConfig.chancePerBeat ?? CHANCE_PER_BEAT_DEFAULT)) {
-                    hitStartFrameRef.current = petFrame;
-                    setHitActive(true);
-                }
-                return;
-            }
-            const elapsed = petFrame - hitStartFrameRef.current;
-            if (elapsed >= hitLen) {
-                setHitActive(false);
-                return;
-            }
-            if (elapsed === hitConfig.hitFrameIndex) {
-                fire(hitConfig.note);
-            }
+        const elapsed = petFrame - startFrameRef.current;
+        if (elapsed >= windowFrames) {
+            setActive(false);
+            return;
+        }
+        const workLen = workAnim.cells.length || 1;
+        if (hitConfig.hitFrameIndices.includes(elapsed % workLen)) {
+            fire(hitConfig.note);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [petFrame]);
 
     if (!variant) return { anim: null, frame: 0 };
-    const anim = (hitActive && hitAnim) || idleAnim;
-    const frame = hitActive ? (petFrame - hitStartFrameRef.current) : petFrame;
+    const anim = (active && workAnim) || idleAnim;
+    const workLen = workAnim?.cells.length || 1;
+    const frame = active ? ((petFrame - startFrameRef.current) % workLen) : petFrame;
     return { anim, frame };
 }

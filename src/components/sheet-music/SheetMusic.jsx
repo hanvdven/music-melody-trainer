@@ -229,6 +229,34 @@ const SheetMusic = ({
   // defaults below then reproduce the pre-#994 behaviour exactly.
   // NOTE: unrelated to the `visibleMeasures` prop (practice-mode layout count) further down.
   levelSpan = null,
+  // Bug fix (Han 2026-08-20, #867 rework: "-1,0,1,2,-1,0,1,2 i.p.v. -1,0,1,2,3,4"): a gated multi-wave
+  // level (today: only Level 3, `wavesForLevel` > 1) re-renders this SAME scroll-barlines bundle for
+  // EVERY wave, but `blockMeasureStart`/the synthetic lead-in offsets below used to be a plain constant —
+  // correct for wave 0, but reproducing the IDENTICAL "-1,0" lead-in + numbering on every later wave
+  // instead of continuing where the last one left off. `level.wave` (useLevel.js) threaded through here so
+  // only wave 0 gets the synthetic lead-in barlines/origin-shift, and later waves' numbering continues
+  // from `wave * numMeasures`.
+  levelWaveIndex = 0,
+  // Bug fix (Han 2026-08-20): forwarded straight through — see SheetRpgLayer's own prop comment
+  // (distinguishes "entering a genuine next wave" from "the level just ended").
+  levelTotalWaves = 0,
+  // #1096 (Han 2026-08-20): forwarded straight through to SheetRpgLayer — see its own prop comment.
+  gatedElapsedMsRef = null,
+  // Bug fix (Han 2026-08-20, #867 rework round 3, "einde lied... na 2 maten"): `scrollBarlines.numMeasures`
+  // below drives `trebleFinalBarTick` (SheetRpgLayer) — the level's "true end" boundary that clips
+  // notation/slimes and triggers the "song end" event. It used to reuse the plain `numMeasures` prop,
+  // which for a MULTI-WAVE level is the PER-WAVE chunk size (2 for Level 3), not the level's real total
+  // length (10) — so "song end" fired after every single wave instead of the level's actual end.
+  // `levelFullTotalMeasures` is `null` for every non-multi-wave caller (App.jsx only sets it for a
+  // level whose `totalMeasures` differs from its per-wave `numMeasures`), so the `?? numMeasures`
+  // fallback below reproduces the exact prior behaviour everywhere else. Named distinctly from the
+  // unrelated local `levelTotalMeasures` const further down (leadInBars + numMeasures, used for the
+  // timpani/percussion notation span) — same-sounding but different values, kept apart on purpose.
+  levelFullTotalMeasures = null,
+  // Bug fix (Han 2026-08-21, "cello's stoppen nooit... ook niet na handmatig pauzeren"): the header Pause
+  // button's state, forwarded straight through from App.jsx — folded into the SAME `paused` prop the
+  // #1096 mid-level-overlay pause already computes below, not a second independent pause mechanism.
+  levelPaused = false,
   levelAudioStart = null,           // §88 — audio-time (s) the level backing started; scroll anchors to it
   // #662 (Han 2026-08-02, "slimes mogen alleen zichtbaar zijn TIJDENS een level"): distinct from
   // `sideScroll` — Level 1 is a level too but is NOT sideScroll (static idle slimes). Gates whether
@@ -259,6 +287,10 @@ const SheetMusic = ({
   // underlying flight itself keeps using `beatsOnScreen`, unchanged — see SheetRpgLayer's own comment).
   // Read from levels.json (`wizardSpawnLeadMeasures`), not hardcoded — configurable per level (§6c).
   wizardSpawnLeadMeasures = 1,
+  // #1155 (Han 2026-08-24): the call-response group size (1 for letter d, 2 for letter e) — only set
+  // for a call-response level. Threaded straight into `scrollBarlines` below so `BarlinesLayer` can
+  // switch to the "N" / "N . 2" label convention; null for every other level (unchanged numbering).
+  callResponseGroupMeasures = null,
   // Level 11 (Han 2026-08-06): pass-through to SheetRpgLayer's decorative green wizard — see its own
   // comment for the full rationale. Read from levels.json (`decorativeWizard`).
   decorativeWizard = false,
@@ -405,7 +437,7 @@ const SheetMusic = ({
   const applyPercussionPreset = React.useCallback((mode) => {
     setPercussionSettings(prev => ({ ...prev, enabledPads: [...PERCUSSION_PRESETS[mode]] }));
   }, [setPercussionSettings]);
-  const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
+  const { colorScheme, setColorScheme, colorScope, setColorScope, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
     animationMode, courtesyAccidentals = true, percussionVoiceSplit = false,
     setPercussionVoiceSplit } = useDisplaySettings();
@@ -631,7 +663,13 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || playbackEditMode || generationEditMode || generationAdvancedEditMode || exerciseEditMode;
+  // #1096 (Han 2026-08-20, "gebruik exact de settings overlay logica... veel cleaner"): the level-result
+  // view is now its own morph surface (mirrors colour/instrument — single group, no sibling chord row)
+  // instead of the bespoke covering-rect it used before. Derived straight from the `levelResult` data
+  // prop itself (truthy exactly when App.jsx wants it shown) rather than a second, separately-threaded
+  // boolean that could drift out of sync with it.
+  const levelResultEditMode = !!levelResult;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || playbackEditMode || generationEditMode || generationAdvancedEditMode || exerciseEditMode || levelResultEditMode;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -643,7 +681,7 @@ const SheetMusic = ({
   // The three generator setters (Han 2026-06-22) are their own morph surfaces, placed BEFORE the
   // 'legacy'/'melody' fallbacks. PLAYBACK reuses SettingsOverlay but flies in as the 'playback'
   // surface (distinct group class 'playback-overlay').
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : exerciseEditMode ? 'exercise' : 'melody';
+  const overlayKind = levelResultEditMode ? 'levelResult' : rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : exerciseEditMode ? 'exercise' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
   // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
@@ -1565,10 +1603,10 @@ const SheetMusic = ({
     // noteUtils.js) — the old `theme === 'light'` test only matched the one theme named 'light'.
     const mixTarget = 'var(--text-primary)';
     if (isPercussion) {
-      if (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma') {
+      if (colorScheme === 'chroma' || colorScheme === 'subtle-chroma') {
         const firstDrum = Array.isArray(note) ? note[0] : note;
         const base = PERC_CHROMA[firstDrum] ?? 'var(--text-primary)';
-        return noteColoringMode === 'subtle-chroma'
+        return colorScheme === 'subtle-chroma'
           ? `color-mix(in srgb, ${base}, ${mixTarget} 60%)`
           : base;
       }
@@ -1577,14 +1615,11 @@ const SheetMusic = ({
     // Melodic — resolve chord array to lowest note, then defer to the canonical
     // melodicNoteColor helper so the staff lyrics colour matches every other surface
     // (keyboard, range/colour overlays) from ONE source of truth (CLAUDE.md §6c/§6d;
-    // SSOT consolidation Han 2026-06-19). Each former inline branch maps 1:1 to the
-    // helper: chromatone/subtle-chroma are byte-identical; the chords branch needs the
-    // per-offset active chord, derived here and passed as `activeChord`; tonic_scale_keys
-    // already used getNoteSemitone here, matching the helper's pitch-class comparison.
-    // The helper returns null where the old code returned 'var(--text-primary)', so the
-    // `|| 'var(--text-primary)'` fallback restores the exact original fallback string.
+    // SSOT consolidation Han 2026-06-19, re-verified for the #1103 colorScheme/colorScope
+    // 2-axis model). The helper returns null where the old code returned 'var(--text-primary)',
+    // so the `|| 'var(--text-primary)'` fallback restores the exact original fallback string.
     const resolved = lowestNote(note);
-    const activeChord = noteColoringMode === 'chords'
+    const activeChord = colorScope === 'chord'
       ? (() => {
           const active = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= absoluteOffset).at(-1);
           return active?.chord?.notes?.length > 0
@@ -1592,7 +1627,7 @@ const SheetMusic = ({
             : null;
         })()
       : null;
-    return melodicNoteColor(resolved, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+    return melodicNoteColor(resolved, { colorScheme, colorScope, tonic, scaleNotes, theme, activeChord })
       || 'var(--text-primary)';
   };
 
@@ -1956,7 +1991,7 @@ const SheetMusic = ({
                 } : null} />
                 {/* No staff-level key signature in the CLEF setter — accidentals there
                     are shown per-note on the reference notes instead (Han 2026-06-03). */}
-                {!clefEditMode && renderAccidentals(trebleWrittenAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {!clefEditMode && renderAccidentals(trebleWrittenAccidentals, clefTreble, 0, colorScheme, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on key-signature accidentals: toggles tonic to enharmonic equivalent */}
                 {!clefEditMode && trebleWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
                   const n = Math.min(Math.abs(trebleWrittenAccidentals), 7);
@@ -2050,7 +2085,7 @@ const SheetMusic = ({
                   dx: '10',
                   glyph: cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava,
                 } : null} />
-                {!clefEditMode && renderAccidentals(bassWrittenAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {!clefEditMode && renderAccidentals(bassWrittenAccidentals, clefBass, 0, colorScheme, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on bass key-signature accidentals */}
                 {!clefEditMode && bassWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
                   const n = Math.min(Math.abs(bassWrittenAccidentals), 7);
@@ -2198,7 +2233,7 @@ const SheetMusic = ({
                           measureLengthSlots={measureLengthSlots}
                           timeSignature={timeSignature}
                           clef={clefTreble}
-                          noteColoringMode={noteColoringMode}
+                          colorScheme={colorScheme} colorScope={colorScope}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
                           processedChords={coloringChords}
@@ -2286,7 +2321,7 @@ const SheetMusic = ({
                           measureLengthSlots={measureLengthSlots}
                           timeSignature={timeSignature}
                           clef={clefBass}
-                          noteColoringMode={noteColoringMode}
+                          colorScheme={colorScheme} colorScope={colorScope}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
                           processedChords={coloringChords}
@@ -2322,7 +2357,7 @@ const SheetMusic = ({
                           measureLengthSlots={measureLengthSlots}
                           timeSignature={timeSignature}
                           clef={percussionSettings?.melodic ? 'bass' : null}
-                          noteColoringMode={noteColoringMode}
+                          colorScheme={colorScheme} colorScope={colorScope}
                           tonic={tonic}
                           scaleNotes={percussionSettings?.melodic ? scaleNotes : EMPTY_SCALE_NOTES}
                           processedChords={processedChords}
@@ -2383,7 +2418,7 @@ const SheetMusic = ({
                           measureLengthSlots={measureLengthSlots}
                           timeSignature={timeSignature}
                           clef={null}
-                          noteColoringMode={noteColoringMode}
+                          colorScheme={colorScheme} colorScope={colorScope}
                           tonic={tonic}
                           scaleNotes={EMPTY_SCALE_NOTES}
                           processedChords={processedChords}
@@ -2497,7 +2532,7 @@ const SheetMusic = ({
                         trebleStart={trebleStart}
                         startMeasureIndex={startMeasureIndex}
                         chordDisplayMode={chordDisplayMode}
-                        noteColoringMode={noteColoringMode}
+                        colorScheme={colorScheme} colorScope={colorScope}
                         theme={theme}
                         tonic={tonic}
                         scaleNotes={scaleNotes}
@@ -2587,7 +2622,7 @@ const SheetMusic = ({
                               trebleStart={trebleStart}
                               startMeasureIndex={startMeasureIndex}
                               chordDisplayMode={chordDisplayMode}
-                              noteColoringMode={noteColoringMode}
+                              colorScheme={colorScheme} colorScope={colorScope}
                               theme={theme}
                               tonic={tonic}
                               scaleNotes={scaleNotes}
@@ -2611,7 +2646,7 @@ const SheetMusic = ({
                                 measureLengthSlots={measureLengthSlots}
                                 timeSignature={timeSignature}
                                 clef={clefTreble}
-                                noteColoringMode={noteColoringMode}
+                                colorScheme={colorScheme} colorScope={colorScope}
                                 tonic={tonic}
                                 scaleNotes={scaleNotes}
                                 processedChords={processedChords}
@@ -2639,7 +2674,7 @@ const SheetMusic = ({
                                 measureLengthSlots={measureLengthSlots}
                                 timeSignature={timeSignature}
                                 clef={clefBass}
-                                noteColoringMode={noteColoringMode}
+                                colorScheme={colorScheme} colorScope={colorScope}
                                 tonic={tonic}
                                 scaleNotes={scaleNotes}
                                 processedChords={processedChords}
@@ -2667,7 +2702,7 @@ const SheetMusic = ({
                                 measureLengthSlots={measureLengthSlots}
                                 timeSignature={timeSignature}
                                 clef={null}
-                                noteColoringMode={noteColoringMode}
+                                colorScheme={colorScheme} colorScope={colorScope}
                                 tonic={tonic}
                                 scaleNotes={EMPTY_SCALE_NOTES}
                                 processedChords={processedChords}
@@ -2695,7 +2730,7 @@ const SheetMusic = ({
                                 measureLengthSlots={measureLengthSlots}
                                 timeSignature={timeSignature}
                                 clef={null}
-                                noteColoringMode={noteColoringMode}
+                                colorScheme={colorScheme} colorScope={colorScope}
                                 tonic={tonic}
                                 scaleNotes={EMPTY_SCALE_NOTES}
                                 processedChords={processedChords}
@@ -2855,7 +2890,7 @@ const SheetMusic = ({
                         timeSignature, tonic, scaleNotes, clefTreble, clefBass,
                         trebleTransSemitones, bassTransSemitones,
                         isTrebleVisible, isBassVisible, isPercussionVisible,
-                        chordDisplayMode, noteColoringMode, theme, showSettings, debugMode,
+                        chordDisplayMode, colorScheme, colorScope, theme, showSettings, debugMode,
                         blockMeasureStart, blockPlayStart, numRepeats, numMeasures, isPlaying,
                         startMeasureIndex, onMeasureNumberClick, courtesyAccidentals,
                         percussionVoiceSplit, emptyScaleNotes: EMPTY_SCALE_NOTES,
@@ -2967,7 +3002,28 @@ const SheetMusic = ({
                       / scrollBarlines below are the SAME prop bundles the static treble layer + barlines use,
                       so the moving notes get proper duration heads, rests, colouring, beams, animated barlines
                       + measure numbers. Both null outside side-scroll → zero overhead in normal render. */}
+                  {/* #1096 (Han 2026-08-20, "gebruik exact de settings overlay logica"): hidden while ANY
+                      in-staff overlay (incl. the level-result view, now one of them) is showing — mirrors
+                      `.notes-transition`'s own `melodyHiddenDuringOverlay` gate just above, so the RPG
+                      scene (hero/slimes/projectiles) never shows through/behind an overlay's content the
+                      way the old bespoke covering-rect had to work around (it only ever covered part of
+                      the scene, "een blok half over personage"). SheetRpgLayer is a self-contained tree,
+                      not a member of `.notes-transition`, so it needs its own display gate.
+                      Follow-up (Han 2026-08-21, "sluit alle instanties van de muziek, animaties, generator
+                      af" — MISSED notes kept firing after a level finished): `display:none` only hides
+                      SheetRpgLayer visually — its internal rAF tick loop, hit/miss judging, and JIT
+                      audio-trigger hook kept running in the background regardless, since the component
+                      stayed mounted. For `levelResultEditMode` specifically the level is GENUINELY over
+                      (not just showing a settings overlay mid-play), so it is unmounted entirely here —
+                      React tears down every one of its effects (the rAF loop included), which a CSS
+                      `display:none` can never guarantee. For every OTHER overlay kind (RANGE/CLEF/…,
+                      opened while the level is still active) the level isn't over, just interrupted — Han
+                      confirmed (interview 2026-08-21) it should PAUSE and resume exactly where it left off,
+                      not unmount/restart — handled by the new `paused` prop below instead. */}
+                  {!levelResultEditMode && (
+                  <g style={{ display: overlayEditMode ? 'none' : undefined }}>
                   <SheetRpgLayer
+                    paused={overlayEditMode || levelPaused}
                     trebleMelody={levelActive && levelMelodyReady && isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
                     startX={startX}
                     pixelsPerTick={ppt}
@@ -2977,9 +3033,20 @@ const SheetMusic = ({
                     timeSignature={timeSignature}
                     sideScroll={sideScroll}
                     gatedScroll={gatedScroll}
+                    // #867 rework round 4: forwarded straight through to SheetRpgLayer's own wave-reset
+                    // effect — see its comment for why the combat-driven wave counter, not the melody's
+                    // own note content, is now the correct "did a fresh wave start" signal.
+                    levelWaveIndex={levelWaveIndex}
+                    levelTotalWaves={levelTotalWaves}
+                    // #1096: forwarded straight through — see SheetRpgLayer's own comment on this prop.
+                    gatedElapsedMsRef={gatedElapsedMsRef}
                     beatsOnScreen={beatsOnScreen}
                     enemyType={enemyType}
                     wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}
+                    // Bug fix (Han 2026-08-25 UAT): SheetRpgLayer's own call/response half determination
+                    // (isCallMeasure) needs the SAME group size the #1155/#308 labeling already reads —
+                    // see that prop's own comment above.
+                    callResponseGroupMeasures={callResponseGroupMeasures}
                     decorativeWizard={decorativeWizard}
                     npc={npc}
                     hideHero={hideHero}
@@ -3020,7 +3087,8 @@ const SheetMusic = ({
                       measureLengthSlots,
                       timeSignature,
                       clef: clefTreble,
-                      noteColoringMode,
+                      colorScheme,
+                      colorScope,
                       tonic,
                       scaleNotes,
                       processedChords: coloringChords,
@@ -3043,7 +3111,8 @@ const SheetMusic = ({
                       measureLengthSlots,
                       timeSignature,
                       clef: clefBass,
-                      noteColoringMode,
+                      colorScheme,
+                      colorScope,
                       tonic,
                       scaleNotes,
                       processedChords: coloringChords,
@@ -3066,7 +3135,8 @@ const SheetMusic = ({
                       measureLengthSlots,
                       timeSignature,
                       clef: percussionSettings?.melodic ? 'bass' : null,
-                      noteColoringMode,
+                      colorScheme,
+                      colorScope,
                       tonic,
                       scaleNotes: percussionSettings?.melodic ? scaleNotes : EMPTY_SCALE_NOTES,
                       processedChords,
@@ -3088,19 +3158,27 @@ const SheetMusic = ({
                       // #994: `leadInBars` is per-level now (was the fixed LEVEL_LEAD_IN_BARS = 2) and
                       // ALWAYS equals `beatsOnScreen / beatsPerMeasure` by construction in levels.js's
                       // deriveLevelSpan, so the barline row and the audio lead-in can no longer drift.
-                      offsets: [...Array(leadInBars).fill('m'), ...allOffsets],
+                      // #867 rework (Han 2026-08-20): the synthetic lead-in barlines only belong at the
+                      // very START of the level (wave 0) — a LATER wave (multi-wave gated levels, today
+                      // only Level 3) continues straight on from the previous wave's content, with no
+                      // repeated "-1"/"0" bars, so `allOffsets` is used unpadded from wave 1 onward.
+                      offsets: levelWaveIndex === 0 ? [...Array(leadInBars).fill('m'), ...allOffsets] : allOffsets,
                       measureLengthSlots,
                       // #662 (Han 2026-08-03, "bij start van level zie ik onmiddellijk maat -1 en maat 0"):
                       // read by SheetRpgLayer to origin the WHOLE barline row `leadInTicks` earlier than
                       // viewRight, so barlineCount 0 ("-1") lands where it visually belongs (already at/near
                       // the hero at level start) instead of pinned to the screen's far edge — see the
-                      // barlineStartX comment in SheetRpgLayer.jsx for the full derivation.
-                      leadInTicks,
-                      // A level always numbers its measures starting at 1 − leadInBars (so a 2-bar
-                      // lead-in reads "-1"/"0" and a 4-bar one reads "-3".."0"), regardless of the
-                      // app's paginated block state.
+                      // barlineStartX comment in SheetRpgLayer.jsx for the full derivation. #867 rework:
+                      // this origin-shift exists ONLY to compensate for the 2 synthetic lead-in barlines
+                      // (above) — zeroed for wave ≥ 1, where there are none, so the barline row keeps the
+                      // plain `viewRight` origin real content already uses correctly.
+                      leadInTicks: levelWaveIndex === 0 ? leadInTicks : 0,
+                      // A level always numbers its measures starting at 1 − leadInBars for wave 0 (so a
+                      // 2-bar lead-in reads "-1"/"0" and a 4-bar one reads "-3".."0"); a LATER wave (#867
+                      // rework, Han 2026-08-20: "-1,0,1,2,3,4" expected, not "-1,0,1,2,-1,0,1,2") continues
+                      // numbering `numMeasures` further per wave instead of restarting at the same constant.
                       startIdx: 0,
-                      blockMeasureStart: 1 - leadInBars,
+                      blockMeasureStart: (1 - leadInBars) + levelWaveIndex * numMeasures,
                       blockPlayStart: 0,
                       partialTop,
                       partialMeasureStart,
@@ -3114,9 +3192,16 @@ const SheetMusic = ({
                       isBassVisible,
                       isPercussionVisible,
                       numRepeats,
-                      numMeasures,
+                      // #867 rework round 3: the level's TRUE total length for "final bar"/song-end
+                      // purposes, not the per-wave chunk size — see `levelFullTotalMeasures`'s own comment.
+                      numMeasures: levelFullTotalMeasures ?? numMeasures,
                       anacrusisMeasureIndex,
                       mergedBodyMeasures,
+                      // #1155: see this prop's own comment above — null for every non-call-response level.
+                      callResponseGroupMeasures,
+                      // Bug fix (Han 2026-08-25 UAT): the synthetic lead-in 'm' markers above (`offsets`)
+                      // only exist for wave 0 — mirrors `leadInTicks`'s own identical ternary just above.
+                      callResponseLeadInBars: levelWaveIndex === 0 ? leadInBars : 0,
                     } : null}
                     // #871 (Han 2026-08-11 UAT: "akkoorden en lyrics schuiven niet mee met de noten"):
                     // chord labels for the scrolling treble staff — same `processedChords` data the static
@@ -3124,7 +3209,7 @@ const SheetMusic = ({
                     // pixelsPerTick mode (already supported there) so it scrolls in lockstep with the
                     // notes. No slime/combat coupling — purely visual, like decorativeWizard/npc.
                     scrollChords={sideScroll && actualChords ? {
-                      chordProgression, processedChords, chordDisplayMode, noteColoringMode, theme,
+                      chordProgression, processedChords, chordDisplayMode, colorScheme, colorScope, theme,
                       tonic, scaleNotes, chordTransSemitones, chordWrittenAccidentals,
                       measureLengthSlots, startMeasureIndex, displayNumMeasures,
                     } : null}
@@ -3135,6 +3220,8 @@ const SheetMusic = ({
                       melody: trebleMelody, textLyricsActive, getLyricFill,
                     } : null}
                   />
+                  </g>
+                  )}
 
                   {/* Range-edit's end barline is now drawn by the shared overlay frame
                       below (overlayEditMode ⊇ rangeEditMode), together with a matching
@@ -3260,8 +3347,8 @@ const SheetMusic = ({
                       bassStart={bassStart}
                       percussionStart={percussionStart}
                       clefTreble={clefTreble}
-                      noteColoringMode={noteColoringMode}
-                      setNoteColoringMode={setNoteColoringMode}
+                      colorScheme={colorScheme} colorScope={colorScope}
+                      setColorScheme={setColorScheme} setColorScope={setColorScope}
                       tonic={tonic}
                       scaleNotes={scaleNotes}
                       activeChord={pausedActiveChord}
@@ -3334,7 +3421,7 @@ const SheetMusic = ({
                       timeSignature={timeSignature}
                       theme={theme}
                       debugMode={debugMode}
-                      noteColoringMode={noteColoringMode}
+                      colorScheme={colorScheme} colorScope={colorScope}
                       activeChord={pausedActiveChord}
                       scaleNotes={scaleNotes}
                       tonic={tonic}
@@ -3359,7 +3446,7 @@ const SheetMusic = ({
                       bassSettings={bassSettings}
                       tonic={tonic}
                       scaleNotes={scaleNotes}
-                      noteColoringMode={noteColoringMode}
+                      colorScheme={colorScheme} colorScope={colorScope}
                       activeChord={pausedActiveChord}
                       isNarrow={logicalScreenWidth < 500}
                       percussionVoiceSplit={percussionVoiceSplit}
@@ -3399,7 +3486,7 @@ const SheetMusic = ({
                       // authoritative scale (generateChordOnDegree) and coloured by the standard
                       // chord-label rules (melodicNoteColor) — same inputs the sheet chord labels use.
                       scale={scale}
-                      noteColoringMode={noteColoringMode}
+                      colorScheme={colorScheme} colorScope={colorScope}
                       tonic={tonic}
                       theme={theme}
                       debugMode={debugMode}
@@ -3417,13 +3504,20 @@ const SheetMusic = ({
                       bassStart={bassStart}
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
-                      coverX={-5}
+                      // #867 rework round 2 (Han 2026-08-20, "ik wil de sleutels links in beeld houden"):
+                      // the cover used to start at the far left edge (-5), hiding the clefs along with the
+                      // real notation. Starting it at `startX` (where note content begins, same boundary
+                      // every other in-staff overlay — ChordStyleOverlay, InstrumentStaffOverlay — already
+                      // uses) leaves the treble/bass clefs visible exactly like those setters do.
+                      coverX={startX}
                       coverY={-30}
-                      coverWidth={logicalScreenWidth}
+                      coverWidth={logicalScreenWidth - startX}
                       coverHeight={levelLogicalHeightForViewBox}
                       stats={levelResult.stats}
                       twoHanded={levelResult.twoHanded}
                       rows={levelResult.rows}
+                      onReplay={levelResult.onReplay}
+                      onClose={levelResult.onClose}
                     />
                   )}
                 </>

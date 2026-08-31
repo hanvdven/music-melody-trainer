@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeRepeatPass } from '../repeatNumbering.js';
+import { computeRepeatPass, computeCallResponseLabel } from '../repeatNumbering.js';
 
 describe('computeRepeatPass (Fix #3 repeat-pass suffix)', () => {
     it('is 1 when not playing (no suffix when stopped)', () => {
@@ -74,5 +74,76 @@ describe('computeRepeatPass (Fix #3 repeat-pass suffix)', () => {
 
     it('falls back to 1 for invalid passSpan', () => {
         expect(computeRepeatPass({ startMeasureIndex: 40, blockPlayStart: 0, passSpan: 0, isPlaying: true })).toBe(1);
+    });
+});
+
+// #1155 (Han 2026-08-24, "pas de labelconventie toe op alle call-response levels"): "N" on the call
+// measure, "N . 2" on the response measure that repeats it — independent PER BARLINE (call and response
+// are visible simultaneously, unlike computeRepeatPass's one-per-render model above).
+describe('computeCallResponseLabel (#1155)', () => {
+    it('groupMeasures=1 (letter d): call/response alternate every single barline', () => {
+        expect(computeCallResponseLabel({ barlineOrdinal: 0, groupMeasures: 1 })).toEqual({ measureNumber: 1, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 1, groupMeasures: 1 })).toEqual({ measureNumber: 1, pass: 2 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 2, groupMeasures: 1 })).toEqual({ measureNumber: 2, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 3, groupMeasures: 1 })).toEqual({ measureNumber: 2, pass: 2 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 4, groupMeasures: 1 })).toEqual({ measureNumber: 3, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 5, groupMeasures: 1 })).toEqual({ measureNumber: 3, pass: 2 });
+    });
+
+    it('groupMeasures=2 (letter e): a 2-measure call group, then the SAME 2 measures repeat as the response', () => {
+        // barlines 0,1 = call (song measures 1,2); barlines 2,3 = response (repeating 1,2)
+        expect(computeCallResponseLabel({ barlineOrdinal: 0, groupMeasures: 2 })).toEqual({ measureNumber: 1, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 1, groupMeasures: 2 })).toEqual({ measureNumber: 2, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 2, groupMeasures: 2 })).toEqual({ measureNumber: 1, pass: 2 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 3, groupMeasures: 2 })).toEqual({ measureNumber: 2, pass: 2 });
+        // next cycle: song measures 3,4
+        expect(computeCallResponseLabel({ barlineOrdinal: 4, groupMeasures: 2 })).toEqual({ measureNumber: 3, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 5, groupMeasures: 2 })).toEqual({ measureNumber: 4, pass: 1 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 6, groupMeasures: 2 })).toEqual({ measureNumber: 3, pass: 2 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 7, groupMeasures: 2 })).toEqual({ measureNumber: 4, pass: 2 });
+    });
+
+    it('never depends on combat/wave progress — purely a function of barline ordinal + group size', () => {
+        // Same barlineOrdinal + groupMeasures always gives the same label, regardless of anything else —
+        // deliberately has no `levelWaveIndex`/combat-progress input at all (§304's usesTrebleJitStream
+        // fix established content-generation and combat-clearing run at different paces for call-response;
+        // this label must track the FORMER, not the latter).
+        const a = computeCallResponseLabel({ barlineOrdinal: 5, groupMeasures: 2 });
+        const b = computeCallResponseLabel({ barlineOrdinal: 5, groupMeasures: 2 });
+        expect(a).toEqual(b);
+    });
+
+    it('falls back to groupMeasures=1 behaviour for an invalid (zero/undefined) groupMeasures', () => {
+        expect(computeCallResponseLabel({ barlineOrdinal: 1, groupMeasures: 0 })).toEqual({ measureNumber: 1, pass: 2 });
+        expect(computeCallResponseLabel({ barlineOrdinal: 1, groupMeasures: undefined })).toEqual({ measureNumber: 1, pass: 2 });
+    });
+
+    // Bug fix (Han 2026-08-25 UAT, Level 11/letter e): `leadInBars` synthetic lead-in barlines (see
+    // SheetMusic.jsx's `[...Array(leadInBars).fill('m'), ...allOffsets]`) were being fed straight into
+    // the cycle math as if they were real call/response measures, shifting every real label by
+    // `leadInBars` and mislabeling calls as responses and vice versa.
+    describe('leadInBars offset (bug fix)', () => {
+        it('lead-in ordinals get plain, un-suffixed numbering matching the non-call-response convention (1 - leadInBars + ordinal)', () => {
+            expect(computeCallResponseLabel({ barlineOrdinal: 0, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: -1, pass: 1 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 1, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 0, pass: 1 });
+        });
+
+        it('real content starts fresh at ordinal 0 relative to the content, exactly like leadInBars=0, once past the lead-in', () => {
+            // groupMeasures=2, leadInBars=2 — Han's own reported level (11/letter e): expected
+            // "-1 0 | 1 2 | 1.2 2.2 | 3 4 | 3.2 4.2".
+            expect(computeCallResponseLabel({ barlineOrdinal: 2, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 1, pass: 1 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 3, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 2, pass: 1 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 4, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 1, pass: 2 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 5, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 2, pass: 2 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 6, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 3, pass: 1 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 7, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 4, pass: 1 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 8, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 3, pass: 2 });
+            expect(computeCallResponseLabel({ barlineOrdinal: 9, groupMeasures: 2, leadInBars: 2 })).toEqual({ measureNumber: 4, pass: 2 });
+        });
+
+        it('defaults to 0 (existing behaviour byte-for-byte unchanged) when omitted', () => {
+            expect(computeCallResponseLabel({ barlineOrdinal: 3, groupMeasures: 2 }))
+                .toEqual(computeCallResponseLabel({ barlineOrdinal: 3, groupMeasures: 2, leadInBars: 0 }));
+        });
     });
 });

@@ -86,7 +86,7 @@ const POOL_WIDTH = 150;
  * carry the active note-colouring, real accidentals and clef-correct positions.
  */
 export const NotePoolGlyph = ({
-    pool, staffStart, clef, staffType, noteColoringMode, tonic, scaleNotes, activeChord, theme,
+    pool, staffStart, clef, staffType, colorScheme, colorScope, tonic, scaleNotes, activeChord, theme,
 }) => {
     // #433 (Han): KEY-RELATIVE — build the run from the REAL tonic + scale so the colouring is right
     // in every key (root = real tonic, chord = real 1-3-5, scale = the real scale). Falls back to the
@@ -111,7 +111,8 @@ export const NotePoolGlyph = ({
             staffStart={staffStart}
             clef={clef}
             staff={staffType}
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+            colorScope={colorScope}
             tonic={tonic}
             scaleNotes={scaleNotes}
             processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
@@ -128,7 +129,7 @@ export const NotePoolGlyph = ({
  * renders example notes), through the shared MiniMelody pipeline with staff="percussion" so each pad
  * sits at its real drum position and gets its chromatone colour where the rule applies.
  */
-export const PercPoolGlyph = ({ pads, staffStart, noteColoringMode, theme }) => {
+export const PercPoolGlyph = ({ pads, staffStart, colorScheme, colorScope, theme }) => {
     const slots = (pads && pads.length) ? pads : ['k', 's', 'hh'];
     return (
         <MiniMelody
@@ -138,7 +139,8 @@ export const PercPoolGlyph = ({ pads, staffStart, noteColoringMode, theme }) => 
             staffStart={staffStart}
             clef="percussion"
             staff="percussion"
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+            colorScope={colorScope}
             theme={theme}
         />
     );
@@ -151,7 +153,7 @@ export const PercPoolGlyph = ({ pads, staffStart, noteColoringMode, theme }) => 
  * Percussion shows pads (staff="percussion"): 1 = snare; var = snare then a kick+hi-hat pair.
  */
 export const VoicesGlyph = ({
-    voices, staffStart, clef, staffType, noteColoringMode, tonic, scaleNotes, activeChord, theme,
+    voices, staffStart, clef, staffType, colorScheme, colorScope, tonic, scaleNotes, activeChord, theme,
 }) => {
     let slots;
     if (staffType === 'percussion') {
@@ -180,7 +182,8 @@ export const VoicesGlyph = ({
             staffStart={staffStart}
             clef={staffType === 'percussion' ? 'percussion' : clef}
             staff={staffType}
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+            colorScope={colorScope}
             tonic={tonic}
             scaleNotes={scaleNotes}
             processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
@@ -294,7 +297,7 @@ const COMPLEXITY_DEGREES = {
  * so the chord anchors on a VIRTUAL staff around the row centre. Coloured by the active rule (the
  * 'chords' mode uses the representative chord passed via activeChord).
  */
-export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, tonic, scaleNotes, activeChord, theme }) => {
+export const ComplexityChordGlyph = ({ complexity, centerY, colorScheme, colorScope, tonic, scaleNotes, activeChord, theme }) => {
     // #433 (Han): build the stack on the REAL tonic/scale; fall back to the C-based table when no
     // usable scale context is supplied.
     const run = scaleRunNotes(tonic, scaleNotes, 4);
@@ -324,7 +327,8 @@ export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, to
                 durations={[QUARTER * 4]}       // #493-followup: WHOLE notes (Han 2026-07-20), not quarters
                 width={0}                       // one column → the chord sits on the origin
                 staffStart={virtualStaffStart}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 tonic={tonic}
                 scaleNotes={scaleNotes}
                 processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
@@ -362,13 +366,13 @@ const CHORD_LABEL_SPACING = 26;
  * niet gekleurd, ik verwacht van wel") — the letter's root pitch class through melodicNoteColor.
  */
 export const ChordCountGlyph = ({
-    count, centerY, noteColoringMode, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE,
+    count, centerY, colorScheme, colorScope, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE,
     activeChord = null, theme, color = 'var(--text-primary)',
 }) => {
     const labels = chordLabelsFor(count);
     const x0 = -((labels.length - 1) * CHORD_LABEL_SPACING) / 2;
     const letterColor = (letter) =>
-        melodicNoteColor(`${letter}4`, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+        melodicNoteColor(`${letter}4`, { colorScheme, colorScope, tonic, scaleNotes, theme, activeChord })
         || color;
     return (
         <g style={{ pointerEvents: 'none' }}>

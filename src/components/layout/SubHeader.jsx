@@ -8,6 +8,7 @@ import {
     Sparkles,
     FlaskConical,
     Dumbbell,
+    Award,
 } from 'lucide-react';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
@@ -27,6 +28,10 @@ const SubHeader = ({
     onOpenGeneration,
     onOpenGenerationAdvanced,
     onOpenExercises,
+    // #1096 (Han 2026-08-20): the level-result tab — `onOpenLevelResult` is only provided once a level
+    // result actually exists this session (App.jsx), same "only show when there's something to show"
+    // convention as `(onOpenRange || onOpenClef) &&` gating the whole button row further down.
+    onOpenLevelResult,
     rangeEditMode = false,
     clefEditMode = false,
     colorEditMode = false,
@@ -35,13 +40,14 @@ const SubHeader = ({
     generationEditMode = false,
     generationAdvancedEditMode = false,
     exerciseEditMode = false,
+    levelResultEditMode = false,
     exerciseRun = null,          // #267: { target, completed } while a bounded run is active
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
 }) => {
     const {
-        noteColoringMode, setNoteColoringMode,
+        colorScheme,
         debugMode,
         lyricsMode, setLyricsMode,
         chordDisplayMode, setChordDisplayMode,
@@ -79,14 +85,17 @@ const SubHeader = ({
     const btnScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
     const BW = 75; // button width
 
+    // #1103: this small header swatch reflects colorScheme only (not colorScope) — chroma/subtle-chroma
+    // keep their gradient swatches, root keeps the old 'chords' green, highlight (today's default) keeps
+    // the old tonic/scale fallback var.
     const paletteColor =
-        noteColoringMode === 'none' ? 'var(--text-primary)' :
-            noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
-                noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' :
-                    noteColoringMode === 'chords' ? '#90EE90' :
+        colorScheme === 'none' ? 'var(--text-primary)' :
+            colorScheme === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' :
+                colorScheme === 'chroma' ? 'url(#chromatone-gradient-hdr)' :
+                    colorScheme === 'root' ? '#90EE90' :
                         'var(--note-tonic)';
 
-    const renderButton = (icon, label, onClick, isActive, forceColor, isMenuToggle = false) => {
+    const renderButton = (icon, label, onClick, isActive, forceColor, isMenuToggle = false, excludeFromLevelClose = false) => {
         // Menu-toggle buttons (SETTINGS / TRANSPOSITION / RANGE / COLOUR) all share ONE highlight
         // colour: lowlit (dimmed) when their menu is closed, full + a GLOW when active. The glow
         // reuses the current-note highlight pattern already used by the note-highlight button
@@ -101,6 +110,11 @@ const SubHeader = ({
         return (
             <div
                 onClick={(e) => { e.stopPropagation(); onClick(); }}
+                // #1095: RESULT/Award re-OPENS the level's own result screen — it must NOT be treated as
+                // "navigating away", or App.jsx's universal header-click-closes-level handler would close
+                // the level (flipping `level.done` false) the instant you click it, right before the tab's
+                // own onClick tries to open that same now-inconsistent result screen.
+                {...(excludeFromLevelClose ? { 'data-header-level-control': '' } : {})}
                 style={{
                     position: 'relative',
                     display: 'flex',
@@ -305,6 +319,19 @@ const SubHeader = ({
                         exerciseEditMode,
                         null,
                         true
+                    )}
+                    {/* #1096 (Han 2026-08-20, "(A)" — replicate the settings-overlay tab pattern
+                        including icon): the level-result view, now one of these in-staff overlay tabs
+                        instead of its own bespoke presentation. Only rendered once a result actually
+                        exists this session (onOpenLevelResult is undefined otherwise). */}
+                    {onOpenLevelResult && renderButton(
+                        <Award size={22} />,
+                        'RESULT',
+                        onOpenLevelResult,
+                        levelResultEditMode,
+                        null,
+                        true,
+                        true   // #1095: excluded from the universal header-click-closes-level behavior
                     )}
                 </div>
             )}

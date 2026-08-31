@@ -85,7 +85,8 @@ const PreviewOverlay = ({
   isPercussionVisible,
   // styling
   chordDisplayMode,
-  noteColoringMode,
+  colorScheme,
+  colorScope,
   theme,
   showSettings,
   debugMode,
@@ -187,7 +188,8 @@ const PreviewOverlay = ({
           trebleStart={trebleStart}
           startMeasureIndex={startMeasureIndex}
           chordDisplayMode={chordDisplayMode}
-          noteColoringMode={noteColoringMode}
+          colorScheme={colorScheme}
+          colorScope={colorScope}
           theme={theme}
           debugMode={debugMode}
           overrideColor={RCOL}
@@ -207,7 +209,8 @@ const PreviewOverlay = ({
             measureLengthSlots={measureLengthSlots}
             timeSignature={timeSignature}
             clef={clefTreble}
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+          colorScope={colorScope}
             tonic={tonic}
             scaleNotes={scaleNotes}
             processedChords={previewChords ?? processedChords}
@@ -235,7 +238,8 @@ const PreviewOverlay = ({
             measureLengthSlots={measureLengthSlots}
             timeSignature={timeSignature}
             clef={clefBass}
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+          colorScope={colorScope}
             tonic={tonic}
             scaleNotes={scaleNotes}
             processedChords={previewChords ?? processedChords}
@@ -263,7 +267,8 @@ const PreviewOverlay = ({
             measureLengthSlots={measureLengthSlots}
             timeSignature={timeSignature}
             clef={null}
-            noteColoringMode={noteColoringMode}
+            colorScheme={colorScheme}
+          colorScope={colorScope}
             tonic={tonic}
             scaleNotes={emptyScaleNotes}
             processedChords={previewChords ?? processedChords}

@@ -54,31 +54,11 @@ export const TIMING_TIERS = [
     },
 ];
 
-// Han 2026-08-10 ("dan kan de legenda apart, onder de timing accuracy grafiek"): every distinct colour
-// meaning used above, once — not per-bar repetition. `near`/`far` each cover 2 tiers (early+late share a
-// colour, §6c: same tokens TIMING_TIERS itself already uses, not a second hardcoded map).
-const TIMING_LEGEND_ITEMS = [
-    { label: 'note when none due', color: TIER_COLOR.extraNote },
-    { label: 'much too early / much too late', color: TIER_COLOR.muchTooFast },
-    { label: 'too early / too late', color: TIER_COLOR.tooFast },
-    { label: 'perfect', color: TIER_COLOR.perfect },
-    { label: 'wrong, corrected', color: 'var(--judgment-corrected)' },
-    { label: 'wrong, not corrected', color: 'var(--judgment-wrong)' },
-    { label: 'missed', color: TIER_COLOR.missed },
-];
-
-export function TimingLegend() {
-    return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: 10 }}>
-            {TIMING_LEGEND_ITEMS.map((it) => (
-                <div key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-secondary)' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: it.color, flexShrink: 0 }} />
-                    {it.label}
-                </div>
-            ))}
-        </div>
-    );
-}
+// #867 rework (Han 2026-08-20, "ik vond de labels in legenda in bottom view. Haal de legenda weg en zet
+// labels onder de balken in de top view"): the separate `TimingLegend` (previously rendered below the
+// bottom-view dialogue box) is REMOVED — each bar in `renderStaffTierBars` now carries its own name label
+// directly underneath it (below), which fully replaces what the legend used to explain, so keeping both
+// would just be duplication (§7 — delete unused code rather than leaving it dead).
 
 // `stats.correct` isn't stored directly (useLevel only tracks the 5 timing tiers) — it's every FIRST-TRY
 // correct hit regardless of timing tier, i.e. defeated minus the corrected-on-second-try kills.
@@ -134,6 +114,16 @@ export function tierTotal(tierDef, s) {
 // a stats-shaped object: pass `stats` for a combined chart, or `extractHandStats(stats, 'bass'|'treble')`
 // for a per-hand chart (twoHanded levels, §862's L/R split — now one staff per hand instead of one bar
 // split in two).
+// #867 rework round 2 (Han 2026-08-20, "labels... zijn echt teeeeringklein... gebruik dezelfde oplossing
+// als de carousels"): every bar carries its own name label underneath it — reuses each TIMING_TIERS
+// entry's own `.label` (single source of truth, §6c). The FIRST attempt styled these as tiny SVG text
+// (fontSize 5.5) approximating the HTML `.rc-palette-label` CSS class — Han rejected that as unreadable.
+// Corrected to literally reuse the SAME proven SVG-native sizing the in-staff setter carousels already
+// use for their own card labels (`InstrumentStaffOverlay.jsx`'s `StaffCarousel` renderItem: `fontSize={11}
+// fontFamily="sans-serif" fontWeight="bold"`, ALL CAPS) — same coordinate space (this overlay sits in the
+// exact same SVG viewBox as those setters), same proven-legible numbers, not a second invented size (§6d).
+// The bar's count label sits directly above the bar on the SAME x center as its label below, so the two
+// always line up ("cijfers in lijn met de labels onder de balken").
 export function renderStaffTierBars({ handStats, x0, x1, yTop, yBottom, keyPrefix }) {
     const gap = 3;
     const slotW = (x1 - x0 - gap * (TIMING_TIERS.length - 1)) / TIMING_TIERS.length;
@@ -142,6 +132,7 @@ export function renderStaffTierBars({ handStats, x0, x1, yTop, yBottom, keyPrefi
     const toHeight = (v) => (v / maxScale) * plotH;
     return TIMING_TIERS.map((t, i) => {
         const x = x0 + i * (slotW + gap);
+        const cx = x + slotW / 2;
         const total = tierTotal(t, handStats);
         const totalH = toHeight(total);
         const topY = yBottom - totalH;
@@ -155,13 +146,25 @@ export function renderStaffTierBars({ handStats, x0, x1, yTop, yBottom, keyPrefi
                 <rect key={`${keyPrefix}-${t.key}-${seg.key}`} x={x} y={segY} width={slotW} height={Math.max(segH, 0.5)} fill={seg.color} />
             ) : null;
         });
+        // Wrap the label onto 2 lines at its natural word boundary (mirrors `.rc-palette-label`'s own
+        // `white-space: normal` wrapping) so multi-word tiers ("much too early") still fit the narrow
+        // per-bar slot instead of bleeding into the neighbouring bar.
+        const words = t.label.toUpperCase().split(' ');
+        const mid = Math.ceil(words.length / 2);
+        const labelLines = words.length > 1 ? [words.slice(0, mid).join(' '), words.slice(mid).join(' ')] : [words[0]];
         return (
             <g key={`${keyPrefix}-${t.key}`}>
                 {rects}
                 {total > 0 && (
-                    <text x={x + slotW / 2} y={topY - 1.5} textAnchor="middle" fontSize="7" fontWeight="700"
-                        fontFamily={TEXT_FONT} fill="var(--text-primary)">{total}</text>
+                    <text x={cx} y={topY - 3} textAnchor="middle" fontSize="11" fontWeight="bold"
+                        fontFamily="sans-serif" fill="var(--text-primary)">{total}</text>
                 )}
+                <text x={cx} y={yBottom + 12} textAnchor="middle" fontSize="10" fontWeight="bold"
+                    fontFamily="sans-serif" fill="var(--text-secondary)">
+                    {labelLines.map((line, li) => (
+                        <tspan key={`${keyPrefix}-${t.key}-line-${li}`} x={cx} dy={li === 0 ? 0 : 11}>{line}</tspan>
+                    ))}
+                </text>
             </g>
         );
     });

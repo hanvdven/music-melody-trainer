@@ -295,7 +295,7 @@ const GenerationSetterOverlay = ({
   } = useInstrumentSettings();
   // #431 rework (Han): example notes render through the REAL renderMelodyNotes pipeline, coloured by
   // the ACTIVE note-coloring rule (+ theme for the subtle-chroma mix) — not a hardcoded palette.
-  const { noteColoringMode, theme } = useDisplaySettings();
+  const { colorScheme, colorScope, theme } = useDisplaySettings();
   // #493 (Han): single-open coordination — only ONE generation carousel open at a time.
   const [activeFieldId, setActiveFieldId] = React.useState(null);
   // #433: real chord/tonic/scale when available, else the fixed C illustration. NOTE: coerce absent
@@ -361,7 +361,7 @@ const GenerationSetterOverlay = ({
           centerY: CHORDS_SETTER_Y,   // #435: moved up to the uniform row spacing
           renderContent: (item) => (
             <ComplexityChordGlyph complexity={item.value} centerY={CHORDS_SETTER_Y}
-              noteColoringMode={noteColoringMode} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
+              colorScheme={colorScheme} colorScope={colorScope} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
           labelDy: CHORDS_LABEL_DY, hitTop: -32, hitHeight: 84,
@@ -402,7 +402,7 @@ const GenerationSetterOverlay = ({
         renderContent: (item, active, color) => (
           <g>
             <ChordCountGlyph count={item.value} centerY={CHORD_ROW_Y - 2}
-              noteColoringMode={noteColoringMode} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord}
+              colorScheme={colorScheme} colorScope={colorScope} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord}
               theme={theme} color={color} />
             {/* #434 (Han: "maak een custom 1/2 etc.") — the count as a real Maestro mixed number
                 (big whole + small ½/¼ fraction) instead of the ASCII '2½' Maestro can't draw. */}
@@ -441,7 +441,7 @@ const GenerationSetterOverlay = ({
               )
               : (
                 <PercPoolGlyph pads={PERCUSSION_PRESETS[item.value]} staffStart={percStaffStart}
-                  noteColoringMode={noteColoringMode} theme={theme} />
+                  colorScheme={colorScheme} colorScope={colorScope} theme={theme} />
               )
           ),
           baseWidth: POOL_BASE, visibleHalf: 1,
@@ -466,7 +466,7 @@ const GenerationSetterOverlay = ({
         items, activeIndex: idxOf(items, cur), labelAbove: 'note pool',
         renderContent: (item) => (
           <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
-            staffType={row.key} noteColoringMode={noteColoringMode}
+            staffType={row.key} colorScheme={colorScheme} colorScope={colorScope}
             tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
         ),
         // #362: colour-setter geometry — same stride AND same tall hit box, so
@@ -523,7 +523,7 @@ const GenerationSetterOverlay = ({
         labelAbove: isPerc ? 'simultaneous' : 'voices',
         renderContent: (item) => (
           <VoicesGlyph voices={item.value} staffStart={vStaffStart} clef={clef}
-            staffType={row.key} noteColoringMode={noteColoringMode}
+            staffType={row.key} colorScheme={colorScheme} colorScope={colorScope}
             tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
         ),
         baseWidth: VOICES_BASE, visibleHalf: 1,

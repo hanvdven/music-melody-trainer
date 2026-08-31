@@ -7,7 +7,14 @@ class InstrumentSettings {
    * @param {number} notesPerMeasure - Target notes per measure
    * @param {number} smallestNoteDenom - Smallest note denomination (e.g. 4, 8, 16)
    * @param {number} rhythmVariability - 0–100 variability in rhythm generation
-   * @param {string} notePool - Which notes to draw from: 'scale' | 'chord' | 'all' | 'metronome'
+   * @param {string} notePool - Which notes to draw from. Melodic (treble/bass): 'root' | 'chord' |
+   *   'scale' | 'chromatic' — see generationFields.js's `MELODIC_NOTE_POOLS` (the canonical list the
+   *   in-staff carousel offers). Percussion only: 'kick_snare' | 'claves' | 'all' | 'metronome' (getPool()
+   *   in convertRankedArrayToMelody.js resolves these to hardcoded drum-pad-id arrays). Bug fix (#1044,
+   *   Han 2026-08-24): this list previously said 'all'/'metronome' for melodic tracks too — WRONG, those
+   *   are percussion-only; three example levels (104/115/120) used 'all' on their treble track and
+   *   silently got drum pad codes as "notes" (getPool() dispatches purely on the string, with no
+   *   instrument-type check) — see levels.test.js's regression guard for the full story.
    * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'force_chord_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'. For arp_var/arp_group, maxLeap also controls the span window. For force_chord_roots, notesPerMeasure is a MINIMUM (chord-change onsets are added on top).
    * @param {string} strategy - Chord/progression strategy (for chord track): 'pop-1-5-6-4' | 'modal-random' | etc.
    * @param {string} transpositionKey - Instrument transposition key: 'C' (concert, default), 'Bb', 'F', 'Eb', etc.

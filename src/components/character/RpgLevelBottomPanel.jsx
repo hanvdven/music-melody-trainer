@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useLayoutEffect } from 'react';
 import { PET_CROP } from './CharacterDoll';
 import DialogueBox from './DialogueBox';
 import useConversationDialogue from '../../hooks/useConversationDialogue';
@@ -41,14 +41,24 @@ const WISP_FALLBACK_VARIANT = { url: wispUrl, crop: PET_CROP, frame: { w: 32, h:
 // it now ALWAYS runs at WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the same fixed tempo the ambient
 // music, bird songs, and debug metronome all share, instead of the app's live (and irrelevant here) song
 // bpm that used to be threaded down from TabView/App.jsx.
-export default function RpgLevelBottomPanel({ rpgLevel, context, getConversationProfile }) {
-    const { dialogue, closeDialogue, autoContinue, toggleAutoContinue } = rpgLevel;
+export default function RpgLevelBottomPanel({ rpgLevel, context, getConversationProfile, worldScale = null }) {
+    const { dialogue, closeDialogue, autoContinue } = rpgLevel;
     const profile = dialogue ? getConversationProfile(dialogue.entity) : null;
     const { visibleText, hasNextPage, handleTextClick } = useConversationDialogue({
         pages: dialogue?.pages, active: !!dialogue, context, bpm: WORLD_BPM, timeSignature: WORLD_TIME_SIGNATURE,
         profile, autoContinue, onClosed: closeDialogue,
     });
     const wispVariant = useMemo(() => findVariantByUrl(wispUrl), []);
+
+    // #UI-overhaul (Han 2026-08-27, "enter f spatie is ook 'volgende'"): expose this panel's
+    // page-advance action to useRpgLevelState's keyboard handler. `handleTextClick` both advances a
+    // page and closes on the last one (useConversationDialogue's own `onClosed`).
+    useLayoutEffect(() => {
+        const ref = rpgLevel.advanceDialogueRef;
+        if (!ref) return undefined;
+        ref.current = handleTextClick;
+        return () => { ref.current = null; };
+    }, [handleTextClick, rpgLevel.advanceDialogueRef]);
 
     if (!dialogue) {
         return (
@@ -60,15 +70,25 @@ export default function RpgLevelBottomPanel({ rpgLevel, context, getConversation
     const portraitVariant = dialogue.entity === 'wisp'
         ? (wispVariant || WISP_FALLBACK_VARIANT)
         : SLIME_PORTRAIT_VARIANT;
+    // #UI-overhaul (Han 2026-08-27, "portret 64, tekst 192, met 0 padding/marge"): world mode renders
+    // DialogueBox in `compact` mode at the level scale `N` — the box is EXACTLY 256 game px wide
+    // (64 portrait + 192 text) × 64 game px tall, no padding/margin, inset frame. Fits content block 1
+    // exactly. AUTO toggle omitted (`onToggleAutoContinue` unset).
+    const scaled = worldScale != null;
     return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <DialogueBox
-                portraitVariant={portraitVariant}
-                text={visibleText}
-                onClick={handleTextClick}
-                autoContinue={autoContinue} onToggleAutoContinue={toggleAutoContinue}
-                hasMorePages={hasNextPage}
-            />
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: scaled ? 0 : 16 }}>
+            <div style={{ flexShrink: 0 }}>
+                <DialogueBox
+                    scale={scaled ? worldScale : undefined}
+                    textCols={scaled ? 192 : undefined}
+                    compact={scaled}
+                    portraitVariant={portraitVariant}
+                    text={visibleText}
+                    onClick={handleTextClick}
+                    /* Han 2026-08-27: "haal AUTO off weg van de conv box" — no auto-continue toggle. */
+                    hasMorePages={hasNextPage}
+                />
+            </div>
         </div>
     );
 }

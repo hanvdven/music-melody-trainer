@@ -27,7 +27,7 @@ const LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: WHOLE, measureLengthSlots: WHOLE, scaleNotes: [],
     tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
     startMeasureIndex: 0, transpositionSemitones: 0, debugMode: false, interactive: false,
-    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+    courtesyAccidentals: false, percussionVoiceSplit: false, colorScheme: 'none', colorScope: 'all',
 };
 // One whole-note chord (array of note names) as a MelodyNotesLayer melody.
 // `ties` is required by renderMelodyNotes (it reads melody.ties[index] unguarded).

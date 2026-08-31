@@ -43,20 +43,34 @@ export default function OscillatingText({ text, scale, rangeGamePx = 1, style })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [text]);
 
+    // #UI-overhaul (Han 2026-08-27, 'nooit nieuwe regels midden in een woord' — saw "y⏎ou know"):
+    // every character used to be its own `inline-block`, so the browser could break the line between
+    // ANY two of them, mid-word. Now each WORD is a single `white-space: nowrap` `inline-block` group
+    // — the browser can only break at the whitespace runs BETWEEN groups. `pre-wrap` on the parent
+    // keeps multiple spaces / explicit `\n` (the #1088 requirement). A global char counter keeps the
+    // per-letter oscillation seed stable across the grouping.
+    let n = 0;
+    const charSpan = (ch) => {
+        const i = n++;
+        return (
+            <span key={`c${i}`} ref={(el) => { spanRefs.current[i] = el; }} style={{ display: 'inline-block' }}>
+                {ch}
+            </span>
+        );
+    };
     return (
-        // #1088 (Han 2026-08-19, "sinds ticket 1027 hebben lange zinnen geen 'new line' mechanisme meer"):
-        // `white-space: pre` never wraps — it only breaks on literal `\n` characters, so a long sentence ran
-        // straight off the edge of the fixed-width dialogue box. `pre-wrap` keeps the SAME whitespace-
-        // preserving behaviour (so multiple spaces between words still render, matching the old `pre`
-        // semantics for anything that isn't a bare wrap point) while allowing the browser to wrap between
-        // the per-character `inline-block` spans below at the container's own width.
-        <span style={{ ...style, whiteSpace: 'pre-wrap' }}>
-            {text.split('').map((ch, i) => (
-                // eslint-disable-next-line react/no-array-index-key -- static per-render character list, index is stable identity here
-                <span key={i} ref={(el) => { spanRefs.current[i] = el; }} style={{ display: 'inline-block' }}>
-                    {ch}
-                </span>
-            ))}
+        <span style={{ ...style, whiteSpace: 'pre-wrap', overflowWrap: 'normal', wordBreak: 'keep-all' }}>
+            {text.split(/(\s+)/).map((tok, ti) => {
+                if (tok === '') return null;
+                // eslint-disable-next-line react/no-array-index-key -- static split, index is stable identity
+                if (/\s/.test(tok)) return <React.Fragment key={`s${ti}`}>{tok}</React.Fragment>;
+                return (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <span key={`w${ti}`} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                        {tok.split('').map(charSpan)}
+                    </span>
+                );
+            })}
         </span>
     );
 }

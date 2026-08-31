@@ -14,8 +14,10 @@ const TrebleSettings = ({
   setTheme,
   generateChords,
   playbackConfig,
-  noteColoringMode,
-  setNoteColoringMode,
+  colorScheme,
+  colorScope,
+  setColorScheme,
+  setColorScope,
   activeTonic,
 }) => {
   const [heat, setHeat] = useState(50);
@@ -49,8 +51,10 @@ const TrebleSettings = ({
             setSettings={setTrebleInstrumentSettings}
             tonic={activeTonic}
             activeClef="treble"
-            noteColoringMode={noteColoringMode}
-            setNoteColoringMode={setNoteColoringMode}
+            colorScheme={colorScheme}
+            colorScope={colorScope}
+            setColorScheme={setColorScheme}
+            setColorScope={setColorScope}
           />
         </div>
         <div>
@@ -59,8 +63,10 @@ const TrebleSettings = ({
             setSettings={setBassInstrumentSettings}
             tonic={activeTonic}
             activeClef="bass"
-            noteColoringMode={noteColoringMode}
-            setNoteColoringMode={setNoteColoringMode}
+            colorScheme={colorScheme}
+            colorScope={colorScope}
+            setColorScheme={setColorScheme}
+            setColorScope={setColorScope}
           />
         </div>
       </div>

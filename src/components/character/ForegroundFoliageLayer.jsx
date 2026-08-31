@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import logger from '../../utils/logger';
+import useFrameLoop from '../../hooks/useFrameLoop';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
 
 // #141 (Han 2026-08-05, Factorio-style tree/grass wind-shimmer, stage 1): the app's FIRST WebGL surface —
@@ -114,8 +115,11 @@ uniform float uSkewAmount;   // max whole-native-px horizontal shift at the inst
 // canopy + grass tufts only) since Han chose to apply it everywhere skew already applies.
 uniform float uStretchAmount; // max whole-native-px pull-toward-center at the instance's own left/right
                               // edge; 0 at the horizontal center, grows linearly outward
-// #925 follow-up (Han 2026-08-16): uEdgeLitOnly moved into the shared LIGHTING_PARAM_UNIFORMS_GLSL block
-// below (foliageLightingGLSL.js) — same declaration, now shared with LdtkLitGround.jsx's static shader.
+// #925 follow-up (Han 2026-08-16): uEdgeLitOnly briefly lived in the shared LIGHTING_PARAM_UNIFORMS_GLSL
+// block (foliageLightingGLSL.js); moved back to a local declaration in Fase 10b (see that uniform's own
+// declaration further down, and foliageLightingGLSL.js's own comment) — instancing needs it to become a
+// per-instance varying, which can't share a declaration with LdtkLitGround.jsx's plain per-draw-call
+// uniform of the same name.
 
 // #141 round 13 (Han: "ja graag [directional lighting]. ik ga hooguit 10 lichtbronnen in beeld hebben"):
 // generalized from 2 hardcoded named lights (wisp/hero) to a fixed-size array of up to MAX_LIGHTS — the
@@ -144,9 +148,11 @@ uniform float uHighlightStrength; // wind-wave highlight strength
 uniform int uWaveBlendMode;       // 0 Screen, 1 HSV Value/Hue boost, 2 Additive RGB, 3 plain Mix
 uniform int uWaveBlendMode2;      // round 12: averaged 50/50 with uWaveBlendMode's result
 // #925 follow-up (Han 2026-08-16): uLightRadius/uLightHeightRadius/uLightStrength/uHuePull/
-// uLightBlendMode(2)/uGlobalIllumination/uNormalStrength/uFlatIllumination/uEdgeLitOnly all moved into
-// the shared LIGHTING_PARAM_UNIFORMS_GLSL block (foliageLightingGLSL.js) — same declarations, now shared
-// verbatim with LdtkLitGround.jsx's static lighting shader (CLAUDE.md §6d). See that file for each dial's
+// uLightBlendMode(2)/uGlobalIllumination/uNormalStrength/uFlatIllumination all moved into the shared
+// LIGHTING_PARAM_UNIFORMS_GLSL block (foliageLightingGLSL.js) — same declarations, now shared verbatim
+// with LdtkLitGround.jsx's static lighting shader (CLAUDE.md §6d) — uEdgeLitOnly excepted, see its own
+// declaration further up (Fase 10b moved it back out, instancing-related, see foliageLightingGLSL.js's own
+// comment). See that file for each dial's
 // own history/reasoning (global illumination toward dark blue, normal-map-strength slider, flat
 // illumination, etc.) — unchanged here, just relocated.
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
@@ -157,6 +163,10 @@ ${LIGHTING_PARAM_UNIFORMS_GLSL}
 // no-op wherever the source art has no near-white pixels to begin with.
 uniform float uWhiteCapThreshold;   // diffuse luminance above which the cap starts kicking in (0..1)
 uniform float uWhiteCapStrength;    // 0 = no effect, 1 = fully pulled to pure white at max luminance
+// Perf (#1162, Fase 10b): declared locally now — edgeLightFactor (foliageLightingGLSL.js) takes this as
+// an explicit parameter instead of reading a shared global by name (see that file's own comment). This
+// instance-varying int, unchanged from before that refactor.
+uniform int uEdgeLitOnly;
 
 const float GRAIN_CELL = 1.0;     // native-px grain size — not yet exposed to the debug panel
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
@@ -424,7 +434,7 @@ void main() {
     vec4 diffuse = texture2D(uDiffuse, duv);
     if (uInstanceKind == 0 && diffuse.a < 0.5) discard;
 
-    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize);
+    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, float(uEdgeLitOnly));
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -493,6 +503,251 @@ void main() {
 }
 `;
 
+// #1162 Fase 10c (docs/architecture.md §339/§340): the instanced draw path, moved here from
+// FoliageInstancingTest.jsx (the isolated proving ground — see that file's own header comment, kept
+// around as a debug tool per Han's own call) once verified working end to end. Renders atlas-backed
+// instances — currently LDtk-mode foliage only (`useLdtkFoliageAtlas.js`); Legacy mode and water instances
+// still go through the ORIGINAL per-instance loop below, completely unchanged.
+//
+// Per-instance data layout (5 vec4 attributes — packs the ~18 values that vary per instance in the OLD
+// per-instance-uniform loop; everything that's actually a shared debug-panel dial (uSkewAmount/
+// uStretchAmount/uWaveSteps/etc.) stays a plain per-draw-call uniform, unchanged, since those are already
+// identical across every instance even in the old loop — confirmed by re-reading the old loop's exact
+// gl.uniform* calls before writing this, not assumed):
+//   aInstance0 = (screenX, screenY, sizePxX, sizePxY)
+//   aInstance1 = (diffuseU0, diffuseV0, diffuseU1, diffuseV1)   — the atlas UV rect
+//   aInstance2 = (worldCenterX, worldWidth, worldHeight, groundDistOffset)
+//   aInstance3 = (instanceKind, hasWave, hasSkew, edgeLitOnly)  — 0.0/1.0 floats, GLSL ES 1.00 varyings can't be int
+//   aInstance4 = (whiteCapThreshold, whiteCapStrength, 0, 0)
+const VERTEX_SRC_INSTANCED = `
+attribute vec2 aPos;
+attribute vec4 aInstance0;
+attribute vec4 aInstance1;
+attribute vec4 aInstance2;
+attribute vec4 aInstance3;
+attribute vec4 aInstance4;
+uniform highp vec2 uCanvasSize;
+varying vec2 vUV;
+varying highp vec2 vScreenPos;
+varying highp vec2 vSizePx;
+varying vec4 vDiffuseUV;
+varying float vWorldCenterX;
+varying float vWorldWidth;
+varying float vWorldHeight;
+varying float vGroundDistOffset;
+varying float vInstanceKind;
+varying float vHasWave;
+varying float vHasSkew;
+varying float vEdgeLitOnly;
+varying float vWhiteCapThreshold;
+varying float vWhiteCapStrength;
+void main() {
+    vec2 screenPos = aInstance0.xy;
+    vec2 sizePx = aInstance0.zw;
+    vUV = vec2(aPos.x, 1.0 - aPos.y);
+    vec2 px = screenPos + vec2((aPos.x - 0.5) * sizePx.x, -aPos.y * sizePx.y);
+    vec2 clip = (px / uCanvasSize) * 2.0 - 1.0;
+    gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+
+    vScreenPos = screenPos;
+    vSizePx = sizePx;
+    vDiffuseUV = aInstance1;
+    vWorldCenterX = aInstance2.x;
+    vWorldWidth = aInstance2.y;
+    vWorldHeight = aInstance2.z;
+    vGroundDistOffset = aInstance2.w;
+    vInstanceKind = aInstance3.x;
+    vHasWave = aInstance3.y;
+    vHasSkew = aInstance3.z;
+    vEdgeLitOnly = aInstance3.w;
+    vWhiteCapThreshold = aInstance4.x;
+    vWhiteCapStrength = aInstance4.y;
+}
+`;
+
+// Fragment shader: line-for-line the SAME math as VERTEX_SRC/FRAGMENT_SRC above's main() (#141's many
+// tuning rounds — see that shader for the full history of every constant/formula below), with ONLY the
+// per-instance uniform reads swapped for the varyings the vertex shader above now feeds. The int
+// comparisons (uInstanceKind == 0 etc.) become float threshold checks (vInstanceKind < 0.5) since
+// varyings can't be int. gl_FragCoord-based derivation is intentionally UNCHANGED — see §339 for why
+// that's still safe with per-instance varyings (bit-identical at all 4 quad corners, so GPU interpolation
+// introduces no precision loss the way a genuinely-varying UV like vUV.x would).
+const FRAGMENT_SRC_INSTANCED = `
+precision mediump float;
+varying vec2 vUV;
+uniform sampler2D uDiffuse;
+uniform sampler2D uNormal;
+varying highp vec2 vScreenPos;
+varying highp vec2 vSizePx;
+uniform highp vec2 uCanvasSize;
+uniform float uTime;
+varying vec4 vDiffuseUV;
+varying float vWorldCenterX;
+varying float vWorldWidth;
+varying float vWorldHeight;
+varying float vGroundDistOffset;
+uniform int uDebugChannel;
+varying float vInstanceKind;
+varying float vHasWave;
+varying float vHasSkew;
+varying float vEdgeLitOnly;
+uniform float uSkewAmount;
+uniform float uStretchAmount;
+${LIGHT_UNIFORMS_GLSL}
+uniform float uNoiseScale;
+uniform float uWaveSpeed;
+uniform float uNoiseScaleB;
+uniform float uWaveSpeedB;
+uniform float uWaveSteps;
+uniform float uDitherAmount;
+uniform float uHighlightStrength;
+uniform int uWaveBlendMode;
+uniform int uWaveBlendMode2;
+${LIGHTING_PARAM_UNIFORMS_GLSL}
+varying float vWhiteCapThreshold;
+varying float vWhiteCapStrength;
+
+const float GRAIN_CELL = 1.0;
+const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
+
+float hash21(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float valueNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+float blotchNoise(vec2 p) {
+    return valueNoise(p) * 0.6 + valueNoise(p * 2.1 + 19.0) * 0.4;
+}
+float computeWave01(float worldX, float groundDist, float phaseOffset) {
+    float wrappedX = mod(worldX + 10000.0, 4000.0);
+    vec2 pA = vec2(wrappedX + phaseOffset, groundDist) * uNoiseScale;
+    pA.x -= uTime * uWaveSpeed;
+    float waveA = blotchNoise(pA);
+    vec2 pB = vec2(wrappedX + phaseOffset, groundDist) * uNoiseScaleB + vec2(53.7, 91.3);
+    pB.x += uTime * uWaveSpeedB;
+    float waveB = blotchNoise(pB);
+    return (waveA + waveB) * 0.5;
+}
+float quantizeWave(float wave01, float worldX, float groundDist) {
+    float wrappedX = mod(worldX + 10000.0, 4000.0);
+    vec2 grainCoord = floor(vec2(wrappedX, groundDist) / GRAIN_CELL);
+    float grain = hash21(grainCoord) - 0.5;
+    float waveDithered = clamp(wave01 + grain * uDitherAmount, 0.0, 1.0);
+    return floor(waveDithered * uWaveSteps) / max(uWaveSteps - 1.0, 1.0);
+}
+${LIGHTING_FUNCTIONS_GLSL}
+vec3 blendHighlight(vec3 base, vec3 tintColor, float waveQuant, float strengthScale, int mode) {
+    float strength = waveQuant * strengthScale;
+    if (mode == 0) return screenBlend(base, tintColor * strength);
+    if (mode == 2) return clamp(base + tintColor * strength, 0.0, 1.0);
+    if (mode == 3) return mix(base, tintColor, clamp(strength, 0.0, 1.0));
+    if (mode == 1) {
+        float swing = (waveQuant - 0.5) * 2.0 * strengthScale;
+        vec3 hsv = rgb2hsv(base);
+        hsv.z = clamp(hsv.z + swing, 0.0, 1.0);
+        return hsv2rgb(hsv);
+    }
+    return mix(base, compositeBlend(base, tintColor, mode), clamp(strength, 0.0, 1.0));
+}
+vec3 blendHighlightDual(vec3 base, vec3 tintColor, float waveQuant, float strengthScale, int modeA, int modeB) {
+    vec3 a = blendHighlight(base, tintColor, waveQuant, strengthScale, modeA);
+    vec3 b = blendHighlight(base, tintColor, waveQuant, strengthScale, modeB);
+    return mix(a, b, 0.5);
+}
+
+void main() {
+    float localXPx = gl_FragCoord.x - (vScreenPos.x - vSizePx.x * 0.5);
+    float pxPerNativeX = max(vSizePx.x / vWorldWidth, 0.0001);
+    float nativeX = clamp(floor(localXPx / pxPerNativeX), 0.0, vWorldWidth - 1.0);
+    float stableUVx = (nativeX + 0.5) / vWorldWidth;
+
+    float worldX = vWorldCenterX + (stableUVx - 0.5) * vWorldWidth;
+
+    float pxTopEdgeY = vScreenPos.y - vSizePx.y;
+    float localYPx = (uCanvasSize.y - gl_FragCoord.y) - pxTopEdgeY;
+    float pxPerNativeY = max(vSizePx.y / vWorldHeight, 0.0001);
+    float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
+    float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
+    vec2 texelSize = vec2((vDiffuseUV.z - vDiffuseUV.x) / vWorldWidth, (vDiffuseUV.w - vDiffuseUV.y) / vWorldHeight);
+
+    bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
+    float wave01 = 0.0;
+    if (wantsWave) wave01 = computeWave01(worldX, groundDist, 0.0);
+
+    float skewShiftPx = 0.0;
+    float stretchShiftPx = 0.0;
+    if (vHasSkew > 0.5 && wantsWave) {
+        const float SKEW_CONTRAST = 5.0;
+        float sway = clamp((wave01 - 0.5) * SKEW_CONTRAST, -1.0, 1.0);
+        float heightRatio = clamp(groundDist / vWorldHeight, 0.0, 1.0);
+        skewShiftPx = floor(sway * heightRatio * heightRatio * uSkewAmount + 0.5);
+
+        float offsetFromCenterPx = (stableUVx - 0.5) * vWorldWidth;
+        float halfWidthPx = max(vWorldWidth * 0.5, 1.0);
+        stretchShiftPx = floor((-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount + 0.5);
+    }
+    float totalShiftPx = skewShiftPx + stretchShiftPx;
+
+    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    vec2 duv = vec2(
+        mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
+        mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
+    );
+    vec2 normalUV = vec2(
+        clamp((shiftedNativeX + 0.5) / vWorldWidth, 0.0, 1.0),
+        clamp((nativeY + 0.5) / vWorldHeight, 0.0, 1.0)
+    );
+
+    vec4 diffuse = texture2D(uDiffuse, duv);
+    if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
+
+    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, vEdgeLitOnly);
+
+    if (uDebugChannel == 1) {
+        gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
+        return;
+    }
+
+    vec3 sampledNormal = normalize(texture2D(uNormal, normalUV).rgb * 2.0 - 1.0);
+    vec3 n = (vInstanceKind > 0.5) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
+
+    vec3 trueColor = diffuse.rgb;
+    if (vHasWave > 0.5 && wantsWave) {
+        float waveQuant = quantizeWave(wave01, worldX, groundDist);
+        if (uDebugChannel == 2) {
+            gl_FragColor = vec4(vec3(waveQuant), 1.0);
+            return;
+        }
+        vec3 ambientLight = normalize(vec3(0.0, 0.5, 0.8));
+        float ambientNdotl = max(dot(n, ambientLight), 0.0);
+        float ambientWeight = (vInstanceKind > 0.5) ? (0.6 + 0.4 * ambientNdotl) : (0.4 + 0.6 * ambientNdotl);
+        float strengthScale = uHighlightStrength * ambientWeight;
+        trueColor = blendHighlightDual(diffuse.rgb, HIGHLIGHT_COLOR, waveQuant, strengthScale, uWaveBlendMode, uWaveBlendMode2);
+
+        if (waveQuant > vWhiteCapThreshold) {
+            float capMix = clamp((waveQuant - vWhiteCapThreshold) / max(1.0 - vWhiteCapThreshold, 0.0001), 0.0, 1.0) * vWhiteCapStrength;
+            trueColor = mix(trueColor, vec3(1.0), capMix);
+        }
+    } else if (uDebugChannel == 2) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
+    vec3 darkened = trueColor * ambientTint;
+    vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    gl_FragColor = vec4(lit, diffuse.a);
+}
+`;
+
 function compileShader(gl, type, src) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, src);
@@ -505,9 +760,12 @@ function compileShader(gl, type, src) {
     return shader;
 }
 
-function createProgram(gl) {
-    const vs = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SRC);
-    const fs = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SRC);
+// Perf (#1162, Fase 10c): takes explicit sources (was hardcoded to VERTEX_SRC/FRAGMENT_SRC) so the SAME
+// helper compiles both the original per-instance program and the new instanced one below, without
+// duplicating this function.
+function createProgram(gl, vertexSrc, fragmentSrc) {
+    const vs = compileShader(gl, gl.VERTEX_SHADER, vertexSrc);
+    const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSrc);
     const program = gl.createProgram();
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
@@ -659,19 +917,63 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     waterWhiteCapStrength: 0.85,
 };
 
-export default function ForegroundFoliageLayer({
+// Perf (#1162, Fase 2b): a `{ current: 0 }`-shaped fallback for `cameraOffsetRef` — Legacy-mode call sites
+// don't pass one (their `instances` still bake full camera-aware `screenX` the old way, same as always),
+// so adding 0 is a genuine no-op there rather than requiring every caller to thread a ref through.
+const ZERO_OFFSET_REF = { current: 0 };
+
+function ForegroundFoliageLayer({
     widthPx, heightPx, instances, debugChannel = 0, lights = [],
     params = DEFAULT_FOLIAGE_PARAMS,
+    // Perf (#1162, Fase 2b, Han 2026-08-27, "doe ook fase 2 maar!"): the WebGL-instance-layer counterpart
+    // to §321's CSS-transform wrappers. `instances[].screenX` is LOCAL/camera-independent when this is
+    // set (RpgLevelPanel's LDtk-mode call sites); `cameraOffsetRef.current` — written imperatively every
+    // rAF frame by the SAME camera loop that already drives the CSS wrappers — is added directly inside
+    // THIS component's own already-continuously-running draw loop (see `uScreenPos`'s own comment there),
+    // so camera panning no longer needs a React re-render (or even a prop change) to stay in sync.
+    cameraOffsetRef = ZERO_OFFSET_REF,
+    // Perf (#1162, Fase 10c, docs/architecture.md §340): `atlas` (the shared `{diffuseCanvas, normalCanvas}`
+    // pair `useLdtkFoliageAtlas.js` builds) and `atlasInstances` (instances already carrying an atlas UV
+    // rect instead of their own `diffuseUrl`/`normalUrl`) drive a SEPARATE instanced draw pass, additive to
+    // the original per-instance loop above — LDtk-mode foliage moves through this new path; Legacy mode and
+    // water instances keep going through `instances`/the original loop, completely unchanged. `atlas` is
+    // `null` while the atlas hasn't built yet (or the caller doesn't use one, e.g. Legacy mode) — the
+    // instanced pass is simply skipped in that case, same "nothing to draw yet" tolerance every other
+    // texture-loading path in this file already has.
+    atlas = null,
+    atlasInstances = [],
 }) {
     const canvasRef = useRef(null);
     const instancesRef = useRef(instances);
     instancesRef.current = instances;
+    const atlasInstancesRef = useRef(atlasInstances);
+    atlasInstancesRef.current = atlasInstances;
     const debugChannelRef = useRef(debugChannel);
     debugChannelRef.current = debugChannel;
     const lightsRef = useRef(lights);
     lightsRef.current = lights;
     const paramsRef = useRef(params);
     paramsRef.current = params;
+    // Perf (#1162, Fase 10c): the atlas's two textures are uploaded to the GPU in their OWN effect, keyed
+    // on `atlas` identity — separate from the GL-CONTEXT-setup effect below (which only runs once), since
+    // the atlas itself can change identity multiple times as `useLdtkFoliageAtlas.js` publishes incremental
+    // batches. Mirrors `LdtkLitGround.jsx`'s own "textures re-uploaded only when the composited canvases
+    // themselves change" pattern.
+    const atlasTexRef = useRef({ diffuse: null, normal: null });
+    // Perf (#1162, Fase 10c): holds the live WebGL context so the atlas-texture-upload effect below (keyed
+    // on `atlas`, separate from the GL-setup effect which only runs once) can reach it — same `glRef`
+    // pattern `LdtkLitGround.jsx` already established for its own textures-change-independently-of-GL-setup
+    // case.
+    const glRef = useRef(null);
+    // Perf (#1162, Fase 9, docs/architecture.md §331): holds the current `drawFrame` closure so the
+    // separate `useFrameLoop` subscription below (top-level, can't live inside the GL-setup effect) can
+    // call into it without hoisting every local GL variable out to its own ref. `drawingRef` guards against
+    // the shared ticker starting a NEW draw while a previous ASYNC one (awaiting texture loads) is still
+    // in flight — `drawFrame` is `async`, unlike LdtkLitGround's synchronous one, so this guard is the one
+    // real difference from that migration; see this component's own `useFrameLoop` call for the full
+    // rationale.
+    const drawFrameRef = useRef(null);
+    const drawingRef = useRef(false);
 
     // Backing-store size tracks the container's own resize (RpgLevelPanel's ResizeObserver) independently
     // of GL context setup below — resizing a canvas element never invalidates its WebGL context/resources,
@@ -696,6 +998,7 @@ export default function ForegroundFoliageLayer({
             logger.warn('ForegroundFoliageLayer', 'WebGL unavailable — tree/grass shimmer disabled');
             return undefined;
         }
+        glRef.current = gl;
         // CORRECTION (Han caught this in review — foliage rendered upside down, and grass sampled the wrong
         // sheet row entirely): WebGL's DEFAULT (no flip) upload already stores an image's row 0 — its
         // visual TOP row — at texel v=0, which is exactly the top-left-origin convention `diffuseUV`/`vUV`
@@ -708,7 +1011,7 @@ export default function ForegroundFoliageLayer({
 
         let program;
         try {
-            program = createProgram(gl);
+            program = createProgram(gl, VERTEX_SRC, FRAGMENT_SRC);
         } catch (err) {
             logger.error('ForegroundFoliageLayer', 'E021-FOLIAGE-SHADER-COMPILE', err);
             return undefined;
@@ -765,6 +1068,44 @@ export default function ForegroundFoliageLayer({
         const uWhiteCapThreshold = gl.getUniformLocation(program, 'uWhiteCapThreshold');
         const uWhiteCapStrength = gl.getUniformLocation(program, 'uWhiteCapStrength');
 
+        // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): the instanced program is compiled
+        // ADDITIONALLY, alongside the original per-instance `program` above — both stay live for the whole
+        // component lifetime, since Legacy-mode instances (`instances` prop) keep using the original path
+        // every frame while LDtk-mode atlas instances (`atlasInstances` prop) use this one. `ANGLE_instanced_
+        // arrays` unavailability is treated the same as "WebGL unavailable" elsewhere in this file (§7a
+        // system-boundary tolerance) — the instanced pass is simply skipped (`instExt` stays null, checked
+        // in `drawFrame` below) rather than crashing the whole layer; the original per-instance path is
+        // unaffected either way.
+        const instExt = gl.getExtension('ANGLE_instanced_arrays');
+        let instProgram = null;
+        let instLocs = null;
+        let instanceBuf = null;
+        if (instExt) {
+            try {
+                instProgram = createProgram(gl, VERTEX_SRC_INSTANCED, FRAGMENT_SRC_INSTANCED);
+            } catch (err) {
+                logger.error('ForegroundFoliageLayer', 'E021-FOLIAGE-SHADER-COMPILE', err);
+                instProgram = null;
+            }
+        }
+        if (instProgram) {
+            const instAPos = gl.getAttribLocation(instProgram, 'aPos');
+            instanceBuf = gl.createBuffer();
+            // Per-instance attribute locations — 5 vec4's packed into one interleaved buffer (layout
+            // documented at VERTEX_SRC_INSTANCED's own header comment above). `divisor=1` (set once here,
+            // not per-frame) makes each attribute advance once per INSTANCE instead of once per VERTEX.
+            const instAInstanceLocs = [0, 1, 2, 3, 4].map((i) => gl.getAttribLocation(instProgram, `aInstance${i}`));
+            const instUniforms = {};
+            ['uDiffuse', 'uNormal', 'uCanvasSize', 'uTime', 'uDebugChannel', 'uSkewAmount', 'uStretchAmount',
+                'uLightCount', 'uLightWorldX', 'uLightWorldHeight', 'uLightColor',
+                'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
+                'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
+                'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
+                'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination',
+            ].forEach((name) => { instUniforms[name] = gl.getUniformLocation(instProgram, name); });
+            instLocs = { aPos: instAPos, aInstance: instAInstanceLocs, uniforms: instUniforms };
+        }
+
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -815,25 +1156,26 @@ export default function ForegroundFoliageLayer({
         const lightWorldHeightBuf = new Float32Array(MAX_LIGHTS);
         const lightColorBuf = new Float32Array(MAX_LIGHTS * 3);
 
-        let raf;
         const startTime = performance.now();
         // #141 round 21 CRITICAL BUG FIX, defense-in-depth (Han: "dit is een critical bug"): the texture-
         // load fix above (see getTexture's own comment) addresses the ROOT CAUSE Han actually hit, but this
         // try/catch/finally is the general guarantee — NOTHING that can go wrong inside a single frame
         // (a WebGL call on a lost context, a future bug, anything) should ever be able to permanently kill
-        // the shared render loop again. `raf = requestAnimationFrame(draw)` now lives in `finally`, so it
-        // ALWAYS runs (unless the effect's own cleanup already set `cancelled`) regardless of what happened
-        // this frame — worst case, one frame renders wrong; the loop itself never dies.
-        const draw = async () => {
+        // the shared render loop again.
+        // Perf (#1162, Fase 9): the scheduling wrapper this used to be (`draw`, calling itself via
+        // `requestAnimationFrame` in `finally`) moved to the `useFrameLoop` subscription below — this
+        // function is now just "run one frame", invoked BY that subscription's own in-flight guard
+        // (`drawingRef`), which replaces what the old `raf = requestAnimationFrame(draw)`-in-`finally`
+        // achieved (never starting a new frame while the previous async one is still awaiting textures).
+        const runOneDrawFrame = async () => {
             if (cancelled) return;
             try {
                 await drawFrame();
             } catch (err) {
                 logger.error('ForegroundFoliageLayer', 'E023-FOLIAGE-DRAW-FRAME', err);
-            } finally {
-                if (!cancelled) raf = requestAnimationFrame(draw);
             }
         };
+        drawFrameRef.current = runOneDrawFrame;
         const drawFrame = async () => {
             const time = (performance.now() - startTime) / 1000;
             gl.viewport(0, 0, canvas.width, canvas.height);
@@ -880,7 +1222,18 @@ export default function ForegroundFoliageLayer({
             // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
             // per-instance-only (water exclusive), see the draw loop below.
 
+            // Perf (#1162, Fase 2b): viewport culling — previously done once per React render in
+            // RpgLevelPanel.jsx (`cullToViewport`, camera-aware, so it had to re-run on every panning
+            // frame there too); now redone HERE, every draw-loop frame, against the LIVE camera offset —
+            // consistent with `instances` itself now arriving un-culled/camera-independent from the
+            // caller (see `cameraOffsetRef`'s own comment). Same margin RpgLevelPanel's own
+            // `CULL_MARGIN_PX` used, kept in sync manually (no shared import — this file has no existing
+            // dependency on RpgLevelPanel.jsx and shouldn't gain one for one constant).
+            const camOffsetPx = cameraOffsetRef.current;
+            const cullMinX = -400, cullMaxX = (canvas.width / dpr) + 400;
             for (const inst of instancesRef.current) {
+                const screenX = inst.screenX + camOffsetPx;
+                if (screenX < cullMinX || screenX > cullMaxX) continue;
                 const diffuseTex = await getTexture(inst.diffuseUrl);
                 const normalTex = await getTexture(inst.normalUrl);
                 if (!diffuseTex || !normalTex || cancelled) continue;
@@ -892,8 +1245,17 @@ export default function ForegroundFoliageLayer({
                 gl.bindTexture(gl.TEXTURE_2D, normalTex);
                 gl.uniform1i(uNormal, 1);
 
-                gl.uniform2f(uScreenPos, inst.screenX * dpr, inst.screenY * dpr);
-                gl.uniform2f(uSizePx, inst.widthPx * dpr, inst.heightPx * dpr);
+                // Perf (#1162, Fase 2b, Han 2026-08-27, "doe ook fase 2 maar!"): `screenX` (computed just
+                // above, for culling) already has the live camera offset folded in — see this component's
+                // own `cameraOffsetRef` prop comment for the full rationale. No shader/GLSL change needed,
+                // `uScreenPos` was already just "the final on-screen pixel position" either way.
+                // #UI-overhaul Stap 3 (Han 2026-08-27, §327 finding 2): snap the quad's screen origin
+                // and size to whole DEVICE pixels. `screenX` carries a continuous camera offset and
+                // `dpr` is often fractional (e.g. 2.625) — without rounding, the shader's
+                // gl_FragCoord-derived native-pixel column boundaries drift by a sub-pixel each frame
+                // as the camera pans, which reads as pixel "swimming"/shimmer even at an integer zoom.
+                gl.uniform2f(uScreenPos, Math.round(screenX * dpr), Math.round(inst.screenY * dpr));
+                gl.uniform2f(uSizePx, Math.round(inst.widthPx * dpr), Math.round(inst.heightPx * dpr));
                 gl.uniform4f(uDiffuseUV, ...inst.diffuseUV);
                 gl.uniform1f(uWorldCenterX, inst.worldX);
                 gl.uniform1f(uWorldWidth, inst.worldWidth);
@@ -915,12 +1277,104 @@ export default function ForegroundFoliageLayer({
                 gl.uniform1i(uEdgeLitOnly, inst.edgeLitOnly ? 1 : 0);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             }
-        };
-        raf = requestAnimationFrame(draw);
 
+            // Perf (#1162, Fase 10c): the new instanced pass — ADDITIVE to the per-instance loop above, not
+            // a replacement (Legacy mode and water instances still arrive via `instances`/the loop above;
+            // only LDtk-mode foliage arrives via `atlasInstances`, see this component's own prop comment).
+            // Skips cleanly if the atlas hasn't uploaded its textures yet, there's nothing to draw, or the
+            // instancing extension/program failed to set up (`instProgram`/`instExt` null) — same "nothing
+            // to draw yet" tolerance as every other texture-loading path in this file.
+            const atlasTex = atlasTexRef.current;
+            const visibleAtlas = instProgram && instExt && atlasTex.diffuse && atlasTex.normal
+                ? atlasInstancesRef.current.filter((inst) => {
+                    const screenX = inst.screenX + camOffsetPx;
+                    return screenX >= cullMinX && screenX <= cullMaxX;
+                })
+                : [];
+            if (visibleAtlas.length > 0) {
+                gl.useProgram(instProgram);
+                const { aPos: iAPos, aInstance: iAInstance, uniforms: iu } = instLocs;
+
+                gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+                gl.enableVertexAttribArray(iAPos);
+                gl.vertexAttribPointer(iAPos, 2, gl.FLOAT, false, 0, 0);
+
+                const FLOATS_PER_INSTANCE = 20; // 5 vec4's — see VERTEX_SRC_INSTANCED's layout comment
+                const data = new Float32Array(visibleAtlas.length * FLOATS_PER_INSTANCE);
+                visibleAtlas.forEach((inst, i) => {
+                    const off = i * FLOATS_PER_INSTANCE;
+                    const screenX = inst.screenX + camOffsetPx;
+                    // Same integer-device-pixel snap as the per-instance loop above (#UI-overhaul Stap 3,
+                    // §327 finding 2) — required for identical pixel-swimming behavior between both paths.
+                    data.set([Math.round(screenX * dpr), Math.round(inst.screenY * dpr), Math.round(inst.widthPx * dpr), Math.round(inst.heightPx * dpr)], off);
+                    data.set(inst.diffuseUV, off + 4);
+                    data.set([inst.worldX, inst.worldWidth, inst.worldHeight, inst.groundDistOffset || 0], off + 8);
+                    data.set([inst.kind === 'floor' ? 1 : 0, inst.wave === false ? 0 : 1, inst.skew ? 1 : 0, inst.edgeLitOnly ? 1 : 0], off + 12);
+                    data.set([inst.isWater ? p.waterWhiteCapThreshold : 1.0, inst.isWater ? p.waterWhiteCapStrength : 0.0, 0, 0], off + 16);
+                });
+
+                gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
+                gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+                const STRIDE = FLOATS_PER_INSTANCE * 4;
+                iAInstance.forEach((loc, i) => {
+                    gl.enableVertexAttribArray(loc);
+                    gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, STRIDE, i * 16);
+                    instExt.vertexAttribDivisorANGLE(loc, 1);
+                });
+
+                gl.uniform2f(iu.uCanvasSize, canvas.width, canvas.height);
+                gl.uniform1f(iu.uTime, time);
+                gl.uniform1i(iu.uDebugChannel, debugChannelRef.current);
+                gl.uniform1f(iu.uSkewAmount, p.skewAmount);
+                gl.uniform1f(iu.uStretchAmount, p.stretchAmount);
+                gl.uniform1i(iu.uLightCount, activeLights.length);
+                gl.uniform1fv(iu.uLightWorldX, lightWorldXBuf);
+                gl.uniform1fv(iu.uLightWorldHeight, lightWorldHeightBuf);
+                gl.uniform3fv(iu.uLightColor, lightColorBuf);
+                gl.uniform1f(iu.uNoiseScale, p.noiseScale);
+                gl.uniform1f(iu.uWaveSpeed, p.waveSpeed);
+                gl.uniform1f(iu.uNoiseScaleB, p.noiseScaleB);
+                gl.uniform1f(iu.uWaveSpeedB, p.waveSpeedB);
+                gl.uniform1f(iu.uWaveSteps, p.waveSteps);
+                gl.uniform1f(iu.uDitherAmount, p.ditherAmount);
+                gl.uniform1f(iu.uHighlightStrength, p.highlightStrength);
+                gl.uniform1i(iu.uWaveBlendMode, p.waveBlendMode);
+                gl.uniform1i(iu.uWaveBlendMode2, p.waveBlendMode2);
+                gl.uniform1f(iu.uLightRadius, p.lightRadius);
+                gl.uniform1f(iu.uLightHeightRadius, p.lightHeightRadius);
+                gl.uniform1f(iu.uLightStrength, p.lightStrength);
+                gl.uniform1f(iu.uHuePull, p.huePull);
+                gl.uniform1i(iu.uLightBlendMode, p.lightBlendMode);
+                gl.uniform1i(iu.uLightBlendMode2, p.lightBlendMode2);
+                gl.uniform1f(iu.uGlobalIllumination, p.globalIllumination);
+                gl.uniform1f(iu.uNormalStrength, p.normalStrength);
+                gl.uniform1f(iu.uFlatIllumination, p.flatIllumination);
+
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);
+                gl.uniform1i(iu.uDiffuse, 0);
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_2D, atlasTex.normal);
+                gl.uniform1i(iu.uNormal, 1);
+
+                // ONE draw call for the whole visible atlas-backed set — this is the entire point of Fase
+                // 10c: replaces what would otherwise be `visibleAtlas.length` separate `gl.drawArrays` +
+                // ~17 `gl.uniform*` calls each (the exact per-instance WebGL-API overhead §328's real-
+                // hardware trace pointed at).
+                instExt.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, visibleAtlas.length);
+
+                // Restore the per-instance program's `aPos` binding for the NEXT frame's per-instance loop
+                // (which reuses `quadBuf`/`aPos` from the original program — switching `gl.useProgram` back
+                // is enough; vertex attribute state is per-context, not per-program, but `aPos`'s divisor
+                // must be reset to 0 since only the instanced attributes above should ever advance per-
+                // instance).
+                gl.useProgram(program);
+                iAInstance.forEach((loc) => { instExt.vertexAttribDivisorANGLE(loc, 0); gl.disableVertexAttribArray(loc); });
+            }
+        };
         return () => {
             cancelled = true;
-            if (raf) cancelAnimationFrame(raf);
+            drawFrameRef.current = null;
         };
         // #141 round 24 CRITICAL REGRESSION FIX (Han's console log: "E021-FOLIAGE-SHADER-COMPILE Error:
         // null" from compileShader, on every load): round 22 added an explicit `WEBGL_lose_context.
@@ -939,6 +1393,38 @@ export default function ForegroundFoliageLayer({
         // eslint-disable-next-line react-hooks/exhaustive-deps -- gl setup runs once; instances read live via instancesRef
     }, []);
 
+    // Perf (#1162, Fase 10c): the atlas's two textures re-upload whenever `atlas` itself changes identity
+    // (built once, then republished incrementally as `useLdtkFoliageAtlas.js` finishes more idle-callback
+    // batches — see that hook's own comment). Old textures are deleted on cleanup so a fast sequence of
+    // incremental atlas updates doesn't leak GPU texture memory.
+    useEffect(() => {
+        const gl = glRef.current;
+        if (!gl || !atlas) return undefined;
+        const diffuseTex = createTexture(gl, atlas.diffuseCanvas);
+        const normalTex = createTexture(gl, atlas.normalCanvas);
+        atlasTexRef.current = { diffuse: diffuseTex, normal: normalTex };
+        return () => {
+            gl.deleteTexture(diffuseTex);
+            gl.deleteTexture(normalTex);
+            atlasTexRef.current = { diffuse: null, normal: null };
+        };
+    }, [atlas]);
+
+    // Perf (#1162, Fase 9, docs/architecture.md §331): migrated onto the shared `useFrameLoop` ticker.
+    // `drawingRef` is the whole reason this migration needed more than a mechanical swap (unlike
+    // LdtkLitGround's synchronous draw): `runOneDrawFrame` is `async` (awaits texture loads per instance),
+    // and the OLD scheduling only ever requested its NEXT frame from inside `finally`, AFTER the current
+    // one fully resolved — so it could never overlap with itself. A shared ticker calls every subscriber
+    // EVERY tick regardless of whether a previous call is still pending, so without this guard a slow
+    // texture load could cause two `runOneDrawFrame()` invocations to run concurrently, interleaving WebGL
+    // calls against the same GL state — a real correctness risk, not just a perf one. The guard reproduces
+    // the exact old behavior: skip this tick entirely if the previous draw hasn't finished yet.
+    useFrameLoop(() => {
+        if (drawingRef.current || !drawFrameRef.current) return;
+        drawingRef.current = true;
+        drawFrameRef.current().finally(() => { drawingRef.current = false; });
+    }, [], { priority: 'critical' });
+
     return (
         <canvas
             ref={canvasRef}
@@ -949,3 +1435,9 @@ export default function ForegroundFoliageLayer({
         />
     );
 }
+
+// Perf (#1161, Han 2026-08-27): doesn't depend on `petFrame` — `instances`/`lights`/`params` already flow
+// through live refs for the internal draw loop, but the React render itself ran on every `petFrame` tick
+// without this boundary. RpgLevelPanel.jsx's own `instances` prop used to be rebuilt as a fresh array every
+// single render (defeating this memo even once added) — fixed there via `useMemo`, see its own comment.
+export default React.memo(ForegroundFoliageLayer);

@@ -56,7 +56,7 @@ const PlaybackSettings = ({
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings,
     chordSettings, setChordSettings } = useInstrumentSettings();
-  const { setNoteColoringMode } = useDisplaySettings();
+  const { setColorScheme, setColorScope } = useDisplaySettings();
 
   const [activeRandTypeSelector, setActiveRandTypeSelector] = useState(null);
 
@@ -410,7 +410,8 @@ const PlaybackSettings = ({
         setBassSettings={setBassSettings}
         setPercussionSettings={setPercussionSettings}
         setChordSettings={setChordSettings}
-        setNoteColoringMode={setNoteColoringMode}
+        setColorScheme={setColorScheme}
+        setColorScope={setColorScope}
         setShowChordLabels={setShowChordLabels}
         setShowChordsOddRounds={setShowChordsOddRounds}
         setShowChordsEvenRounds={setShowChordsEvenRounds}

@@ -358,6 +358,34 @@ body {
   src: url('/src/assets/fonts/maestro.ttf') format('truetype');
 }
 
+/* Pixel fonts (Han 2026-08-27, world-mode bestiary — see docs/architecture.md §334). One family,
+   `'BestiaryPixel'`, split by style: normal = CelticTime (Han's chosen tag/button face), italic =
+   SandyForest, bold = Bitfantasy. So `font-family: 'BestiaryPixel'` renders regular text in
+   CelticTime and `<em>` / bold automatically pick the right face. 'Bitfantasy' is also registered
+   standalone (DialogueBox previously self-injected this @font-face). */
+@font-face {
+  font-family: 'BestiaryPixel';
+  font-weight: normal;
+  font-style: normal;
+  src: url('/src/assets/fonts/pixel_fonts/CelticTime.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'BestiaryPixel';
+  font-weight: normal;
+  font-style: italic;
+  src: url('/src/assets/fonts/pixel_fonts/SandyForest.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'BestiaryPixel';
+  font-weight: bold;
+  font-style: normal;
+  src: url('/src/assets/fonts/pixel_fonts/Bitfantasy.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Bitfantasy';
+  src: url('/src/assets/fonts/pixel_fonts/Bitfantasy.ttf') format('truetype');
+}
+
 /* Academico (Steinberg, SIL OFL) — the TEXT/NUMBER companion for the Maestro notation font
    (#494, Han 2026-07-19). Maestro stays for music glyphs ONLY (noteheads, clefs, repeat sign,
    time signatures); Academico renders numbers + text that must sit beside the notation and align

@@ -1,5 +1,11 @@
 import React from 'react';
 import { User, BarChart2, Shirt, BookOpen, Trees } from 'lucide-react';
+import { WheelIcon } from '../common/CustomIcons';
+
+// #352 (Han 2026-08-29): the "Scales" screen reuses the same wheel glyph the classic scale selector's
+// WHEEL layout toggle uses (§6d — one icon source). Wrapped so it takes `currentColor` from the
+// button's own active/inactive style like the lucide icons in this list do.
+const ScalesIcon = ({ size = 22 }) => <WheelIcon size={size} color="currentColor" />;
 
 // #667 (Han 2026-08-03, "de sub-header row krijgt nieuwe iconen, dus kunnen navigeren tussen avatar en
 // bestiary"): replaces the normal <SubHeader> row while avatar-context is active (screen is one of
@@ -13,11 +19,14 @@ import { User, BarChart2, Shirt, BookOpen, Trees } from 'lucide-react';
 // #691 (Han 2026-08-04, "maak een extra tab: 'rpg level'"): a 5th avatar-context screen, a dev/preview
 // tile-scene tab (Han's own framing when asked: "dev/preview tab naast Bestiary... nog niet gewired in
 // echte gameplay") — sits alongside Bestiary, not replacing anything.
-const SCREENS = [
+// Exported so WorldNavBar (#UI-overhaul Stap 1) can render the SAME 5 screen buttons inline in its
+// own flat row without re-declaring the list/icons (§6d — one source of truth for the screen set).
+export const SCREENS = [
     { key: 'character', label: 'Character', Icon: User },
     { key: 'stats', label: 'Stats', Icon: BarChart2 },
     { key: 'equipment', label: 'Equipment', Icon: Shirt },
     { key: 'bestiary', label: 'Bestiary', Icon: BookOpen },
+    { key: 'scales', label: 'Scales', Icon: ScalesIcon },
     { key: 'rpg-level', label: 'RPG Level', Icon: Trees },
 ];
 

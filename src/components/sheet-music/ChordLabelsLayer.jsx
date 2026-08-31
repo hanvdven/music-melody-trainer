@@ -44,7 +44,8 @@ export const renderSingleChordLabel = ({
   overrideColor,
   trebleStart,
   chordDisplayMode,
-  noteColoringMode,
+  colorScheme,
+  colorScope,
   theme,
   tonic,
   scaleNotes = [],
@@ -96,8 +97,8 @@ export const renderSingleChordLabel = ({
   // (yellow/red transition previews).
   const chordColor = overrideColor ?? (
     melodicNoteColor(internalRoot, {
-      noteColoringMode, tonic, scaleNotes, theme,
-      activeChord: noteColoringMode === 'chords' ? { root: internalRoot, notes: [internalRoot] } : null,
+      colorScheme, colorScope, tonic, scaleNotes, theme,
+      activeChord: colorScope === 'chord' ? { root: internalRoot, notes: [internalRoot] } : null,
     }) || 'var(--text-primary)');
 
   // Passing chords use a 20% smaller font so they visually subordinate to structural chords
@@ -245,7 +246,8 @@ const ChordLabelsLayer = ({
   startMeasureIndex,
   // styling
   chordDisplayMode,
-  noteColoringMode,
+  colorScheme,
+  colorScope,
   theme,
   tonic,
   scaleNotes = [],
@@ -297,7 +299,8 @@ const ChordLabelsLayer = ({
       overrideColor,
       trebleStart,
       chordDisplayMode,
-      noteColoringMode,
+      colorScheme,
+      colorScope,
       theme,
       tonic,
       scaleNotes,

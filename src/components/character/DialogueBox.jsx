@@ -24,79 +24,51 @@ function useIdleFrame() {
 // — the level-complete panel, "beneden een dialoogveld, zoals de wisp heeft") gets the EXACT same box,
 // not a hand-rolled second copy (§6d). Only the portrait's sprite (url/crop/cell size/frame) and the text
 // vary per caller — the frame chrome (square corners, proportional portrait/text columns) is fixed.
-// #922 (Han 2026-08-12, "het vak is veel te klein, ik had je gevraagd het ongeveer 2,5x groter te maken.
-// kijk eens hoeveel ruimte er is in de bottom view"): the ENTIRE box (portrait + text + font) scales
-// uniformly by `DIALOGUE_SCALE` off the original #693-round-3 base sizes (64×64 portrait / 256-wide text) —
-// a single scale constant so nothing drifts out of proportion. The RPG-level bottom view is ~215–395px
-// tall depending on window size (useAppLayout.js's `btmPanelHeight`/`rpgLevelTopHeight`), comfortably
-// fitting the resulting 160px-tall box.
-const DIALOGUE_SCALE = 2.5;
-export const PORTRAIT_SIZE = 64 * DIALOGUE_SCALE;
-export const TEXT_WIDTH = 256 * DIALOGUE_SCALE;
+// #922 (Han 2026-08-12): the ENTIRE box (portrait + text + font) scales uniformly by one factor off the
+// #693-round-3 base sizes (64×64 portrait, 256-wide text) so nothing drifts out of proportion.
+// #UI-overhaul (Han 2026-08-27, "voelt alsof de conv box een andere schaal heeft. zou 64 hoog en 256
+// breed moeten zijn"): the scale and the text column width are now PROPS. In world mode
+// `RpgLevelBottomPanel` passes `scale = N` (the world's integer level scale) and a narrower `textCols`
+// so the whole box is exactly 64 game px tall and fits the 256-game-px content block. `DIALOGUE_SCALE`
+// (2.5) stays the default for the level-result caller, which sizes to a much bigger panel.
+export const DIALOGUE_SCALE = 2.5;
+const BASE_PORTRAIT = 64;         // game px — the portrait column is always square, 64 native px
+const BASE_TEXT_COLS = 256;       // game px — default text column width (level-result caller)
 
-// #922 round 6 (Han 2026-08-12, "gebruik bit-fantasy als font. T is 8 'pixels' hoog, e is 6 'pixels' hoog.
-// Probeer ze hetzelfde te schalen als de afbeelding ernaast"): Bitfantasy.ttf's ACTUAL glyph metrics
-// (measured via fontTools — unitsPerEm=1024, capital 'T' glyph height=448 units) confirm Han's own "8
-// native pixels" measurement (448/1024 em = 0.4375 em; a 6-pixel 'e' at 384 units checks out too: 384/56 ≈
-// 6.86, matching within hand-measurement rounding, where 56 = 448/8 units-per-native-pixel). Deriving
-// FONT_SIZE from these numbers (rather than an eyeballed literal) means a capital letter renders at exactly
-// `CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE` px tall — the SAME per-native-pixel zoom as the portrait sprite
-// next to it (`trueScale = PORTRAIT_SIZE / 64`, also DIALOGUE_SCALE).
+// #922 round 6/7: FONT_SIZE derived from Bitfantasy's real metrics (unitsPerEm 1024, cap-height 448
+// units ≈ 8 native px) so a capital renders `8 · scale` px tall — the SAME per-native-pixel zoom as
+// the portrait — then × 0.75 (Han's explicit "50% smaller, then 50% bigger" overrides).
 const BITFANTASY_UNITS_PER_EM = 1024;
-const BITFANTASY_CAP_HEIGHT_UNITS = 448;   // measured 'T' glyph height
-const CAP_HEIGHT_NATIVE_PX = 8;            // Han's own measurement of 'T' on the font's native pixel grid
-// #922 round 7 (Han: "tekst mag 50% kleiner (ondanks mijn eerder regel)"): overrides the pixel-perfect
-// derivation above by half — Han's own explicit call, made with full knowledge of the earlier "match the
-// portrait's per-pixel zoom" rule.
-// #924 round 7 (Han: "font van tekst mag 50% groter"): bumps the round-7 0.5 back up by half again (0.5 *
-// 1.5 = 0.75), a further explicit override on top of the same base derivation — not a revert.
+const BITFANTASY_CAP_HEIGHT_UNITS = 448;
+const CAP_HEIGHT_NATIVE_PX = 8;
 const FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5 * 1.5;
-const FONT_SIZE = ((CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS) * FONT_SIZE_OVERRIDE_MULTIPLIER;
+const fontSizeFor = (scale) =>
+    ((CAP_HEIGHT_NATIVE_PX * scale * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS) * FONT_SIZE_OVERRIDE_MULTIPLIER;
 
 // Crops (and, for a multi-frame/multi-row spritesheet, offsets to a specific `row`/`col` cell — default
 // {0,0}, the sheet's first/idle frame) EXACTLY the way SheetRpgLayer/CharacterDoll already render sprites
 // — the same `background-position` + inner-crop-then-scale technique, not a new one (§6d).
-// #922 fix (Han 2026-08-12, "de slime portret is veel groter dan 64x64 schaal"): this used to scale the
-// CROP to exactly fill the box (`scale = PORTRAIT_SIZE / crop.h`), which zooms different sprites by
-// DIFFERENT factors depending on their own crop height. Switched to the SAME fixed "true size" convention
-// the Bestiary's `PortraitImage` uses (§6d): `trueScale = box / 64`, independent of crop size.
-// #922 round 2 (Han: "hoe kan het dat de slime anders in het frame geankerd is in de conversatie dan in de
-// bestiary? ik eis consistentie"): this was centering the crop on BOTH axes, like the Bestiary's
-// `PortraitImage` (dedicated portraits — headshots, correctly center-anchored). But a SpeakerPortrait shows
-// a raw SPRITE CROP, not a dedicated portrait — the Bestiary's convention for THAT case is `CreatureSprite`,
-// which anchors bottom-CENTER (a creature standing on the ground, §6d "#682... anker op midden onder").
-// Centering a sprite crop instead of bottom-anchoring it is exactly the kind of category mix-up §6d warns
-// about: two different content types (portrait vs. sprite) need their OWN matching Bestiary convention, not
-// one convention borrowed for both. Fixed to bottom-center, matching `CreatureSprite` exactly.
-// #1088 fix (Han 2026-08-19): used to draw a STATIC single-cell crop by hand — no animation, and a second,
-// slightly different re-implementation of the exact same "true-size, bottom-anchored sprite crop"
-// rendering `CreatureSprite` (the canonical renderer, §6d) already does everywhere else in the Bestiary/
-// world. Now a thin wrapper: builds the `anim` CreatureSprite expects from `variant.animations` (falls
-// back to whichever animation is first if there's no 'idle' key) and drives it off the shared idle-frame
-// counter, so every fallback portrait (npc sprite AND the no-enemy slime) animates instead of freezing on
-// one frame.
-export function SpeakerPortrait({ variant }) {
+// #922 fix (Han 2026-08-12): `trueScale = box / 64`, independent of crop size (was per-crop, zooming
+// different sprites by different factors). #922 round 2: bottom-center anchored (matching CreatureSprite),
+// not center-center. #1088: a thin wrapper over the canonical CreatureSprite renderer with a real idle loop.
+export function SpeakerPortrait({ variant, size, divider = true }) {
     const idleFrame = useIdleFrame();
     const anim = variant.animations?.find((a) => a.key === 'idle') || variant.animations?.[0] || { cells: [{ row: 0, col: 0 }] };
     return (
-        <div style={{ position: 'relative', width: PORTRAIT_SIZE, height: PORTRAIT_SIZE, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
-            <CreatureSprite variant={variant} anim={anim} frame={idleFrame} scale={PORTRAIT_SIZE / 64} framed={false} />
-            <Frame64Overlay box={PORTRAIT_SIZE} />
+        <div style={{ position: 'relative', width: size, height: size, overflow: 'hidden', flexShrink: 0, borderRight: divider ? '3px solid var(--text-primary)' : undefined }}>
+            <CreatureSprite variant={variant} anim={anim} frame={idleFrame} scale={size / 64} framed={false} />
+            <Frame64Overlay box={size} />
         </div>
     );
 }
 
-// #922 (Han 2026-08-12, "de wizard heeft een portret, in dat geval: toon het portret, niet de sprite"):
-// when an entity has its OWN dedicated portrait image (the Bestiary's `portraitUrl` + `portraitCell`/
-// `portraitFrame`, e.g. the Wizard's 64x64 colour-crop portrait strip — see bestiaryAssets.js), show THAT
-// instead of a cropped sprite frame, reusing the Bestiary's `PortraitImage` true-size/center/clip/
-// white-backing convention (§6d) rather than a hand-rolled third rendering technique. Since the box-wide
-// 2.5× scale above (round 2) now applies to EVERY speaker uniformly, this no longer needs its own separate
-// multiplier — it fills the exact same `PORTRAIT_SIZE` box as `SpeakerPortrait`.
-function DedicatedPortrait({ url, cell, frame }) {
-    const trueScale = PORTRAIT_SIZE / 64;
+// #922 (Han 2026-08-12): when an entity has its OWN dedicated portrait image (the Bestiary's `portraitUrl`
+// + `portraitCell`/`portraitFrame`), show THAT instead of a cropped sprite frame, reusing the Bestiary's
+// `PortraitImage` true-size/center/clip/white-backing convention (§6d).
+function DedicatedPortrait({ url, cell, frame, size, divider = true }) {
+    const trueScale = size / 64;
     return (
-        <div style={{ position: 'relative', width: PORTRAIT_SIZE, height: PORTRAIT_SIZE, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
+        <div style={{ position: 'relative', width: size, height: size, overflow: 'hidden', flexShrink: 0, borderRight: divider ? '3px solid var(--text-primary)' : undefined }}>
             <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {!cell
@@ -110,14 +82,15 @@ function DedicatedPortrait({ url, cell, frame }) {
                         }} />
                     )}
             </div>
-            <Frame64Overlay box={PORTRAIT_SIZE} />
+            <Frame64Overlay box={size} />
         </div>
     );
 }
 
 // #922 (Han 2026-08-12, "zet rechts van de tekstbox een toggler (in pixel art stijl): auto-continue"): a
-// small pixel-art switch, matching the dialogue box's own chrome (square corners, `var(--text-primary)`
-// border, HabboPixel font) — rendered as a sibling to the box, not inside it.
+// small pixel-art switch, matching the dialogue box's own chrome. Rendered as a sibling to the box, not
+// inside it. #UI-overhaul (Han 2026-08-27): only shown when `onToggleAutoContinue` is passed — the world
+// conversation box now omits it ("haal AUTO off weg van de conv box").
 export function AutoContinueToggle({ on, onToggle }) {
     return (
         <button
@@ -137,11 +110,7 @@ export function AutoContinueToggle({ on, onToggle }) {
     );
 }
 
-// #922 (Han 2026-08-12, "ik wil wel het driehoekje" — reinstated after an earlier round dropped it in
-// favour of the AutoContinueToggle): the classic RPG-dialogue "more text below" indicator — a small
-// triangle, bottom-right of the text column, bouncing continuously. Only rendered when `hasMorePages` is
-// true (the hook's own `hasNextPage`) — matches the AUTO toggle's chrome (`var(--text-primary)`), not a
-// separately-coloured decoration.
+// #922 (Han 2026-08-12, "ik wil wel het driehoekje"): the classic "more text below" indicator, bouncing.
 function MorePagesIndicator() {
     return (
         <div style={{
@@ -157,7 +126,18 @@ export default function DialogueBox({
     portraitVariant,
     dedicatedPortraitUrl, dedicatedPortraitCell, dedicatedPortraitFrame, text, onClick,
     autoContinue, onToggleAutoContinue, hasMorePages,
+    scale = DIALOGUE_SCALE,
+    textCols = BASE_TEXT_COLS,
+    // #UI-overhaul (Han 2026-08-27): compact mode — the box is EXACTLY `(64 + textCols) · scale` wide
+    // and the frame is drawn as an inset box-shadow (zero layout cost) instead of a border that adds
+    // to the width. The text column keeps `4 · scale` game-px of INTERNAL padding (Han 2026-08-28:
+    // "voeg 4 gpx interne marge toe") via `box-sizing: border-box`, so the box stays the same size.
+    // The default (level-result caller) keeps its 3px border + 14px text pad.
+    compact = false,
 }) {
+    const portraitSize = BASE_PORTRAIT * scale;
+    const textWidth = textCols * scale;
+    const fontSize = fontSizeFor(scale);
     return (
         <>
             <style>{`
@@ -166,19 +146,20 @@ export default function DialogueBox({
             `}</style>
             <div style={{ display: 'flex', alignItems: 'stretch' }}>
                 <div onClick={onClick} style={{
-                    display: 'flex', alignItems: 'stretch', height: PORTRAIT_SIZE,
-                    background: 'var(--panel-bg)', border: '3px solid var(--text-primary)', borderRadius: 0,
+                    display: 'flex', alignItems: 'stretch', height: portraitSize,
+                    background: 'var(--panel-bg)', borderRadius: 0,
+                    ...(compact
+                        ? { boxShadow: 'inset 0 0 0 3px var(--text-primary)' }
+                        : { border: '3px solid var(--text-primary)' }),
                     cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
                 }}>
                     {dedicatedPortraitUrl
-                        ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
-                        : <SpeakerPortrait variant={portraitVariant} />}
-                    <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
-                        {/* #922 round 6 ("regelafstand mag iets kleiner", 1.4->1.15) + round 7 ("regelafstand
-                            mag 20% kleiner", 1.15->0.92). */}
+                        ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} size={portraitSize} divider={!compact} />
+                        : <SpeakerPortrait variant={portraitVariant} size={portraitSize} divider={!compact} />}
+                    <div style={{ position: 'relative', width: textWidth, boxSizing: 'border-box', display: 'flex', alignItems: 'center', padding: compact ? `${4 * scale}px` : `0 ${7 * scale}px`, overflow: 'hidden' }}>
                         <OscillatingText
-                            text={text} scale={DIALOGUE_SCALE}
-                            style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 0.92, color: 'var(--text-primary)' }}
+                            text={text} scale={scale}
+                            style={{ fontFamily: 'Bitfantasy, monospace', fontSize, lineHeight: 0.92, color: 'var(--text-primary)' }}
                         />
                         {hasMorePages && <MorePagesIndicator />}
                     </div>

@@ -13,7 +13,7 @@ import PianoView from '../controls/PianoView';
 // ...` in App.jsx), replacing its content outright (not layering on top of it) is safe — there is no
 // other tab content the player could otherwise reach mid-level.
 export default function TwoHandedKeyboardPanel({
-    scale, trebleInstrument, bassInstrument, noteColoringMode, theme,
+    scale, trebleInstrument, bassInstrument, colorScheme, colorScope, theme,
     qwertyKeyboardActive, onTrebleNoteInput, onBassNoteInput,
     layout, onLayoutChange,
     // Bug fix (Han 2026-08-10, "twee klavieren: die tonen opeens full range, niet de level range"): the
@@ -38,7 +38,8 @@ export default function TwoHandedKeyboardPanel({
                 trebleInstrument={bassInstrument}
                 minNote={bassRange?.min}
                 maxNote={bassRange?.max}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 onNoteInput={onBassNoteInput}
                 qwertyKeyboardActive={qwertyKeyboardActive}
                 qwertyScheme={split ? 'splitLeft' : 'bassRow'}
@@ -53,7 +54,8 @@ export default function TwoHandedKeyboardPanel({
                 trebleInstrument={trebleInstrument}
                 minNote={trebleRange?.min}
                 maxNote={trebleRange?.max}
-                noteColoringMode={noteColoringMode}
+                colorScheme={colorScheme}
+                colorScope={colorScope}
                 onNoteInput={onTrebleNoteInput}
                 qwertyKeyboardActive={qwertyKeyboardActive}
                 qwertyScheme={split ? 'splitRight' : 'app'}

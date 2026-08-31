@@ -509,7 +509,7 @@ const ScaleSelector = ({
                 maxNote="G5"
                 smallLabels={true}
                 isHighlightActive={isHighlightActive}
-                noteColoringMode="tonic_scale_keys"
+                colorScheme="highlight" colorScope="scale"
               />
             )}
           </div>

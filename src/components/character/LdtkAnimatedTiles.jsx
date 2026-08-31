@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import useFrameLoop from '../../hooks/useFrameLoop';
 
 // #RAM-level (Han 2026-08-11, "de animated lagen moeten geanimeerd worden. beide hebben cellen van
 // 32x32: campfire: alle rijen behalve de laatste (campfire on); begin op random moment; of de laatste
@@ -79,13 +80,25 @@ function AnimatedTile({ tile, tick, worldToScreenX, groundAnchorPx, zoom, levelP
 // already baked in (i.e. the same function RpgLevelPanel uses for hero/pet — animated tiles sit at
 // level-LOCAL px like every other LdtkScenery tile, so the caller passes a function that already adds
 // `LEVEL_MIN_X` before applying `worldToScreenX`).
-export default function LdtkAnimatedTiles({ animatedTiles, worldToScreenX, groundAnchorPx, zoom, levelPxHeight, gridSize }) {
+function LdtkAnimatedTiles({ animatedTiles, worldToScreenX, groundAnchorPx, zoom, levelPxHeight, gridSize }) {
     const [tick, setTick] = useState(0);
-    const tickRef = useRef(0);
-    useEffect(() => {
-        const id = setInterval(() => { tickRef.current += 1; setTick(tickRef.current); }, FRAME_MS);
-        return () => clearInterval(id);
-    }, []);
+    // Perf (#1162, Han 2026-08-27, "kun je nog meer optimalisaties vinden?"): `setInterval` → rAF, same
+    // conversion as `petFrame`/`walkFrame` in RpgLevelPanel.jsx (§318/§319) — fixes drift, and this was
+    // the ONE remaining "React state on its own independent timer" instance this file's own §317 comment
+    // had flagged but not fixed. `setTick` only commits when the computed tick actually changes, so the
+    // commit cadence (and therefore this component's re-render rate) stays identical to the old interval.
+    // Perf (#1162, Fase 9, docs/architecture.md §331): migrated onto the shared `useFrameLoop` ticker —
+    // this component renders TWICE per level (back+front instance passes), each an independent subscriber
+    // now instead of an independent rAF chain. `startMs` moved to a ref for the same reason as every other
+    // Fase 8 migration: `useFrameLoop` always calls the LATEST callback closure via its own ref, so a
+    // plain closure `let` here would reset on every render instead of persisting per-tick.
+    const startMsRef = useRef(null);
+    useFrameLoop(() => {
+        const nowMs = performance.now();
+        if (startMsRef.current === null) startMsRef.current = nowMs;
+        const nextTick = Math.floor((nowMs - startMsRef.current) / FRAME_MS);
+        setTick((t) => (t === nextTick ? t : nextTick));
+    }, [], { priority: 'critical' });
 
     return (
         <>
@@ -98,3 +111,8 @@ export default function LdtkAnimatedTiles({ animatedTiles, worldToScreenX, groun
         </>
     );
 }
+
+// Perf (#1161/#1162, Han 2026-08-27): doesn't depend on `petFrame` — it has its own separate tick for the
+// campfire animation (now rAF-driven, see above), so this memo boundary only stops PARENT
+// (`RpgLevelPanel`)-triggered re-renders; its own timer still re-renders it independently, by design.
+export default React.memo(LdtkAnimatedTiles);

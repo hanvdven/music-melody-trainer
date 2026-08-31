@@ -311,15 +311,6 @@ export function chromatoneMix(pc, pct) {
     return `color-mix(in srgb, var(--chromatone-${pc}), var(--text-primary) ${pct}%)`;
 }
 
-export const chordNoteColor = (note, activeChord, theme = 'dark') => {
-    if (!activeChord?.notes?.length) return null;
-    const pc = getNoteSemitone(note);
-    if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
-    }
-    return null;
-};
-
 // The TRITONE of a note (pitch class + 6), spelled from ALL_NOTES, keeping the incoming octave.
 export const tritoneOf = (note) => {
     const pc = (getNoteSemitone(note) + 6) % 12;
@@ -327,9 +318,10 @@ export const tritoneOf = (note) => {
     return `${ALL_NOTES[pc]}${octMatch ? octMatch[1] : '4'}`;
 };
 
-// ── representativeChord — ONE global source for 'chords'-mode preview colouring (Han 2026-07-14) ───
+// ── representativeChord — ONE global source for 'root'-scheme preview colouring (Han 2026-07-14) ───
 // UNtimed preview surfaces (the in-staff colour/generation setters + the keyboard) have no playback
-// position, so they need a single representative chord to colour by when noteColoringMode==='chords'.
+// position, so they need a single representative chord to colour by when colorScheme==='root' (#1103;
+// was 'chords' mode pre-#1103).
 // Han's rule (restored + made global — "zorg dat die akkoordkleuring globaal wordt opgelost"):
 //   • the LAST chord of the active progression IF its root is the tonic;
 //   • else the FIRST chord;
@@ -347,29 +339,54 @@ export const representativeChord = (processedChords, tonic) => {
     return { root: tri, notes: [t, tri] };
 };
 
-export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
-    if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
-    if (noteColoringMode === 'subtle-chroma') {
-        return chromatoneMix(getNoteSemitone(note), 60, theme);
+// ── Note coloring 2.0 (Han 2026-08-22, #1103 — split from #1100 UAT): the old single flat
+// `noteColoringMode` enum (none/tonic_scale_keys/chords/chromatone/subtle-chroma/scale-subtle-chroma) is
+// now TWO independent axes: `colorScheme` (WHICH color an eligible note gets) x `colorScope` (WHICH notes
+// are eligible at all). All 4x4=16 combinations are valid (Han: no exclusions). The old 6 values map onto
+// exactly 6 of these combos — verified against Han's own decomposition:
+//   none              -> colorScheme 'none'                    (scope irrelevant)
+//   chromatone        -> colorScheme 'chroma',       colorScope 'all'
+//   subtle-chroma     -> colorScheme 'subtle-chroma', colorScope 'all'
+//   chords            -> colorScheme 'root',          colorScope 'chord'
+//   tonic_scale_keys  -> colorScheme 'highlight',     colorScope 'scale'
+//   scale-subtle-chroma -> colorScheme 'subtle-chroma', colorScope 'scale'
+// This is the SINGLE place both axes are interpreted (§6c) — every caller (staff, percussion, keyboard)
+// goes through `melodicNoteColor`, never a parallel reimplementation of either axis.
+
+// Is `note` eligible to be colored at all under `colorScope`. Each test is the EXACT pre-existing
+// in-scale/in-chord/tonic test the old flat modes already used (tonic_scale_keys/scale-subtle-chroma's
+// in-scale test; chords' in-chord test) — not reinvented, just named as an independent axis.
+const isInColorScope = (note, colorScope, { tonic, scaleNotes = [], activeChord = null } = {}) => {
+    const pc = getNoteSemitone(note);
+    if (colorScope === 'all') return true;
+    if (colorScope === 'tonic') return pc === getNoteSemitone(tonic);
+    if (colorScope === 'scale') return pc === getNoteSemitone(tonic) || scaleNotes.some(s => getNoteSemitone(s) === pc);
+    if (colorScope === 'chord') return !!activeChord?.notes?.some(cn => getNoteSemitone(cn) === pc);
+    return false;
+};
+
+// The color an ELIGIBLE note gets under `colorScheme`. `highlight` gives the tonic its own distinct
+// accent (var(--note-tonic)) and every other eligible note the plain scale accent (var(--note-scale)) —
+// preserves the old `tonic_scale_keys` scheme's exact two-tone look now that it's expressed as
+// highlight+scale, rather than flattening a genuinely two-tier scheme down to one flat color.
+const colorForScheme = (note, colorScheme, { tonic, activeChord = null, theme = 'dark' } = {}) => {
+    const pc = getNoteSemitone(note);
+    if (colorScheme === 'chroma') return `var(--chromatone-${pc})`;
+    if (colorScheme === 'subtle-chroma') return chromatoneMix(pc, 60, theme);
+    if (colorScheme === 'root') {
+        if (!activeChord?.root) return null;   // no active chord to take a root from — nothing to show
+        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
     }
-    if (noteColoringMode === 'chords') return chordNoteColor(note, activeChord, theme);
-    if (noteColoringMode === 'tonic_scale_keys') {
-        const pc = getNoteSemitone(note);
-        if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
-        if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
+    if (colorScheme === 'highlight') {
+        return pc === getNoteSemitone(tonic) ? 'var(--note-tonic)' : 'var(--note-scale)';
     }
-    // #1049 (Han 2026-08-17, "scale x subtle chroma: kleur enkel de noten uit de toonladder in subtle
-    // chroma"): reuses subtle-chroma's own chromatoneMix gradient for the COLOR, but only for notes
-    // that are actually in the current scale (tonic included) — tonic_scale_keys' own in-scale test
-    // (pitch-class match against tonic/scaleNotes), not a new filtering mechanism. Out-of-scale notes
-    // return null (falls back to plain 'var(--text-primary)' at the call site), same as
-    // tonic_scale_keys already does for its own out-of-scale notes.
-    if (noteColoringMode === 'scale-subtle-chroma') {
-        const pc = getNoteSemitone(note);
-        const inScale = pc === getNoteSemitone(tonic) || scaleNotes.some(s => getNoteSemitone(s) === pc);
-        if (inScale) return chromatoneMix(pc, 60, theme);
-    }
-    return null;
+    return null;   // 'none'
+};
+
+export const melodicNoteColor = (note, { colorScheme, colorScope, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
+    if (!colorScheme || colorScheme === 'none') return null;
+    if (!isInColorScope(note, colorScope, { tonic, scaleNotes, activeChord })) return null;
+    return colorForScheme(note, colorScheme, { tonic, activeChord, theme });
 };
 
 // ── Solfège utilities ────────────────────────────────────────────────────

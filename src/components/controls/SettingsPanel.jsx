@@ -2,8 +2,10 @@ import React from 'react';
 import { Palette, Maximize, Minimize } from 'lucide-react';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 
-// Order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
-const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
+// #1103 (Han 2026-08-22): this quick-cycle button only cycles colorSCHEME (not colorScope) — it's a
+// fast "change the color" toggle, not the full 2-axis picker (that's NoteColoringStaffOverlay.jsx's own
+// two carousels). Order (Han 2026-06-17, order preserved): none → root → highlight → chroma → subtle-chroma.
+const COLOR_SCHEMES = ['none', 'root', 'highlight', 'chroma', 'subtle-chroma'];
 
 /** Theme swatches: each entry describes one selectable theme. */
 const THEMES = [
@@ -19,7 +21,7 @@ const SettingsPanel = ({
     minimizeAccidentals, setMinimizeAccidentals,
     isModulationEnabled, setIsModulationEnabled,
 }) => {
-    const { noteColoringMode, setNoteColoringMode, courtesyAccidentals, setCourtesyAccidentals, percussionVoiceSplit, setPercussionVoiceSplit } = useDisplaySettings();
+    const { colorScheme, setColorScheme, courtesyAccidentals, setCourtesyAccidentals, percussionVoiceSplit, setPercussionVoiceSplit } = useDisplaySettings();
 
     return (
         <div className="app-settings-panel">
@@ -50,16 +52,16 @@ const SettingsPanel = ({
             <div className="app-settings-section">
                 <div className="app-settings-section-label">STAVE COLORING</div>
                 <div className="app-settings-row" onClick={() => {
-                    const idx = COLOR_MODES.indexOf(noteColoringMode);
-                    setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
+                    const idx = COLOR_SCHEMES.indexOf(colorScheme);
+                    setColorScheme(COLOR_SCHEMES[(idx + 1) % COLOR_SCHEMES.length]);
                 }}>
                     <div className="app-settings-row-icon"><Palette size={20} /></div>
                     <div className="app-settings-row-body">
                         <div className="app-settings-row-title">
-                            {noteColoringMode === 'none' ? 'None' :
-                                noteColoringMode === 'tonic_scale_keys' ? 'Scale' :
-                                    noteColoringMode === 'chords' ? 'Chords' :
-                                        noteColoringMode === 'subtle-chroma' ? 'Subtle chromatone' : 'Chromatone'}
+                            {colorScheme === 'none' ? 'None' :
+                                colorScheme === 'root' ? 'Root' :
+                                    colorScheme === 'highlight' ? 'Highlight' :
+                                        colorScheme === 'subtle-chroma' ? 'Subtle chromatone' : 'Chromatone'}
                         </div>
                         <div className="app-settings-row-sub">Cycle coloring mode</div>
                     </div>

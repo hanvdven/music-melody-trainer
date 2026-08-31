@@ -13,8 +13,7 @@ import {
     Minimize,
     Swords,
     Pause,
-    User,
-    Music2,
+    Globe,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -57,12 +56,10 @@ const AppHeader = ({
     progressionLabel = null,
     songTitle = null,
     onStartExercise = null,     // #266 rework 2 (Han 2026-07-02): START always in the header
-    // #667 (Han 2026-08-03): "zet een 'bladmuziek icoon' in de header rij, afwisselend met het 'character
-    // icoon'" — the header button that opens/closes avatar-context (replaces #645's removed button; that
-    // removal assumed the hero-sprite click would be the ONLY entry point, but avatar-context now REPLACES
-    // the sheet-music area, so the hero itself is invisible while it's open — this is the way back out).
-    characterScreen = null,
-    onToggleCharacterView = null,
+    // #UI-overhaul Stap 1 (Han 2026-08-27): the old #667 hero/character-menu toggle button is REPLACED
+    // by a single "world" button — the classic view's one way into the RPG world (worldMode=true). The
+    // character/stats/equipment/bestiary switcher now lives in the WorldNavBar (bottom panel) instead.
+    onEnterWorld = null,
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
 
@@ -84,17 +81,17 @@ const AppHeader = ({
                     </button>
                 )}
 
-                {/* #667 (Han 2026-08-03): the hero-sprite click still OPENS avatar-context (SheetRpgLayer /
-                    #647), but the sheet-music area it replaces has no hero to click to get back — this
-                    button is the only way out, so the icon alternates to show which way it currently goes. */}
-                {onToggleCharacterView && (
+                {/* #UI-overhaul Stap 1 (Han 2026-08-27): enter the RPG world. Only shown in the classic
+                    view (this whole header is hidden while `inWorld`); the WorldNavBar's "hero" button
+                    is the mirror-image way back to the classic view. */}
+                {onEnterWorld && (
                     <button
-                        className={`tab-button secondary app-header-btn ${characterScreen ? 'active' : ''}`}
-                        onClick={onToggleCharacterView}
-                        title={characterScreen ? 'Back to sheet music' : 'Open character menu'}
-                        style={{ color: characterScreen ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                        className="tab-button secondary app-header-btn"
+                        onClick={onEnterWorld}
+                        title="Enter the world"
+                        style={{ color: 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                     >
-                        {characterScreen ? <Music2 size={22} /> : <User size={22} />}
+                        <Globe size={22} />
                     </button>
                 )}
 
@@ -107,6 +104,10 @@ const AppHeader = ({
                         className="tab-button secondary app-header-btn active"
                         onClick={onPauseLevel}
                         title="Pause level"
+                        // #1095: excludes this button from App.jsx's universal "any header/subheader
+                        // click closes an open level" capture handler — Pause IS the level's own
+                        // control, not a navigation-away action.
+                        data-header-level-control=""
                         style={{ color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '1px', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                     >
                         <Pause size={18} />

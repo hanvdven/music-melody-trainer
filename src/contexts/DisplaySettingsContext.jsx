@@ -4,7 +4,8 @@ import React, { createContext, useContext } from 'react';
  * DisplaySettingsContext — distributes UI display preferences.
  *
  * Values provided:
- *   noteColoringMode, setNoteColoringMode,
+ *   colorScheme, setColorScheme,
+ *   colorScope, setColorScope,
  *   debugMode,
  *   lyricsMode, setLyricsMode,
  *   chordDisplayMode, setChordDisplayMode,

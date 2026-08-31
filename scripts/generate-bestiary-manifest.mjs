@@ -80,6 +80,9 @@ import {
     knightyRunFastAnimations, knightHeavySheet2Animations, boss_spiderAnimations, largeSkullAnimations,
     devilAnimations, healBuffTotemAnimations, fireTotemAnimations, knightMountedAnimations,
 } from './bestiary/animationDefs.mjs';
+// #1096: plain-data module (no Vite-specific imports), shared with RpgLevelPanel.jsx and the bestiary's own
+// audio-preview hook — see workerSoundConfig.js's header for why this is the single source of truth.
+import { WORKER_SOUND_CONFIG } from '../src/model/workerSoundConfig.js';
 
 // ═══ SECTION: FOLDER MAP & CATEGORY OVERRIDES ═══
 // #955 (boot-slowness initiative, Han 2026-08-13): the actual PNGs moved to public/ASSORTED
@@ -348,6 +351,15 @@ const FRAME_OVERRIDES = [
     { test: (p) => /Succubus\/Bonus Succubus (Lilith|Morgana)\//i.test(p), frame: { w: 64, h: 80 } },
     { test: (p) => /Succubus\/Bonus Succubus Mother\/Succubus Mother( bare2?)?\.png$/i.test(p), frame: { w: 144, h: 64 } },
     { test: (p) => /Succubus\/(Succubus|Pale Succubus)\//i.test(p), frame: { w: 156, h: 72 } },
+    // Han 2026-08-27 (bestiary additions): the Carriage sheet AND its Top Layer overlay are 2176×384 =
+    // 8 cols × 4 rows → frame 272×96 (Walk/Run/Graze/Idle). Both share the exact geometry (the Top Layer
+    // is literally the carriage's front, drawn over a seated character). MUST precede the char_with_porttrait
+    // 64×64 blanket rule below (array order = precedence).
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Carriage( Top Layer)? sheet\.png$/i.test(p), frame: { w: 272, h: 96 } },
+    // Han 2026-08-27: Ferryman.png is 480×256 = 5 cols × 4 rows → frame 96×64 (one continuous "move"
+    // loop across every cell — see the merge hook in `analyze`). MUST precede the char_with_walk 64×64
+    // blanket rule below (480 ÷ 64 = 7.5, so the blanket rule would mis-slice it).
+    { test: (p) => /char_with_walk\/Ferryman\.png$/i.test(p), frame: { w: 96, h: 64 } },
     // #672 (Han: "characters: je mag aannemen dat ze 64x64 zijn") — blanket override for all 4 character
     // folders (passive/attack/portrait/walk), replacing the generic square-guess for these.
     { test: (p) => /characters\/(char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(p), frame: { w: 64, h: 64 } },
@@ -476,6 +488,19 @@ const BASE_OVERRIDES = [
     { test: (p) => /\/animals\/critters\/Human Baby Sprite Sheet\.png$/i.test(p), base: 'Human Baby', variant: 'Light' },
     { test: (p) => /\/animals\/critters\/Human Baby Sprite Sheet 2\.png$/i.test(p), base: 'Human Baby', variant: 'Dark' },
     { test: (p) => /\/animals\/critters\/Human Baby Sprite Sheet 3\.png$/i.test(p), base: 'Human Baby', variant: 'Yellow' },
+    // #1096 (Han 2026-08-20, follow-up: "voeg blacksmith woman toe" — a STANDALONE creature this round, not
+    // a variant of "Blacksmith Man" as #1095 first built it — Han's own correction) — its own base, own
+    // bestiary card. A new sheet with real idle+work animations (unlike "Blacksmith Man"'s roster-derived
+    // idle-only 5 frames).
+    { test: (p) => /char_passive\/blacksmith_f\.png$/i.test(p), base: 'Blacksmith Woman', variant: null },
+    // Han 2026-08-27 (bestiary additions): the `carriage/` folder holds ONE creature "Carriage" with a
+    // two-way pill toggle — the full carriage vs the "Front Layer" (the carriage's front, meant to be
+    // drawn OVER a character seated inside it, so they read as *in* the carriage). Same {base} so
+    // buildCreatures merges them into one card (same text-pill mechanism as Maid Normal/Full). The
+    // Coachwoman is a separate, standalone character in the same folder.
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Carriage sheet\.png$/i.test(p), base: 'Carriage', variant: 'Carriage' },
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Carriage Top Layer sheet\.png$/i.test(p), base: 'Carriage', variant: 'Front Layer' },
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Coachwoman sheet\.png$/i.test(p), base: 'Coachwoman', variant: null },
 ];
 
 // ═══ SECTION: ROW LABELS ═══
@@ -581,6 +606,11 @@ const ROW_LABEL_OVERRIDES = [
     // MISSPELLED standalone "Pidgeon Sprite Sheet.png" file (renamed to "Pigeon (Rock Dove)" below), NOT
     // the correctly-spelled "Pigeon" sourced from critters sheet.png (already fly-labelled, see CRITTER_ROWS).
     { test: (p) => /\/animals\/critters\/Pidgeon Sprite Sheet/i.test(p), labels: ['Idle', 'Move', 'Attack', 'Fly'] },
+    // Han 2026-08-27 (bestiary additions): Carriage + its Top Layer overlay — rows top-to-bottom are
+    // Walk/Run/Graze/Idle (NOT the generic Idle/Move/Attack/Death guess).
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Carriage( Top Layer)? sheet\.png$/i.test(p), labels: ['Walk', 'Run', 'Graze', 'Idle'] },
+    // Han 2026-08-27: Coachwoman — idle, walk.
+    { test: (p) => /char_with_porttrait\/carriage\/GandalfHardcore Coachwoman sheet\.png$/i.test(p), labels: ['Idle', 'Walk'] },
 ];
 function labelsFor(relPath) {
     return ROW_LABEL_OVERRIDES.find((o) => o.test(relPath))?.labels || ROW_LABELS;
@@ -709,6 +739,14 @@ function analyze(absPath, relPath) {
     if (/Succubus\/Bonus Succubus Mother\//i.test(relPath)) {
         const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
         return { width, height, frame, crop, animations: [{ key: 'idle', label: 'Idle', cells }], contentRows };
+    }
+    // Han 2026-08-27 (bestiary additions): Ferryman has ONE animation spanning every cell of its 5×4
+    // grid — same "flatten every row into one continuous loop" treatment as Sleeping Dragon / the SSW
+    // idles above. Han: "float kan ook 'on water' zijn. hernoem naar move, dat is duidelijker" — so the
+    // key is 'move' (not 'float', which the generator would misread as a flying animation).
+    if (/char_with_walk\/Ferryman\.png$/i.test(relPath)) {
+        const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
+        return { width, height, frame, crop, animations: [{ key: 'move', label: 'Move', cells }], contentRows };
     }
 
     const labels = labelsFor(relPath);
@@ -1241,6 +1279,36 @@ function eyeMonsterEntries(absPath, relPath, category) {
         sidePortraitRelPath: relPath, sidePortraitCell: { row: 3, col: 0 }, sidePortraitFrame: frame,
         sidePortraitAnimCols: byRow[3] || 1,
     }];
+}
+
+// #1096 (Han 2026-08-20, "waar zijn de kleurvarianten van blacksmith fast... die zou 3 kleuren moeten
+// hebben"): "characters sheet 5.png"/"characters sheet 6.png" are otherwise UNPROCESSED (§676 — their full
+// 14-row rosters are still unnamed, "Han hasn't provided their content yet") — but a direct pixel
+// comparison (cropped + upscaled, visually verified) confirms row 1 (0-indexed), right slot (col 5-9), is
+// the EXACT same hammering-at-anvil pose as sheet 4's "Blacksmith Man" on both sheets, just recoloured
+// (grey hair/olive coat on sheet 5, dark hair/navy+yellow-scarf on sheet 6) — Han's "3 kleuren". Pulls
+// ONLY that one slot from each sheet as a new colour variant; every other row on sheets 5/6 stays
+// untouched/unnamed, per §676's deliberate scope limit — this is NOT a general sheet-5/6 roster expansion.
+function blacksmithManColorVariants() {
+    const frame = { w: 64, h: 64 };
+    const SLOT_ROW = 1, SLOT_COL_START = 5;
+    return [
+        { file: 'characters sheet 5.png', variant: 'Grey' },
+        { file: 'characters sheet 6.png', variant: 'Blue' },
+    ].map(({ file, variant }) => {
+        const absPath = join(ROOT, 'char_passive', file);
+        const png = PNG.sync.read(readFileSync(absPath));
+        const { width, height, data } = png;
+        const cells = Array.from({ length: FRAMES_PER_CHAR }, (_, i) => ({ row: SLOT_ROW, col: SLOT_COL_START + i }));
+        return {
+            category: 'passive',
+            relPath: `../assets/ASSORTED/characters/char_passive/${file}`,
+            base: 'Blacksmith Man', variant, width, height, frame,
+            crop: cropForCells(data, width, frame, cells),
+            animations: [{ key: 'idle', label: 'Idle', cells }],
+            being: 'human', artist: 'GandalfHardcore', tags: ['worker', 'townsfolk'],
+        };
+    });
 }
 
 // #870 (Han 2026-08-11/12, "lady dryad en eve hebben per ongeluk idle/move/attack ipv hun kleurvariant als
@@ -1934,6 +2002,7 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
         }
     }
 }
+manifest.push(...blacksmithManColorVariants());
 
 // #687 (Han 2026-08-04, "ik wil 1 knight knightly met de verschillende kleuren. De alt animatie (run) mag
 // gewoon in de lijst die hoort bij die kleur" + "verplaats de heavy knight alt animaties en het portret
@@ -2043,7 +2112,7 @@ manifest.splice(0, manifest.length, ...mergeMaidEntries(manifest));
 const SWATCH_OVERRIDES = [
     // #989 (Han 2026-08-14, "firefly: lightsource, geel-groen")
     { base: 'Firefly', variant: null, c1: '#c6e02c' },
-    { base: 'Archer sheet', variant: null, c1: '#fdd835', c2: '#eeeeee' },   // "archer normal: geel/wit"
+    { base: 'Archer', variant: null, c1: '#fdd835', c2: '#eeeeee' },   // "archer normal: geel/wit" — #1096: same stale-rename bug as PORTRAIT_OVERRIDES_BY_NAME above, was 'Archer sheet'
     { base: 'Skeleton', variant: 'Ghost', c1: '#8fb8e0' },                   // "flets blauw"
     { base: 'Skeleton', variant: 'Full White', c1: '#eeeeee' },
     { base: 'Zombie', variant: 'Dark Red', c1: '#8b0000' },
@@ -2148,7 +2217,12 @@ manifest.splice(0, manifest.length, ...splitGiantFlyRow4(manifest));
 // runs under plain Node, outside Vite, same boundary every other frame/cell constant in this file already
 // lives with. Archer's `arrow.png` is a single small image (no sheet), shown whole — no cell needed.
 const PORTRAIT_OVERRIDES_BY_NAME = [
-    { baseTest: (b) => b === 'Archer sheet', portraitRelPath: '../assets/ASSORTED/fx/arrow.png', portraitOscillate: true },
+    // #1096 (Han 2026-08-20, "de archer is zijn pijl kwijt"): this matched `'Archer sheet'`, but the rename
+    // block further down (`if (entry.base === 'Archer sheet') entry.base = 'Archer'`, #870) already runs
+    // BEFORE this check in the same per-entry loop — so `entry.base` was always already `'Archer'` by the
+    // time this ran, and the match silently never fired since that rename shipped. Same bug existed in
+    // SWATCH_OVERRIDES below (Archer's yellow/white two-tone), fixed alongside this.
+    { baseTest: (b) => b === 'Archer', portraitRelPath: '../assets/ASSORTED/fx/arrow.png', portraitOscillate: true },
     // #693 round 3 ("flying brain monster mind blast should be animated: 96x32, 5 frames"): one row, 5
     // frames of 96×32 each (480×32 total, matches the real file) — cycled via `portraitAnimCols`.
     { base: 'Flying Brain Monster', portraitRelPath: '../assets/ASSORTED/characters/animals/critters/Flying Brain Monster Mind Blast.png', portraitCell: { row: 0, col: 0 }, portraitFrame: { w: 96, h: 32 }, portraitAnimCols: 5 },
@@ -2187,6 +2261,9 @@ const FACING_RIGHT_NAMES = new Set([
     'Drum', 'Lute', 'Musician Lyre', 'mounted knight',
     // #870 (Han 2026-08-11, "totems (kijken alle drie naar rechts)")
     'Heal Totem', 'Buff Totem', 'Fire Totem',
+    // Han 2026-08-27 (bestiary additions): "carriage ... (kijkt naar rechts)" / "ferryman ... (kijkt
+    // naar rechts)". The Coachwoman faces LEFT (the generator default) — deliberately NOT listed here.
+    'Carriage', 'Ferryman',
 ]);
 for (const entry of manifest) {
     // Han: "dog (hernoem dog (small)") — disambiguates from the unrelated "Doggy" creature.
@@ -2225,13 +2302,20 @@ for (const entry of manifest) {
     // updated to the new ones (this rename runs before the tag-derivation checks further down the loop).
     if (entry.base === 'Pigeon') entry.base = 'Pigeon (Collared Dove)';
     if (entry.base === 'Pidgeon') entry.base = 'Pigeon (Rock Dove)';
-    // #1093 (Han 2026-08-20, open-world worker NPCs): "Blacksmith" (SSW/Blacksmith.png, 4x3 hammering
-    // sheet) and "Man Blacksmith" (the char_passive roster's 5-frame idle) are visually a slow and a fast
-    // hammering animation respectively — renamed so both are identifiable at a glance in the bestiary list.
-    // Runs before the metadata-override lookup (line ~2492) and the tag-derivation checks below, so
-    // `bestiaryMetadata.json` and the worker-tag regex must key off these NEW names, not the old ones.
-    if (entry.base === 'Blacksmith') entry.base = 'Blacksmith Slow';
-    if (entry.base === 'Man Blacksmith') entry.base = 'Blacksmith Fast';
+    // Runs before the metadata-override lookup and the tag-derivation checks below, so `bestiaryMetadata.json`
+    // and the worker-tag regex must key off the NEW names, not the old ones.
+    // #1096 (Han 2026-08-20, follow-up to #1093/#1095): "the last blacksmith is just called 'blacksmith'
+    // (the SSW one)" -- SSW/Blacksmith.png's own parsed base is ALREADY the literal string "Blacksmith", so
+    // #1093's original "Blacksmith" -> "Blacksmith Slow" rename is gone (no rename needed any more).
+    // "Man Blacksmith" (the char_passive roster's 5-frame idle) -> "Blacksmith Man" (was "Blacksmith Fast"
+    // -- renamed again since it now has real colour variants, see BASE-NAME OVERRIDES' sheet-5/6 push below,
+    // and blacksmith_f became its own standalone "Blacksmith Woman" instead of a variant of this one).
+    if (entry.base === 'Man Blacksmith') entry.base = 'Blacksmith Man';
+    // Sheet 4's "Man Blacksmith" slot has no colour word in its own name (unlike Goblin/Zombie's explicit
+    // filename suffixes) -- the sheet-5/6 recolours pushed below ARE named ('Grey'/'Blue'), so this one
+    // needs an explicit 'Plain' to match, same convention as Wisp Plain/Outline (findCreatureByName's
+    // default-variant fallback specifically looks for 'Plain' first).
+    if (entry.base === 'Blacksmith Man' && entry.variant == null) entry.variant = 'Plain';
     // "alle critters (behalve die uit de critter sheet)" — category-level rule (not a name list): every
     // 'critters'-category entry faces right EXCEPT the ones sourced from critters sheet.png (Frog/Pigeon/
     // Blue Jay/Rat/Snail/Turtle/Firefly/Ladybird/Fly/Butterfly/Mosquito/the CRITTER_ROWS Dragonfly), which
@@ -2461,6 +2545,7 @@ for (const entry of manifest) {
             'Intellect Devourer Sprites', 'Ice Golem', 'Iron Golem', 'Earth Elemental', 'Water Elemental',
             'Leshy Leaf', 'Twig Blight',
             'Cacodaemon', 'Burning Skull', 'Demon eye', 'Demon Mine', 'Explosion', 'Training Dummy', 'Wisp',
+            'Carriage',   // Han 2026-08-27 (bestiary additions): a vehicle/prop, not a person — "tag als ... other"
         ]),
         humanoid: new Set([
             'Deft Sorceress', 'Fluttering Pixie', 'Ghoul', 'Imp', 'Kobold Priest', 'Magical Fairy',
@@ -2471,6 +2556,7 @@ for (const entry of manifest) {
             'Large Skull', 'Rat thief', 'Skeleton', 'The Devil', 'Wizard Skeleton', 'Zombie',
             'Wanderer Dark',   // #870 (Han 2026-08-12, "wanderer dark: ... verplaats naar humaoid")
             'Adept Necromancer',   // #1028 follow-up (Han 2026-08-17, "adept necromancer -> humanoid (geen animal)")
+            'Ferryman',   // Han 2026-08-27 (bestiary additions): "Humanoid ... undead" — the undead boatman ("being waarde idd")
         ]),
         // #1028 follow-up (Han 2026-08-17, "baby -> human (geen animal)"): the blanket "critters folder ->
         // animal" default (above) wrongly caught a human infant sprite filed under animals/critters/.
@@ -2585,6 +2671,11 @@ for (const entry of manifest) {
     // does). Plain "Wizard" deliberately excluded (its projectile portrait wiring was a mistake, since removed).
     const RANGED_NAMES = new Set(['Throwing poop', 'Archer', 'Wizard (Portrait)', 'Fire Totem', 'Explosion', 'Flying Brain Monster']);
     if (RANGED_NAMES.has(entry.base)) tags.push('ranged');
+    // #1096 (Han 2026-08-20, "voeg een tag toe: audio, zet naast portrait move attack ranged"): a creature
+    // has 'audio' exactly when `WORKER_SOUND_CONFIG` (workerSoundConfig.js — the single source of truth for
+    // worker bell/hammer sounds, also read by RpgLevelPanel's level roster and the bestiary preview's own
+    // audio hook) has an entry for its base name — not a second hand-picked name list next to that one.
+    if (WORKER_SOUND_CONFIG[entry.base]) tags.push('audio');
     if (/bath|bathing|lady tub|lady washing/i.test(entry.base)) tags.push('bathhouse');
     // relPath-based "ordinary NPC" folders, minus the hostile/mythic residents those same folders also house.
     if (/\/(SSW|char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(entry.relPath)

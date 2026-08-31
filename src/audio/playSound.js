@@ -93,6 +93,17 @@ const resolvePercussionPitch = (note, customMapping = null, velocity = null) => 
 /**
  * Highly optimized, synchronous playSound function.
  * Avoids repeated lookups and async overhead during critical playback.
+ *
+ * `duration` contract (Han 2026-08-21, useLevelGatedRubatoAudio.js cello-stacking root cause): smplr
+ * treats ANY non-null `duration` as "schedule this voice's OWN .stop() `duration` seconds from now" —
+ * done SYNCHRONOUSLY the instant the note starts, not later. A voice's `.stop()` is idempotent by
+ * design (a second call is a harmless no-op) — so a note started with a duration, however long, can
+ * NEVER be silenced early by a later explicit `instrument.stop()` call; that call just no-ops against a
+ * voice already mid-"stopping". A caller that needs to hold a note indefinitely and control its OWN
+ * stop timing (e.g. rubato — no fixed duration is known up front) MUST pass `duration: null` explicitly
+ * (NOT omit the argument — omitting it hits this default, `0.25`; `null` is not `undefined`, so it
+ * bypasses the default and reaches smplr as `null`, which the `duration != null` check treats as "no
+ * auto-stop at all"). Every other caller's own finite duration is unaffected by this.
  */
 const playSound = (
   note,

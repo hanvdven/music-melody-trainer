@@ -71,6 +71,49 @@ describe('generateLevel9CallResponseBlock', () => {
     for (const o of block.offsets) expect(o == null || o < 2 * measureLengthTicks).toBe(true);
   });
 
+  // #1101 (split from #1087, Han 2026-08-23): groupMeasures generalizes the call/response group size
+  // (was hardcoded to exactly 1 measure each side) — the level-variant letter 'e' uses groupMeasures=2.
+  it('groupMeasures=2: TWO whole-rest measures in the call, response shifted by the WHOLE 2-measure group', () => {
+    const block = generateLevel9CallResponseBlock({
+      scale: Scale.defaultScale(),
+      timeSignature,
+      trebleSettings,
+      chordProgression: null,
+      chordChunkStartMeasure: 0,
+      measureLengthTicks,
+      runId: 'test-block-group2',
+      groupMeasures: 2,
+    });
+
+    // Call spans measures 0 and 1 (offsets [0, 2*measureLengthTicks)) — each of its two measures gets
+    // its OWN whole-rest (a rest can't span a barline), not one giant rest spanning both.
+    for (const measureStart of [0, measureLengthTicks]) {
+      const notesAtStart = block.notes.filter((_, i) => block.offsets[i] === measureStart);
+      expect(notesAtStart).toEqual(['r']);
+      const duration = block.durations[block.offsets.indexOf(measureStart)];
+      expect(duration).toBe(measureLengthTicks);
+    }
+    // No live (non-voided) slot anywhere inside the 2-measure call other than the two rest heads.
+    for (let i = 0; i < block.notes.length; i++) {
+      const o = block.offsets[i];
+      if (o == null) continue;
+      if (o > 0 && o < 2 * measureLengthTicks && o !== measureLengthTicks) {
+        throw new Error('call group has a live slot after its whole-rests at offset ' + o);
+      }
+    }
+
+    // Response spans measures 2 and 3 (offsets >= 2*measureLengthTicks), not measures 1/2 (which a
+    // hardcoded single-measure shift would have produced) — playable content, at least one real pitch.
+    const responseIndices = [];
+    for (let i = 0; i < block.notes.length; i++) {
+      if (block.offsets[i] != null && block.offsets[i] >= 2 * measureLengthTicks) responseIndices.push(i);
+    }
+    expect(responseIndices.length).toBeGreaterThan(0);
+    expect(responseIndices.some((i) => block.notes[i] !== 'r' && block.notes[i] !== 'c')).toBe(true);
+    // The whole block spans exactly 4 measures (2 call + 2 response) — no offset reaches a 5th.
+    for (const o of block.offsets) expect(o == null || o < 4 * measureLengthTicks).toBe(true);
+  });
+
   it('two consecutive blocks are independently randomized (not the same content repeated)', () => {
     const block0 = generateLevel9CallResponseBlock({
       scale: Scale.defaultScale(), timeSignature, trebleSettings, chordProgression: null,

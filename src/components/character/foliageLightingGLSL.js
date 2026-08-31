@@ -23,6 +23,14 @@ uniform vec3 uLightColor[MAX_LIGHTS];
 
 // Every lighting-related tunable dial `foliageParams`/the debug panel already drives — shared verbatim so
 // both shaders read the SAME uniform names from the SAME JS-side `params` object (RpgLevelPanel.jsx).
+// Perf (#1162, Fase 10b, docs/architecture.md §338): `uEdgeLitOnly` used to live in this shared block and
+// `edgeLightFactor` (below) read it as an implicit global — fine while every consumer set it as a plain
+// per-draw-call `uniform int`, but ForegroundFoliageLayer's upcoming INSTANCED shader needs it to be a
+// per-instance `varying float` instead (GLSL ES 1.00 varyings can't be `int`), and a `varying` can't share
+// a declaration with a `uniform` of the same name. Moved OUT of this shared block — each consumer now
+// declares `uEdgeLitOnly` itself (LdtkLitGround.jsx and ForegroundFoliageLayer's existing non-instanced
+// shader: unchanged `uniform int`; the new instanced shader: `varying float`) and passes it explicitly
+// into `edgeLightFactor` as a parameter instead of relying on it being globally visible by name.
 export const LIGHTING_PARAM_UNIFORMS_GLSL = `
 uniform float uLightRadius;
 uniform float uLightHeightRadius;
@@ -33,7 +41,6 @@ uniform int uLightBlendMode2;
 uniform float uGlobalIllumination;
 uniform float uNormalStrength;
 uniform float uFlatIllumination;
-uniform int uEdgeLitOnly;
 `;
 
 // #141 round 10/14 (Han: edge-only lighting for crates/fences, later "buitenste pixels licht op, de
@@ -116,8 +123,12 @@ bool anyNeighborTransparent(sampler2D tex, vec2 duv, vec2 off) {
     if (texture2D(tex, duv - vec2(0.0, off.y)).a < 0.5) return true;
     return false;
 }
-float edgeLightFactor(sampler2D tex, vec2 duv, vec2 texelSize) {
-    if (uEdgeLitOnly == 0) return 1.0;
+// edgeLitOnly: was a bare global uniform read (uEdgeLitOnly == 0, always an int); now an explicit float
+// parameter (see this file's own comment above LIGHTING_PARAM_UNIFORMS_GLSL for why) — callers with an
+// existing uniform int uEdgeLitOnly pass float(uEdgeLitOnly); a < 0.5 check works identically for
+// that cast (0/1 -> 0.0/1.0) and for a genuine per-instance float varying.
+float edgeLightFactor(sampler2D tex, vec2 duv, vec2 texelSize, float edgeLitOnly) {
+    if (edgeLitOnly < 0.5) return 1.0;
     if (anyNeighborTransparent(tex, duv, texelSize * EDGE_LIGHT_PIXELS)) return 1.0;
     if (anyNeighborTransparent(tex, duv, texelSize * EDGE_LIGHT_PIXELS * 2.0)) return 0.5;
     return 0.0;

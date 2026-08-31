@@ -8,7 +8,8 @@ const PresetPicker = ({
     setPlaybackConfig,
     setNumMeasures,
     setTrebleSettings,
-    setNoteColoringMode,
+    setColorScheme,
+    setColorScope,
     setShowChordLabels,
     setBpm,
     isOpen,
@@ -53,7 +54,9 @@ const PresetPicker = ({
             }));
         } else if (id === 'practice_listening') {
             setBpm(80);
-            setNoteColoringMode('chromatone');
+            // #1103: old 'chromatone' = colorScheme 'chroma' + colorScope 'all' (noteUtils.js equivalence table).
+            setColorScheme('chroma');
+            setColorScope('all');
             setShowChordLabels(false);
             setPlaybackConfig({
                 repsPerMelody: 2,

@@ -1,8 +1,8 @@
 import React from 'react';
 import { CHORD_COMPLEXITY, CHORD_STRATEGIES } from '../../constants/generationFields';
 import { DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE } from '../../constants/generatorDefaults';
-import { DEFAULT_LEVEL_COLOR_MODE } from '../../levels/levels';
-import { SCHEMES as COLOR_MODE_SCHEMES } from '../sheet-music/overlays/NoteColoringStaffOverlay';
+import { DEFAULT_LEVEL_COLOR_SCHEME, DEFAULT_LEVEL_COLOR_SCOPE } from '../../levels/levels';
+import { COLOR_SCHEMES, COLOR_SCOPES } from '../sheet-music/overlays/NoteColoringStaffOverlay';
 
 // Passing-chord type keys (Han 2026-08-06, "instelbaar: ... passing chords") — same enum
 // InstrumentSettings.defaultChordInstrumentSettings's own comment documents for `passingChordTypes`
@@ -120,9 +120,14 @@ export default function LevelZeroConfigForm({ draft, onChange }) {
                         {THEME_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
                     </select>
                 </Row>
-                <Row label="colorMode">
-                    <select value={draft.colorMode ?? DEFAULT_LEVEL_COLOR_MODE} onChange={(e) => set('colorMode', e.target.value)}>
-                        {COLOR_MODE_SCHEMES.map((s) => <option key={s.mode} value={s.mode}>{s.label}</option>)}
+                <Row label="colorScheme">
+                    <select value={draft.colorScheme ?? DEFAULT_LEVEL_COLOR_SCHEME} onChange={(e) => set('colorScheme', e.target.value)}>
+                        {COLOR_SCHEMES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                </Row>
+                <Row label="colorScope">
+                    <select value={draft.colorScope ?? DEFAULT_LEVEL_COLOR_SCOPE} onChange={(e) => set('colorScope', e.target.value)}>
+                        {COLOR_SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                 </Row>
             </Section>

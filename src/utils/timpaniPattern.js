@@ -16,7 +16,11 @@ import { TICKS_PER_WHOLE } from '../constants/timing';
 // i.e. "playing in 4/4" regardless of the song's own meter. Now indexed by BEAT-WITHIN-MEASURE instead of
 // an absolute counter, so beat 1 of every measure always lands on the pattern's own downbeat (PATTERN[0])
 // — byte-identical output for 4/4 (quartersPerMeasure===PATTERN.length, so this is a no-op there).
-const PATTERN = ['C2', 'C2', 'C3', null];
+// #1096 (Han 2026-08-20, rubato gate-synced timpani): exported so `useLevelGatedRubatoAudio.js` can look
+// up "which pitch does beat N of a measure hit" directly — the SAME pattern array `buildTimpaniPattern`
+// below already uses (§6c, one source of truth, not a second copy of the C2/C2/C3/rest sequence).
+export const TIMPANI_BEAT_PATTERN = ['C2', 'C2', 'C3', null];
+const PATTERN = TIMPANI_BEAT_PATTERN;
 const QUARTER = TICKS_PER_WHOLE / 4;   // 12 ticks
 
 // #994 (Han 2026-08-14/17, "flexible on screen notes"): a side-scroll level's lead-in is now as long as

@@ -35,7 +35,7 @@ function useCompositedLayer(tiles, gridSize) {
     return { canvasRef, ready };
 }
 
-function CanvasLayer({ tiles, gridSize, leftPx, zoom, groundAnchor }) {
+const CanvasLayer = React.memo(function CanvasLayer({ tiles, gridSize, leftPx, zoom, groundAnchor }) {
     const { canvasRef, ready } = useCompositedLayer(tiles, gridSize);
     return (
         <canvas
@@ -54,7 +54,7 @@ function CanvasLayer({ tiles, gridSize, leftPx, zoom, groundAnchor }) {
             }}
         />
     );
-}
+});
 
 // `groundTiles`/`backgroundLayers` are explicit props (not a whole `world`) so `RpgLevelPanel.jsx` can
 // mount this TWICE — once for tiles behind the Entities layer (with `backgroundLayers`), once for tiles
@@ -63,13 +63,34 @@ function CanvasLayer({ tiles, gridSize, leftPx, zoom, groundAnchor }) {
 // (factor)` must return the screen X of the level's own native x=0 edge, projected through
 // RpgLevelPanel's existing camera math with the camera term scaled by `factor` first (1 = full camera
 // reaction, the ground plane; <1 = a background layer, which lags behind — parallax depth).
-export default function LdtkScenery({ groundTiles, backgroundLayers = [], gridSize, leftPxForFactor, zoom, groundAnchor }) {
+//
+// Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders" — Fase 1): `groundScrollRef`/
+// `groundLeftPx` are the STABLE (camera-independent) counterparts to `leftPxForFactor`/`leftPxForFactor(1)`
+// — see RpgLevelPanel.jsx's own `worldToScreenXLocal` comment for the full rationale. Only the GROUND
+// layer (factor=1, by far the largest single composited canvas) gets this treatment; `backgroundLayers`
+// stay on the existing `leftPxForFactor` path (few in number, parallax factor varies per layer, not worth
+// the same wrapper machinery this round) — this is why the ground layer needs its OWN nested wrapper
+// `<div>` rather than one shared wrapper around this whole component's output.
+function LdtkScenery({ groundTiles, backgroundLayers = [], gridSize, leftPxForFactor, groundScrollRef, groundLeftPx, zoom, groundAnchor }) {
     return (
         <>
             {backgroundLayers.map(({ factor, tiles }, i) => (
                 <CanvasLayer key={`bg-${i}`} tiles={tiles} gridSize={gridSize} leftPx={leftPxForFactor(factor)} zoom={zoom} groundAnchor={groundAnchor} />
             ))}
-            <CanvasLayer tiles={groundTiles} gridSize={gridSize} leftPx={leftPxForFactor(1)} zoom={zoom} groundAnchor={groundAnchor} />
+            <div ref={groundScrollRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                <CanvasLayer tiles={groundTiles} gridSize={gridSize} leftPx={groundLeftPx} zoom={zoom} groundAnchor={groundAnchor} />
+            </div>
         </>
     );
 }
+
+// Perf (#1161/#1162, Han 2026-08-27): this canvas-compositing layer doesn't depend on `petFrame`/other
+// idle-animation state at all — without a memo boundary it still re-rendered on every tick of
+// RpgLevelPanel's `petFrame`. `groundTiles`/`backgroundLayers`/`leftPxForFactor`/`groundLeftPx` are
+// already stable references when nothing relevant changed (RpgLevelPanel.jsx's own useMemo/useCallback
+// wrapping), so this memo genuinely hits for the idle-standing case. While the camera pans, `groundLeftPx`
+// STAYS stable too (see this file's own `groundScrollRef` comment above) — only `leftPxForFactor` (used
+// for the few `backgroundLayers`) still varies, so THIS component's own function body still re-runs every
+// panning frame, but the (by far more expensive) ground `CanvasLayer` — now `React.memo`'d itself, wrapped
+// in the imperatively-scrolled `groundScrollRef` div — skips its own re-render regardless.
+export default React.memo(LdtkScenery);

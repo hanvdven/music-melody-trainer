@@ -1,6 +1,31 @@
 import MelodyGenerator from './melodyGenerator';
 import { sliceMelodyByRange } from '../utils/melodySlice';
 
+// Extracted (#1155, Han 2026-08-24 — call-response for songs) so `sliceSongCallResponseBlock.js` can
+// reuse the EXACT same "collapse a call group to per-measure rests" transform instead of a second copy
+// (§6c) — this was previously inlined directly in `generateLevel9CallResponseBlock` below. PURE: mutates
+// nothing, returns new parallel arrays. See the original inline comment (preserved below) for the full
+// rationale of why this collapses PER MEASURE and re-anchors each rest to its own measure's downbeat.
+export function collapseToCallRests(notes, durations, offsets, displayNotes, measureLengthTicks) {
+  const callNotes = [...notes];
+  const callDurations = [...durations];
+  const callOffsets = [...offsets];
+  const callDisplayNotes = [...displayNotes];
+  const seenFirstInMeasure = new Set();
+  for (let i = 0; i < callNotes.length; i++) {
+    if (callOffsets[i] == null || callNotes[i] === 'c') continue;
+    const measureIdx = Math.floor(callOffsets[i] / measureLengthTicks);
+    if (!seenFirstInMeasure.has(measureIdx)) {
+      seenFirstInMeasure.add(measureIdx);
+      callNotes[i] = 'r'; callDurations[i] = measureLengthTicks; callDisplayNotes[i] = 'r';
+      callOffsets[i] = measureIdx * measureLengthTicks;
+    } else {
+      callNotes[i] = 'c'; callDurations[i] = null; callOffsets[i] = null; callDisplayNotes[i] = 'c';
+    }
+  }
+  return { notes: callNotes, durations: callDurations, offsets: callOffsets, displayNotes: callDisplayNotes };
+}
+
 // #693 (Han 2026-08-04, round 6, "genereer sequentieel 4 blokken zoals maat 1 en 2" +
 // "just-in-time genereren, dus een halve maat voor een nieuw maatblok in beeld moet komen, wordt
 // ze gegenereerd"): Level 9's treble is no longer one melody generated up front for the whole
@@ -27,14 +52,20 @@ export function generateLevel9CallResponseBlock({
   chordChunkStartMeasure,
   measureLengthTicks,
   runId,
+  // #1101 (split from #1087, Han 2026-08-23): was hardcoded to exactly 1 measure of call + 1 measure of
+  // response — now a parameter so the a-h level-variant letters (d=1 measure, e=2 measures) can reuse
+  // this SAME generator instead of a second call-response mechanism (CLAUDE.md §6c). Level 9-11's own
+  // levels.json config and Level 10's useLevelMixedStream.js (fixed 2-measure blocks) both omit this,
+  // so they keep their exact existing 1+1 behavior unchanged.
+  groupMeasures = 1,
 }) {
   const chordSlice = (chordProgression && chordProgression.notes?.length)
-    ? sliceMelodyByRange(chordProgression, measureLengthTicks, 1, chordChunkStartMeasure)
+    ? sliceMelodyByRange(chordProgression, measureLengthTicks, groupMeasures, chordChunkStartMeasure)
     : null;
 
   const call = new MelodyGenerator(
     scale,
-    1,
+    groupMeasures,
     timeSignature,
     trebleSettings,
     chordSlice,
@@ -42,29 +73,24 @@ export function generateLevel9CallResponseBlock({
     `${runId}-call`,
   ).generateMelody();
 
-  const notes = [...call.notes];
-  const durations = [...call.durations];
-  const offsets = [...call.offsets];
-  const displayNotes = [...(call.displayNotes || call.notes)];
+  // The call → collapse to a forced whole-rest PER MEASURE (a rest can't span a barline, so a
+  // multi-measure call — #1101, groupMeasures>1 — needs one rest per measure, not one giant rest
+  // spanning all of them), exactly matching App.jsx's restifyOddMeasures (odd measures are always
+  // silent/invisible rhythm guides). The rest is explicitly RE-ANCHORED to its measure's own downbeat
+  // rather than left at wherever the first live slot happened to land — a measure doesn't necessarily
+  // have a note AT its own downbeat (a leading rest, or a tie continuing in from the previous measure),
+  // and a whole-rest starting anywhere but its measure's true start would be nonsensical notation.
+  // (#1155: extracted to `collapseToCallRests` so the song-based call-response path reuses it verbatim.)
+  const { notes, durations, offsets, displayNotes } = collapseToCallRests(
+    call.notes, call.durations, call.offsets, call.displayNotes || call.notes, measureLengthTicks,
+  );
 
-  // Measure 1 (the call) → collapse to one forced whole-rest, exactly matching
-  // App.jsx's restifyOddMeasures (odd measures are always silent/invisible rhythm guides).
-  let seenFirst = false;
-  for (let i = 0; i < notes.length; i++) {
-    if (offsets[i] == null || notes[i] === 'c') continue;
-    if (!seenFirst) {
-      seenFirst = true;
-      notes[i] = 'r'; durations[i] = measureLengthTicks; displayNotes[i] = 'r';
-    } else {
-      notes[i] = 'c'; durations[i] = null; offsets[i] = null; displayNotes[i] = 'c';
-    }
-  }
-
-  // Measure 2 (the response) → the call's ORIGINAL raw notes (before collapsing), shifted one
-  // measure later, so it's playable content: the exact pitches the wizard just cast.
+  // The response → the call's ORIGINAL raw notes (before collapsing), shifted by the WHOLE call group's
+  // length (groupMeasures measures — #1101, was hardcoded to exactly one measure), so it's playable
+  // content: the exact pitches the wizard just cast.
   const responseNotes = [...call.notes];
   const responseDurations = [...call.durations];
-  const responseOffsets = call.offsets.map((o) => (o == null ? o : o + measureLengthTicks));
+  const responseOffsets = call.offsets.map((o) => (o == null ? o : o + groupMeasures * measureLengthTicks));
   const responseDisplayNotes = [...(call.displayNotes || call.notes)];
 
   return {

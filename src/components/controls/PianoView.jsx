@@ -3,8 +3,9 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import logger from '../../utils/logger';
 import playSound, { resolveNotePitch } from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
+import { scaleKeyDisplayPC } from '../../theory/scaleKeyLabel';
 import generateAllNotesArray from '../../theory/allNotesArray';
-import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chromatoneMix } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 import { deriveQwertyScheme } from '../../utils/qwertyScheme';
 
@@ -98,7 +99,8 @@ const PianoView = ({
   minNote = null, // optional
   maxNote = null, // optional
   isHighlightActive = true,
-  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma', 'chords'
+  colorScheme = 'none', // 'none', 'chroma', 'subtle-chroma', 'root', 'highlight' (#1103)
+  colorScope = 'all',   // 'all', 'scale', 'chord', 'tonic' (#1103)
   // 'chords' colouring with no playback: the representative chord ({ root, notes }) + theme.
   activeChord = null,
   theme = 'dark',
@@ -172,16 +174,15 @@ const PianoView = ({
     const dropOctave = interactionMode === 'set-transpose';
     const octave = dropOctave ? '' : (src.match(/\d+$/)?.[0] || '');
 
-    // Find index in internal scale by pitch class
+    // Scale-aware spelling — shared with WorldPiano so the two keyboards never drift (§6d).
     const idx = scale.notes.findIndex(s => s.replace(/\d+$/, '') === notePC);
-    if (idx !== -1) {
-      // Return the scale's preferred display name with the current octave
-      const displayPC = scale.displayNotes[idx].replace(/\d+$/, '');
-      return displayPC + octave;
-    }
+    const displayPC = scaleKeyDisplayPC(src, scale);
+    if (idx !== -1) return displayPC + octave;
 
+    // Out-of-scale fallback: keep the historical quirk that `getRelativeNoteName`'s own octave shift
+    // (B→C♭ up, C→B♯ down) is preserved when NOT transposing, and dropped when a transpose is active.
     const rel = getRelativeNoteName(src, scale.tonic);
-    return tShift ? rel.replace(/-?\d+$/, '') : rel;
+    return tShift ? displayPC : rel;
   };
 
   const formatNoteLabel = (label, isBlack = false) => {
@@ -538,15 +539,24 @@ const PianoView = ({
     if (isActiveNote(cmp)) return isBlack ? 'black-key tone-active-key' : 'white-key tone-active-key';
     if (isActivePc(cmp)) return isBlack ? 'black-key tone-chord-key' : 'white-key tone-chord-key';
 
-    const highlightTonic = isHighlightActive && isTonic;
-    const highlightScale = isHighlightActive && isInScale;
+    // #1103: colorScope gates eligibility the same way it does for the canonical staff helper
+    // (noteUtils.js melodicNoteColor) — 'scale' scope includes the tonic (it's always in its own
+    // scale), matching the OLD tonic_scale_keys mode's own two-tier tonic/scale-degree distinction.
+    const scopeEligible = colorScope === 'all' ? true
+      : colorScope === 'tonic' ? isTonic
+      : colorScope === 'scale' ? (isTonic || isInScale)
+      : colorScope === 'chord' ? !!activeChord?.notes?.some(cn => getNoteSemitone(cn) === getNoteSemitone(cmp))
+      : false;
+    const highlightTonic = isHighlightActive && isTonic && scopeEligible;
+    const highlightScale = isHighlightActive && isInScale && scopeEligible;
 
-    // If specific coloring is active (other than tonic_scale_keys), we strip the highlighted classes to avoid CSS overrides
-    if (noteColoringMode !== 'tonic_scale_keys' && noteColoringMode !== 'none') {
+    // If specific coloring is active (other than 'highlight'), we strip the highlighted classes to
+    // avoid CSS overrides — getKeyStyle's inline background wins visually for those schemes anyway.
+    if (colorScheme !== 'highlight' && colorScheme !== 'none') {
       return isBlack ? 'black-key' : 'white-key';
     }
 
-    if (noteColoringMode === 'none') {
+    if (colorScheme === 'none') {
       return isBlack ? 'black-key' : 'white-key';
     }
 
@@ -618,17 +628,33 @@ const PianoView = ({
         })()
       : null;
 
-    // CHORDS MODE (no playback): tint keys belonging to the representative chord with the chord
-    // root's colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
-    if (noteColoringMode === 'chords') {
-      const c = chordNoteColor(cmp, activeChord, theme);
-      return c
-        ? { ...transposeSetterCGlow, ...expectedNoteGlow, background: c, color: defaultTextColor }
-        : { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
+    // #1103 (Han 2026-08-22, coloring 2.0): colorScope gates ELIGIBILITY (which keys get coloured at
+    // all — same test getKeyClass's own #1103 comment uses), colorScheme picks WHICH color. This file
+    // still computes colour independently from the staff's canonical `melodicNoteColor` (noteUtils.js)
+    // — an existing pattern (§6d note in the old scale-subtle-chroma branch this replaces), not
+    // something newly introduced here.
+    const scopeEligible = colorScope === 'all' ? true
+      : colorScope === 'tonic' ? isTonic
+      : colorScope === 'scale' ? (isTonic || isInScale)
+      : colorScope === 'chord' ? !!activeChord?.notes?.some(cn => getNoteSemitone(cn) === getNoteSemitone(cmp))
+      : false;
+
+    // ROOT SCHEME (old 'chords' mode, no playback): tint eligible keys with the representative
+    // chord's root colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
+    if (colorScheme === 'root') {
+      if (scopeEligible && activeChord?.root) {
+        return {
+          ...transposeSetterCGlow, ...expectedNoteGlow,
+          background: chromatoneMix(getNoteSemitone(activeChord.root), 30, theme),
+          color: defaultTextColor,
+        };
+      }
+      return { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
     }
 
-    // CHROMATONE MODE
-    if (noteColoringMode === 'chromatone' || noteColoringMode === 'chromatone_keys' || noteColoringMode === 'subtle-chroma') {
+    // CHROMA / SUBTLE-CHROMA SCHEMES
+    if (colorScheme === 'chroma' || colorScheme === 'subtle-chroma') {
+      if (!scopeEligible) return { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
       // Colour follows the TRANSPOSED ('sounds-as') note, not the physical key (Han 2026-06-19):
       // when the keyboard is transposed so a physical key becomes 'C', that key takes chromatone 0
       // and the rest shift accordingly. `cmp` (= tn(note)) is the concert note this key represents;
@@ -637,8 +663,8 @@ const PianoView = ({
       const baseColor = `var(--chromatone-${semitone})`;
       const mixTarget = isBlack ? 'black' : 'white';
 
-      const mixRatioTop = noteColoringMode === 'subtle-chroma' ? '60%' : '20%';
-      const mixRatioBottom = noteColoringMode === 'subtle-chroma' ? '85%' : '75%';
+      const mixRatioTop = colorScheme === 'subtle-chroma' ? '60%' : '20%';
+      const mixRatioBottom = colorScheme === 'subtle-chroma' ? '85%' : '75%';
 
       const topColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} ${mixRatioTop})`;
       const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} ${mixRatioBottom})`;
@@ -650,39 +676,16 @@ const PianoView = ({
       };
     }
 
-    // SCALE + SUBTLE CHROMA MODE (#1049 follow-up, Han 2026-08-17, "het klavier is niet gekleurd"):
-    // this file has its own separate color computation from the staff's canonical `melodicNoteColor`
-    // (noteUtils.js) — chromatone/subtle-chroma above are ALSO hand-rolled here rather than reusing
-    // that helper, an existing pattern this follows rather than introduces (§6d: match the nearest
-    // sibling behavior on this surface). Same subtle-chroma gradient (60%/85% mix ratios) as above,
-    // gated on `isInScale` (already computed from the live `scale` prop, unaffected by the
-    // trebleSettings.scaleNotes bug fixed in SheetMusic.jsx the same session) — untinted otherwise.
-    if (noteColoringMode === 'scale-subtle-chroma') {
-      if (isInScale) {
-        const semitone = getNoteSemitone(cmp);
-        const baseColor = `var(--chromatone-${semitone})`;
-        const mixTarget = isBlack ? 'black' : 'white';
-        const topColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 60%)`;
-        const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 85%)`;
-        return {
-          ...transposeSetterCGlow, ...expectedNoteGlow,
-          background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
-          color: defaultTextColor,
-        };
-      }
-      return { ...transposeSetterCGlow, ...expectedNoteGlow, color: defaultTextColor };
-    }
-
-    // TONIC + SCALE KEYS MODE
-    if (noteColoringMode === 'tonic_scale_keys') {
-      if (isTonic && isHighlightActive) {
+    // HIGHLIGHT SCHEME (old 'tonic_scale_keys' mode)
+    if (colorScheme === 'highlight' && isHighlightActive) {
+      if (isTonic && scopeEligible) {
         return {
           ...transposeSetterCGlow, ...expectedNoteGlow,
           backgroundColor: 'var(--white-key-color-tonic)',
           color: defaultTextColor
         };
       }
-      if (isInScale && isHighlightActive) {
+      if (isInScale && scopeEligible) {
         return {
           ...transposeSetterCGlow, ...expectedNoteGlow,
           backgroundColor: isBlack ? 'var(--black-key-color-highlight)' : 'var(--white-key-color-highlight)',
@@ -877,4 +880,12 @@ const PianoView = ({
   );
 };
 
-export default PianoView;
+// Perf (#1161, Han 2026-08-26): PianoView was the only major render surface still un-memoized while
+// SheetMusic/MelodyNotesLayer already got this treatment. App.jsx's `combatNote` (and other RPG-combat
+// state) changes on EVERY note played, forcing a full App re-render — without a memo boundary here, the
+// whole on-screen keyboard (every key, every label, every colour) reconciled from scratch on every single
+// note, even though PianoView's own key-press visuals are already driven by its OWN local `playedNotes`
+// state and its own window `keydown` listener, not by anything App passes down. A stress-test CPU profile
+// (button-mashing during active RPG combat, 4x-throttled mobile emulation) showed this file among the
+// hot self-time contributors purely from re-render churn, not from the keyboard's own logic changing.
+export default React.memo(PianoView);
