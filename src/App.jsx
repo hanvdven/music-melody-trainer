@@ -62,6 +62,7 @@ import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound, { resolveNotePitch } from './audio/playSound';
 import playMelodies from './audio/playMelodies';
+import { outputLatencySeconds } from './audio/audioOutputLatency';
 import { createMelodicInstrument } from './audio/localInstruments';
 import buildTimpaniPattern from './utils/timpaniPattern';
 import { LEVEL_TIMPANI_SLOT, LEVEL_CELLO_SLOT } from './constants/melodyInstances';
@@ -1586,7 +1587,15 @@ const App = () => {
         // pre-roll). If perceived latency still needs to come down, the real lever is speeding up the
         // effect chain itself (readiness/generation), not this buffer.
         const anchor = context.currentTime + 1.0;
-        logger.debug('LevelTiming', 'anchor picked', { nowCtxTime: context.currentTime, anchor, bpm: lvl.bpm });
+        // #1186: `outputLatencyS` is the constant by which every level audio schedule is issued early so
+        // it is HEARD at the anchor's own timeline (audioOutputLatency.js). Logged here — the one moment
+        // per level where the whole timing setup is decided — so a "still not in sync" UAT report can be
+        // read against the real number this browser/device actually reported, instead of re-measuring it.
+        logger.debug('LevelTiming', 'anchor picked', {
+            nowCtxTime: context.currentTime, anchor, bpm: lvl.bpm,
+            outputLatencyS: outputLatencySeconds(context),
+            reportedOutputLatency: context.outputLatency, baseLatency: context.baseLatency,
+        });
         setLevelAudioStart(anchor);
     }, [level.active, level.current, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, percussionSettings?.melodic, timpaniReady]);
     const backingScheduledForRef = useRef(null);   // the levelAudioStart we already scheduled TIMPANI for
@@ -1632,7 +1641,11 @@ const App = () => {
         if (percussionSettings?.melodic && timpaniReady && timpaniMelody && !lvl.gatedScroll) {
             playMelodies(
                 [timpaniMelody], [timpaniRef.current],
-                context, bpm, levelAudioStart,
+                // #1186: `levelAudioStart` is a "heard at" time (it is the visual clock's own t=0), so
+                // the schedule is issued `outputLatency` earlier — the identical correction
+                // useLevelContentStream's `scheduleInto` applies to cello/metronome/cast, so timpani
+                // cannot drift away from the tracks it plays under. See audioOutputLatency.js.
+                context, bpm, levelAudioStart - outputLatencySeconds(context),
                 null, null, { ...instruments, percussion: timpaniRef.current }, null,
                 { treble: 0, bass: 0, percussion: percussionVolume, chords: 0, metronome: 0 },
                 levelBackingStopFnsRef,

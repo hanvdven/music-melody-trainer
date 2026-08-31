@@ -6,6 +6,7 @@ import { doubleMelodyForCallResponse } from '../generation/sliceSongCallResponse
 import { sliceMelodyByRange } from '../utils/melodySlice';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
+import { outputLatencySeconds } from '../audio/audioOutputLatency';
 import {
     blockMeasuresFor, blockTypeForBlock, resolveBlockScale, blockCountFor,
     leadInSpecFor, trackSpecsForLevel, callGroupMeasuresFor,
@@ -42,6 +43,12 @@ import {
 // Two tick ORIGINS are preserved exactly as the retired streams had them, because SheetMusic /
 // SheetRpgLayer depend on both: the published TREBLE's tick 0 is content measure 0, while the
 // published BASS/METRONOME's tick 0 is the FIRST LEAD-IN measure. Do not "unify" them here.
+//
+// ── "HEARD AT" TIMES (#1186) ────────────────────────────────────────────────────────────────────
+// Every audio time in this file (`levelAudioStart`, `contentStartTime`, `blockStartTime`) is the moment
+// the material must be HEARD — the same instant the visual clock puts it on the strike line. The
+// hardware's own output latency is subtracted at exactly ONE seam, `scheduleInto` below, so nothing
+// else in this file has to know about it. See src/audio/audioOutputLatency.js.
 //
 // ── APPEND-ONLY (CLAUDE.md §6, the level analogue of "Song is append-only") ──────────────
 // Every published Melody grows by concatenation at monotonically increasing tick offsets. A
@@ -178,10 +185,21 @@ export default function useLevelContentStream({
         const timers = [];
         const ownWizardStopFns = [];   // THIS run's scheduled cast StopFns
         const ownBackingStopFns = [];  // THIS run's scheduled cello/metronome StopFns
+        // #1186 (Han 2026-08-29, "de noot valt niet EXACT tegelijk met de metronoom klik op de perfect
+        // hit mark"): `scheduledStart` is the moment this material must be HEARD — the same instant the
+        // visual clock (SheetRpgLayer, whose t=0 IS `levelAudioStart`) puts it on the strike line. A
+        // sound only reaches the speakers `outputLatency` AFTER the AudioContext time it is scheduled
+        // at, so it must be handed to `playMelodies` exactly that much earlier. See
+        // audioOutputLatency.js for the measurement (48 ms in this project's own Chromium) and for why
+        // the correction lives here rather than inside `playMelodies` (which is shared with the
+        // Sequencer and the world's ambient music, neither of which has a visual clock to match).
+        // Read FRESH per call, never captured once: the value changes when the player switches output
+        // device mid-level, and this is the same "re-read the live value at the top of each scheduling
+        // unit" pattern the per-block bpm read below already uses.
         const scheduleInto = (ref, own, melodies, instruments, scheduledStart, namedInstruments, trackGains, bpm) => {
             const before = ref.current.length;
             playMelodies(
-                melodies, instruments, context, bpm, scheduledStart, null, null,
+                melodies, instruments, context, bpm, scheduledStart - outputLatencySeconds(context), null, null,
                 namedInstruments, null, trackGains, ref,
             );
             for (let i = before; i < ref.current.length; i++) own.push(ref.current[i]);

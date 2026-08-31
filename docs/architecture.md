@@ -23854,3 +23854,100 @@ and `src/hooks/__tests__/adaptiveMode.integration.test.js` (NEW — the real con
 content stream around a real level: baseline incl. the 0.7× case, ±5% / deadband / both clamp bounds
 observed on the ACTUAL scheduling arguments, all tracks switching at the same block, and the 3×
 block count terminating).
+
+---
+
+### §355. Frame-perfect level sync — audio output latency compensation (#1186, Han 2026-08-29)
+
+**Symptom.** Han, UAT of #1102 on Level 4: *"ik merk dat de noot niet EXACT tegelijk met de metronoom
+klik op de perfect hit mark (de rode streep) valt. Dit moet echt 100% frame perfect zijn; de hele app
+staat of valt bij audiosync."* At the frame a slime's notehead reaches the strike line, the metronome
+click for that beat is not coincident with it.
+
+#### What was MEASURED first (before any change)
+
+A temporary harness mounted the REAL `useLevelContentStream` for a plain **non-adaptive** Level 4
+(bpm 80, 4/4, `leadInBars` 2, `beatsOnScreen` 8) with `playMelodies` mocked, ran its whole JIT clock,
+and compared three quantities per note:
+
+| quantity | source |
+|---|---|
+| metronome click audio time | the actual `scheduledStart + tick · secondsPerTick(bpm)` the audio layer was handed |
+| block start cursor | the accumulated `blockStartTime` the stream threads through its recursion |
+| strike-line crossing time | SheetRpgLayer's own formula, `levelAudioStart + (tick/TICKS_PER_BEAT + beatsOnScreen) · 60/bpm` |
+
+**Result: the arithmetic is already exact.** For the first 12 notes, `strike − nearestClick =
+0.000000 ms` every time; the cursor matched the closed form `contentStart + k·B·barSec` to
+`0.000000000 ms` for every block; and the §108 invariant held numerically (`beatsOnScreen ·
+TICKS_PER_BEAT = 96 = leadInBars · measureLengthTicks`). So **all four candidate causes named on the
+ticket were ruled out by measurement**: the two tick origins (content vs lead-in) are correctly
+reconciled, the accumulated cursor does not drift per block, the §108 geometry is exact, and
+`playMelodies`'s past-time clamp is never reached (the anchor is picked 1.0 s ahead and each block is
+generated at least one screenful early). The offset is **constant, not growing** — it does not
+originate in the schedule at all.
+
+#### Root cause
+
+The app models the audio clock as if a scheduled sound were heard instantly. It is not:
+
+> a sound scheduled at AudioContext time `T` is HEARD when `currentTime` has advanced to
+> `T + outputLatency`.
+
+Nothing in the codebase read `AudioContext.outputLatency` (or `baseLatency`) — a grep across `src/`
+found zero references before this ticket. Measured in this project's own Chromium at 48 kHz:
+**`outputLatency` = 48 ms** (`baseLatency` 10.7 ms). The visual scroll, which reads the same
+`context.currentTime` every rAF frame and anchors t=0 at `levelAudioStart`, therefore ran ~48 ms
+AHEAD of everything audible — ≈ 6.4 % of a beat at 80 bpm, ≈ 3 display frames. Exactly the "small but
+real" desync reported, and it **predates adaptive mode** (measured on a plain non-adaptive level).
+
+#### Fix
+
+`src/audio/audioOutputLatency.js` (NEW) is the one place the app converts between "the time I
+schedule a sound at" and "the time it is heard". A level's audio times are now defined as **"heard
+at" times**, and every level schedule is issued `outputLatencySeconds(context)` earlier:
+
+- **The visual clock is untouched.** `levelAudioStart` stays SheetRpgLayer's literal t=0, so the
+  scroll geometry, `tempoScrollMs`, the gated-freeze clock, the hit windows and `deltaMs` grading all
+  keep their exact current semantics. Zero risk to the §1052/#1102 machinery.
+- **One seam.** `useLevelContentStream`'s `scheduleInto` subtracts the latency for EVERY level track
+  it schedules — lead-in cello, lead-in metronome, per-block cello / metronome / timpani (§356) and
+  the Wizard cast preview. Read FRESH per call (the value changes when the player switches output
+  device mid-level), the same "re-read the live value at the top of each scheduling unit" pattern the
+  per-block bpm read already uses.
+- **`outputLatency`, falling back to `baseLatency`, falling back to 0.** The fallback covers browsers
+  that never implemented `outputLatency` (Safari, older Firefox); 0 reproduces the pre-#1186
+  behaviour exactly.
+- **Capped at `MAX_COMPENSATED_LATENCY_S = 0.5 s`.** App.jsx picks its anchor only 1.0 s ahead, so an
+  uncapped bogus reading could push a level's opening bars into the past, where `playMelodies`
+  silently clamps them to "now" — the §166 bug class.
+- Deliberately **NOT** applied inside `playMelodies` itself: that function is shared with the
+  Sequencer, the world's ambient music and the instrument previews, none of which has a visual clock
+  to stay in step with.
+- The measured value is logged once per level, in App.jsx's existing `'anchor picked'`
+  `logger.debug`, so a "still not in sync" report can be read against the number the player's own
+  device actually reported instead of re-measuring it.
+
+#### Invariants
+
+- **§108 still holds exactly** — nothing about the geometry changed.
+- **The three moments coincide**: a note's strike-line crossing time, its beat's metronome click as
+  HEARD, and its own track's audio as HEARD, are equal to the nanosecond.
+- **A residual of at most one display frame remains** and is not compensated: the frame the rAF loop
+  computes is presented at the next vsync (~16 ms), so after this fix the audio is up to one frame
+  EARLY rather than three frames late. Inventing a display-latency constant would be exactly the
+  magic number §6c bans; `outputLatency` is the spec's own audio/video-sync quantity and is the
+  honest correction.
+- **Not compensated: gated (rubato) levels' cello/timpani.** `useLevelGatedRubatoAudio` triggers in
+  real time at `context.currentTime` off the visual clock and can never be earlier than "now"; it is
+  unchanged, so it is neither better nor worse than before. A gated level has no metronome to be out
+  of step with (§867).
+- **Classic (non-level) playback is unchanged.** The Sequencer + `useSheetMusicHighlight` have the
+  same class of audio-vs-visual offset; bringing them onto this helper is a separate ticket, not
+  smuggled in here.
+
+**Files.** NEW `src/audio/audioOutputLatency.js`; `src/hooks/useLevelContentStream.js`
+(`scheduleInto` + the "HEARD AT" header note); `src/App.jsx` (the timpani one-shot's own schedule —
+superseded by §356 — and the `'anchor picked'` diagnostic). Test: NEW
+`src/hooks/__tests__/levelAudioVisualSync.test.js` — §108 asserted numerically for EVERY side-scroll
+level, note-vs-click coincidence to 9 decimals with and without a reported latency, the cursor-vs-
+closed-form drift check, and the helper's fallback/cap behaviour.
