@@ -32,8 +32,10 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         expect(v.bpm).toBe(Math.round(base.bpm * 0.5));
         expect(v.colorScheme).toBe('chroma');
         expect(v.colorScope).toBe('scale');
-        // beatsOnScreen is BPM-derived (levels.js #994) — must NOT be stale after the tempo halves.
-        expect(v.beatsOnScreen).not.toBe(base.beatsOnScreen);
+        // beatsOnScreen is BPM-derived (levels.js #994) — must be RECOMPUTED from the new bpm, not
+        // carried stale from the base. (It may still land on the same value once the tempo drop hits
+        // the #1102 readability floor of 2 visible measures — so assert "recomputed", not "differs".)
+        expect(v.beatsOnScreen).toBe(deriveLevelSpan({ bpm: v.bpm, timeSignature: v.timeSignature ?? [4, 4] }).beatsOnScreen);
     });
 
     it('variant c (medium) applies a 0.75x multiplier and subtle chroma', () => {
@@ -178,14 +180,18 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
             expect(v.totalMeasures).toBe(base.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
         });
 
-        it('scales blockCountFor and wavesForLevel with it — ~3x the evaluation points, still FINITE', () => {
+        it('scales blockCountFor with it — ~3x the evaluation points, still FINITE, still ONE wave', () => {
             const v = applyLevelVariant(base, 'i', 60);
             expect(blockCountFor(v)).toBe(blockCountFor(base) * ADAPTIVE_LEVEL_REPEATS);
-            expect(wavesForLevel(v)).toBe(wavesForLevel(base) * ADAPTIVE_LEVEL_REPEATS);
-            // FINITE is the "level must still end" guarantee: a finite block count means the stream stops
-            // generating, and a finite wave count means onWaveCleared eventually reaches its target.
+            // FINITE is half of the "level must still end" guarantee: the stream stops generating, so
+            // `total` (slimeData.length) stops growing and cumulative kills CAN catch up to it.
             expect(Number.isFinite(blockCountFor(v))).toBe(true);
-            expect(blockCountFor(v)).toBe(wavesForLevel(v));   // §1163c's "combat == chunk boundary" identity
+            // The other half, and the actual Han-2026-08-29 UAT bug: the wave target must NOT scale with
+            // the runway. There is exactly one "cumulative kills caught up to cumulative content" event
+            // per level (see wavesForLevel's comment), so a 12-wave target could never be reached and the
+            // level never opened its result screen. One wave, at 1x and at 3x alike.
+            expect(wavesForLevel(v)).toBe(1);
+            expect(wavesForLevel(base)).toBe(1);
         });
 
         it('leaves the starting bpm untouched — totalMeasures cancels out of the baseline formula', () => {
@@ -210,9 +216,10 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         });
 
         it('a gated level still repeats — its wave count is 1 by construction, so nothing can strand it', () => {
-            // Level 3 is gatedScroll + procedural → isJitTrebleLevel → wavesForLevel 1, and its content
-            // loops forever anyway; the level ends when the FINAL BARLINE (now 3x further out) crosses the
-            // strike line. So the repeat simply makes it last 3x longer.
+            // Level 3 is gatedScroll + procedural → wavesForLevel 1 (as every level is since the
+            // 2026-08-29 fix), and its content loops forever anyway; the level ends when the FINAL
+            // BARLINE (now 3x further out) crosses the strike line. So the repeat simply makes it last
+            // 3x longer.
             const gated = LEVELS[3];
             expect(gated.gatedScroll).toBe(true);
             const v = applyLevelVariant(gated, 'i', 60);

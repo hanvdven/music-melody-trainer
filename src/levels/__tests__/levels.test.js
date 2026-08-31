@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12, LEVEL13,
-    LEVELS, wavesForLevel, totalNotesForLevel, isJitTrebleLevel, applyLevelVariant,
+    LEVELS, wavesForLevel, totalNotesForLevel, applyLevelVariant,
 } from '../levels';
 import { blockMeasuresFor, blockCountFor } from '../levelBlockPlan';
 import buildTimpaniPattern from '../../utils/timpaniPattern';
@@ -89,25 +89,29 @@ describe('levels.js — ramp from Level 4 (Han 2026-08-02) + Level 13 Wizard (Ha
     // `totalMeasures: 8` = ONE continuous 8-measure wave. #1163c sets `numMeasures: 2` (the real
     // generation chunk size, Han's data model) while `totalMeasures` stays 8 — so the piece is the
     // SAME LENGTH, generated in 4 chunks, and combat is now keyed to that chunk boundary (4 waves).
-    it('every side-scroll ramp level (4, 7-12) is 4 chunks of 2 measures — same 8-measure length, 4 waves (#1163c)', () => {
+    it('every side-scroll ramp level (4, 7-12) is 4 chunks of 2 measures — same 8-measure length, ONE wave (#1163c/#1102)', () => {
         [LEVEL4, LEVEL7, LEVEL8, LEVEL9, LEVEL10, LEVEL11, LEVEL12].forEach((lvl) => {
             expect(lvl.numMeasures).toBe(2);
             expect(lvl.numRepeats).toBe(1);
             expect(lvl.totalMeasures).toBe(8);
             expect(lvl.totalMeasures / (lvl.numMeasures * lvl.numRepeats)).toBe(4);
-            expect(wavesForLevel(lvl)).toBe(4);
+            // 4 GENERATION chunks, but still ONE combat wave: the wave count stopped following the
+            // chunk count when #1165 made every level one continuous append-only stream (Han
+            // 2026-08-29 UAT — see `wavesForLevel`'s own comment in levels.js).
+            expect(wavesForLevel(lvl)).toBe(1);
         });
     });
 
     // #693 → #1163c: Level 13's block cadence was ALWAYS 2 measures (one call group + one response
     // group — `blockMeasuresFor`'s Wizard branch, `1 * 2`). #1163c makes the authored `numMeasures`
-    // agree with that real cadence (8 → 2); `totalMeasures` stays 8, so the level is the same length
-    // but now clears in 4 discrete call-response waves instead of being counted as one.
-    it('Level 13 (Wizard) authors numMeasures 2 / totalMeasures 8 → 4 call-response waves (#1163c)', () => {
+    // agree with that real cadence (8 → 2); `totalMeasures` stays 8, so the level is the same length,
+    // generated in 4 call-response blocks — and, since #1102's UAT fix, still cleared as ONE wave.
+    it('Level 13 (Wizard) authors numMeasures 2 / totalMeasures 8 → 4 call-response blocks, one wave (#1163c/#1102)', () => {
         expect(LEVEL13.numMeasures).toBe(2);
         expect(LEVEL13.numRepeats).toBe(1);
         expect(LEVEL13.totalMeasures).toBe(8);
-        expect(wavesForLevel(LEVEL13)).toBe(4);
+        expect(blockCountFor(LEVEL13)).toBe(4);
+        expect(wavesForLevel(LEVEL13)).toBe(1);
     });
 
     it('Level 13 (Wizard) keeps Level 4\'s quarter-grid/range/sideScroll settings, with enemyType "Wizard"', () => {
@@ -188,25 +192,26 @@ describe('levels.js — totalNotesForLevel (#1099)', () => {
 // the SHARED predicate for "does this level's treble come from the JIT stream rather than
 // regenerate()-per-wave" — a question with one possible answer now: EVERY level's content comes from
 // `useLevelContentStream`, and `onWaveCleared` never calls `regenerate()` for any level (see
-// useLevel.test.js's own #1165 case). What still matters, and is asserted here, is the OTHER predicate
-// its comment was so often confused with: `isJitTrebleLevel` — which picks the wave-COUNTING model and
-// is deliberately narrower.
-describe('levels.js — isJitTrebleLevel (the wave-COUNTING model, NOT "where does content come from")', () => {
-    it('true for a JIT-gated plain level: one continuous stream, so exactly ONE wave to clear', () => {
-        const lvl = { sideScroll: true, gatedScroll: true, enemyType: 'Slime' };
-        expect(isJitTrebleLevel(lvl)).toBe(true);
-        expect(wavesForLevel(lvl)).toBe(1);
+// useLevel.test.js's own #1165 case). `isJitTrebleLevel` — the OTHER predicate its comment was so
+// often confused with, which picked between the one-wave and the discrete wave-COUNTING model — is
+// gone too as of #1102's UAT fix (Han 2026-08-29): with one continuous stream per level there is only
+// one possible clear event, so the model it selected between has a single branch left. This block is
+// now the regression net for that unconditional answer.
+describe('levels.js — wavesForLevel: ONE wave for every level shape (#1102 UAT fix)', () => {
+    it('a JIT-gated plain level: one continuous stream, so exactly ONE wave to clear (#1101, unchanged)', () => {
+        expect(wavesForLevel({ sideScroll: true, gatedScroll: true, enemyType: 'Slime' })).toBe(1);
     });
 
-    it('false for a Wizard/call-response level — it keeps the DISCRETE numRepeats-based wave model', () => {
+    it('a Wizard/call-response level no longer keeps the discrete numRepeats-based wave model', () => {
         const lvl = { sideScroll: true, gatedScroll: false, enemyType: 'Wizard', numMeasures: 2, numRepeats: 2, totalMeasures: 8 };
-        expect(isJitTrebleLevel(lvl)).toBe(false);
-        expect(wavesForLevel(lvl)).toBe(2);
+        expect(blockCountFor(lvl)).toBe(4);   // still 4 GENERATION blocks (one call+response each)…
+        expect(wavesForLevel(lvl)).toBe(1);   // …but one combat wave
     });
 
-    it('false for a plain non-gated level (discrete waves), and for a gated SONG level', () => {
-        expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: false, enemyType: 'Slime' })).toBe(false);
-        expect(isJitTrebleLevel({ sideScroll: true, gatedScroll: true, enemyType: 'Slime', songId: 'x' })).toBe(false);
+    it('a plain non-gated level, a gated SONG level and a non-side-scroll static level are all one wave', () => {
+        expect(wavesForLevel({ sideScroll: true, gatedScroll: false, enemyType: 'Slime', numMeasures: 2, totalMeasures: 8 })).toBe(1);
+        expect(wavesForLevel({ sideScroll: true, gatedScroll: true, enemyType: 'Slime', songId: 'x' })).toBe(1);
+        expect(wavesForLevel({ sideScroll: false, numMeasures: 2, totalMeasures: 12 })).toBe(1);
     });
 });
 
@@ -230,23 +235,31 @@ describe('levels.js — #1163c: ramp levels are 4 two-measure chunks, same 8-mea
         19: 32,                        // twoHanded: (treble 3 + bass 1) × 8
     };
 
-    it.each(CONVERTED_IDS)('level %i: numMeasures 2, numRepeats 1, totalMeasures 8, 4 chunks, 4 waves', (id) => {
+    it.each(CONVERTED_IDS)('level %i: numMeasures 2, numRepeats 1, totalMeasures 8, 4 chunks, ONE wave', (id) => {
         const lvl = LEVELS[id];
         expect(lvl.numMeasures).toBe(2);
         expect(lvl.numRepeats).toBe(1);
         expect(lvl.totalMeasures).toBe(8);
         expect(lvl.totalMeasures / (lvl.numMeasures * lvl.numRepeats)).toBe(4);
-        expect(wavesForLevel(lvl)).toBe(4);
+        expect(wavesForLevel(lvl)).toBe(1);
     });
 
     it.each(CONVERTED_IDS)('level %i: totalNotesForLevel is byte-identical to the pre-edit value', (id) => {
         expect(totalNotesForLevel(LEVELS[id])).toBe(PINNED_TOTAL_NOTES[id]);
     });
 
-    it('combat stays keyed to the chunk boundary — blockCountFor === wavesForLevel for every converted level (Han decision 5)', () => {
+    // SUPERSEDED (Han 2026-08-29 UAT of #1102). This used to assert `blockCountFor === wavesForLevel`
+    // ("combat stays keyed to the chunk boundary", #1163c decision 5). That identity described a wave
+    // model whose per-wave clear event #1165's own merge had already removed: with one continuous
+    // append-only stream there is exactly ONE "cumulative kills caught up to cumulative content" event
+    // per level, so demanding 4 clears left the level unable to finish (the §289 class). The GENERATION
+    // cadence — the part decision 5 was really about — is unchanged and still pinned here; only the
+    // combat wave count decoupled from it.
+    it('generation still runs in 4 chunks per converted level; combat is now one wave (#1102 UAT fix)', () => {
         for (const id of CONVERTED_IDS) {
             const lvl = LEVELS[id];
-            expect(blockCountFor(lvl)).toBe(wavesForLevel(lvl));
+            expect(blockCountFor(lvl)).toBe(4);
+            expect(wavesForLevel(lvl)).toBe(1);
         }
     });
 

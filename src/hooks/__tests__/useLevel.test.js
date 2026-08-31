@@ -94,26 +94,59 @@ describe('useLevel (#659 Level 1)', () => {
     // wave clear has no content work to do at all and `wave` is purely a combat/spawn counter.
     // `regenerate` survives only for begin() (the level's ONE initial generation, which also authors
     // the chord progression) and close().
-    it('clears 4 waves then flags done; NEVER regenerates between waves (#1165)', () => {
-        // #1053: Level 1 is now a fixed 5-measure song (1 wave, see songLevels.test.js's own coverage) so
-        // it can no longer serve as this generic "N waves" mechanism test's example — a standalone
-        // 4-wave level object (totalMeasures/numMeasures = 4) decouples this test from the real roster's
-        // structure entirely, so it can never break again from an unrelated future renumbering.
-        const fourWaveLevel = { id: 999, sideScroll: true, numMeasures: 2, numRepeats: 1, totalMeasures: 8 };
+    // Bug fix (Han 2026-08-29 UAT of #1102): this used to be "clears 4 waves then flags done" and
+    // walked `onWaveCleared` four times. There is exactly ONE clear event per level now — SheetRpgLayer
+    // can only fire `onSlimesCleared` when its whole-song-cumulative `killedCount` catches up to its
+    // whole-song-cumulative `total`, which the JIT stream's lookahead makes impossible until the very
+    // end (see `wavesForLevel`'s own comment in levels.js). Waiting for a 2nd/3rd/4th clear is what
+    // left the level unable to reach `done` at all.
+    it('ONE clear arms the song-end gate; NEVER regenerates between waves (#1165/#1102)', () => {
+        // #1053: Level 1 is now a fixed 5-measure song so it can no longer serve as this generic
+        // mechanism test's example — a standalone level object decouples this test from the real
+        // roster's structure entirely, so it can never break again from an unrelated renumbering.
+        // Deliberately still authored as 4 generation chunks (`totalMeasures / numMeasures === 4`) so
+        // the test actively proves the wave count no longer follows the chunk count.
+        const fourChunkLevel = { id: 999, sideScroll: true, numMeasures: 2, numRepeats: 1, totalMeasures: 8 };
         const { regenerate, result } = setup();
-        act(() => result.current.start(fourWaveLevel));                 // regenerate #1 (begin() only)
-        act(() => { result.current.onWaveCleared(); });                 // wave 1 → no regen
-        act(() => { result.current.onWaveCleared(); });                 // wave 2 → no regen
-        act(() => { result.current.onWaveCleared(); });                 // wave 3 → no regen
-        expect(result.current.done).toBe(false);
-        act(() => { result.current.onWaveCleared(); });                 // wave 4 → reaches total waves
-        expect(result.current.wave).toBe(4);
+        act(() => result.current.start(fourChunkLevel));                // regenerate #1 (begin() only)
+        expect(result.current.totalWaves).toBe(1);
+        act(() => { result.current.onWaveCleared(); });                 // the level's ONE clear → no regen
+        expect(result.current.wave).toBe(1);
         expect(result.current.done).toBe(false);
         // #688: a side-scroll level's splash must wait for `onSongEnd()` (the final barline visually
         // reaching the strike line), not fire the instant the last wave resolves.
         act(() => { result.current.onSongEnd(); });
         expect(result.current.done).toBe(true);
         expect(regenerate).toHaveBeenCalledTimes(1);
+    });
+
+    // The §289 "level never ends" guard, in its most direct form: `onSongEnd` BEFORE any clear must be
+    // a no-op that leaves the gate open, and the clear that follows must still be able to end the
+    // level. (SheetRpgLayer resets its own `songEndFiredRef` on every `levelWaveIndex` change for
+    // exactly this race — the final barline can cross the strike line up to half a beat before the last
+    // slime's miss deadline resolves it.)
+    it('onSongEnd before the clear is a no-op, and the level can still finish afterwards (§289)', () => {
+        const lvl = { id: 997, sideScroll: true, numMeasures: 2, numRepeats: 1, totalMeasures: 24 };
+        const { result } = setup();
+        act(() => result.current.start(lvl));
+        act(() => { result.current.onSongEnd(); });
+        expect(result.current.done).toBe(false);      // nothing pending yet — must NOT latch
+        act(() => { result.current.onWaveCleared(); });
+        expect(result.current.done).toBe(false);      // side-scroll still waits for the barline
+        act(() => { result.current.onSongEnd(); });
+        expect(result.current.done).toBe(true);
+    });
+
+    // A non-side-scroll static-combat level (101/107/112) has no barline to wait for, so its single
+    // clear must flip `done` immediately. Its authored `numBlocks` (3-6) used to become its wave count,
+    // which — with #1165 generating all of its content in one synchronous pass, hence one clear event —
+    // meant `next >= tw` never held and the static levels never finished either.
+    it('a non-side-scroll static level finishes on its single clear (#1165 regression)', () => {
+        const staticLevel = { id: 996, sideScroll: false, numMeasures: 2, numRepeats: 1, totalMeasures: 8 };
+        const { result } = setup();
+        act(() => result.current.start(staticLevel));
+        act(() => { result.current.onWaveCleared(); });
+        expect(result.current.done).toBe(true);
     });
 
     // Bug fix (Han 2026-08-24 UAT, call-response levels: "enemies vanquished" underreported + a burst of
@@ -123,17 +156,18 @@ describe('useLevel (#659 Level 1)', () => {
     // itself is (correctly, for wave-COUNTING purposes) false for Wizard levels.
     // #1165: this is now true for EVERY level, not just this shape — kept as its own case because it is
     // the exact regression that first proved the guard was needed.
-    it('never regenerates between waves for a call-response (Wizard) multi-wave level — only the wave count advances', () => {
+    it('never regenerates between waves for a call-response (Wizard) level — only the wave count advances', () => {
         const callResponseLevel = {
             id: 998, sideScroll: true, enemyType: 'Wizard', gatedScroll: false,
             numMeasures: 2, numRepeats: 2, totalMeasures: 8,
         };
         const { regenerate, result } = setup();
         act(() => result.current.start(callResponseLevel));   // regenerate #1 (start() always regenerates once)
-        act(() => { result.current.onWaveCleared(); });       // wave 1 of 2 → must NOT regenerate again
+        act(() => { result.current.onWaveCleared(); });       // the level's ONE clear → must NOT regenerate
         expect(result.current.wave).toBe(1);
         expect(regenerate).toHaveBeenCalledTimes(1);
-        act(() => { result.current.onWaveCleared(); });       // wave 2 of 2 → reaches total waves, done path
+        act(() => { result.current.onSongEnd(); });
+        expect(result.current.done).toBe(true);
         expect(regenerate).toHaveBeenCalledTimes(1);
     });
 

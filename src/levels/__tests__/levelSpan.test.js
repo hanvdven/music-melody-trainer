@@ -112,16 +112,17 @@ describe('deriveLevelSpan — the #994 span formula', () => {
         expect(Object.keys(span).sort()).toEqual(['beatsOnScreen', 'leadInBars', 'metronomeBars', 'visibleMeasures']);
     });
 
-    // The degenerate edge: a single visible measure still gets cello+timpani AND the metronome, since
-    // ceil(1/2) === 1. No special-casing, no clamp needed.
-    it('clamps to at least 1 visible measure, with the metronome joining that one measure', () => {
+    // Readability floor (Han 2026-08-29 UAT of #1102): the very slow / wide-meter edge clamps to 2
+    // visible measures, not 1 — a single measure is too little to read ahead even though it is still
+    // ~6 s of music. `ceil(2/2) === 1`, so the metronome still joins for the last measure only.
+    it('clamps to at least 2 visible measures (readability floor, #1102)', () => {
         const span = deriveLevelSpan({ bpm: 30, timeSignature: [7, 4] });
-        expect(span.visibleMeasures).toBe(1);
-        expect(span.leadInBars).toBe(1);
+        expect(span.visibleMeasures).toBe(2);
+        expect(span.leadInBars).toBe(2);
         expect(span.metronomeBars).toBe(1);
-        // Absolute floor: never 0 or negative for any plausible tempo/meter.
+        // Absolute floor: never below 2 for any plausible tempo/meter.
         [1, 10, 20, 30].forEach((bpm) => {
-            expect(deriveLevelSpan({ bpm, timeSignature: [12, 8] }).visibleMeasures).toBeGreaterThanOrEqual(1);
+            expect(deriveLevelSpan({ bpm, timeSignature: [12, 8] }).visibleMeasures).toBeGreaterThanOrEqual(2);
         });
     });
 

@@ -363,7 +363,15 @@ export const deriveLevelSpan = ({ bpm, timeSignature }) => {
     // 6·(60/bpm)·(bpm/10) = 6 seconds at ANY tempo — the "constant on-screen time" Han asked for
     // ("around 8-12 beats on screen ... for 80-120 bpm").
     const targetBeats = Math.round((bpm || 80) / 10);
-    const visibleMeasures = Math.max(1, roundHalfDown(targetBeats / bpMeasure));
+    // Floor of 2 visible measures (Han 2026-08-29 UAT of #1102): the "constant on-screen TIME" target
+    // above degrades badly at low bpm — an adaptive level's 0.7×-baseline (e.g. 80→56) yields
+    // roundHalfDown(6/4) = 1 measure, which is too little to read ahead on a narrow screen even though
+    // it is still ~6 s of music. Matches the floor in Han's own classic-mode `idealVisibleMeasures`
+    // rule (BACKLOG.md, `Math.max(2, …)`). The §108 invariant (`beatsOnScreen · TICKS_PER_BEAT ===
+    // leadInBars · measureLengthTicks`) holds for any integer `visibleMeasures`, so raising the floor
+    // is safe; a screen-width-aware refinement (Han's rule also caps by `round((width-70)/120)`) is a
+    // follow-up — the input isn't threaded this deep yet.
+    const visibleMeasures = Math.max(2, roundHalfDown(targetBeats / bpMeasure));
     return {
         visibleMeasures,
         leadInBars: visibleMeasures,          // the visual/notation lead-in IS the visible span
@@ -864,6 +872,12 @@ export const availableVariantLetters = (lvl, letters) => letters.filter((letter)
     return true;
 });
 
+// ↓ The two comment blocks below are the RETAINED HISTORY of the wave-counting model and the
+// `isJitTrebleLevel` predicate that selected between its two halves — both superseded by the
+// unconditional one-wave model at `wavesForLevel` further down (Han 2026-08-29). Kept verbatim per
+// CLAUDE.md §4: they are the trace of two live "level never ends" bugs (§289/§1101), and the third
+// occurrence was diagnosed by re-reading exactly this reasoning.
+//
 // waves to clear = total measures / measures-per-wave. Each wave shows ONE generated melody
 // (numMeasures) for `numRepeats` measure-slots (§686, Level 9's call-response: numMeasures=1,
 // numRepeats=2 → the 1 generated measure is shown twice — once as the wizard's call, once as the
@@ -887,8 +901,19 @@ export const availableVariantLetters = (lvl, letters) => letters.filter((letter)
 // independently in TWO other files (`useLevel.js`'s `isJitTrebleDriven`, `App.jsx`'s
 // `isJitGatedSlimeLevel`) — consolidated here as the one shared predicate (§6c) so this fix, and any
 // future one, can't drift out of sync between the 3 call sites again.
-export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll && !lvl?.songId
-    && lvl?.enemyType !== 'Wizard' && lvl?.enemyType !== 'Mixed' && !lvl?.decorativeWizard);
+// ── HISTORY: `isJitTrebleLevel` (REMOVED by #1102's UAT bug fix, Han 2026-08-29) ────────────────
+// Kept as a comment for the same reason `usesTrebleJitStream` below is: the bug it encoded is now
+// structurally impossible, and the trace matters. It answered "does this level use the ONE-wave
+// counting model (a single continuous JIT stream) rather than the discrete numRepeats-based one?" —
+// and #1101 could only answer "yes" for a gated, procedural, plain-Slime level, because at the time
+// those were the only levels whose treble streamed continuously. After #1165 that qualifier is
+// obsolete: EVERY level's content comes from `useLevelContentStream` as one append-only stream, so
+// EVERY level has exactly one wave (see `wavesForLevel` below for the full argument). The predicate
+// had no remaining caller once `wavesForLevel` stopped branching on it (CLAUDE.md §7 — delete unused
+// code, don't leave it wired up "just in case").
+//     export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll && !lvl?.songId
+//         && lvl?.enemyType !== 'Wizard' && lvl?.enemyType !== 'Mixed' && !lvl?.decorativeWizard);
+// ── END HISTORY ─────────────────────────────────────────────────────────────────────────────────
 
 // ── HISTORY: `usesTrebleJitStream` (REMOVED by #1165, Han 2026-08-29) ────────────────────────────
 // The predicate below is kept as a comment because the BUG it documents is the exact class #1165's
@@ -921,9 +946,53 @@ export const isJitTrebleLevel = (lvl) => !!(lvl?.sideScroll && lvl?.gatedScroll 
 //     export const usesTrebleJitStream = (lvl) => !!(lvl?.enemyType === 'Wizard' || isJitTrebleLevel(lvl));
 // ── END HISTORY ─────────────────────────────────────────────────────────────────────────────────
 
-export const wavesForLevel = (lvl) => (isJitTrebleLevel(lvl)
-    ? 1
-    : Math.max(1, Math.round(lvl.totalMeasures / (lvl.numMeasures * (lvl.numRepeats || 1)))));
+// Bug fix (Han 2026-08-29 UAT of #1102, "level 4 + letter i: na de eindstreep krijg ik een reeks
+// MISSES en het resultaatscherm komt nooit" — the §289 "level never ends" class, third occurrence):
+// ONE wave for EVERY level, unconditionally. This is the direct consequence of #1165's merge, and it
+// is not a simplification for its own sake — the discrete division above was ARITHMETICALLY unable to
+// terminate any more:
+//
+//   A "wave clear" has exactly one trigger in the whole app: SheetRpgLayer's
+//   `killedCount >= total` effect, i.e. "every slime PUBLISHED so far has been resolved" (struck or
+//   walked past). After #1165 both sides of that comparison are whole-song CUMULATIVE for every
+//   level — `total` is `slimeData.length` over the one append-only melody the stream keeps growing,
+//   and `killedCount` never resets (see SheetRpgLayer's wave-reset effect). The stream generates
+//   `lookaheadMeasures + B` measures AHEAD of the audio position, while resolution happens AT the
+//   strike line — so there are always unresolved published slimes in flight, and the two sides can
+//   only meet ONCE: after the last block has been generated and its last slime resolved. One trigger
+//   per level, therefore one wave per level, whatever the level's chunk shape.
+//
+//   With `wavesForLevel` still returning 4 (post-#1163c ramp levels) or 12 (a #1102 adaptive 3x run),
+//   `onWaveCleared` incremented `wave` 0→1 at that single event and then waited forever for clears
+//   that could never come: `pendingSongEndRef` was never set, and by the time the final barline
+//   crossed the strike line `onSongEnd` fired into a `pendingSongEndRef === false` no-op and latched
+//   `songEndFiredRef` — the level could never reach `done`. Exactly the trace #1101 already fixed for
+//   gated levels via `isJitTrebleLevel`; #1165 made every level that shape, so the qualifier is gone
+//   and the answer is unconditional (§6c: one rule, not a growing list of exceptions).
+//
+// This DOES retire #1163c's "combat stays keyed to the chunk boundary" (`blockCountFor ===
+// wavesForLevel`, Han decision 5) — that identity described a wave model whose per-wave clear event
+// the same ticket's own merge had already removed. Generation cadence (`blockCountFor`) is unchanged;
+// only the COMBAT wave count is. Nothing user-visible is lost: `wave`/`totalWaves` are never
+// displayed (the splash counts `totalEnemies`/`defeated`), and `wave`'s only remaining readers are
+// SheetRpgLayer's own "did combat advance" signals.
+//
+// Non-side-scroll static levels (101/107/112) are fixed by the same change for the same reason: their
+// content is now generated in ONE synchronous pass, so they too have a single clear event, and their
+// authored `numBlocks` (4/3/6) meant `next >= tw` — the branch that calls `setDone(true)` for them —
+// was never reached either.
+//
+// HISTORY (the model this replaces, kept per CLAUDE.md §4): waves to clear = total measures /
+// measures-per-wave. Each wave showed ONE generated melody (numMeasures) for `numRepeats` measure-
+// slots (§686, Level 9's call-response: numMeasures=1, numRepeats=2 → the 1 generated measure was
+// shown twice, once as the wizard's call and once as the player's repeat-measure — so a wave spanned
+// 2 measures of the level's timeline, not 1). #1101 then carved out the gated-procedural levels via
+// `isJitTrebleLevel` (see its own HISTORY block above) for precisely the reason that now applies to
+// every level.
+//     export const wavesForLevel = (lvl) => (isJitTrebleLevel(lvl)
+//         ? 1
+//         : Math.max(1, Math.round(lvl.totalMeasures / (lvl.numMeasures * (lvl.numRepeats || 1)))));
+export const wavesForLevel = () => 1;
 
 // #1099 (Han 2026-08-22, ANPM stat) + #1102 (Han 2026-08-23, adaptive tempo): "maten per minuut x noten
 // per maat" (Han) — the level's own total note count, shared by BOTH the post-completion ANPM update

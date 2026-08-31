@@ -1786,7 +1786,26 @@ export default function SheetRpgLayer({
         // slime. `killedSet` (like `resolvedRef`) directly gates rendering (`killedSet.has(idx)` hides a
         // struck slime, see its own declaration comment) — resetting it would make already-dead slimes
         // reappear on screen, so it stays un-reset here for exactly the same reason `resolvedRef` does.
-        if (gatedScroll && levelWaveIndex > 0) {
+        //
+        // Bug fix (Han 2026-08-29 UAT of #1102, level 4 + letter i: "na de eindstreep een reeks MISSES,
+        // het resultaatscherm komt nooit"): the condition was `gatedScroll && levelWaveIndex > 0`. The
+        // `gatedScroll &&` half encoded "only a GATED level's content is one continuous JIT stream" —
+        // true when the paragraph above was written, obsolete since #1165 merged all five content
+        // mechanisms into `useLevelContentStream`. EVERY level's content is now one append-only stream
+        // with ABSOLUTE offsets, so every word of the argument above ("`killedCount`/`total` are BOTH
+        // whole-song-cumulative … resetting `killedSet` would make already-dead slimes reappear on
+        // screen") applies to a non-gated level identically. Level 4 hid it while it had a single wave;
+        // #1163c's 4 chunks and #1102's 3x runway turned that into 11 mid-level wipes, each one
+        // resurrecting every slime the player had already correctly hit — the very "80x MISSED" burst
+        // this block exists to prevent, re-entering through the branch that was supposed to be the safe
+        // one. `gatedScroll` is dropped from the condition; nothing else about either branch changes.
+        //
+        // The else-branch is therefore now exactly ONE thing: the level's own START (wave 0), including
+        // the `scrollStartTime` null→anchor correction this effect also fires for. It is deliberately
+        // NOT deleted even though `wavesForLevel` returning 1 (levels.js, same fix) means the guard at
+        // the top of this effect already skips every wave ≥ 1 — a wipe of cumulative combat state must
+        // stay impossible to reach by accident if a future model ever re-introduces real waves.
+        if (levelWaveIndex > 0) {
             clearedRef.current = false;
         } else {
             setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); setHits([]); clearedRef.current = false;
