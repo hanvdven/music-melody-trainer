@@ -8,13 +8,15 @@
 // `distributeHeight` splits the chosen viewport between the world block and the content blocks along
 // a fixed piecewise-linear LADDER as the screen gets taller (Han 2026-08-29):
 //    (world 240 gpx, content 64 gpx/block) ─lin─▶ (272, 92) ─lin─▶ (272, 128) ─lin─▶ (320, 128)
-//    below the foot: world squeezes 240→192 (+16-gpx bottom crop), content pinned at 64
+//    below the foot: world squeezes 240→192, content pinned at 64 (bottom crop ramps in — see cropFor)
 //    above the top : world stays 320, every further gpx goes to the content blocks
 // The split ALWAYS fills the viewport exactly (`world + navOverhead + k·content === viewport`).
 //
 // Constraints (Han's numbers):
-//  - World art is 272 game px tall. Rendered ≤ 272 it crops (272→240 top sky only; <240 also 16 gpx
-//    off the bottom). Rendered 272→320 (ladder phase 3) the extra top strip is sky-coloured padding
+//  - World art is 272 game px tall. Rendered ≤ 272 it crops. Han 2026-09-01: as the world block grows
+//    UP from the 192-gpx floor, the FIRST 16 gpx (192→208) un-crop the BOTTOM (bottomCrop 16→0, one
+//    row per gpx), and only AFTER that (208→272) does further height un-crop the TOP sky (topCrop
+//    64→0). Rendered 272→320 (ladder phase 3) the extra top strip is sky-coloured padding
 //    (`skyPadGpx`, painted by App.jsx) — the art stays 272.
 //  - Minimum visible world width 304 game px (rule 4A).
 //  - Content blocks: block 1 ≥ 256×64, block 2 ≥ 192×64 game px (W×H); their height follows the
@@ -73,10 +75,17 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // `bottomCropGpx` describe how it is cropped when the block is SHORTER than 272; `skyPadGpx` is the
 // sky-coloured strip ABOVE the art when the block is TALLER than 272 (ladder phase 3+ — App.jsx
 // paints it). Always: `topCropGpx + (worldGpxH − skyPadGpx) + bottomCropGpx === WORLD_ART_GPX_H`.
+//
+// Han 2026-09-01: the bottom crop RAMPS 16→0 linearly over the first 16 gpx above the floor
+// (`artGpxH` 192→208) — every extra gpx there reveals one more row at the BOTTOM of the art — rather
+// than the old hard 16-or-0 switch at 240. Past `artGpxH` 208 the bottom is fully uncropped and all
+// further height goes to the TOP (`top` below shrinks to 0 at 272). `WORLD_SQUEEZE_BOTTOM_BELOW` is
+// no longer consulted here (it still bounds the world-squeeze clamp in `distributeHeight`).
 function cropFor(worldGpxH) {
     const skyPadGpx = Math.max(0, worldGpxH - WORLD_ART_GPX_H);
     const artGpxH = worldGpxH - skyPadGpx;                       // = min(worldGpxH, 272)
-    const bottom = artGpxH < WORLD_SQUEEZE_BOTTOM_BELOW ? WORLD_BOTTOM_CROP_GPX : 0;
+    // 16 at artGpxH ≤ 192, 0 at artGpxH ≥ 208, one row per gpx in between.
+    const bottom = clamp((WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) - artGpxH, 0, WORLD_BOTTOM_CROP_GPX);
     const top = WORLD_ART_GPX_H - artGpxH - bottom;
     return { topCropGpx: Math.max(0, top), bottomCropGpx: bottom, skyPadGpx };
 }
@@ -85,7 +94,8 @@ function cropFor(worldGpxH) {
 // world block and ONE content block, as the screen gets taller (Han 2026-08-29). `o`/`k` from the
 // arrangement (see ARRANGEMENTS): `o` extra vertical nav gpx, `k` content blocks stacked vertically.
 //   (world 240, content 64) ──lin──▶ (272, 92) ──lin──▶ (272, 128) ──lin──▶ (320, 128)
-//   below the foot : world squeezes 240→192 (+16-gpx bottom crop), content pinned at 64
+//   below the foot : world squeezes 240→192, content pinned at 64 (the world block's bottom-vs-top
+//                    crop split is `cropFor`'s job — bottom crop ramps 16→0 over gpxH 192→208)
 //   above the top  : world stays 320, every further gpx goes to the content blocks (they fill it)
 // By construction `world + k·content === H − o` at every point, so the layout fills the viewport
 // exactly (no gap, no overflow) whenever the arrangement is feasible.

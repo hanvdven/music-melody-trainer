@@ -6,6 +6,7 @@ import ramLevelRaw from '../../assets/ASSORTED/LDtk/RAM level.ldtk?raw';
 import { evaluateRuleGroup } from './ldtkAutoTile';
 import { tilesetUrlFor } from './tilesetUrls';
 import { COLLISION_TILE_HEIGHTS, COLLISION_TILE_COLS } from '../../model/collisionMaskHeights.generated';
+import { CHUNK_PX } from '../../audio/spatialPan';
 
 const ldtk = JSON.parse(ramLevelRaw);
 const TILESETS_BY_UID = Object.fromEntries(ldtk.defs.tilesets.map((t) => [t.uid, t]));
@@ -349,11 +350,22 @@ export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = '
         ...staticLayerTiles(BRIDGE_TIER_LAYERS[bridgeTier]),
         ...STATIC_TILE_LAYERS.flatMap(staticLayerTiles),
     ];
+    // #wind §363 (Han 2026-09-01, "windgeluid uit de foliage, geen gras"): TREE foliage only —
+    // FOLIAGE_LAYERS (Pine/Willow/Main_tree), NOT the Grass_decoration_* layers. Reused below both for
+    // the rendered `foliageTiles` and for `foliageChunkSet` (which world-chunks rustle).
+    const treeFoliageTiles = FOLIAGE_LAYERS.flatMap(staticLayerTiles);
     const foliageTiles = [
         ...grassTilesFor('Grass_decoration_bg', [seasonGroup]),
         ...grassTilesFor('Grass_decoration_fg', grassFgGroups),
-        ...FOLIAGE_LAYERS.flatMap(staticLayerTiles),
+        ...treeFoliageTiles,
     ];
+    // The set of CHUNK_PX world-chunks (ABSOLUTE X — `staticLayerTiles` worldX is canvas-local, 0-based
+    // from LEVEL_MIN_X, same convention as the water tiles) that hold at least one tree-foliage tile.
+    // Precomputed once per world so the ambient wind audio can cheaply ask, per screen-third, "is there
+    // rustling foliage here?".
+    const foliageChunkSet = new Set(
+        treeFoliageTiles.map((t) => Math.floor((t.worldX + LEVEL_MIN_X) / CHUNK_PX)),
+    );
     const animatedTiles = [
         ...staticLayerTiles(ANIMATED_LAYERS.water).map((t) => ({ ...withAnimMeta(t), kind: 'water' })),
         ...staticLayerTiles(ANIMATED_LAYERS.campfire).map((t) => ({ ...withAnimMeta(t), kind: 'campfire' })),
@@ -367,6 +379,7 @@ export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = '
     return {
         groundTilesBack: ground.back, groundTilesFront: ground.front,
         foliageTilesBack: foliage.back, foliageTilesFront: foliage.front,
+        foliageChunkSet,
         animatedTilesBack: animated.back, animatedTilesFront: animated.front,
         backgroundLayers, gridSize: LEVEL_LAYERS[0].layers.Terrain.__gridSize,
     };

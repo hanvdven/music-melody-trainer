@@ -7,6 +7,380 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-01 — ✅ Windkracht 3 gecapt op 10 s (§365)
+
+Han: "wanneer windkracht 3 gerold wordt, laat die maar 10 s blazen en zak dan af
+naar 2." Start blijft windkracht 1. `weatherCycle.js tickWeather`: na de wind-fade,
+zodra `windTo===3` gesettled is, telt `wind3HoldS` op; bij `WIND_GUST3_HOLD_S`
+(10 s) → `windTo=2`, ease over `WIND_FADE_S`, `windTimer` reset. `wind3HoldS`
+reset bij `windTo!==3` en in `seekWind` (dus een handmatig gekozen 3 wordt ook
+gecapt). Nieuwe export `WIND_GUST3_HOLD_S`, nieuw state-veld `wind3HoldS`.
+Test: nieuwe §365-case; `seekWind`-easing-test kiest nu 2 i.p.v. 3.
+Doc §365. `build` clean (test:run overgeslagen op Han's verzoek).
+
+## 2026-09-01 — ✅ Nacht-look UAT-ronde 2 (§362 follow-ups) + zichtbare naden
+
+Han UAT-feedback op §362/§363, 5 punten:
+
+1. **Nacht iets donkerder.** Nudge `TIME_PHASES` night illum `0.12` → ~`0.10`
+   (evt. `AMBIENT_DARK_COLOR` een tikje omlaag). Triviaal.
+2. **Maanlicht subtieler + wit + minder harde schaduwen + lijkt van ONDEREN te
+   komen ipv boven** (boomstam/rivier/bomen). Fixes: `MOON_COLOR` → `vec3(1.0)`;
+   `moonStrength` default omlaag; half-Lambert ipv harde `max(dot,0)`-terminator;
+   `MOON_DIR.y` teken omdraaien (`+0.5` → `-0.5`) zodat het als linksbóven leest.
+3. **Puntbronnen fout gepositioneerd.** `ldtkLights` (RpgLevelPanel ~1457): wisp
+   `worldHeight: 0` (onderkant viewbox), hero `worldHeight: groundHeightAt(...)`
+   (voeten). Beide → verticaal midden van de sprite (net als campfire al doet,
+   #1032 r8-comment vroeg dit al voor wisp+hero maar dat is nooit gedaan).
+4. **Vuurvlieg (Firefly) nooit zichtbaar + moet lichtbron zijn** (limoengroen,
+   kleur eenmalig uit de sprite samplen). `bestiaryMetadata.json` heeft
+   `Firefly.tagsAdd = ["night","critter"]` maar `bestiaryManifest.generated.js`
+   is niet geregenereerd → tags nog `["move","nature"]`. Ook: `X_critter_flying`
+   vereist tag `flying` — checken of Firefly die (na regen) heeft.
+5. **Zichtbare naden / strepen op 16- of 32-px grid, vooral bij geanimeerde
+   tiles** (screenshot: RPG-wereld). Waarschijnlijk fractionele wereld-zoom
+   (`dynamicZoom = size.h / LEVEL_PX_HEIGHT`, niet-integer) → tile-divs op
+   sub-pixel-grenzen → 1px gaten. `LdtkAnimatedTiles` is een DOM-overlay van
+   frame-croppende divs.
+
+### Interview-antwoorden (Han 2026-09-01)
+
+- **Maanlicht:** wit, ~40% zwakker (moonStrength 0.5→0.3), half-Lambert (zachte val),
+  `MOON_DIR.y` omgedraaid → linksbóven.
+- **Firefly spawn:** niet aankomen (Han regelt zelf).
+- **Firefly light:** bewegend licht per vuurvlieg, 's nachts, kleur uit sprite gesampled.
+- **Naden:** eerst onderzoeken, terugkoppelen (geen code-wijziging deze ronde).
+
+### Status per item
+
+1. ✅ `weatherCycle.js` night illum `0.12` → `0.10` (+ 2 test-asserts).
+2. ✅ `foliageLightingGLSL.js` `applyMoonLight`: `MOON_DIR.y` `+0.5`→`-0.5`,
+   `MOON_COLOR` → `vec3(1.0)`, squared half-Lambert ipv `max(dot,0)`. `moonStrength`
+   default `0.5`→`0.3` (`DEFAULT_FOLIAGE_PARAMS`).
+3. ✅ `RpgLevelPanel` `baseLights`: wisp `worldHeight` = `groundHeightAt + (flying?TILE:0)
+   + crop.h/2`; hero = `groundHeightAt + HERO_CROP.h/2`. `wispVariant`/`wispFlying`
+   useMemo's omhoog verplaatst.
+4. ✅ Firefly als bewegend licht: `fireflyVariant` + eenmalige sprite-pixel-sample
+   (`fireflyLightColor`, groenste/felste pixel), `WorldWanderer` `emitLightPos`/
+   `lightPosRef` → `critterLightPosRef`, `critterWanderers.isFirefly`, `ldtkLights`
+   merge (max 4, nearest-hero, nacht-only, kleur × `(1-globalIllumination)`),
+   rebuild op `petFrame`. `EntityLayer` prop-passthrough.
+5. ✅ **Gefikst.** Onderzoek: de wereld-schaal ís al integer (`worldLayout.js` `N`),
+   behalve de `1.5`-halfstap op dpr ≥ 2 (waar 1.5 = 3 hele device-px) en één
+   non-home mount-pad zonder `worldScale`. Dus "integer zoom" was niet 't probleem.
+   Echte oorzaak: de DOM-tegellagen scrollen met `translateX(-cameraX·zoom)` waar
+   `cameraX` een **continue float** is (nooit afgerond), terwijl de WebGL
+   foliage/water-quads hun positie al op hele device-pixels snappen (§327). DOM
+   glijdt sub-pixel, WebGL stapt hele pixels → naad die langs 't grid kruipt.
+   Fix r1: `RpgLevelPanel setCameraX` → `offsetPx = Math.round(-next·z·dpr)/dpr`
+   (+ `cameraOffsetRef` krijgt dezelfde gesnapte waarde → DOM+WebGL in lockstep);
+   `cameraX`-state blijft float voor de follow/clamp-math.
+   **Fix r2 (Han: "ik zie de naden nog steeds"):** r1 was niet genoeg bij een
+   **fractionele dpr** (Windows 125/150% → dpr 1.25/1.5). Zowel de WebGL
+   foliage/water-quads als de campfire-DOM-tiles snappten centrum + grootte
+   *apart* (`round(cx·dpr)` + `round(w·dpr)`) → ±1 device-px drift tussen buur-
+   tiles. Nu de **4 randen** snappen: `lDev = round((cx−w/2)·dpr)`, `rDev =
+   round((cx+w/2)·dpr)`, idem `bDev`/`tDev`; quad = `centrum (lDev+rDev)/2`,
+   `size rDev−lDev`. Tile A's rechterrand ís exact tile B's linkerrand bij elke
+   dpr. In `ForegroundFoliageLayer` (beide paden: per-instance + instanced/atlas)
+   én `LdtkAnimatedTiles` (width/height nu ook uit gesnapte randen).
+
+Doc `docs/architecture.md` §364. `npm run test:run` 1305 pass / 1 skip · `build`
+clean · `lint` 0 errors.
+
+**Status:** ✅ alle 5 items klaar voor UAT (naden: 2e poging).
+
+## 2026-09-01 — ✅ FR: windgeluid "uit de foliage" — 3 scherm-chunks, L→R oscillatie, globale bed
+
+Vervolg op §360 (weer-cyclus) / §362 (nacht-look). Han wil het bestaande
+placeholder-windgeluid (`useWorldAmbientMusic.js` regels ~260-309: 'applause'-sample
+als windruis, 20% kans per 3-maten-cyclus, envelope, GEEN pan, recht naar
+`context.destination`) vervangen door een foliage-gekoppeld, ruimtelijk systeem.
+
+Han's spec:
+
+- **Volume per windniveau** (`Math.round(weatherOutputs(weather).windValue)`, 0–3):
+  hard (3) = zelfde geluid als nu; mild (2) = half volume; zacht/geen (0–1) = geen geritsel.
+- **Scherm in 3 chunks.** Als er foliage (géén gras) in een chunk staat: speel
+  geritsel af "uit die richting" (pan).
+- **L→R oscillatie:** de wind-intensiteit oscilleert en de oscillatie beweegt van
+  links naar rechts: chunk links (pan ~links) → 2 s later chunk midden (pan 50/50)
+  → 2 s later chunk rechts (pan ~rechts), dan weer van voren af aan.
+- **Globale bed:** speel óók (ongeacht bomen in beeld) een centrale (pan 50/50)
+  wind op half volume (wind 3) / kwart volume (wind 2).
+
+Bestaande infra: `src/audio/spatialPan.js` (`CHUNK_PX 256`, `computeSpatialPanVolume`),
+`createSpatialBus` (StereoPanner+Gain) in `useWorldAmbientMusic.js`, chunk-pan-model
+al gebruikt door birds/water. `weather.windValue` moet naar de hook (via RpgLevelPanel).
+
+### Interview-antwoorden (Han 2026-09-01)
+
+- **Trigger-model:** de random-getriggerde vlaag (#1091) VOLLEDIG vervangen. Zolang
+  wind ≥ 2 loopt het geritsel continu, gestructureerd door de L→R-oscillatie + bed.
+  Wind 0–1 = helemaal stil.
+- **Foliage-detectie:** per level vooraf bepaald — bij `buildWorld` één keer de set
+  van wereld-chunks met tree-foliage (`FOLIAGE_LAYERS` = Pine/Willow/Main_tree,
+  géén `Grass_decoration_*`). De 3 scherm-chunks kijken welke wereld-chunk ze overlappen.
+- **Oscillatie:** actieve chunk zwelt & zakt (`sin(π·localT)`) over 2 s; andere 2
+  chunks op laag basisniveau (`WIND_BASE_LEVEL 0.35`). Loop links→midden→rechts (6 s).
+  Chunk zónder foliage blijft stil, ook als de puls eroverheen komt.
+- **Bed + pan:** globale bed pan 0, steady zolang wind ≥ 2: wind 3 = 50 %, wind 2 =
+  25 % (van de rustle-piek `WIND_GUST_PEAK_GAIN` = 'mp'). Chunk-pan: links −0.5,
+  midden 0, rechts +0.5.
+
+### Plan
+
+1. **Nieuw puur-module `src/audio/windRustle.js`** (unit-getest): `windLevelMult`,
+   `bedFraction`, `sweepState(t)` → `{activeThird, swell}`, `rustleLevels(windLevel,
+   foliageByThird, t)` → `[g,g,g]`, `thirdHasFoliage(chunkSet, cameraX, viewWorldW, k)`.
+2. **`ldtkWorld.js`** — `buildWorld` retourneert `foliageChunkSet: Set<number>`
+   (abs-X chunk-indices met tree-foliage; `import { CHUNK_PX } from '../../audio/spatialPan'`).
+3. **`RpgLevelPanel.jsx`** — `envAudioRef.current` krijgt `windLevel`
+   (`Math.round(wOut.windValue)`), `cameraX`, `viewportWorldWidth` (`size.w/zoom`),
+   `foliageChunkSet` (`world.foliageChunkSet`).
+4. **`useWorldAmbientMusic.js`** — de #1091-gust-`useEffect` (regels ~260-311)
+   vervangen: 4 vastgehouden 'applause'-stemmen (3 chunk-panners −0.5/0/+0.5 + 1
+   bed op pan 0), elk `inst.start({duration:3600})` + `createSpatialBus`; één
+   `setInterval(~120ms)` die per stem de bus-gain `rampParam`t volgens `windRustle`.
+   Oude constants `WIND_GUST_BLOCK_MEASURES`/`WIND_GUST_TRIGGER_CHANCE` weg;
+   `WIND_GUST_PEAK_GAIN`/`WIND_GUST_NOTE` blijven.
+5. **Tests** `src/audio/__tests__/windRustle.test.js`; `useWorldAmbientMusic.test.js`
+   check op oude gust-assertions.
+6. **Docs** `docs/architecture.md` §363 (uniek nr checken vlak vóór schrijven).
+
+**Status:** ✅ geïmplementeerd. Nieuw `src/audio/windRustle.js` (puur:
+`windLevelMult`/`bedFraction`/`sweepState`/`rustleLevels`/`thirdHasFoliage`) +
+`__tests__/windRustle.test.js` (12 tests). `ldtkWorld.js` → `buildWorld` retourneert
+`foliageChunkSet` (tree-foliage `FOLIAGE_LAYERS` only, abs-X chunks). `RpgLevelPanel`
+`envAudioRef` krijgt `windLevel`/`cameraX`/`viewportWorldWidth`/`foliageChunkSet`.
+`useWorldAmbientMusic.js`: #1091-gust vervangen door 4 vastgehouden 'applause'-stemmen
+(3 chunk-panners −0.5/0/+0.5 + 1 bed pan 0), `setInterval(120ms)` retarget via
+`rustleLevels`/`bedFraction` + `rampParam`. Oude `useWorldAmbientMusic.test.js`
+gust-tests vervangen. Doc `docs/architecture.md` §363. `npm run test:run` 1304 pass
+/ 1 skip · `build` clean · `lint` 0 errors. → klaar voor UAT.
+
+**Tuning-follow-up (Han 2026-09-01, zelfde dag):** `WIND_SWEEP_PERIOD_SEC` /
+`WIND_SWEEP_STEP_SEC` verdubbeld `6/2 → 12/4 s` ("oscillatie 100% trager"), en
+`WIND_MASTER_GAIN = 0.5` op álle windstemmen (3 rustle + bed) bij de twee
+`rampParam`-sites ("volume van álle wind −50%"). Tests bijgewerkt (constant-relatief).
+
+## 2026-09-01 — ✅ 🐞+FR: nacht-look — achtergrond darkt niet + "maanlicht" (blauwwit, licht van linksboven)
+
+Vervolg op §360 (auto weer-cyclus). Drie punten van Han:
+
+1. **🐞 Achtergrondlaag darkt niet mee.** In LDtk/RAM-mode: de parallax-bg-canvases
+   (`LdtkScenery` `CanvasLayer` — kale canvas, geen filter/tint), de hardgecodeerde
+   sky-gradient-div (`linear-gradient(#8fd0d9,#dff3f5)`, regel ~2007) en `bgLayer5Url`
+   `<img>` (regel ~2008) hebben géén lit-pipeline. De `domDarkenOverlay` (multiply
+   naar `AMBIENT_DARK_RGB`, fade op `globalIllumination`) is `sceneryMode==='Legacy'`
+   only (perf, #1162 Fase 5). WebGL-shaderlicht (`LdtkLitGround` / `ForegroundFoliageLayer`,
+   gedeelde `foliageLightingGLSL.js`: `ambientTint = mix(AMBIENT_DARK_COLOR, 1.0, uGlobalIllumination)`)
+   raakt alleen grond/gebouw/decor + foliage, nooit de achtergrond.
+2. **Nacht te donker.** Nu `AMBIENT_DARK_COLOR = vec3(0.05,0.08,0.18)` (≈ zwart-blauw) ×
+   night-floor `TIME_PHASES` illum `0.1`. Han wil een lichtere **blauwwitte** donkere
+   kleur (maanlicht).
+3. **FR: "alles globaal donkerblauw + wit licht van linksboven".** Nu is licht =
+   globale multiply-darken + positionele point-lights (wisp/hero via `ldtkLights`,
+   `applyPointLight` in `foliageLightingGLSL.js`) die `trueColor` terug onthullen.
+   Han wil een **directioneel** "maan"-licht (vaste richting linksboven), niet
+   gekoppeld aan wisp/hero-positie.
+
+### Interview-antwoorden (Han 2026-09-01)
+
+- **Maanlicht-type:** alléén shader-relief (directioneel licht op de genormalmapte
+  lagen), GEEN cosmetische hoekgloed.
+- **Wanneer:** meeschalen met de cyclus — maanlicht-sterkte ∝ `(1 - globalIllumination)`
+  (vol 's nachts, half bij dusk/dawn, 0 overdag).
+- **Achtergrond-fix:** één CSS multiply-tint-overlay over de bg-stack, fade op
+  `globalIllumination` (perf-kost van #1162 Fase 5 komt terug — geaccepteerd).
+- **Nacht-kleur:** `AMBIENT_DARK_COLOR` ~`vec3(0.11,0.15,0.25)`, night-floor illum ~`0.12`.
+
+### Plan
+
+1. **Gedeelde GLSL `foliageLightingGLSL.js`:**
+   - `AMBIENT_DARK_COLOR` `vec3(0.05,0.08,0.18)` → `vec3(0.11,0.15,0.25)` (blauwwit,
+     lichter). `AMBIENT_DARK_RGB` in `RpgLevelPanel.jsx` (regel 110) mee: `[13,20,46]`
+     → `[28,38,64]` + comment.
+   - Nieuw in `LIGHTING_PARAM_UNIFORMS_GLSL`: `uniform float uMoonStrength;` (alle 4
+     shaders krijgen 'm automatisch).
+   - Nieuw in `LIGHTING_FUNCTIONS_GLSL`: `const vec3 MOON_DIR = normalize(vec3(-0.55,
+     0.5, 0.65));` (linksboven, richting kijker — spiegelt de bestaande
+     `ambientLight vec3(0,0.5,0.8)` conventie), `const vec3 MOON_COLOR = vec3(0.85,
+     0.9, 1.0);` (blauwwit), en `applyMoonLight(trueColor, currentColor, normal,
+     edgeFactor)` — zelfde "reveal trueColor" wiskunde als `applyPointLight` maar
+     zónder positie/falloff: `ndotl = max(dot(normalize(normal), MOON_DIR), 0.0)`,
+     `intensity = clamp(edgeFactor * uMoonStrength * (1.0 - uGlobalIllumination) *
+     ndotl, 0, 1)`, `mix(currentColor, blendLightDual(trueColor, MOON_COLOR,
+     intensity, uLightBlendMode, uLightBlendMode2), intensity)`.
+2. **3 shader-`main()`'s:** ná `lit = applyPointLights(...)` → `lit =
+   applyMoonLight(trueColor, lit, n, edgeFactor);`. Sites: `ForegroundFoliageLayer.jsx`
+   (~501 non-instanced, ~746 instanced), `LdtkLitGround.jsx` (~117),
+   `FoliageInstancingTest.jsx` (~249, dev-harness).
+3. **JS-uniform-wiring** (`uMoonStrength` in de naam-lijst + `gl.uniform1f(...,
+   p.moonStrength ?? 0.5)`): `ForegroundFoliageLayer.jsx` (~1101 lijst, ~1214 +
+   ~1346 sets), `LdtkLitGround.jsx` (~238 lijst, ~311 set), `FoliageInstancingTest.jsx`
+   (~349 lijst, ~419 set).
+4. **`DEFAULT_FOLIAGE_PARAMS.moonStrength: 0.5`** (ForegroundFoliageLayer) + slider
+   `<ParamSlider label="Moonlight strength" min={0} max={1} step={0.01}>` in
+   `FoliageParamsPanel` (§3a — tunebaar zonder code-rondje).
+5. **Achtergrond-darken (de bug):** `LdtkScenery` krijgt prop `bgDarkenColor`
+   (= `rgbCss(AMBIENT_DARK_RGB, 1 - globalIllumination)`, berekend in RpgLevelPanel).
+   Rendert `<div style={{position:'absolute',inset:0,background:bgDarkenColor,
+   mixBlendMode:'multiply',pointerEvents:'none'}}/>` **tussen** `backgroundLayers.map`
+   en de ground-`<div ref={groundScrollRef}>` — dekt sky-gradient + `bgLayer5` +
+   parallax-bg-canvases, grond/lit-ground/rest schilderen eroverheen. Alleen render
+   als `backgroundLayers.length > 0 && globalIllumination < 1`. Doorgeven via
+   `SceneryBack` (niet SceneryFront — die heeft geen `backgroundLayers`).
+6. **Night-floor:** `weatherCycle.js` `TIME_PHASES` night `illum: 0.1 → 0.12` +
+   de 2 test-asserts (`toBe(0.1)` → `0.12`) + §360-doctekst.
+7. **Docs:** `docs/architecture.md` §361 (nieuw, uniek nr).
+
+**Niet in scope (apart flaggen):** hero/pet/wisp/slime/NPC/critter-*sprites*
+darken 's nachts óók niet (alleen hun reflecties). Han noemde specifiek de
+achtergrond; sprites = zelfde klasse bug, los aanbieden als vervolg.
+
+**Architectuur-impact:** gedeelde GLSL + nieuwe lichtterm → plan-akkoord Han vóór impl.
+
+**Status:** ✅ geïmplementeerd (Han akkoord; sprites bewust buiten scope zodat NPC's
+'s nachts goed zichtbaar blijven). `foliageLightingGLSL.js` — `AMBIENT_DARK_COLOR`
+`vec3(0.05,0.08,0.18)` → `vec3(0.11,0.15,0.25)`, nieuwe `uMoonStrength`-uniform +
+`MOON_DIR`/`MOON_COLOR` + `applyMoonLight()` (directioneel, reveal via ndotl,
+`strength = uMoonStrength * (1 - uGlobalIllumination)`). Aangeroepen in alle 3
+shader-`main()`'s + dev-harness. `moonStrength` (default 0.5) in
+`DEFAULT_FOLIAGE_PARAMS` + debug-slider. `RpgLevelPanel` — `AMBIENT_DARK_RGB`
+`[13,20,46]` → `[28,38,64]`, `bgDarkenColor` berekend + via `SceneryBack` naar
+`LdtkScenery`, die één `mix-blend-mode:multiply`-overlay tussen bg-canvases en
+grond rendert (alleen als illum < 1). `weatherCycle.js` night-floor `0.1 → 0.12`
++ tests. Doc: `docs/architecture.md` §362 (§361 was al vergeven aan de difficulty-
+ladder van een parallelle sessie). `npm run test:run` 1292 pass / 1 skip · `build`
+clean · `lint` 0 errors. → klaar voor UAT.
+
+## 2026-09-01 — ✅ FR: auto weer-cyclus (wind 0–3 + dag/nacht) met geleidelijke overgangen
+
+Han: de RPG-wereld moet vanzelf "weer" laten variëren i.p.v. de debug-pickers.
+
+- **Windsnelheid** varieert 0–3 (nu 1/2/3 via `WIND_LEVEL_PX`/`windLevel` picker →
+  `skewAmount`/`stretchAmount`). Nieuw: ook 0 = windstil.
+- **Overgang** tussen windsnelheden geleidelijk, ~3 s (geen harde sprong 0→1).
+- **Dag/nacht** idem geleidelijk, overgang ~10 s (nu `timeOfDay` picker →
+  `TIME_OF_DAY_ILLUM` 0.1/0.33/1 → `globalIllumination`).
+- **Cyclus:**
+  - elke 30 s een nieuwe **random** windsnelheid (0–3).
+  - tijd-van-dag in **vaste volgorde** dag → schemer → nacht → schemer → (loop),
+    met duren **240 / 60 / 120 / 60 s**; 10 s crossfade bij elke wissel.
+
+Betrokken code: `RpgLevelPanel.jsx` (`foliageParams` state, `setFoliageParam`,
+`WIND_LEVEL_PX`, `TIME_OF_DAY_ILLUM`, 💨-indicator, critter day/night-tag spawning
+op `foliageParams.timeOfDay`), `ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS`,
+shader-uniforms `uSkewAmount`/`uStretchAmount`/`uGlobalIllumination`).
+
+### Interview-antwoorden (Han 2026-09-01)
+
+- **Aansturing:** pickers blijven; een picker aanraken start een transitie naar de
+  gekozen waarde en de cyclus draait vanaf daar verder. Timer van die fase reset
+  op vol. Time-of-day-picker onderscheidt nu **dusk** én **dawn** (4 keuzes).
+- **Bereik:** alleen RPG-wereld. Bevriest tijdens een muziek-LEVEL en hervat waar
+  hij was (state overleeft de RpgLevelPanel-unmount).
+- **Windverdeling:** elke 30 s uniform-met-teruglegging, gewogen richting 1
+  (voorstel-zak `[0,1,1,1,2,2,3]` → 14/43/29/14 %). Herhaling toegestaan.
+- **Windbereik:** 0–3, picker-labels kaal `0 / 1 / 2 / 3`. 0 = windstil
+  (skew/stretch 0 px). 💨-indicator = 0 puffs bij wind 0.
+- **Cyclus-timing:** vaste volgorde **dag 240 → dusk 60 → nacht 120 → dawn 60**
+  → loop. 10 s crossfade van `globalIllumination` bij elke wissel. Wind-fade 3 s.
+- **Critters bij dusk/dawn:** de critter-laag fade-out 5 s → variant-set opnieuw
+  gerold (dag↔nacht) → fade-in 5 s, zodat na de overgang de juiste dieren staan.
+
+### Plan
+
+1. **Nieuw puur-module `src/components/character/weatherCycle.js`** (unit-getest):
+   - Constants: `TIME_PHASES = [{name:'day',dur:240,illum:1},{name:'dusk',dur:60,
+     illum:0.33},{name:'night',dur:120,illum:0.1},{name:'dawn',dur:60,illum:0.33}]`;
+     `WIND_BAG=[0,1,1,1,2,2,3]`; `WIND_INTERVAL_S=30`; `WIND_FADE_S=3`;
+     `TIME_FADE_S=10`; `CRITTER_FADE_S=5`.
+   - `easeInOut(t)`, `pickWind(rand)` (uit de zak), `phaseCritterKind(name)` →
+     `'day'|'night'` (dag/dusk→day tot midpoint… nee: zie stap 5).
+   - `createWeatherState()` → begintoestand (fase 0, volle dag, wind 1, geen fade).
+   - `tickWeather(state, dtSeconds, rand)` → **pure reducer**: telt `phaseElapsed`
+     en `windTimer` op; bij fase-eind → volgende fase, start illum-fade
+     (`illumFrom→illumTo`, `fadeElapsed=0`) + kick critter-crossfade als de
+     nieuwe fase dusk/dawn is; bij `windTimer≥30` → nieuw `windTarget=pickWind`,
+     `windFrom=wind`, `windFadeElapsed=0`, `windTimer=0`. Retourneert nieuwe
+     state + afgeleide waarden `{ globalIllumination, windValue, timeOfDay,
+     critterKind, critterOpacity }` (met eases toegepast).
+   - `seekPhase(state, phaseName)` / `seekWind(state, n)` → picker-acties
+     (fase-index zetten, `phaseElapsed=0`, fade starten; resp. `windTarget=n`,
+     fade starten, `windTimer=0`).
+   - `dt` geclampt op `[0, 0.25]` s (tab-away / resume-spike opvangen).
+
+2. **Persistente klok over de unmount** — `src/components/character/weatherCycleStore.js`:
+   module-singleton `let saved=null; export loadWeatherState/saveWeatherState`.
+   Zo "bevriest" de cyclus als RpgLevelPanel unmount bij een LEVEL en hervat hij
+   exact bij terugkeer. (Geen wall-clock-inhaal: `lastTickMs` wordt op (re)mount
+   gereset, dus de LEVEL-duur wordt overgeslagen, niet ingehaald.)
+
+3. **`RpgLevelPanel.jsx` — cyclus aandrijven:**
+   - `const [weather, setWeather] = useState(() => loadWeatherState() ?? createWeatherState())`.
+   - `useFrameLoop` throttled (~80 ms / ~12 fps) subscriber: `dt` uit rAF-timestamp,
+     `next = tickWeather(prev, dt, Math.random)`; alleen `setWeather` + de vier
+     afgeleide `foliageParams`-velden pushen als een waarde ≥ drempel wijzigde
+     (illum 0.01, wind 0.05) — in een steady fase dus **0 re-renders**.
+   - Op unmount (`useEffect` cleanup) `saveWeatherState(weatherRef.current)`.
+   - Afgeleide waarden mergen in het bestaande `foliageParams`:
+     `skewAmount = stretchAmount = weather.windValue`,
+     `globalIllumination = weather.globalIllumination`,
+     `timeOfDay = weather.timeOfDay` ('day'|'dusk-dawn'|'night' voor de bestaande
+     lighting/tint-consumers; dusk+dawn → 'dusk-dawn').
+   - `FoliageParamsPanel`-`onReset` reset óók de weather-state.
+
+4. **Pickers = seek (blijven in debug-paneel):**
+   - `Time of day`-picker: `levels={{ day:1, dusk:0.33, night:0.1, dawn:0.33 }}`,
+     `value` = huidige fasenaam, `onChange={(name) => setWeather(seekPhase(weather, name))}`.
+   - `Wind`-picker: `levels={{ '0':0,'1':1,'2':2,'3':3 }}`,
+     `onChange={(n) => setWeather(seekWind(weather, Number(n)))}`.
+   - `WIND_LEVEL_PX` verdwijnt (of wordt identiteits-map); 💨-indicator →
+     `'💨'.repeat(Math.round(weather.windValue))` (0 → leeg).
+
+5. **Critter dag/nacht-swap met 5 s crossfade:**
+   - Weather-state krijgt `critterKind` ('day'|'night') + `critterOpacity` (0–1)
+     + `critterSwapT` (–1 = niet bezig, anders 0..CRITTER_FADE_S*2).
+   - Bij ingang **dusk** (day→night) of **dawn** (night→day) start `critterSwapT`;
+     `critterOpacity` = ease 1→0 over de eerste 5 s; op het 5 s-punt flipt
+     `critterKind`; daarna ease 0→1 over de tweede 5 s.
+   - `randomTaggedVariant(cfg.tags, kind)` aangeroepen met `weather.critterKind`
+     i.p.v. `foliageParams.timeOfDay`; `critterWanderers`-useMemo + de effect op
+     regel ~1526 depend nu op `weather.critterKind`.
+   - Render: wrap de `critterWanderers.map(...)` (regel 827) in
+     `<div style={{ opacity: critterOpacity, position:'absolute', inset:0, pointerEvents:'none' }}>`
+     — containing block gelijk aan de huidige positioned parent verifiëren zodat
+     `worldToScreenX`/`bottom` niet verschuiven; anders `critterOpacity` per
+     `WorldWanderer` doorgeven.
+
+6. **`DEFAULT_FOLIAGE_PARAMS`** (ForegroundFoliageLayer) blijft als fallback voor
+   tests / `FoliageInstancingTest` / eerste frame vóór de eerste tick.
+
+7. **Tests** (`weatherCycle.test.js`): fase-volgorde + duren (240/60/120/60),
+   illum-eindwaarden per fase, 10 s crossfade-monotonie, wind elke 30 s uit
+   `{0,1,2,3}`, `seekPhase`/`seekWind` resetten de juiste timer, `dt`-clamp,
+   critter-crossfade timing (opacity 0 op 5 s, kind flipt daar).
+
+8. **Docs:** nieuwe sectie in `docs/architecture.md` (§141-familie) — "Auto
+   weer-cyclus" — vóór UAT (harde gate §1a).
+
+**Architectuur-impact:** nieuw cross-cutting animatie-klokje + module-singleton →
+graag **plan-akkoord van Han** vóór impl.
+
+**Status:** ✅ geïmplementeerd (Han akkoord 2026-09-01). Nieuw: `weatherCycle.js` (pure
+reducer + `weatherOutputs`/`seekPhase`/`seekWind`), `weatherCycleStore.js` (unmount-
+overlevende singleton = freeze tijdens LEVEL), `__tests__/weatherCycle.test.js` (15
+tests). `RpgLevelPanel.jsx`: clock-state + throttled `useFrameLoop`-driver (~12 fps,
+0 re-renders in een rustige fase) + `useLayoutEffect`-seed + unmount-persist; pickers
+→ seek (Wind 0/1/2/3, Time of day day/dusk/night/dawn); 💨 = `Math.round(windValue)`
+puffs, verborgen bij 0; `critterWanderers`-memo keyt op `critterKind`; `critterOpacity`
+5 s-crossfade-wrapper om de critter-laag; `WIND_LEVEL_PX`/`TIME_OF_DAY_ILLUM` weg.
+`ForegroundFoliageLayer.jsx`: `DEFAULT_FOLIAGE_PARAMS` comments + `windLevel`-key weg.
+docs/architecture.md §360. `npm run test:run` 1246 pass / 1 skip · `build` clean ·
+`lint` 0 errors. → klaar voor UAT.
+
 ## 2026-08-29 — ✅ #1166 (#1163c): levels.json ramp levels `numMeasures` 8 → 2
 
 Sub-ticket 3 van 3 onder epic #1163 (na #1164 = `generateBlock.js`, #1165 = de
@@ -7083,3 +7457,97 @@ omdat Opus op de sessielimiet zat).
 - ⏳ Follow-up (niet gedaan, apart ticket waard): klassieke (niet-level) playback — Sequencer +
   `useSheetMusicHighlight` — heeft dezelfde audio-vs-beeld offset en gebruikt
   `audioOutputLatency.js` nog niet.
+
+
+---
+
+## 2026-09-01 — WORLD view: (1) metronoom/NPC/muziek-sync audit  (2) 192-gpx bottom-first crop ladder (Han)
+
+Han (world view):
+1. "Het klinkt niet alsof de metronoom, de NPC's/vogels, en de muziek allemaal
+   perfect in sync zijn. Doe een grondige controle." → **audit gedaan**, findings hieronder.
+2. "vanaf 192gpx hoogte: de volgende 16 gpx extra beschikbare hoogte worden
+   toegevoegd aan de ónderkant van het level, daarna mag je weer gpx aan de
+   bovenkant toevoegen." → `worldLayout.js` `cropFor` wijziging. **⏳ interview loopt.**
+
+### 🐞 Sync-audit bevindingen (world view) — status: 🔨 gerapporteerd, fixes wachten op Han
+
+Alle wereld-audio hoort op één klok te zitten: `worldClock.js` `context.currentTime`
++ `WORLD_BPM 100` + `[4,4]`. Gevonden afwijkingen:
+
+- **A. `petFrame` is NIET op het wereld-grid verankerd (grootste, root cause).**
+  `RpgLevelPanel.jsx` ~1303-1310: `petFrameStartMsRef` latcht "eerste frame na mount"
+  als t=0 i.p.v. `Math.floor(context.currentTime / frameSec)`. Exact het anti-patroon
+  dat `worldClock.js` + `useDebugMetronome.js` §924-r4 juist repareerden. Elke
+  beat-gesyncte wereld-animatie (wisp/pet/slime/worker idle) én elke worker-NPC
+  bel-hit (`useWorkerHitState` rolt op `petFrame % windowFrames === 0`) draait op
+  een grid met een willekeurige constante fase-offset (0…1 maat) t.o.v. de ambient
+  muziek (`nextMeasureStartTime`) en de metronoom (`floor(currentTime/spb)`).
+  Fix-richting: `petFrame` direct uit `context.currentTime` afleiden, géén lokaal
+  anker; `petFrameStartMsRef` + reset-effect weg.
+
+- **B. Worker-NPC bellen vuren op `context.currentTime` ("nu"), niet op een
+  gepland grid-tijdstip.** `useWorkerHitState.fire()` → `triggerBell(note,
+  context.currentTime,…)` → `instrument.start({ time: context.currentTime })`. De
+  beat-grens wordt door een React-effect op `petFrame` gedetecteerd (rAF-jitter +
+  commit-latency), dan op "nu" (al voorbij de grens) gescheduled. Bellen landen
+  0–120 ms + jitter te laat t.o.v. de ambient muziek die exact op
+  `nextMeasureStartTime` vooruit gepland is. Fix-richting: bereken het bedoelde
+  AudioContext-tijdstip uit het wereld-grid en geef dàt door aan `start({time})`.
+
+- **C. Debug-metronoom klik vuurt ook op `context.currentTime` op een
+  rAF-gedetecteerde edge.** `useDebugMetronome.js` ~74-90: `beatIndex =
+  floor(currentTime/spb)`, dan `start({ time: context.currentTime })`. "Detecteer
+  ná de grens, plan op nu" → klik 0–16 ms te laat + jitter t.o.v. ambient muziek
+  die exact op het grid zit. Dit is wat Han het duidelijkst hoort ("metronoom en
+  muziek niet in sync"). Fix-richting: plan de klik op het berekende
+  beat-grens-tijdstip vooruit, niet op `currentTime`.
+
+- **D. `outputLatency` (~48 ms, §355 meting) is ONGECOMPENSEERD voor de hele
+  wereld — maar consistent.** §355/§357 lieten `playMelodies` / wereld-ambient
+  bewust ongemoeid ("geen visuele klok om mee in de pas te lopen"). Maar de wereld
+  HEEFT nu visuele klokken: `petFrame`-bobbing + de on-screen metronoom-teller /
+  pendel. Elk hoorbaar wereld-geluid valt ~48 ms ná zijn visuele tegenhanger.
+  Design-keuze voor Han (zelfde trade-off als §355). Na A/B/C is alle audio
+  onderling consistent (+48 ms); compenseren lijnt ook met de beelden uit.
+
+- **E. Geverifieerd OK:** ambient-muziek/bird/glockenspiel `setTimeout`-ketens
+  self-corrigeren elk blok op de volgende `nextMeasureStartTime` — geen
+  accumulerende drift. `nextMeasureStartTime` `ceil`-logica + `playMelodies`
+  `safetyBuffer` OK.
+
+
+### ✅ Beide punten geïmplementeerd (2026-09-01, Sonnet/medium)
+
+**Punt 2 — bottom-first crop ramp.** `worldLayout.js` `cropFor`: `bottomCropGpx` ramp't nu lineair
+16→0 over `artGpxH` 192→208 (1 rij per gpx) i.p.v. de harde 16-of-0 sprong bij 240; daarna un-cropt
+verdere hoogte de bovenkant (topCrop 64→0 bij 272). `distributeHeight` ongemoeid. Consumers (App.jsx
+crop-wrapper) ongewijzigd — invariant `topCrop + (gpxH−skyPad) + bottomCrop === 272` blijft exact.
+Tests: worldLayout.test.js invariant-formule bijgewerkt + nieuwe ramp-describe. arch §348 bijgewerkt.
+
+**Punt 1 — world-sync A+B+C+D.**
+- **A:** `petFrame` (RpgLevelPanel) tikt nu op `WORLD_BPM`/`WORLD_TIME_SIGNATURE` (was live song-bpm,
+  DEFAULT_BPM 90 ≠ WORLD 100 → nooit in sync) én zonder lokaal anker (`floor(context.currentTime /
+  frameSec)`, frame 0 == wereldklok t=0). `petFrameStartMsRef` + reset-effect weg. `bpm`/`timeSignature`
+  props van RpgLevelPanel verwijderd (beide App.jsx call sites).
+- **B:** `useWorkerHitState` detecteert de hit één frame vroeg en plant hem op `hitFrame·frameSec −
+  outputLatency` (grid-tijd vooruit) i.p.v. `context.currentTime`. `getListenerX()` nog steeds vers
+  gelezen bij plannen (~1 frame vóór hit).
+- **C:** `useDebugMetronome` plant elke klik vooruit op de vólgende beat-grens (`(floor(now/spb)+1)·
+  spb − outputLatency`), gededupe op absoluut beatnummer. Teller/pendel blijven edge-trigger op de
+  hoorbare grid-passage.
+- **D:** `useWorldAmbientMusic` — `heardAt(startTime)` = `startTime − outputLatencySeconds(context)`
+  op de 5 grid-uitgelijnde stemmen (ambient piano, hh, windvlaag-envelope+noot, vogels, water
+  glockenspiel). Held water-drones ongemoeid. `playMelodies` zelf ongemoeid (§355/§357 regel).
+- `audioOutputLatency.js` header bijgewerkt. arch **§359** toegevoegd.
+
+**Groen:** `npm run test:run` 1231 pass / 1 skip · `npm run lint` 0 errors · `npm run build` clean.
+
+**Status:** 🔨 impl klaar → Han UAT. Let op:
+(a) metronoom + ambient muziek + NPC-hamerslag: vallen die nu samen (klik == noot == sprite-bob)?
+(b) NPC's/vogels bewegen nu op WORLD_BPM 100 — als het laatst gespeelde level een ander tempo had is
+    dat een merkbare verandering (bedoeld).
+(c) de ~48 ms outputLatency-compensatie: alle wereld-audio klinkt nu ≤ 1 frame vóór de beelden i.p.v.
+    ~3 frames erna — zelfde trade-off als §355/§357.
+(d) crop-ramp: op een net-te-kort scherm (world ~192–208 gpx) zie je nu eerst de ónderkant van het
+    level verschijnen, niet de bovenkant.

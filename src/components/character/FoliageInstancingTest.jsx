@@ -247,6 +247,7 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -346,7 +347,7 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
             'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
             'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
             'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
-            'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination',
+            'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
         ].forEach((name) => { uniforms[name] = gl.getUniformLocation(program, name); });
 
         stateRef.current = { gl, ext, program, instanceBuf, uniforms, diffuseTex, normalTex, startTime: performance.now() };
@@ -419,6 +420,7 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
         gl.uniform1f(uniforms.uGlobalIllumination, foliageParams?.globalIllumination ?? 0.6);
         gl.uniform1f(uniforms.uNormalStrength, foliageParams?.normalStrength ?? 1);
         gl.uniform1f(uniforms.uFlatIllumination, foliageParams?.flatIllumination ?? 0);
+        gl.uniform1f(uniforms.uMoonStrength, foliageParams?.moonStrength ?? 0.5);   // #weather §362
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, s.diffuseTex);

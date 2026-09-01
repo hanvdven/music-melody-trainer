@@ -72150,7 +72150,8 @@ export default [
       "move",
       "lightsource",
       "nature",
-      "night"
+      "night",
+      "critter"
     ]
   },
   {

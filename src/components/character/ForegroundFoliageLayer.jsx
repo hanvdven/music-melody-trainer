@@ -499,6 +499,7 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362 — directional top-left moon
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -744,6 +745,7 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362 — directional top-left moon
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -876,18 +878,19 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     waveBlendMode2: 1,  // round 12: averaged 50/50 with waveBlendMode
     lightBlendMode: 8,
     lightBlendMode2: 2,
-    // #141 round 27 (Han: "maak een tweede toggler: night: illum 0.1 / dusk-dawn 0.33, day global illum 1")
-    // — replaces round 11's plain continuous slider with a 3-level "time of day" picker; `timeOfDay` is the
-    // picker's own selected state (RpgLevelPanel's LevelPicker), `globalIllumination` is what the shader
-    // uniform actually reads — the picker always sets both together, same pattern as `windLevel` below.
-    timeOfDay: 'day',   // 'night' | 'dusk-dawn' | 'day' — see TIME_OF_DAY_ILLUM in RpgLevelPanel.jsx
+    // #141 round 27 introduced a 3-level "time of day" picker; #weather (Han 2026-09-01) replaced it
+    // with the auto weather cycle (weatherCycle.js). `globalIllumination` is what the shader uniform
+    // actually reads; `timeOfDay` is the human-readable phase bucket ('day' | 'dusk-dawn' | 'night'),
+    // written alongside it by RpgLevelPanel's cycle driver. Both are eased over ~10 s at a phase edge.
+    timeOfDay: 'day',
     globalIllumination: 1.0,   // 1 = full daylight, 0 = fully dark (AMBIENT_DARK_COLOR)
-    // #141 round 26 (Han: "ik wil wind skew en stretch beperken laten afhangen van het weer. maak in debug
-    // een knopje 'wind': low, med, high. met skew en stretch 1, 2 en 3 pixels" — replaces round 16/17's
-    // separate skew/stretch sliders with one 3-level "weather" picker; `windLevel` is the picker's own
-    // selected state, `skewAmount`/`stretchAmount` are what the shader uniforms actually read — the picker
-    // (RpgLevelPanel's WindLevelPicker) always sets all three together so they can't drift out of sync).
-    windLevel: 'med',   // 'low' | 'med' | 'high' — see WIND_LEVEL_PX in RpgLevelPanel.jsx
+    // #weather §362 (Han 2026-09-01): max strength of the directional top-left "moonlight" reveal. The
+    // shader scales it by (1 - globalIllumination) so it only shows as the cycle darkens. Debug slider
+    // in FoliageParamsPanel. UAT round 2 (§364, Han: "iets subtieler"): 0.5 → 0.3.
+    moonStrength: 0.3,
+    // #141 round 26 drove skew/stretch off a 3-level low/med/high "weather" picker (1/2/3 px). #weather
+    // (Han 2026-09-01): the auto cycle now sets both to the same eased 0..3 wind value every ~3 s; the
+    // shader uniforms `uSkewAmount`/`uStretchAmount` read them unchanged.
     skewAmount: 2,
     stretchAmount: 2,
     // #141 round 19 (Han: "maak ook een slider voor normal map strength voor illumination"): 1.0 = current
@@ -1067,6 +1070,7 @@ function ForegroundFoliageLayer({
         const uFlatIllumination = gl.getUniformLocation(program, 'uFlatIllumination');
         const uWhiteCapThreshold = gl.getUniformLocation(program, 'uWhiteCapThreshold');
         const uWhiteCapStrength = gl.getUniformLocation(program, 'uWhiteCapStrength');
+        const uMoonStrength = gl.getUniformLocation(program, 'uMoonStrength');   // #weather §362
 
         // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): the instanced program is compiled
         // ADDITIONALLY, alongside the original per-instance `program` above — both stay live for the whole
@@ -1101,7 +1105,7 @@ function ForegroundFoliageLayer({
                 'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
                 'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
                 'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
-                'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination',
+                'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
             ].forEach((name) => { instUniforms[name] = gl.getUniformLocation(instProgram, name); });
             instLocs = { aPos: instAPos, aInstance: instAInstanceLocs, uniforms: instUniforms };
         }
@@ -1219,6 +1223,7 @@ function ForegroundFoliageLayer({
             gl.uniform1f(uStretchAmount, p.stretchAmount);
             gl.uniform1f(uNormalStrength, p.normalStrength);
             gl.uniform1f(uFlatIllumination, p.flatIllumination);
+            gl.uniform1f(uMoonStrength, p.moonStrength ?? 0.5);   // #weather §362
             // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
             // per-instance-only (water exclusive), see the draw loop below.
 
@@ -1247,15 +1252,22 @@ function ForegroundFoliageLayer({
 
                 // Perf (#1162, Fase 2b, Han 2026-08-27, "doe ook fase 2 maar!"): `screenX` (computed just
                 // above, for culling) already has the live camera offset folded in — see this component's
-                // own `cameraOffsetRef` prop comment for the full rationale. No shader/GLSL change needed,
-                // `uScreenPos` was already just "the final on-screen pixel position" either way.
-                // #UI-overhaul Stap 3 (Han 2026-08-27, §327 finding 2): snap the quad's screen origin
-                // and size to whole DEVICE pixels. `screenX` carries a continuous camera offset and
-                // `dpr` is often fractional (e.g. 2.625) — without rounding, the shader's
-                // gl_FragCoord-derived native-pixel column boundaries drift by a sub-pixel each frame
-                // as the camera pans, which reads as pixel "swimming"/shimmer even at an integer zoom.
-                gl.uniform2f(uScreenPos, Math.round(screenX * dpr), Math.round(inst.screenY * dpr));
-                gl.uniform2f(uSizePx, Math.round(inst.widthPx * dpr), Math.round(inst.heightPx * dpr));
+                // own `cameraOffsetRef` prop comment for the full rationale.
+                // #UI-overhaul Stap 3 (§327 finding 2) snapped the quad's CENTRE and SIZE to whole device
+                // pixels independently. #weather §364 r2 (Han: "ik zie de naden nog steeds"): that still
+                // seams on a FRACTIONAL dpr (Windows 125% / 150% display scaling → dpr 1.25 / 1.5),
+                // because `round(centre·dpr) + round(size·dpr)/2` for tile A and tile B drift ±1 device px
+                // apart at some boundaries and tile the gap across the grid. Fix: snap the quad's four
+                // EDGES to whole device pixels — a tile's right edge is then EXACTLY its neighbour's left
+                // edge at any dpr (`round((cx+w/2)·dpr) == round((cxNext-w/2)·dpr)` since `cx+w/2 ==
+                // cxNext-w/2`). `screenX` is the tile CENTRE (localX = tile.worldX + gridSize/2);
+                // `screenY` is the tile's BOTTOM edge, the quad extends `heightPx` upward.
+                const lDev = Math.round((screenX - inst.widthPx / 2) * dpr);
+                const rDev = Math.round((screenX + inst.widthPx / 2) * dpr);
+                const bDev = Math.round(inst.screenY * dpr);
+                const tDev = Math.round((inst.screenY - inst.heightPx) * dpr);
+                gl.uniform2f(uScreenPos, (lDev + rDev) / 2, bDev);
+                gl.uniform2f(uSizePx, rDev - lDev, bDev - tDev);
                 gl.uniform4f(uDiffuseUV, ...inst.diffuseUV);
                 gl.uniform1f(uWorldCenterX, inst.worldX);
                 gl.uniform1f(uWorldWidth, inst.worldWidth);
@@ -1304,9 +1316,13 @@ function ForegroundFoliageLayer({
                 visibleAtlas.forEach((inst, i) => {
                     const off = i * FLOATS_PER_INSTANCE;
                     const screenX = inst.screenX + camOffsetPx;
-                    // Same integer-device-pixel snap as the per-instance loop above (#UI-overhaul Stap 3,
-                    // §327 finding 2) — required for identical pixel-swimming behavior between both paths.
-                    data.set([Math.round(screenX * dpr), Math.round(inst.screenY * dpr), Math.round(inst.widthPx * dpr), Math.round(inst.heightPx * dpr)], off);
+                    // Same four-EDGE device-pixel snap as the per-instance loop above (#weather §364 r2 —
+                    // fractional-dpr seam fix). Identical formula so both paths tile the same way.
+                    const lDev = Math.round((screenX - inst.widthPx / 2) * dpr);
+                    const rDev = Math.round((screenX + inst.widthPx / 2) * dpr);
+                    const bDev = Math.round(inst.screenY * dpr);
+                    const tDev = Math.round((inst.screenY - inst.heightPx) * dpr);
+                    data.set([(lDev + rDev) / 2, bDev, rDev - lDev, bDev - tDev], off);
                     data.set(inst.diffuseUV, off + 4);
                     data.set([inst.worldX, inst.worldWidth, inst.worldHeight, inst.groundDistOffset || 0], off + 8);
                     data.set([inst.kind === 'floor' ? 1 : 0, inst.wave === false ? 0 : 1, inst.skew ? 1 : 0, inst.edgeLitOnly ? 1 : 0], off + 12);
@@ -1349,6 +1365,7 @@ function ForegroundFoliageLayer({
                 gl.uniform1f(iu.uGlobalIllumination, p.globalIllumination);
                 gl.uniform1f(iu.uNormalStrength, p.normalStrength);
                 gl.uniform1f(iu.uFlatIllumination, p.flatIllumination);
+                gl.uniform1f(iu.uMoonStrength, p.moonStrength ?? 0.5);   // #weather §362
 
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);

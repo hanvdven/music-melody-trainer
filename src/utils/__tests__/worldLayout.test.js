@@ -30,7 +30,11 @@ describe('computeWorldLayout — invariants', () => {
             // topCrop + (visible art = gpxH − skyPad) + bottomCrop === 272 (the art is always ≤ 272).
             expect(world.topCropGpx + (world.gpxH - world.skyPadGpx) + world.bottomCropGpx).toBe(WORLD_ART_GPX_H);
             expect(world.skyPadGpx).toBe(Math.max(0, world.gpxH - WORLD_ART_GPX_H));
-            expect(world.bottomCropGpx).toBe(Math.min(world.gpxH, WORLD_ART_GPX_H) < WORLD_SQUEEZE_BOTTOM_BELOW ? WORLD_BOTTOM_CROP_GPX : 0);
+            // Bottom crop ramps 16→0 over artGpxH 192→208 (Han 2026-09-01), then stays 0.
+            const artGpxH = Math.min(world.gpxH, WORLD_ART_GPX_H);
+            const expectedBottomCrop = Math.max(0, Math.min(
+                WORLD_BOTTOM_CROP_GPX, (WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) - artGpxH));
+            expect(world.bottomCropGpx).toBe(expectedBottomCrop);
             expect(world.x).toBe(0);
             expect(world.y).toBe(0);
 
@@ -87,11 +91,12 @@ describe('computeWorldLayout — scale selection', () => {
         expect(computeWorldLayout(1366, 768).world.gpxH).toBe(WORLD_ART_GPX_H);
     });
 
-    it('very short 1280x300 → world squeezes (below 240 ⇒ bottom crop)', () => {
-        const L = computeWorldLayout(1280, 300);
-        expect(L.world.gpxH).toBeLessThan(WORLD_ART_GPX_H);
-        expect(L.world.gpxH).toBeGreaterThanOrEqual(WORLD_GPX_H_MIN);
+    it('very short 1280x256 → world squeezed to the 192-gpx floor ⇒ full 16-gpx bottom crop', () => {
+        const L = computeWorldLayout(1280, 256);
+        expect(L.world.gpxH).toBe(WORLD_GPX_H_MIN);
         expect(L.world.bottomCropGpx).toBe(WORLD_BOTTOM_CROP_GPX);
+        // the 16 gpx come off the BOTTOM; the top sky crop is whatever is left to reach 272.
+        expect(L.world.topCropGpx).toBe(WORLD_ART_GPX_H - WORLD_GPX_H_MIN - WORLD_BOTTOM_CROP_GPX);
     });
 
     it('very narrow 500x900 → N=1 (304 gpx width rule)', () => {
@@ -130,6 +135,32 @@ describe('computeWorldLayout — the world/content ladder (#348, Han 2026-08-29)
             expect(gpxH).toBeLessThanOrEqual(WORLD_GPX_H_MAX);
             prev = gpxH;
         }
+    });
+
+    // Han 2026-09-01: the first 16 gpx of world growth above the 192 floor un-crop the BOTTOM of the
+    // art (bottomCrop 16→0, one row per gpx); the top sky crop only starts shrinking after that.
+    it('bottom crop ramps 16→0 as the world grows 192→208 gpx, and the top crop holds meanwhile', () => {
+        let prevBottom = Infinity;
+        let sawRampMiddle = false;
+        // 1280-wide → N=1 with the o=0 (v-row) arrangement; heights 256→316 walk the squeeze floor,
+        // the 16-gpx ramp, and out the top of it.
+        for (let h = 256; h <= 316; h += 2) {
+            const { gpxH, bottomCropGpx, topCropGpx, skyPadGpx } = computeWorldLayout(1280, h).world;
+            const artGpxH = Math.min(gpxH, WORLD_ART_GPX_H);
+            // monotonic non-increasing bottom crop as the world grows
+            expect(bottomCropGpx).toBeLessThanOrEqual(prevBottom + 0.001);
+            prevBottom = bottomCropGpx;
+            if (artGpxH <= WORLD_GPX_H_MIN) expect(bottomCropGpx).toBe(WORLD_BOTTOM_CROP_GPX);
+            if (artGpxH >= WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) expect(bottomCropGpx).toBe(0);
+            if (artGpxH > WORLD_GPX_H_MIN && artGpxH < WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) {
+                sawRampMiddle = true;
+                // while the bottom is still un-cropping, the visible top crop stays at its floor value
+                expect(topCropGpx).toBe(WORLD_ART_GPX_H - (WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX));
+            }
+            // invariant still exact
+            expect(topCropGpx + (gpxH - skyPadGpx) + bottomCropGpx).toBe(WORLD_ART_GPX_H);
+        }
+        expect(sawRampMiddle).toBe(true);
     });
 });
 

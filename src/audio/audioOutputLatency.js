@@ -29,8 +29,12 @@
 // scheduled.
 //
 // Deliberately NOT applied inside `playMelodies` itself: that function is shared with the Sequencer,
-// the world's ambient music and the instrument previews, none of which have a visual clock to stay in
-// step with. Compensating there would silently shift every one of them.
+// the world's ambient music and the instrument previews. Compensating there would silently shift every
+// one of them. Instead each caller that HAS a visual clock subtracts this at its own scheduling seam:
+// `useLevelContentStream` (§355), the `Sequencer` (§357, classic playback) and — Han 2026-09-01 — the
+// open world, whose `petFrame` sprite bob and debug-metronome counter/pendulum read `context.currentTime`
+// directly, so `useWorldAmbientMusic` / `useDebugMetronome` / `useWorkerHitState` compensate their
+// grid-aligned schedules too. Instrument previews and scale playback still don't (no visual clock).
 //
 // Lives in its own module (like `tempoScrollAnchor.js`) so this one piece of arithmetic has a direct
 // unit test without mounting anything.

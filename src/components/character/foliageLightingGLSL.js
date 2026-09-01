@@ -41,6 +41,10 @@ uniform int uLightBlendMode2;
 uniform float uGlobalIllumination;
 uniform float uNormalStrength;
 uniform float uFlatIllumination;
+// #weather §362 (Han 2026-09-01, "een wit licht van linksboven op de wereld"): max strength of the
+// directional "moonlight" reveal — the shader itself scales this by (1 - uGlobalIllumination) so it
+// only appears as the auto weather cycle darkens the world. Driven by foliageParams.moonStrength.
+uniform float uMoonStrength;
 `;
 
 // #141 round 10/14 (Han: edge-only lighting for crates/fences, later "buitenste pixels licht op, de
@@ -48,7 +52,11 @@ uniform float uFlatIllumination;
 // per his explicit choice to share ONE constant across every edge-lit consumer (crates/fences AND the
 // new front-of-entities ground/building/decor layers), not a separate per-layer value.
 export const EDGE_LIGHT_PIXELS = 2.0;
-export const AMBIENT_DARK_COLOR = 'vec3(0.05, 0.08, 0.18)';
+// #weather §362 (Han 2026-09-01, "de nacht is iets te donker, ik wil een blauwwitte donkere kleur —
+// maanlicht"): lifted from the near-black vec3(0.05,0.08,0.18) to a lighter, bluer-whiter tone so a
+// fully-dark scene still reads as moonlit rather than black. The CSS-side twin `AMBIENT_DARK_RGB` in
+// RpgLevelPanel.jsx (used for the DOM day/night tint + the new background overlay) must stay in sync.
+export const AMBIENT_DARK_COLOR = 'vec3(0.11, 0.15, 0.25)';
 
 export const LIGHTING_FUNCTIONS_GLSL = `
 const float EDGE_LIGHT_PIXELS = ${EDGE_LIGHT_PIXELS.toFixed(1)};
@@ -168,5 +176,30 @@ vec3 applyPointLights(vec3 trueColor, vec3 currentColor, vec3 normal, float worl
         currentColor = applyPointLight(trueColor, currentColor, normal, worldX, groundDist, edgeFactor, uLightWorldX[i], uLightWorldHeight[i], uLightColor[i]);
     }
     return currentColor;
+}
+
+// #weather §362 (Han 2026-09-01, "kun je alles globaal donkerblauw maken, en dan een wit licht van
+// linksboven op de wereld"): a single DIRECTIONAL "moonlight" — no position, no falloff, one fixed
+// direction for the whole world (a distant moon). Same "reveal trueColor back out of the ambient dark"
+// mechanic as applyPointLight.
+// UAT round 2 (Han, §364): three fixes to that first pass —
+//   - "lijkt alsof de ilum van de maan van onderen komt ipv van boven" → MOON_DIR.y flipped +0.5 → -0.5
+//     (in this shader's decoded-normal space the point lights already imply Y-down; the first pass wrongly
+//     copied the sky ambientLight vector's sign). Still top-LEFT (negative X, toward the viewer).
+//   - "minder harde schaduwen" → a half-Lambert wrap (dot*0.5+0.5, then squared) instead of the hard
+//     max(dot,0) terminator: the lit→unlit transition is now a smooth quadratic falloff, no sharp edge.
+//   - "iets subtieler" + "dat mag wit zijn" → MOON_COLOR is pure white and the default uMoonStrength
+//     dropped 0.5 → 0.3 (DEFAULT_FOLIAGE_PARAMS).
+const vec3 MOON_DIR = normalize(vec3(-0.55, -0.5, 0.65));
+const vec3 MOON_COLOR = vec3(1.0);   // white
+vec3 applyMoonLight(vec3 trueColor, vec3 currentColor, vec3 normal, float edgeFactor) {
+    float strength = uMoonStrength * (1.0 - uGlobalIllumination);
+    if (strength <= 0.0) return currentColor;
+    // Half-Lambert: no hard 0-crossing, so no harsh shadow edge. Squared for a gentle shoulder.
+    float wrap = dot(normalize(normal), MOON_DIR) * 0.5 + 0.5;
+    float intensity = clamp(edgeFactor * strength * wrap * wrap, 0.0, 1.0);
+    if (intensity <= 0.0) return currentColor;
+    vec3 revealed = blendLightDual(trueColor, MOON_COLOR, intensity, uLightBlendMode, uLightBlendMode2);
+    return mix(currentColor, revealed, intensity);
 }
 `;

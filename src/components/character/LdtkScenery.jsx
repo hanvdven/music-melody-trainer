@@ -71,12 +71,21 @@ const CanvasLayer = React.memo(function CanvasLayer({ tiles, gridSize, leftPx, z
 // stay on the existing `leftPxForFactor` path (few in number, parallax factor varies per layer, not worth
 // the same wrapper machinery this round) — this is why the ground layer needs its OWN nested wrapper
 // `<div>` rather than one shared wrapper around this whole component's output.
-function LdtkScenery({ groundTiles, backgroundLayers = [], gridSize, leftPxForFactor, groundScrollRef, groundLeftPx, zoom, groundAnchor }) {
+function LdtkScenery({ groundTiles, backgroundLayers = [], gridSize, leftPxForFactor, groundScrollRef, groundLeftPx, zoom, groundAnchor, bgDarkenColor = null }) {
     return (
         <>
             {backgroundLayers.map(({ factor, tiles }, i) => (
                 <CanvasLayer key={`bg-${i}`} tiles={tiles} gridSize={gridSize} leftPx={leftPxForFactor(factor)} zoom={zoom} groundAnchor={groundAnchor} />
             ))}
+            {/* #weather §362 (Han 2026-09-01): the day/night multiply-darken for the background layers,
+                which have no lit pipeline of their own. Sits AFTER the bg canvases and BEFORE the ground
+                layer below, so it only ever multiplies the backgrounds (+ the sky gradient / bgLayer5
+                painted behind them in RpgLevelPanel) — never the ground/foliage, which the WebGL shaders
+                already darken. Only present when it's actually dark (`bgDarkenColor` is null at full
+                daylight) and only for the pass that has background layers. */}
+            {bgDarkenColor && backgroundLayers.length > 0 && (
+                <div style={{ position: 'absolute', inset: 0, background: bgDarkenColor, mixBlendMode: 'multiply', pointerEvents: 'none' }} />
+            )}
             <div ref={groundScrollRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                 <CanvasLayer tiles={groundTiles} gridSize={gridSize} leftPx={groundLeftPx} zoom={zoom} groundAnchor={groundAnchor} />
             </div>

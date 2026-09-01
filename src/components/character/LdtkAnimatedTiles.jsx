@@ -62,12 +62,25 @@ function AnimatedTile({ tile, tick, worldToScreenX, groundAnchorPx, zoom, levelP
 
     const worldXCenter = tile.worldX + gridSize / 2;
     const heightAboveBottom = levelPxHeight - tile.worldY - gridSize;
+    // #weather §364 r2 (Han: "ik zie de naden nog steeds"): snap the tile's four EDGES to whole DEVICE
+    // pixels and derive width/height as the difference of rounded edges — NOT `round(pos)` + a separate
+    // `size·zoom`. On a fractional dpr (Windows 125% / 150% → dpr 1.25 / 1.5) the latter drifts ±1 device
+    // px between adjacent tiles, tiling the seam across the grid. Edge-snapping guarantees a tile's right
+    // edge is exactly its neighbour's left edge (and stacked tiles' top == the one above's bottom) at any
+    // dpr. Matches the identical fix in ForegroundFoliageLayer for the WebGL foliage/water quads.
+    const dpr = window.devicePixelRatio || 1;
+    const cx = worldToScreenX(worldXCenter);
+    const halfW = (gridSize / 2) * zoom;
+    const bEdge = groundAnchorPx + heightAboveBottom * zoom;
+    const lDev = Math.round((cx - halfW) * dpr);
+    const rDev = Math.round((cx + halfW) * dpr);
+    const bDev = Math.round(bEdge * dpr);
+    const tDev = Math.round((bEdge + gridSize * zoom) * dpr);
     return (
         <div style={{
             position: 'absolute',
-            left: worldToScreenX(worldXCenter) - (gridSize / 2) * zoom,
-            bottom: groundAnchorPx + heightAboveBottom * zoom,
-            width: gridSize * zoom, height: gridSize * zoom,
+            left: lDev / dpr, width: (rDev - lDev) / dpr,
+            bottom: bDev / dpr, height: (tDev - bDev) / dpr,
             backgroundImage: `url("${tile.tilesetUrl}")`,
             backgroundPosition: `${-finalSrcX * zoom}px ${-finalSrcY * zoom}px`,
             backgroundSize: `${natural.w * zoom}px ${natural.h * zoom}px`,
