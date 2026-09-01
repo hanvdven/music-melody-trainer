@@ -24029,3 +24029,52 @@ than being handed a different one. Tests: `src/hooks/__tests__/useLevelContentSt
 reassembling into the whole-level pattern, finiteness, the gated exclusion, and no-melodic-percussion
 scheduling nothing) and `src/hooks/__tests__/adaptiveMode.integration.test.js` (timpani adopts the
 committed tempo at the same block as cello).
+
+---
+
+### §357. Frame-perfect CLASSIC playback — the same output-latency compensation (#1187, Han 2026-09-01)
+
+**Why.** §355 fixed the ~48 ms `AudioContext.outputLatency` audio-vs-visual offset for **side-scroll
+levels only**, at `useLevelContentStream`'s one seam, and explicitly left classic (non-level) playback
+— the `Sequencer` driving `useSheetMusicHighlight` in pagination / scroll / wipe mode — for a
+follow-up. That path has the identical defect: every note is scheduled at a raw AudioContext time
+while the rAF playhead/highlight reads the same `context.currentTime`, so the moving cursor,
+note-active highlight and `setCurrentMeasureIndex` all run `outputLatency` **ahead** of what is heard.
+
+**Fix — same convention as §355 (visual clock literal, audio issued early), applied at the
+`Sequencer`'s scheduling seam, reusing `audioOutputLatency.js` (the latency read is NOT re-derived).**
+
+The `Sequencer`'s entire visual timeline is anchored to one local, `nextStartTime` (measure clock):
+every `scheduledNotes[].audioTime`, every `scheduledMeasures[].audioTime`, every `scheduleTimeout`
+delay for label/visibility/round/overlay changes, and the pagination scheduler's `baseAudioTime` are
+all derived from it, and the rAF loop compares those against raw `context.currentTime`.
+
+- **`start()`'s base lead becomes `context.currentTime + 0.1 + outputLatencySeconds(this.context)`.**
+  This pushes the *whole* visual timeline `outputLatency` later in one place — nothing downstream has
+  to know.
+- **The two — and only two — `playMelodies` calls** (anacrusis lead-in; the per-measure call inside
+  `scheduleBlock`) are handed `nextStartTime − outputLatencySeconds(this.context)`, so the audio is
+  emitted early and *heard* exactly at the (shifted) visual `nextStartTime`.
+- Folding the latency into the **base lead** (rather than only subtracting at the `playMelodies`
+  calls) keeps the real audio scheduling lead at the full 0.1 s, so `playMelodies`'s
+  `safetyBuffer` (0.05 s) never clamps bar 1 into "now".
+- The pagination scheduler's `baseAudioTime` (`_armPaginationSequence`) is a *visual* anchor despite
+  the name — it only drives `setNextLayer` / `setStartMeasureIndex` / transition refs, never audio —
+  so it correctly rides the shifted `nextStartTime` with everything else.
+
+**Invariants.**
+- **`playMelodies` is still not touched** — the compensation lives entirely at the `Sequencer` call
+  sites, so the world's ambient music, instrument previews and scale playback (which have no visual
+  clock to sync to) are unaffected, exactly as §355 requires.
+- **All three animation modes** (pagination, scroll, wipe) are driven off the same `nextStartTime`, so
+  one shift covers them all; the scroll-mode `scrollTransitionRef` anchors move with it.
+- **The §6 timing invariants hold** — `setCurrentMeasureIndex` is still driven by an rAF loop reading
+  `scheduledMeasures` against `context.currentTime` (no `setTimeout`), just on a timeline shifted by a
+  constant.
+- A **residual of ≤ 1 display frame** remains (rAF result presented at next vsync), same honest
+  limit as §355; not compensated.
+
+**Files.** `src/audio/Sequencer.js` — `import { outputLatencySeconds }`, the base-lead line in
+`start()`, and the start-time argument of both `playMelodies` calls. No new module, no test changes
+(the existing `Sequencer` timing suite is unchanged in behaviour; the shift is a constant offset of
+the whole clock). Reuses `src/audio/audioOutputLatency.js` from §355 verbatim.
