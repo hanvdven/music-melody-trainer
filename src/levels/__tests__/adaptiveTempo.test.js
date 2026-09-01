@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     baselineAdaptiveBpm, evaluateAdaptiveBpm, commitIndexFor, lcmOf,
     ADAPTIVE_STEP, ADAPTIVE_LEVEL_REPEATS, NO_ANPM_BASELINE_FACTOR,
+    SPEED_UP_ACCURACY, SLOW_DOWN_ACCURACY,
 } from '../adaptiveTempo';
 
 // #1102 (split from #1087, Han 2026-08-23 chat interview, wired up 2026-08-28). These two formulas were
@@ -77,6 +78,14 @@ describe('adaptiveTempo — baselineAdaptiveBpm (#1102, Han\'s locked formula)',
 
 describe('adaptiveTempo — evaluateAdaptiveBpm (#1102, ±5% + [base/2, base] clamp)', () => {
     const baseBpm = 100;
+
+    // #1122: these two thresholds are now also imported by gamification.js's nextAnpm() as the ONE
+    // definition of "clean run" / "genuinely struggling". Lock the values so an edit to either fails
+    // a test in BOTH subsystems (this one and gamification.test.js) rather than silently drifting.
+    it('exports the shared accuracy thresholds at 90 / 70', () => {
+        expect(SPEED_UP_ACCURACY).toBe(90);
+        expect(SLOW_DOWN_ACCURACY).toBe(70);
+    });
 
     it('speeds up by exactly 5% after a clean stretch (>=90% accuracy)', () => {
         const prev = stats();

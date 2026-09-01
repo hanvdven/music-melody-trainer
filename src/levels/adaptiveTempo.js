@@ -40,8 +40,10 @@ export const ADAPTIVE_STEP = 0.05;
 // (only the +-5% step and the [lvl.bpm/2, lvl.bpm] clamp were), picked as a reasonable first pass: a
 // clean block (>=90%, matching ANPM's own #1099 qualifying threshold) speeds up, a rough block (<70%)
 // slows down, anything in between holds steady rather than chasing noise every single block.
-const SPEED_UP_ACCURACY = 90;
-const SLOW_DOWN_ACCURACY = 70;
+// Also the single source of truth for #1122's ANPM up/down gates — imported by gamification.js
+// nextAnpm() so "the player was genuinely struggling" has ONE definition across both subsystems.
+export const SPEED_UP_ACCURACY = 90;
+export const SLOW_DOWN_ACCURACY = 70;
 
 // How many times an adaptive level plays through its own content (Han 2026-08-28: "niet oninteressant om
 // het level te blijven herhalen. Bijvoorbeeld 3x"). WHY it is needed: the tempo only moves ±5% per block

@@ -19770,6 +19770,11 @@ slimes/hero, and that any flying critter's hover wobble still looks like before 
 
 ### §291. ANPM (accurate notes per minute) — a fifth, EWMA-based profile axis (#1099, split from #1087, Han 2026-08-22)
 
+> **SUPERSEDED for the smoothing law by §358 (#1122, Han 2026-09-01).** The symmetric EWMA
+> (`ANPM_EWMA_ALPHA = 0.3`, same weight up and down) described below was replaced by an asymmetric,
+> gated law in `gamification.js` `nextAnpm()`. Everything else in this section — what ANPM is, the
+> ≥90% qualifying gate, the profile axis, the single writer — still stands.
+
 **Purpose.** Han wants a running estimate of the player's current sight-reading speed: how many notes per
 minute they can play at ≥90% accuracy. Unlike every existing progress axis (§43's skillRatings/
 consistencyXP, §281's levelMastery — all of which either ratchet upward or move via an ELO match), Han was
@@ -24078,3 +24083,73 @@ all derived from it, and the rAF loop compares those against raw `context.curren
 `start()`, and the start-time argument of both `playMelodies` calls. No new module, no test changes
 (the existing `Sequencer` timing suite is unchanged in behaviour; the shift is a constant offset of
 the whole clock). Reuses `src/audio/audioOutputLatency.js` from §355 verbatim.
+
+---
+
+### §358. ANPM smoothing — asymmetric, gated, slow (#1122, Han 2026-09-01)
+
+**Purpose / Symptom.** The ANPM number on the stats screen (§291) moved too fast and symmetrically:
+one clean-but-slow run — a `b`/`c` *Langzaam* variant, or a level in a new range/scale with a lower
+authored note density — dragged it ~30% of the way toward that low reading in a **single**
+completion, so an afternoon on easy pieces looked like skill regression. Han: *"als ik boven de 80%
+accuracy speel 'onder mijn huidige ANPM' mag deze niet naar beneden bijgesteld worden … Stel enkel
+bij als accuracy op trager tempo laag is, en ook niet zo hard. Ik wil dat de ANPM stat maar traag
+verandert, BPM in een adaptive level mag harder fluctueren."*
+
+Part (b) of the ticket — normalising the metric on scale / accidental count (Adjusted vs Effective
+NPM) — is split to **#1188** and not touched here.
+
+**How it works.** The blend moves from an inline symmetric EWMA in `recordLevelCompletion` into one
+pure, exported function, `nextAnpm({ anpm, notesPerMinute, accuracyPercent })` in
+`src/utils/gamification.js` (beside `updateRating` / `gradedOutcome` — the established home for pure
+profile math). The law, in order:
+
+| sample | condition | result |
+| --- | --- | --- |
+| no measurement | `notesPerMinute` not finite or ≤ 0 | `anpm` unchanged |
+| first ever (`anpm == null`) | accuracy ≥ `SPEED_UP_ACCURACY` (90) | seed with `notesPerMinute` |
+| first ever | accuracy < 90 | stays `null` (a first sloppy run is not an anchor) |
+| FAST (`notesPerMinute ≥ anpm`) | accuracy ≥ 90 | `anpm + ANPM_ALPHA_UP · (npm − anpm)` |
+| FAST | accuracy < 90 | **HOLD** — fast-but-sloppy is evidence of overreach, not speed |
+| SLOW (`notesPerMinute < anpm`) | accuracy ≥ `SLOW_DOWN_ACCURACY` (70) | **HOLD** — the whole point |
+| SLOW | accuracy < 70 | `anpm + ANPM_ALPHA_DOWN · (npm − anpm)` (gentle) |
+
+`ANPM_ALPHA_UP = 0.15`, `ANPM_ALPHA_DOWN = 0.05` (was one symmetric `0.30`). Han's "> 80% never
+lowers" and the "70–80% held" band **collapse into the single `accuracy ≥ SLOW_DOWN_ACCURACY → hold`
+predicate** — 80 needs no constant of its own. `SPEED_UP_ACCURACY` / `SLOW_DOWN_ACCURACY` are
+`adaptiveTempo.js`'s own constants, promoted from module-private to exports and imported here, so
+"the player was genuinely struggling" has ONE definition shared with #1102's in-level bpm controller
+(§6c). That export changes no behaviour inside `adaptiveTempo.js`.
+
+**Invariants / What must not change.**
+
+- `recordLevelCompletion` stays the **sole writer** of `profile.anpm`, called once per completion
+  from App.jsx's single `level.done` effect. No per-block ANPM updates.
+- `PROFILE_VERSION` stays **5** — the field is still one scalar `anpm`; no migration. (Shape change
+  is #1188.)
+- `computeAccuracyPercent` / `totalNotesForLevel` are reused via the existing App.jsx call — no
+  second scoring or note-counting formula.
+- **#1102's in-level adaptive bpm is deliberately NOT smoothed this way** — Han wants it to keep
+  fluctuating faster than the lifetime stat. `baselineAdaptiveBpm` reads the same scalar as before.
+- `CharacterStatsPanels.jsx`'s ANPM row is unchanged (same rounding, same dash-when-empty). No new
+  UI in this ticket (a "held" hint was considered and deferred — it is its own interview).
+
+**Edge cases.** Rubato / gated levels (variant `a`, levels 1–2) grade every hit `perfect`
+(`SheetRpgLayer.jsx` ~line 1959) and are player-paced, so a slow rubato run now **HOLDS** instead of
+dragging ANPM down — the desired outcome. Adaptive (`i`) levels derive their bpm *from* ANPM, so
+their measured npm is near-self-fulfilling — a sample equal to `anpm` is a no-op under either branch,
+not a feedback-loop bug. `elapsedMinutes` includes the lead-in bars, any mid-level pause and the
+walk to the result screen, so the measured npm is systematically a little low — pre-existing
+(#1099), not fixed here, and a second reason the down direction is deliberately conservative.
+
+**Cross-ticket note.** #1121 (the unified difficulty ladder) will later change the *numerator* that
+feeds `notesPerMinute` (App.jsx) from the authored note count to the notes the player actually
+faced. Different file, different value — no conflict with this ticket, which only changes how the
+resulting sample is smoothed. If #1121 lands first, re-run this ticket's UAT numbers.
+
+**Files.** `src/utils/gamification.js` (`nextAnpm` + `ANPM_ALPHA_UP` / `ANPM_ALPHA_DOWN` + the
+`adaptiveTempo` import); `src/levels/adaptiveTempo.js` (two `const` → `export const`);
+`src/contexts/ProfileContext.jsx` (`recordLevelCompletion` calls `nextAnpm`; `ANPM_EWMA_ALPHA`
+deleted, its comment rewritten). Tests: `src/utils/__tests__/gamification.test.js` (new `nextAnpm`
+suite), `src/contexts/__tests__/ProfileContext.test.jsx` (the wiring cases), `src/levels/__tests__/adaptiveTempo.test.js`
+(constant-lock asserts).
