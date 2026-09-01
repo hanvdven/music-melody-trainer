@@ -37,7 +37,7 @@ import { StatsTopPanel, StatsBottomPanel } from './components/character/Characte
 import { CHARACTER_CATEGORIES, catByKeyLabel } from './components/character/characterEditorShared';
 import { CATEGORIES as AVATAR_CATEGORIES } from './model/characterAssets';
 import AvatarSubHeader from './components/layout/AvatarSubHeader';
-import { computeAccuracyPercent } from './components/levels/LevelStatsCharts';
+import { computeAccuracyPercent, computePlayedNoteCount } from './components/levels/LevelStatsCharts';
 import TwoHandedKeyboardPanel from './components/levels/TwoHandedKeyboardPanel';
 import DialogueBox from './components/character/DialogueBox';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, SLIME_IDLE, WIZARD_URL, WIZARD_GREEN_URL, WIZARD_CROP, WIZARD_FRAME, WIZARD_IDLE_CELLS } from './model/enemyAssets';
@@ -71,10 +71,10 @@ import useTwoHandedBass from './hooks/useTwoHandedBass';
 // useLevelBackingStream / useLevelMixedStream / useLevelKeyModulationStream and the classic
 // regenerate()-per-wave path — see docs/architecture.md §350.
 import useLevelContentStream from './hooks/useLevelContentStream';
-import useAdaptiveTempo from './hooks/useAdaptiveTempo';
+import useAdaptiveDifficulty from './hooks/useAdaptiveDifficulty';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { DEFAULT_RPG_FX_VOLUME, DEFAULT_RPG_MUSIC_VOLUME, rpgVolumeMultiplier } from './audio/dynamics';
-import { LEVELS, wavesForLevel, applyLevelVariant, totalNotesForLevel } from './levels/levels';
+import { LEVELS, wavesForLevel, applyLevelVariant } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
@@ -1310,9 +1310,9 @@ const App = () => {
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
 
     // #1102 (adaptive tempo, level-variant letter 'i'): decides/schedules/applies mid-level tempo
-    // changes. `bpmRef` stays the single source of truth for "the tempo now" — see useAdaptiveTempo.js
+    // changes. `bpmRef` stays the single source of truth for "the tempo now" — see useAdaptiveDifficulty.js
     // for why a decided-but-not-yet-due change still needs a one-element schedule of its own.
-    const adaptiveTempo = useAdaptiveTempo({ bpmRef, setBpm, context });
+    const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, context });
     // #1165 (2026-08-29): the CLASSIC per-wave adaptive decider effect that used to live here — an
     // effect keyed on `level.wave`, excluded for levels whose treble streamed via JIT — is GONE
     // with the mechanism it served. There is no classic per-wave content path any more: every
@@ -1743,7 +1743,7 @@ const App = () => {
         metronomeReady,
         levelMelodyReady,
         // #1102: with one cadence there is one decider — this stream, for every level.
-        adaptiveTempo,
+        adaptiveDifficulty,
         statsRef: level.statsRef,
     });
     // #1096 (Han 2026-08-20, rubato cello/timpani synced to the gate): gated levels' cello/timpani AUDIO
@@ -1935,7 +1935,9 @@ const App = () => {
         const lvl = typeof n === 'object' ? n : applyLevelVariant(LEVELS[n] || LEVELS[1], variantLetter, anpm);
         // #1102: seeds the clamp base with the level's AUTHORED tempo and clears any decision left over
         // from a previous run (which also invalidates that run's pending `setBpm` timer).
-        adaptiveTempo.begin(lvl.adaptiveBaseBpm);
+        // #1121: the level object too — the ladder's DENSITY rungs are scoped to procedural levels
+        // (a song-backed treble is sliced with `randomizationRule: 'fixed'` and cannot take an override).
+        adaptiveDifficulty.begin(lvl.adaptiveBaseBpm, lvl);
         // Bug fix (Han 2026-08-06, "audio-context mag niet starten met spelen voordat de melodie geladen
         // is... metronoom, cello, en melodie time checker zouden allemaal gebruik moeten maken van
         // dezelfde timer"): if the user was mid-playback (normal practice-mode Sequencer running) when
@@ -1960,7 +1962,7 @@ const App = () => {
         setCharacterScreen(null);
         setActiveTab('piano');
         level.start(lvl);
-    }, [context, level, closeAllEditModes, setCharacterScreen, setActiveTab, handleStopAllPlayback, stopAllBackingAudio, anpm, adaptiveTempo]);
+    }, [context, level, closeAllEditModes, setCharacterScreen, setActiveTab, handleStopAllPlayback, stopAllBackingAudio, anpm, adaptiveDifficulty]);
     // #693 (round 7): the header Pause button opens LevelPausePopup instead of the old floating
     // "■ Stop" button. Quit ends the level exactly like the old Stop button did; Resume rewinds to
     // the start of the measure the player was in, plays a 1-measure metronome count-in, then
@@ -2096,10 +2098,10 @@ const App = () => {
         setLevelAudioStart(null);
         // #1102: a replay is a fresh run — clear the previous run's stats baseline and pending commit so
         // the new run starts from its own ANPM baseline again (`level.replay()` re-applies `lvl.bpm`).
-        adaptiveTempo.begin(level.current?.adaptiveBaseBpm);
+        adaptiveDifficulty.begin(level.current?.adaptiveBaseBpm, level.current);
         level.replay();
         setCharacterScreen(null);   // #863 — leave the level-result top-view panel, back to live gameplay
-    }, [stopAllBackingAudio, handleStopAllPlayback, level, adaptiveTempo]);
+    }, [stopAllBackingAudio, handleStopAllPlayback, level, adaptiveDifficulty]);
     // #863 (Han 2026-08-10, "zet het splash screen in zijn volledigheid in de top view. sluit het level
     // af, en toon de statistieken"): the level-result panel now lives in the SAME top-view slot as the
     // avatar/stats/bestiary panels (characterScreen === 'levelResult') instead of a floating modal — auto-
@@ -2118,11 +2120,15 @@ const App = () => {
         if (!level.done) return;
         setCharacterScreen('levelResult');
         if (level.current) {
-            // #1099 (Han 2026-08-22, ANPM stat): "maten per minuut x noten per maat" — `totalNotesForLevel`
-            // (levels.js, #1102 follow-up: extracted so #1102's adaptive-tempo baseline reuses the SAME
-            // formula, CLAUDE.md §6c) is the level's own total note count.
+            // #1099 (Han 2026-08-22, ANPM stat): "maten per minuut x noten per maat".
+            // #1121 (Han 2026-09-01) changed the NUMERATOR only: it was `totalNotesForLevel(level.current)`
+            // — the level's AUTHORED note count — which under-reports any run where the adaptive
+            // difficulty ladder (§361) raised the note density above what the level authors, i.e. exactly
+            // the effort that feature exists to add. `computePlayedNoteCount` is the notes the player
+            // actually FACED (every note that reached a final verdict, minus `extraNote`, so mashing
+            // spurious keys cannot inflate the number). The DENOMINATOR is untouched.
             const elapsedMinutes = (Date.now() - (level.stats.startedAt ?? Date.now())) / 60000;
-            const totalNotes = totalNotesForLevel(level.current);
+            const totalNotes = computePlayedNoteCount(level.stats);
             recordLevelCompletion({
                 levelId: level.current.songId ? undefined : level.current.id,
                 songId: level.current.songId,
@@ -2166,9 +2172,9 @@ const App = () => {
             // #1102: drop any decided-but-unapplied tempo change too — its pending `setBpm` timer would
             // otherwise land AFTER `useLevel.restore()` put the player's own pre-level bpm back, silently
             // leaving the app at a level's adapted tempo.
-            adaptiveTempo.cancel();
+            adaptiveDifficulty.cancel();
         }
-    }, [level.active, stopAllBackingAudio, adaptiveTempo]);
+    }, [level.active, stopAllBackingAudio, adaptiveDifficulty]);
     // Watchdog + self-heal (Han 2026-08-10, "ik zit nu zelfs in de situatie dat de melodie helemaal nooit
     // komt... het is NIET robuust geïmplementeerd"): a structural safety net for the case where the
     // visual clock (SheetRpgLayer's own tick loop) never unfreezes at all despite `levelAudioStart`
@@ -3197,7 +3203,8 @@ const App = () => {
                         // sheet-music / avatar panels.
                         padding: inWorld ? 0 : '0 20px',
                         // #UI-overhaul Stap 3: the world block clips the level's cropped-off top sky
-                        // (and, when squeezed below 240 gpx, its bottom 16 gpx).
+                        // (and, while squeezed toward the 192-gpx floor, up to its bottom 16 gpx —
+                        // that bottom crop ramps 16→0 over gpxH 192→208, Han 2026-09-01, see worldLayout cropFor).
                         overflow: inWorldLevel ? 'hidden' : undefined,
                         // #348: when the ladder grows the world block past the 272-gpx level art
                         // (`world.skyPadGpx > 0`), the RpgLevelPanel layer still renders 272·N tall,
@@ -3226,10 +3233,10 @@ const App = () => {
                             bottom: -(worldLayout.world.bottomCropGpx * worldLayout.scale),
                             height: WORLD_ART_GPX_H * worldLayout.scale,
                         }}>
-                            <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} worldScale={worldLayout.scale} />
+                            <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} worldScale={worldLayout.scale} />
                         </div>
                     ) : (
-                        <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />
+                        <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />
                     ))}
                     {/* #867 (Han 2026-08-18, "de info op de plaats van de bladmuziek"): the old
                         <LevelSplash> sibling-swap is gone — SheetMusic now stays mounted for

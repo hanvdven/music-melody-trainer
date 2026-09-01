@@ -1,16 +1,27 @@
-import { computeAccuracyPercent, computeTotalNotes } from '../components/levels/LevelStatsCharts';
 import { totalNotesForLevel } from './levels';
 
 // #1102 (split from #1087, Han 2026-08-23 chat interview): adaptive-mode (level-variant letter 'i')
-// tempo. Pure, testable pieces — the ONE-TIME baseline computed when a level starts, the per-block live
-// adjustment, the exact-cross-stream commit index, and the adaptive level's repeat count.
+// tempo. Pure, testable pieces.
 //
-// WHO CALLS `evaluateAdaptiveBpm` (corrected 2026-08-29): `useLevelContentStream.js`, via
-// `useAdaptiveTempo.js`. An earlier version of this comment named `useLevelTrebleStream.js` and warned
-// that only ONE of the two streaming hooks may write the shared value — both of those hooks were DELETED
-// by #1165, which merged every level's content onto ONE per-block stream. That stream is now the sole
-// decider for every level, so "only one writer" is structural rather than a convention to uphold, and
-// `commitIndexFor` is always called with a single unit `[B]`.
+// WHAT THIS MODULE IS, after the #1121 split (2026-09-01): the LEVEL-START and CROSS-STREAM
+// primitives — `baselineAdaptiveBpm` + `NO_ANPM_BASELINE_FACTOR` (computed ONCE, before a note has
+// been played), `ADAPTIVE_STEP`, `SPEED_UP_ACCURACY`/`SLOW_DOWN_ACCURACY` (also the shared definition
+// of "clean run" / "genuinely struggling" for #1122's `nextAnpm`), `ADAPTIVE_LEVEL_REPEATS`,
+// `diffStats`, and `lcmOf`/`commitIndexFor`.
+//
+// The LIVE PER-BLOCK POLICY moved OUT to `src/levels/adaptiveLadder.js` (#1121): what used to be
+// `evaluateAdaptiveBpm` here is now the TEMPO RUNG of `evaluateLadder`, one rung of a single monotone
+// difficulty ladder whose other rungs are note density (and, from #1120, gated pacing). See
+// docs/architecture.md §361. Import direction is `adaptiveLadder` → `adaptiveTempo` ONLY: this file
+// imports `levels.js`, which imports this file back, so a ladder edge in the other direction would
+// close a cycle.
+//
+// WHO CALLS THE DECIDER (corrected 2026-08-29): `useLevelContentStream.js`, via
+// `useAdaptiveDifficulty.js`. An earlier version of this comment named `useLevelTrebleStream.js` and
+// warned that only ONE of the two streaming hooks may write the shared value — both of those hooks were
+// DELETED by #1165, which merged every level's content onto ONE per-block stream. That stream is now the
+// sole decider for every level, so "only one writer" is structural rather than a convention to uphold,
+// and `commitIndexFor` is always called with a single unit `[B]`.
 
 // Baseline bpm — the algebraic INVERSE of #1099's own ANPM formula (notesPerMinute = totalNotes /
 // elapsedMinutes), applied to THIS level's own beat/note structure instead of whichever level ANPM was
@@ -22,6 +33,12 @@ import { totalNotesForLevel } from './levels';
 // never demonstrate the acceleration that is its whole point. Starting a bit below the authored tempo
 // leaves headroom in both directions. Still falls back to the authored bpm outright when the level has no
 // notes to divide by (defensive; every real level has some).
+//
+// #1121: this deliberately KEEPS `totalNotesForLevel` (the level's AUTHORED structure) even though the
+// #1099 ANPM numerator it inverts switched to `computePlayedNoteCount` (the notes actually faced). The
+// two formulas now differ ON PURPOSE and must not be "unified": this one runs BEFORE a single note has
+// been played, where a played-note count does not exist — it can only ask "how many notes does this
+// level, as authored, contain?". Do not swap it.
 export const NO_ANPM_BASELINE_FACTOR = 0.7;
 
 export const baselineAdaptiveBpm = (lvl, anpm) => {
@@ -62,26 +79,14 @@ export const ADAPTIVE_LEVEL_REPEATS = 3;
 // (LevelStatsCharts.jsx, §6c — the SAME formula the Stats tab and #1099's ANPM already use, not a third
 // independent scoring formula) can be reused unmodified against "just this block" instead of the whole
 // level's running total.
-const diffStats = (before, after) => {
+// EXPORTED (#1121) so `adaptiveLadder.js` scores a block off the SAME single diff — there is never a
+// second diff of the same snapshot pair, and the two can never disagree about which fields are numeric.
+export const diffStats = (before, after) => {
     const delta = {};
     Object.keys(after).forEach((k) => {
         if (typeof after[k] === 'number') delta[k] = (after[k] || 0) - (before?.[k] || 0);
     });
     return delta;
-};
-
-// Called once per JIT block boundary (useLevelTrebleStream.js only — see its own comment on why bass/
-// metronome only READ the result, never call this themselves, to avoid double-adjusting one boundary).
-// `prevStats`/`currStats` are `level.stats` snapshots taken at the START and END of the block just
-// finished. Returns the NEW clamped bpm; a no-op (returns `currentBpm` unchanged) when nothing was graded
-// yet this block (e.g. the very first block, before any note has been hit/missed).
-export const evaluateAdaptiveBpm = ({ prevStats, currStats, currentBpm, baseBpm }) => {
-    const delta = diffStats(prevStats, currStats);
-    if (computeTotalNotes(delta) <= 0) return currentBpm;
-    const accuracy = computeAccuracyPercent(delta);
-    const direction = accuracy >= SPEED_UP_ACCURACY ? 1 : accuracy < SLOW_DOWN_ACCURACY ? -1 : 0;
-    const next = currentBpm * (1 + direction * ADAPTIVE_STEP);
-    return Math.min(baseBpm, Math.max(baseBpm / 2, next));
 };
 
 // ── EXACT cross-stream sync: the commit-index primitive ───────────────────────────────────────────

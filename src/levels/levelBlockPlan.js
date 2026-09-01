@@ -1,4 +1,5 @@
 import { updateScaleWithMode } from '../theory/scaleHandler';
+import { densityOverrideFor } from './adaptiveLadder';
 
 /**
  * levelBlockPlan — the PURE per-level "what does block k look like?" policy.
@@ -187,15 +188,41 @@ export const leadInSpecFor = (lvl) => {
  * Bass/percussion are always generated for a level, song or not: a level's cello is its own
  * generated backing line, never the song's bass (#871 — it plays through the dedicated
  * `celloRef`/`LEVEL_CELLO_SLOT`, so it can never bleed into a song that provides none).
+ *
+ * ── The optional DENSITY argument (#1121, Han 2026-09-01) ─────────────────────────────
+ * `density` is `{ densityStep, timeSignature }` or `null`. A non-zero rung of the adaptive
+ * difficulty ladder (adaptiveLadder.js) is projected — by FORMULA, never a table (§6c) — onto
+ * the two settings fields the shared generation pipeline already consumes
+ * (`notesPerMeasure`/`smallestNoteDenom`) and shallow-merged onto the treble/bass entries. It
+ * lands HERE, and nowhere else, so "what settings does a block get" stays ONE function rather
+ * than being half-assembled inside the content stream — half-merging in two places is exactly
+ * how the two would drift.
+ *
+ * `densityStep: 0` (and `null`) is provably the IDENTITY: `densityOverrideFor` returns `null`
+ * patches, so the returned object is byte-identical to the pre-#1121 one. That is what makes
+ * "a level that never leaves the authored density behaves exactly as before" assertable.
+ *
+ * ORDER: the song-treble `randomizationRule: 'fixed'` forcing stays the OUTERMOST wrapper, so a
+ * density patch can never accidentally unset it. (A song level never gets a patch anyway — the
+ * ladder scopes density to procedural levels — but the ordering makes that safe by construction.)
  */
-export const trackSpecsForLevel = (lvl, settings) => {
+export const trackSpecsForLevel = (lvl, settings, density = null) => {
     const songTreble = usesSongTreble(lvl);
+    const patches = density?.densityStep
+        ? densityOverrideFor(density.densityStep, {
+            trebleAuthored: settings.trebleSettings,
+            bassAuthored: settings.bassSettings,
+            timeSignature: density.timeSignature,
+        })
+        : null;
+    const treble = patches?.treble
+        ? { ...settings.trebleSettings, ...patches.treble }
+        : settings.trebleSettings;
+    const bass = patches?.bass ? { ...settings.bassSettings, ...patches.bass } : settings.bassSettings;
     return {
         instrumentSettings: {
-            treble: songTreble
-                ? { ...settings.trebleSettings, randomizationRule: 'fixed' }
-                : settings.trebleSettings,
-            bass: settings.bassSettings,
+            treble: songTreble ? { ...treble, randomizationRule: 'fixed' } : treble,
+            bass,
             percussion: settings.percussionSettings,
             chords: settings.chordSettings,
             metronome: settings.metronomeSettings,

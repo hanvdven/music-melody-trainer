@@ -23078,8 +23078,19 @@ px / N):
 | foot → 1 | 240 → 272 (linear) | 64 → 92 (linear, together) |
 | 1 → 2 | 272 (fixed) | 92 → 128 (linear) |
 | 2 → 3 | 272 → 320 (linear) | 128 (fixed) |
-| below foot | squeeze 240 → 192 (+16-gpx bottom crop) | 64 (pinned) |
+| below foot | squeeze 240 → 192 (bottom crop ramps in — see below) | 64 (pinned) |
 | above top | 320 (fixed) | 128 + (rest) — blocks absorb everything further |
+
+**Bottom-first crop ramp (Han 2026-09-01).** `cropFor` used to switch the 16-gpx bottom crop on as a
+hard step the instant `artGpxH < 240`. Now it **ramps 16 → 0 linearly over `artGpxH` 192 → 208** —
+Han: *"vanaf 192gpx hoogte: de volgende 16 gpx extra beschikbare hoogte worden toegevoegd aan de
+ónderkant van het level, daarna mag je weer gpx aan de bovenkant toevoegen."* So as the world block
+grows up from its 192-gpx floor, the first 16 gpx un-crop the **bottom** of the art one row at a time
+(`bottomCropGpx = clamp((192 + 16) − artGpxH, 0, 16)`), the top sky crop holding at its floor value
+(`272 − 208 = 64`) throughout; only past `artGpxH` 208 does further height un-crop the **top**
+(`topCropGpx` 64 → 0 at 272). `distributeHeight`'s world-squeeze band (240 → 192) is unchanged — this
+is purely where `cropFor` puts the crop. `WORLD_SQUEEZE_BOTTOM_BELOW` (240) is no longer read by
+`cropFor`; it still bounds the squeeze clamp in `distributeHeight`.
 
 `o` = the arrangement's *vertical* nav overhead (16 for a strip, 0 for a beside-column); `k` = how
 many content blocks stack vertically (1 for a row, 2 for `h-col`/`split`). By construction
@@ -23286,7 +23297,9 @@ something the player guesses by ear (that is the melody's job), it is the contin
 underneath BOTH halves, so the same content is simply repeated for each.
 
 **#1102 (adaptive tempo) — the seam.** *(This paragraph is the re-fit only; the finished feature it
-seams onto is documented in **§354**, which supersedes it together with §346.)*
+seams onto is documented in **§354**, which supersedes it together with §346. #1121 later widened this
+same one seam into the whole difficulty LADDER — the block's DENSITY is read there too, from the same
+single `blockSettingsFor` call, and the controller is now `useAdaptiveDifficulty.js`. See **§361**.)*
 `adaptiveTempo.js`, `useAdaptiveTempo.js`, level-mode variant
 `'i'`, `tempoScrollAnchor.js`, SheetRpgLayer's `tempoScrollMs` and `useLevel.statsRef` are all
 **unchanged**. Only the WIRING was re-fitted: the per-block `bpmForMeasure` read and the accumulated
@@ -23749,7 +23762,8 @@ units: [B] })`. There is exactly one decider and one cadence, so a stretch of pl
 double-adjusted and no second mechanism can disagree about when a change takes effect. §346's
 separate App.jsx per-wave decider effect is gone with the classic path it served.
 
-**Why a one-element tempo SCHEDULE is still needed (`useAdaptiveTempo.js`).** A level's audio is
+**Why a one-element tempo SCHEDULE is still needed (`useAdaptiveDifficulty.js`, `useAdaptiveTempo.js`
+until #1121).** A level's audio is
 generated and scheduled up to one screenful AHEAD of when it sounds, so when the stream builds the
 block that begins at measure M it must ALREADY know M's tempo — whereas the app-wide `bpm` (which
 drives SheetRpgLayer's scroll rate and the sprite frame rate) may only change when M actually
@@ -23841,19 +23855,28 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
    This is **pre-existing** (every multi-block level since #1166 behaves this way) and is neither
    caused nor worsened by adaptive mode — recorded here because the ×3 repeat makes it more visible.
 
-**Out of scope, by Han's own split:** #1120 (what happens when the tempo would need to drop BELOW
-the floor — switch to rubato/gated pacing) and #1121 (what happens at the CEILING — grow difficulty
-via note density instead of more tempo).
+**No longer out of scope — the two clamp bounds now continue into a LADDER (#1121, §361).** What used
+to be a silent no-op at either bound is now the next rung of one monotone difficulty scale: at the
+CEILING, difficulty grows through NOTE DENSITY at the same tempo; at the FLOOR the content thins toward
+a skeleton, and #1120 hangs gated pacing off the very bottom. The tempo rung documented in this section
+is byte-identical inside that ladder — `evaluateAdaptiveBpm` MOVED into `evaluateLadder`
+(`src/levels/adaptiveLadder.js`) rather than being wrapped, and the controller was renamed to
+`useAdaptiveDifficulty`. Read §361 alongside this section.
 
-**Files.** `src/levels/adaptiveTempo.js` (the two locked formulas, `NO_ANPM_BASELINE_FACTOR`,
-`ADAPTIVE_LEVEL_REPEATS`, `lcmOf`/`commitIndexFor`), `src/levels/levels.js`
+**Files.** `src/levels/adaptiveTempo.js` (`baselineAdaptiveBpm` + `NO_ANPM_BASELINE_FACTOR`,
+`ADAPTIVE_STEP`, the two accuracy thresholds, `ADAPTIVE_LEVEL_REPEATS`, `diffStats`,
+`lcmOf`/`commitIndexFor` — the live per-block policy moved to `src/levels/adaptiveLadder.js`, §361),
+`src/levels/levels.js`
 (`LEVEL_MODE_VARIANTS.i`, `applyLevelVariant`'s `anpm` param + `adaptiveOverrides` incl. the repeat),
-`src/hooks/useAdaptiveTempo.js` (the decide/schedule/apply controller),
+`src/hooks/useAdaptiveDifficulty.js` (the decide/schedule/apply controller; named
+`useAdaptiveTempo.js` until #1121),
 `src/hooks/useLevelContentStream.js` (per-block fresh bpm read, accumulated cursor, sole decider),
 `src/components/sheet-music/tempoScrollAnchor.js` + `src/components/sheet-music/SheetRpgLayer.jsx`
 (`tempoScrollMs` and its eight call sites), `src/App.jsx` (controller wiring, `anpm` into
 `applyLevelVariant`, `begin` on start/replay, `cancel` on level end). Tests:
-`src/levels/__tests__/adaptiveTempo.test.js`, `src/hooks/__tests__/useAdaptiveTempo.test.js`,
+`src/levels/__tests__/adaptiveTempo.test.js`,
+`src/levels/__tests__/adaptiveLadder.test.js` (where the ±5%/clamp cases moved under
+ticket #1121, as the ladder's tempo rung), `src/hooks/__tests__/useAdaptiveDifficulty.test.js`,
 `src/components/sheet-music/__tests__/tempoScrollAnchor.test.js`,
 `src/levels/__tests__/levelVariants.test.js`, `src/hooks/__tests__/useLevelContentStream.test.js`,
 and `src/hooks/__tests__/adaptiveMode.integration.test.js` (NEW — the real controller + the real
@@ -24022,6 +24045,12 @@ What Han heard alongside the timpani drift was almost certainly the timpani itse
 48 ms output-latency offset, which applied to every track equally. **Cello was therefore not
 changed.**
 
+**#1121 note.** The timpani pattern is deliberately NOT a ladder rung. It is built once for the
+level's declared span and sliced per block, so it stays finite by construction; the adaptive
+difficulty ladder (§361) changes only the GENERATED tracks' `notesPerMeasure`/`smallestNoteDenom` and
+never touches `buildTimpaniPattern`, `totalMeasures` or the block count. A densified block's timpani
+therefore sounds exactly as it always did, on the same accumulated cursor at the same tempo.
+
 **Files.** `src/hooks/useLevelContentStream.js` (the `timpaniInstrument`/`timpaniVolume` props, the
 pattern + `timpaniSlice` helper, and the two schedule sites — lead-in and per block; it also carries
 the full history comment that moved with the code); `src/App.jsx` (the one-shot `playMelodies` call
@@ -24142,10 +24171,12 @@ not a feedback-loop bug. `elapsedMinutes` includes the lead-in bars, any mid-lev
 walk to the result screen, so the measured npm is systematically a little low — pre-existing
 (#1099), not fixed here, and a second reason the down direction is deliberately conservative.
 
-**Cross-ticket note.** #1121 (the unified difficulty ladder) will later change the *numerator* that
-feeds `notesPerMinute` (App.jsx) from the authored note count to the notes the player actually
-faced. Different file, different value — no conflict with this ticket, which only changes how the
-resulting sample is smoothed. If #1121 lands first, re-run this ticket's UAT numbers.
+**Cross-ticket note — RESOLVED (#1121 landed second, 2026-09-01, §361).** The unified difficulty
+ladder changed the *numerator* that feeds `notesPerMinute` (App.jsx) from the authored note count
+(`totalNotesForLevel`) to the notes the player actually faced (`computePlayedNoteCount`,
+`LevelStatsCharts.jsx`). Different file, different value — no code conflict with this ticket, which
+only changes how the resulting sample is smoothed. But this ticket's UAT numbers were measured
+against the OLD numerator, so **re-check the ANPM figure once now that both have landed.**
 
 **Files.** `src/utils/gamification.js` (`nextAnpm` + `ANPM_ALPHA_UP` / `ANPM_ALPHA_DOWN` + the
 `adaptiveTempo` import); `src/levels/adaptiveTempo.js` (two `const` → `export const`);
@@ -24153,3 +24184,646 @@ resulting sample is smoothed. If #1121 lands first, re-run this ticket's UAT num
 deleted, its comment rewritten). Tests: `src/utils/__tests__/gamification.test.js` (new `nextAnpm`
 suite), `src/contexts/__tests__/ProfileContext.test.jsx` (the wiring cases), `src/levels/__tests__/adaptiveTempo.test.js`
 (constant-lock asserts).
+
+---
+
+### §359. World-view sync pass — one clock, one tempo, one phase for the open world (Han 2026-09-01)
+
+**Symptom.** Han, on the walkable RPG world: *"Het klinkt niet alsof de metronoom, de NPC's/vogels,
+en de muziek allemaal perfect in sync zijn. Doe een grondige controle."* §924 had already put the
+ambient music, bird songs, the debug metronome and the conversation typewriter on the one shared
+`worldClock.js` grid (`WORLD_BPM 100` / `[4,4]`, anchored to `context.currentTime`). The audit found
+the *beat-synced sprite animation* and the *worker-NPC bells* had never joined it, plus two
+schedule-at-"now" bugs and the app-wide `outputLatency` gap.
+
+**A — `petFrame` was on neither the right tempo nor the right phase.** `RpgLevelPanel`'s beat-synced
+sprite clock (`petFrame`, drives wisp/pet/slime/worker idle loops *and* the worker-NPC hit rolls via
+`useWorkerHitState`'s `petFrame % windowFrames === 0`) read the **live song** `bpm`/`timeSignature`
+props (`DEFAULT_BPM` 90, or whatever the last level left behind) — a different tempo from the
+`WORLD_BPM` everything audible in the world runs at, so it could never lock. And its frame index was
+measured from a **local anchor** (`petFrameStartMsRef`, latched on the first frame after mount) — the
+exact "its own phase, drifts on every re-anchor" anti-pattern `worldClock.js` and `useDebugMetronome`
+§924-r4 were fixed to avoid. **Fix:** `petFrame = floor(context.currentTime / frameMsForBpm(WORLD_BPM,
+WORLD_TIME_SIGNATURE))` — WORLD tempo, **no local anchor** (frame 0 == world-clock t=0). The
+`petFrameStartMsRef` + its reset effect are gone. `RpgLevelPanel` no longer takes `bpm`/`timeSignature`
+props at all (removed at both `App.jsx` call sites); the worker slots get `WORLD_TIME_SIGNATURE`
+directly. Now `petFrame % (FRAMES_PER_BEAT·k)` boundaries coincide to the sample with the metronome's
+beat grid and the ambient music's `nextMeasureStartTime` measure grid.
+
+**B — worker-NPC bells fired at a stale "now".** `useWorkerHitState` reacted to a `petFrame` change
+in a React effect (rAF jitter + commit latency), decided "this frame is a hit", then
+`triggerBell(note, context.currentTime, …)` → `instrument.start({ time: context.currentTime })` — a
+sound scheduled 0–120 ms *after* the beat it belongs to, against ambient music scheduled exactly
+ahead on the grid. **Fix:** the hit is detected **one sprite frame early** and scheduled for that
+frame's exact world-clock time, `hitFrame · frameSec − outputLatencySeconds(context)`, clamped to
+never land in the past. `getListenerX()` is still read at scheduling time (~one frame / ~120 ms before
+the hit) so the #1094 distance pan/gain stays essentially current. `useWorkerNpcAudio.triggerBell`
+already took an explicit `time` and set the panner/gain at it — no change there.
+
+**C — debug-metronome click fired at a stale "now".** `useDebugMetronome`'s rAF tick edge-detected a
+beat boundary `context.currentTime` had *already crossed*, then `start({ time: context.currentTime })`
+— 0–16 ms of jitter against a rock-steady music grid. **Fix:** each tick schedules the click for the
+**next** beat boundary (`(floor(now/spb) + 1) · spb`), once, deduped by absolute beat number, at that
+time minus `outputLatencySeconds` — sample-accurate, HEARD on the grid. The on-screen 1-2-3-4 counter
+and pendulum stay an edge trigger on the audible grid crossing (they flip within a frame of the click
+being heard).
+
+**D — `outputLatency` (~48 ms, §355) was uncompensated for the whole world.** §355/§357 deliberately
+left `playMelodies` and the world's ambient music alone because they had "no visual clock to stay in
+step with". After A, the world *does*: the `petFrame` sprite bob and the metronome counter/pendulum
+both read `context.currentTime` directly. So every **grid-aligned** world voice is now scheduled
+`outputLatencySeconds(context)` **earlier**, to be *heard* on the world-clock grid rather than ~48 ms
+behind the visuals — at each system's own seam, **not** inside `playMelodies` (still shared with
+non-world callers): `useWorldAmbientMusic`'s `heardAt(startTime)` on the ambient piano, the hh
+backbeat, the wind-gust envelope+note, the bird phrases and the water glockenspiel; the metronome
+click (C); the worker bells (B). The two **held water drones** (hum, percussion — no beat alignment,
+scheduled at `context.currentTime + 3600`) are left as-is. Reuses `audioOutputLatency.js` verbatim
+(read fresh per schedule, per §355's guidance).
+
+**Invariants.**
+- One clock (`worldClock.js` `context.currentTime`), one tempo (`WORLD_BPM`), one phase (no local
+  anchors) for **every** open-world beat-locked system: ambient music, hh backbeat, bird/glockenspiel
+  phrases, debug metronome, `petFrame` sprite animation, worker-NPC hit rolls and bells.
+- A grid instant's metronome click, its ambient-music note and (if any) its worker-NPC bell are all
+  *heard* at the same `context.currentTime`, coincident with the `petFrame` bob for that frame (which
+  is painted ≤ 1 display frame later — the same honest residual §355/§357 accept, audio ≤ 1 frame
+  early rather than ~3 frames late).
+- `playMelodies` still untouched — instrument previews / scale playback (no visual clock) unaffected.
+- Gated (rubato) world? N/A — the walkable world is never a gated level; this is all non-gated.
+
+**Files.** `src/components/character/RpgLevelPanel.jsx` (petFrame loop rewrite, `bpm`/`timeSignature`
+props removed, `WORLD_BPM`/`WORLD_TIME_SIGNATURE` import, worker slot `timeSignature`);
+`src/App.jsx` (drop `bpm`/`timeSignature` from both `RpgLevelPanel` renders; stale crop comment);
+`src/components/character/useDebugMetronome.js` (look-ahead scheduling + latency, `lastScheduledBeatRef`);
+`src/hooks/useWorkerHitState.js` (one-frame look-ahead, grid time − latency, `frameSec`);
+`src/hooks/useWorldAmbientMusic.js` (`heardAt` helper on the 5 grid-aligned voices);
+`src/audio/audioOutputLatency.js` (header note — the world now compensates too).
+Tests: `src/hooks/__tests__/useWorkerHitState.test.js` (look-ahead frame numbers + a future-grid-time
+assertion); existing `useWorldAmbientMusic` / `useDebugMetronome` behaviour unchanged.
+
+### §360. Auto weer-cyclus — wind 0–3 + day/dusk/night/dawn, both eased (Han 2026-09-01)
+
+**Purpose.** The walkable RPG world varies its own "weather" instead of Han poking the debug pickers.
+Two independent tracks, both with *gradual* transitions so nothing jump-cuts:
+
+- **Wind** — every 30 s a new random speed **0–3**, drawn from the weighted bag `[0,1,1,1,2,2,3]`
+  (uniform *with replacement* — repeats allowed; distribution 0→1/7, 1→3/7, 2→2/7, 3→1/7), then
+  eased toward over **3 s**. 0 = windstil (skew/stretch 0 px). Feeds `foliageParams.skewAmount` /
+  `stretchAmount` unchanged (§141 round 26's shader uniforms).
+- **Time of day** — a fixed loop `day → dusk → night → dawn → (repeat)` with durations
+  **240 / 60 / 120 / 60 s**. `globalIllumination` eased over **10 s** at every phase edge
+  (day 1.0 · dusk/dawn 0.33 · night 0.12 — night floor lifted from 0.1 in §362). dusk and dawn share an illumination but are DISTINCT
+  phases: dusk = day→night, dawn = night→day.
+
+**How it works.** `src/components/character/weatherCycle.js` is a pure reducer:
+`tickWeather(state, dtSeconds, rand) → nextState` (dt clamped to ≤ 0.25 s so a backgrounded tab or a
+paused music LEVEL never "catches up" in one lurch). `weatherOutputs(state)` derives the render-facing
+view (`globalIllumination`, `windValue`, `timeOfDay` string, `phaseName`, `critterKind`,
+`critterOpacity`). `seekPhase` / `seekWind` are the picker actions — jump to the chosen value, reset
+that track's timer to full, start the same eased transition, then the cycle carries on from there.
+
+`RpgLevelPanel` owns the clock: `weather` state + a `weatherRef` live copy driven by one **throttled
+`useFrameLoop` subscriber (~12 fps)**. The loop always advances `weatherRef`, but only calls
+`setWeather` / `setFoliageParams` when a visible value actually moved (illum ≥ 0.004, wind ≥ 0.02,
+critterOpacity ≥ 0.01, or a phase/kind flip) — so a steady phase (e.g. the 120 s of night) costs
+**0 re-renders**. The derived illum/skew/stretch/timeOfDay are written **into `foliageParams`** so
+every existing consumer (WebGL shader, DOM `brightness()` tint, `domAmbientTint`) keeps reading them
+from the same place. A `useLayoutEffect` pushes the (possibly persisted) clock into `foliageParams`
+before first paint — no 1-frame flash of default daylight when re-entering the world mid-cycle.
+
+**Freeze during a music LEVEL.** `RpgLevelPanel` unmounts whenever a LEVEL takes over
+(`App.jsx` nulls `characterScreen`). `src/components/character/weatherCycleStore.js` is a module
+singleton: the panel `saveWeatherState` on unmount, `loadWeatherState() ?? createWeatherState()` on
+mount, and resets the frame-loop `lastMs` baseline — so the LEVEL's duration is **skipped, not
+integrated**, and the cycle resumes exactly where it froze. Not persisted to `localStorage` (a full
+page reload legitimately starts a fresh day).
+
+**Critter day↔night swap.** When the phase turns to dusk or dawn, the whole critter layer crossfades
+on `critterOpacity`: fade out over `CRITTER_FADE_S` (5 s), re-roll the pool at the midpoint (the
+`critterWanderers` memo now keys on `weatherOutputs(weather).critterKind` — `'day'` | `'night'` — not
+`foliageParams.timeOfDay`), fade back in over 5 s. `randomTaggedVariant` is called with that
+`'day'`/`'night'` kind directly (its existing `=== 'day'` / `=== 'night'` branches). The layer is a
+single `position:absolute inset:0` wrapper (same containing block as `entityScrollRef`, so the
+WorldWanderers' own left/bottom math is unchanged; `pointerEvents:none` — critters have no hit target).
+
+**Debug pickers.** The §141 round 26/27 Wind (`low/med/high`) and Time-of-day (`night/dusk-dawn/day`)
+`LevelPicker`s are replaced by **seek controls** into the cycle: Wind is now `0/1/2/3`, Time of day is
+`day/dusk/night/dawn` (from `TIME_PHASES`). `WIND_LEVEL_PX` / `TIME_OF_DAY_ILLUM` deleted.
+`FoliageParamsPanel`'s Reset also resets the weather clock. The 💨 indicator repeats one puff per
+`Math.round(windValue)` and is hidden entirely at wind 0.
+
+**Invariants.**
+- `weatherCycle.js` is pure; `tickWeather` never mutates its input. All timing lives there, not in the
+  component. dt is always clamped — the cycle never integrates real wall-time lost to a LEVEL.
+- The eased outputs flow through `foliageParams` — there is exactly one place the shader/tint read
+  illumination and wind, as before.
+- The cycle only ticks while `RpgLevelPanel` is mounted (the walkable world). During a LEVEL it is
+  frozen in the module singleton, not advancing.
+- Fixed phase order and durations; dusk ≠ dawn for critter purposes (dusk swaps to night, dawn to day).
+
+**Files.** `src/components/character/weatherCycle.js` (new, pure reducer + selectors),
+`src/components/character/weatherCycleStore.js` (new, unmount-surviving singleton),
+`src/components/character/RpgLevelPanel.jsx` (clock state + `useFrameLoop` driver + `useLayoutEffect`
+seed + unmount persist; pickers → seek; 💨 indicator; `critterWanderers` memo keys on `critterKind`;
+`critterOpacity` wrapper; `EntityLayer` gains `critterOpacity`; `WIND_LEVEL_PX`/`TIME_OF_DAY_ILLUM`
+removed), `src/components/character/ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS` comments +
+`windLevel` key removed).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (phase order/durations, eased
+monotonic illumination, wind interval + weighting, `seekPhase`/`seekWind` timer resets, critter
+crossfade timing, dt clamp, purity, store round-trip).
+
+---
+
+### §361. The adaptive DIFFICULTY LADDER — one monotone scale (density + tempo) (#1121, Han 2026-09-01)
+
+**Purpose.** §354 gave adaptive mode (level-variant letter `i`) a live tempo that tracks the player,
+clamped to `[lvl.bpm/2, lvl.bpm]`. Hitting either bound was a silent no-op: a player who maxed the
+tempo out could not be challenged further, and one who bottomed out could not be helped further.
+Han's answer (chat interview 2026-08-23, re-confirmed 2026-09-01) is that difficulty must keep going
+past both bounds — through **note density** rather than tempo: *"als lvl bpm perfect is:
+ornamentaties/bas toevoegen … dat betekent dat we de anpm gaan verhogen door extra noten toe te
+voegen ipv bpm te verhogen."* He then explicitly **collapsed #1121 and #1120 into ONE ladder**:
+*"density UP → tempo UP → ceiling; density DOWN → tempo DOWN → floor → gated."*
+
+So this is not a tempo controller with a density feature bolted on. It is **one monotone, totally
+ordered, finite difficulty scale**, and the tempo is one rung of it.
+
+#### The ladder
+
+State is three fields that move under a **strict precedence**, so the scale is totally ordered and
+never moves two knobs at once:
+
+```
+state = { bpm, densityStep, pacing }
+  densityStep : SIGNED integer. 0 = the level exactly as AUTHORED.
+                positive = denser than authored (harder); negative = thinner (easier).
+  bpm         : the existing continuous value, clamped to [baseBpm/2, baseBpm].
+  pacing      : 'timed' | 'gated'.  #1120 owns this rung; #1121 leaves it always 'timed'.
+```
+
+EASIEST → HARDEST:
+
+| # | rung | knob |
+|---|---|---|
+| 1 | gated pacing @ skeleton density @ floor bpm | `pacing` (#1120) |
+| 2 | floor bpm, density climbing skeleton → authored | `densityStep` −2 → 0 |
+| 3 | authored density, bpm climbing floor → ceiling | `bpm`, the existing ±5% |
+| 4 | ceiling bpm, density climbing above authored | `densityStep` 0 → +5 |
+
+`evaluateLadder` (`src/levels/adaptiveLadder.js`), **first matching rule wins**:
+
+| direction | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| HARDER (accuracy ≥ `SPEED_UP_ACCURACY` 90) | `pacing==='gated'` → the gated EXIT rule (#1120) | `densityStep < 0` → +1 (restore content FIRST) | `bpm < ceiling` → ×1.05, clamped | `densityStep < MAX_DENSITY_STEP` → +1 | else hold (silent no-op) |
+| EASIER (accuracy < `SLOW_DOWN_ACCURACY` 70) | `densityStep > 0` → −1 (remove ADDED density FIRST) | `bpm > floor` → ×0.95, clamped | `densityStep > MIN_DENSITY_STEP` → −1 (thin toward the skeleton) | else hold (#1120 turns this into `pacing='gated'`) | — |
+| HOLD (70 ≤ accuracy < 90) | nothing moves — the #1102 deadband is untouched | | | | |
+
+Because every branch returns immediately, **exactly one of `{bpm, densityStep, pacing}` differs from
+the input state on any single call** — "one decider, one boundary, one change in flight" (§354) is a
+property of the control flow, not a convention. A test asserts it generically over a table of
+(accuracy × state) inputs.
+
+**ORDERING — tempo first, density at the ceiling.** This was the design's one resolved ambiguity. The
+coordinator's shorthand read "density up → tempo up"; the implementation is tempo in the MIDDLE of the
+scale and content at both ENDS, because that is (a) what #1102 already ships, (b) Han's own literal
+#1121 answer ("when the adaptive bpm has reached the level's full authored bpm AND the player is still
+at/above threshold, tempo holds and difficulty growth instead raises effective ANPM by adding note
+density"), and (c) the exact mirror of his #1120 answer ("the ladder continues past the bpm floor").
+
+**Why a SIGNED integer** rather than flags: it makes the ladder a totally ordered, finite scale, so
+"the back-off unwinds in exactly the reverse order it was added" is a property of the data type rather
+than of the code remembering to be careful — and termination is then provable (both drive directions
+reach a fixed point in a bounded number of calls; asserted directly).
+
+*Caveat, asserted rather than glossed:* the ±5% tempo rung is **multiplicative**, so the climb
+floor→ceiling takes `ceil(ln2/ln1.05)=15` notches while the descent takes `ceil(ln2/−ln0.95)=14` (the
+clamp absorbs the remainder at each end). That asymmetry is pre-existing #1102 behaviour. What the
+tests pin is the symmetry Han's requirement is actually about: the **knob order** mirrors exactly, and
+the **density rungs** mirror notch for notch.
+
+#### Density → settings: a FORMULA, never a table (§6c)
+
+Han's locked answer to the "what is ornamentation?" interview question: it is **the existing density
+settings, per block, ref-driven** — *not* a new generation stage, *not* an ornament-insertion pass.
+There is no per-instrument branch anywhere (§6b): one helper `projectDensity(authored, steps, ts)` is
+called twice, once per track, with different arguments.
+
+```
+slotsPerMeasure(ts, denom) = ts[0] * denom / ts[1]
+
+POSITIVE rungs: npm += 1 per notch; when npm+1 would exceed slotsPerMeasure, first REFINE the grid
+                (denom 1→2→4→8→16, bounded by GLOBAL_RESOLUTION from generatorDefaults.js) and
+                continue. At GLOBAL_RESOLUTION a further notch is a SILENT NO-OP — the same
+                convention the bpm clamp already uses at its bounds.
+NEGATIVE rungs: npm -= 1 per notch, hard floor of 1 note/measure (a skeleton line). The grid is
+                deliberately NOT coarsened on the way down: coarsening would move surviving notes
+                onto different beats, whereas removing notes leaves the rest where the player
+                already learned them.
+Identity:       the projection returns `null` when nothing changed, so rung 0 is provably the
+                level exactly as authored.
+```
+
+Worked example, **7/8** (a meter no lookup table would have covered): authored `notesPerMeasure 3`,
+`smallestNoteDenom 4`. `slotsPerMeasure([7,8],4) = 3.5`, so rung 1 (npm 4) does not fit → the grid
+refines to 8 (`slotsPerMeasure = 7`) and npm becomes 4. Rungs 2 and 3 give npm 5 and 6, still ≤ 7.
+Everything derives from `timeSignature` plus the level's own authored fields, so 5/4, 6/8 and 11/8 are
+correct with no per-value branch — asserted over a table of meters.
+
+**Bounds** (Han q2, `[DESIGN DEFAULT]`): `MIN_DENSITY_STEP = −2`, `MAX_TREBLE_DENSITY_STEP = +3`,
+`MAX_DENSITY_STEP = +5`. +3 on the treble doubles the played note count at a level authoring 3/measure;
+unbounded, the grid would fill to sixteenths, unreadable at ceiling tempo. A bound is also what makes
+the symmetric back-off provably terminating.
+
+**The BASS rungs** (Han q3, verbatim: *"just make the CELLO busier (I do not have to play it)"*): rungs
+4 and 5 raise `tracks.bass.notesPerMeasure` through the SAME projection. **`lvl.twoHanded` is NEVER
+flipped by the ladder** — flipping it mid-level would pull in a second keyboard panel, bass slimes and
+the L/R stats split all at once. Honest consequence, stated because it matters: a busier cello adds
+audible difficulty but not PLAYED notes, so only the treble rungs move measured ANPM.
+
+**Back-off granularity** (Han q5, `[DESIGN DEFAULT]`): one notch per block boundary, symmetric with the
+way it was added. The ±5% tempo rung already sets that cadence; dropping everything on one unlucky
+block would undo a minute of earned progress.
+
+**Visible signal** (Han q6, `[DESIGN DEFAULT]`): **none**. The music simply gets denser. The ladder
+should feel like the game meeting you, not like a mode change; a signal is a new UI surface with its
+own copy/placement interview. Recorded as a candidate follow-up, deliberately not filed as a ticket.
+
+#### The module split, and the one-way import
+
+| module | what it owns |
+|---|---|
+| `src/levels/adaptiveTempo.js` | LEVEL-START and CROSS-STREAM primitives: `baselineAdaptiveBpm` + `NO_ANPM_BASELINE_FACTOR`, `ADAPTIVE_STEP`, `SPEED_UP_ACCURACY`/`SLOW_DOWN_ACCURACY`, `ADAPTIVE_LEVEL_REPEATS`, `diffStats`, `lcmOf`/`commitIndexFor`. |
+| `src/levels/adaptiveLadder.js` (NEW) | The live per-block POLICY: `evaluateLadder`, `densityOverrideFor`, `slotsPerMeasure`, the three bounds. Pure — no React, no audio, no `this`. |
+| `src/hooks/useAdaptiveDifficulty.js` (RENAMED from `useAdaptiveTempo.js`) | The state and the side effects: decide, schedule, apply. |
+
+`evaluateAdaptiveBpm` **moved** into `evaluateLadder` as its tempo rung. It is NOT left behind as a
+wrapper or a re-export (§7: no compat shims); its tests moved with it, into
+`src/levels/__tests__/adaptiveLadder.test.js`, where they now prove the tempo rung is byte-identical to
+what #1102 shipped. `diffStats` is now **exported** so the ladder scores a block off the SAME single
+diff — there is never a second diff of one snapshot pair, and no third scoring formula: block accuracy
+still comes from `computeAccuracyPercent`/`computeTotalNotes` (`LevelStatsCharts.jsx`).
+
+**Import direction is one-way: `adaptiveLadder` → `adaptiveTempo`.** `adaptiveTempo.js` imports
+`levels.js`, which imports `adaptiveTempo.js` back; an edge from `adaptiveTempo` into the ladder would
+close that cycle. ESLint's `import/no-cycle` is not configured in this project, so the rule is asserted
+by a test that reads `adaptiveTempo.js`'s own source.
+
+**Why the hook was renamed:** it now decides and schedules three things, so `useAdaptiveTempo` would
+name a third of what it does — and a lying name is exactly how the §6d drift starts. Pure rename, zero
+behaviour change. *(Not to be confused with the unrelated pre-existing `src/utils/adaptiveDifficulty.js`,
+which holds `stepAdaptiveTargets` for classic practice-mode difficulty targets.)*
+
+**ONE reader, not three.** The controller exposes a single
+`blockSettingsFor(measure, startTime) → { bpm, densityStep, pacing }`, replacing what would otherwise
+have been `bpmForMeasure`/`densityForMeasure`/`pacingForMeasure`. This is a safety decision, not a taste
+one: the armed app-wide `setBpm` timeout is created as a SIDE EFFECT of reading a due commit, so with
+three readers the arming would become order-dependent on whichever the stream called first — the kind of
+implicit coupling that produces a commit which is read but never applied. One reader = one commit read,
+one arming point. The commit object likewise carries the FULL next state
+(`{ bpm, densityStep, pacing, fromMeasure, scheduled }`), so two knobs can never be half-applied.
+
+**Density needs no second commit moment.** The bpm has a "two moments" problem (the stream must generate
+a block early at the tempo it will play at, while the app-wide `bpm` may only switch when that block
+actually sounds — §354). Density does not: the notes are baked into the block at generation time, so
+nothing app-wide has to switch later. A density-only commit therefore never calls `setBpm` at all; the
+armed callback only writes the landed rung back into the controller's own state so "where the ladder is"
+and "what the app adopted" can never disagree. (#1120's pacing rung DOES need that moment, and reuses
+the same single timeout.)
+
+#### Where the density is read — and the hard constraint
+
+`useLevelContentStream.js` reads the ladder at the **existing per-block fresh-bpm seam**, inside
+`generateAndScheduleBlock`, and threads the rung into
+`trackSpecsForLevel(lvl, levelSettings, { densityStep, timeSignature })` — so "what settings does a
+block get" stays ONE function (`levelBlockPlan.js`) instead of being half-assembled in the hook. At
+rung 0 the stream passes the effect-level `specs` object through unchanged, by reference.
+
+> ⚠ **The density must NEVER travel through `setTrebleSettings`, or any other member of that effect's
+> dependency array.** `trebleSettings` IS in the array. Changing it tears the whole JIT effect down
+> mid-level: every published Melody is reset to its default, every pending generation timer is cleared
+> and every already-scheduled note is stopped — i.e. the §289 "level never ends" bug class, re-opened.
+> Ref-driven, read fresh, per block. This is precisely why the density is a per-block **generation
+> input** and not app state.
+
+One structural edit was needed: `specs` used to be computed once ABOVE the block recursion, and
+`seriesArgsFor` closed over it. `seriesArgsFor` now takes the block's own specs as a parameter. The
+LEAD-IN passes the authored `specs`, for exactly the reason it always uses `startBpm`: no ladder commit
+can exist before the first block has been graded.
+
+#### The ANPM numerator changed with it (Han q4)
+
+`App.jsx`'s #1099 ANPM sample used `totalNotesForLevel(level.current)` — the level's **authored** note
+count. A densified run plays more notes than that counts, so this feature would have been invisible in
+the very number it exists to raise. The numerator is now `computePlayedNoteCount(level.stats)` — a new
+helper in `LevelStatsCharts.jsx`, beside the two counts it is built from (§6c/§6d, not a parallel
+formula in App.jsx). It is every note that reached a final verdict **minus `extraNote`**: a spurious
+keypress with nothing due is not a note the level presented, and must not let mashing raise your
+notes-per-minute. The **denominator** (`elapsedMinutes`) is untouched, and `totalNotesForLevel` itself is
+unchanged (`levels.test.js` pins its per-level values).
+
+**`baselineAdaptiveBpm` deliberately did NOT change with it** and still reads `totalNotesForLevel`. It is
+the level-START algebraic inverse over the level's authored structure, computed before a single note has
+been played, where a played-note count does not exist. The two formulas now differ on purpose; comments
+in both files say so, so a future reader does not "unify" them.
+
+**Cross-ticket:** this is a different file and a different value from #1122 (§358), which only smooths
+the resulting sample in `gamification.js`. There is no code conflict, but whichever of the two landed
+second invalidates the other's UAT numbers — re-check the ANPM figure once, after both.
+
+#### Invariants
+
+* The **bpm rung is byte-identical** to what #1102 ships: ±5%, clamp `[baseBpm/2, baseBpm]`, the 90/70
+  thresholds, the accumulated audio-time cursor, `tempoScrollAnchor`'s re-anchoring.
+* **SPATIAL LAYOUT IS FIXED** for the whole level (§354): `beatsOnScreen`, `dist`, `scrollPPT`,
+  `noteWidth` and every already-rendered note's X. More notes means TIGHTER spacing inside the same
+  window — never a re-flow of what is already on screen, and never a change of scroll speed.
+* **APPEND-ONLY**: a block that has been generated or scheduled is never regenerated at a new density.
+* **The level still ENDS**: the ladder never touches `totalMeasures`, `blockCountFor`, `wavesForLevel`
+  or `loopForever`. Only the CONTENT of a not-yet-generated block changes, never the timeline.
+* **ONE decider, ONE stats diff, ONE evaluation per block boundary, one change in flight.**
+* A non-adaptive level, and an adaptive level that never leaves rung 0, are **provably** unchanged —
+  asserted by test, not merely observed (`trackSpecsForLevel` rung-0 identity, and every block of a
+  non-adaptive run being generated with the same settings OBJECT).
+* Scoped exactly like the ×3 repeat: **procedural (`songId == null`) side-scroll levels**. A song-backed
+  level's treble is sliced with `randomizationRule: 'fixed'` and cannot take a density override, so its
+  `densityStep` never leaves 0 in either direction — while its tempo rung still works.
+
+#### Edge cases and documented limitations
+
+a. **Grid/cap ceiling** — a further notch past `GLOBAL_RESOLUTION` (or past `MAX_DENSITY_STEP`) is a
+   SILENT NO-OP, the same convention as the bpm clamp.
+b. **`insertBeatRests: true` swallows the first notch(es) — MEASURED, not assumed.** Levels 4 and 15
+   author it, and it makes the generator fill every beat regardless of `notesPerMeasure`. Counting the
+   real generator's sounding notes over 8 seeds per rung (2 measures, 4/4):
+
+   | level | `insertBeatRests` | authored | rung 0 | 1 | 2 | 3 |
+   |---|---|---|---|---|---|---|
+   | 4  | true  | npm 3 / denom 4 | 8.00 | **8.00** | 10.63 | 12.00 |
+   | 15 | true  | npm 2 / denom 4 | 8.00 | **8.00** | **8.00** | 10.25 |
+   | 7  | false | npm 3 / denom 4 | 6.00 | 8.00 | 10.13 | 12.00 |
+   | 11 | false | npm 4 / denom 8 | 8.00 | 10.00 | 12.00 | 14.00 |
+
+   So on an `insertBeatRests` level the ladder's first notch (Level 15: its first two) changes nothing
+   audible; the count only rises once a notch REFINES `smallestNoteDenom`. This is **not** patched and
+   **not** special-cased — doing either is exactly the mistake §6b was written about. It is a property of
+   `insertBeatRests`, recorded here as a limitation: on levels 4 and 15 the ladder simply has one or two
+   "wasted" notches before it bites. If Han wants those levels to respond on the first notch, the right
+   fix is to `insertBeatRests` itself, in its own ticket.
+   The BASS rungs were measured the same way and DO bite: with the level cello (`LEVEL_BASS_SIMPLE`,
+   `force_chord_roots`, 1 whole note/measure) and a real chord progression, rung 4 doubles the cello
+   (2 → 4 sounding notes per 2 measures) and rung 5 triples it (6). Note the grid must double
+   (denom 1 → 2 → 4) before a second note can fit at all — a formula handles that; a table would not.
+c. **Call-response / Wizard blocks** (`shape: 'call-response'`): only the RESPONSE half is played, so
+   effective density grows at half the rate there. Not a bug.
+d. A **negative** `densityStep` is reachable in this ticket only once the level is already at the bpm
+   floor; without #1120 the ladder then parks at (floor, `MIN_DENSITY_STEP`) instead of gating. That is a
+   correct, shippable intermediate state — #1121 is independently useful without #1120.
+e. **#1120** hangs the gated-pacing rung off the bottom of this same ladder (HARDER rule 1 / EASIER
+   rule 4), reusing this ticket's signed `densityStep`, full-state commit and single `blockSettingsFor`
+   reader.
+
+**Files.** NEW `src/levels/adaptiveLadder.js`. EDIT `src/levels/adaptiveTempo.js` (export `diffStats`;
+`evaluateAdaptiveBpm` removed; header rewritten). RENAME `src/hooks/useAdaptiveTempo.js` →
+`src/hooks/useAdaptiveDifficulty.js` (+ widened state, `blockSettingsFor`, `begin(baseBpm, lvl)`). EDIT
+`src/hooks/useLevelContentStream.js` (prop renamed to `adaptiveDifficulty`; per-block ladder read at the
+existing bpm seam; `seriesArgsFor` takes the block's specs). EDIT `src/levels/levelBlockPlan.js`
+(`trackSpecsForLevel`'s optional third `density` argument). EDIT
+`src/components/levels/LevelStatsCharts.jsx` (`computePlayedNoteCount`). EDIT `src/App.jsx` (renamed
+controller, `begin` gains the level, ANPM numerator). Tests: NEW
+`src/levels/__tests__/adaptiveLadder.test.js` (31), `src/levels/__tests__/adaptiveTempo.test.js`
+(the `evaluateAdaptiveBpm` block replaced by `diffStats` coverage), renamed
+`src/hooks/__tests__/useAdaptiveDifficulty.test.js` (+ the density-commit cases),
+`src/levels/__tests__/levelBlockPlan.test.js` (the density argument),
+`src/hooks/__tests__/useLevelContentStream.test.js` (`blockSettingsFor` mocks + the per-block density
+read), `src/hooks/__tests__/adaptiveMode.integration.test.js` (a pass-through `generateBlock` spy, then
+the ceiling→density climb, the one-notch cadence, the density-before-tempo back-off, and the level still
+terminating on a run where the ladder moved).
+
+### §362. Night look — blue-white "moonlight" + the background layers finally darken (Han 2026-09-01)
+
+**Follow-up to §360.** Three complaints about the auto weather cycle's night:
+
+**A — the background layers never got dark.** In LDtk/RAM mode the day/night darkening is done by the
+WebGL shaders (`LdtkLitGround` for ground/buildings/decor, `ForegroundFoliageLayer` for foliage/water),
+which multiply `trueColor` by `mix(AMBIENT_DARK_COLOR, 1.0, uGlobalIllumination)`. The parallax
+background canvases (`LdtkScenery`'s `CanvasLayer`), the hard-coded sky-gradient div and `bgLayer5` have
+**no lit pipeline** — and the old `domDarkenOverlay` CSS multiply was gated to Legacy mode only (#1162
+Fase 5 removed it from LDtk mode as dead weight). So the sky stayed bright blue at midnight.
+**Fix:** `LdtkScenery` takes a `bgDarkenColor` prop (`rgbCss(AMBIENT_DARK_RGB, 1 - globalIllumination)`,
+computed in `RpgLevelPanel`, `null` at full daylight so day frames pay nothing) and renders ONE
+`mixBlendMode:'multiply'` overlay **between its background canvases and its ground layer** — so it only
+ever multiplies the backgrounds (and the sky gradient / `bgLayer5` painted behind them), never the
+ground/foliage the shaders already handle. Same `mix(AMBIENT_DARK, 1, illum)` math as the shader, so the
+horizon seam stays consistent. Only mounted while `backgroundLayers.length > 0` (the back pass) and
+`globalIllumination < 1`. This re-introduces the small per-frame `mix-blend-mode` composite cost #1162
+Fase 5 removed — an accepted trade (Han's explicit choice), and only while it's actually dark.
+
+**B — night was too dark; wanted a blue-white "moonlight" tone.** `AMBIENT_DARK_COLOR` lifted from the
+near-black `vec3(0.05,0.08,0.18)` to `vec3(0.11,0.15,0.25)` (lighter, bluer-whiter). Its CSS twin
+`AMBIENT_DARK_RGB` in `RpgLevelPanel.jsx` moved in lock-step to `[28,38,64]` (drives the DOM tint +
+the new background overlay). Night-floor illumination raised `0.1 → 0.12` (`weatherCycle.js`
+`TIME_PHASES`).
+
+**C — "alles globaal donkerblauw, en een wit licht van linksboven op de wereld".** A new DIRECTIONAL
+"moonlight" term in the shared `foliageLightingGLSL.js`: `applyMoonLight(trueColor, currentColor,
+normal, edgeFactor)` — no position, no falloff, one fixed world direction `MOON_DIR = normalize(vec3(
+-0.55, 0.5, 0.65))` (mirrors the existing sky `ambientLight` vector with a negative X so it comes from
+the LEFT), colour `MOON_COLOR = vec3(0.85,0.9,1.0)` (blue-white). Same "reveal `trueColor` back out of
+the ambient dark" mechanic as `applyPointLight`, gated by `max(dot(normalize(normal), MOON_DIR), 0.0)`
+so only faces turned toward the top-left catch it. Strength = `uMoonStrength * (1.0 -
+uGlobalIllumination)` — **absent by day, full at night**, one coherent system with the cycle rather
+than a separate toggle. Called in all three shader `main()`s right after `applyPointLights` (the two
+`ForegroundFoliageLayer` shaders + `LdtkLitGround`; the `FoliageInstancingTest` dev harness too).
+`uMoonStrength` added to the shared `LIGHTING_PARAM_UNIFORMS_GLSL` block, driven by
+`foliageParams.moonStrength` (default `0.5`, debug slider "Moonlight strength" in `FoliageParamsPanel`).
+
+**Deliberately out of scope (Han's call).** The walking sprites — hero, pet, wisp, slime, worker NPCs,
+critters — do NOT darken at night (only their reflections do). Han: *"laat de NPC sprites buiten scope,
+zodat die goed zichtbaar zijn 's nachts"* — full-brightness sprites pop against the dark world. They're
+DOM `<img>`/`CharacterDoll`, not in the WebGL layers, so they also can't catch the moonlight relief.
+
+**Invariants.**
+- `AMBIENT_DARK_COLOR` (GLSL) and `AMBIENT_DARK_RGB` (JS) are the same colour in two encodings — change
+  both together.
+- Moonlight strength is ALWAYS `uMoonStrength * (1 - uGlobalIllumination)` — it can never show in
+  daylight, and it shares the cycle's single `globalIllumination` knob.
+- The background overlay sits between the bg canvases and the ground layer in `LdtkScenery`'s own DOM
+  order — it must never move after the ground/foliage, or it would double-darken the shader-lit layers.
+- All four shaders that `#include` the shared lighting block declare `uMoonStrength` and set it — a
+  consumer that forgets simply gets 0 (no moon), never a compile error.
+
+**Files.** `src/components/character/foliageLightingGLSL.js` (`AMBIENT_DARK_COLOR`, `uMoonStrength`
+uniform, `MOON_DIR`/`MOON_COLOR` consts, `applyMoonLight`); `src/components/character/ForegroundFoliageLayer.jsx`
+(both shaders' `main()` + `DEFAULT_FOLIAGE_PARAMS.moonStrength` + uniform wiring, non-instanced +
+instanced); `src/components/character/LdtkLitGround.jsx` (`main()` + uniform wiring);
+`src/components/character/FoliageInstancingTest.jsx` (dev harness, same); `src/components/character/LdtkScenery.jsx`
+(`bgDarkenColor` prop + overlay); `src/components/character/RpgLevelPanel.jsx` (`AMBIENT_DARK_RGB`,
+`bgDarkenColor` computed + threaded through `SceneryBack`, "Moonlight strength" slider);
+`src/components/character/weatherCycle.js` (night `illum` 0.1 → 0.12).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (night-floor asserts updated to 0.12).
+
+### §363. Foliage-sourced ambient wind — three screen-thirds, a left→right gust, a centre bed (Han 2026-09-01)
+
+**Replaces #1091's placeholder wind.** #1091 played the 'applause' sample as wind noise, random-
+triggered (20% chance per 3-measure cycle, one fade-in/hold/fade-out gust, level-wide, no panning).
+Han: *"ik wil dat de wind 'uit de foliage' komt... verdeel het scherm in 3"* — and *"volledig
+vervangen"*.
+
+**The model** (`src/audio/windRustle.js`, pure + unit-tested). The visible viewport is split into three
+equal screen-thirds (left / mid / right). Four held 'applause' voices, each holding ONE long note
+(`duration: 3600`, riding the sample's own loop points — the same "hele lange noot" trick the water
+hum/percussion use), shaped only by retargeting its bus gain every 120 ms via `rampParam`
+(`setTargetAtTime`):
+
+- **Three RUSTLE voices**, panned `WIND_THIRD_PANS` = `[-0.5, 0, +0.5]` (`createSpatialBus`). A third
+  sounds only while it overlaps a tree-foliage world-chunk **and** the wind level is ≥ 2. A gust sweeps
+  **left → mid → right**, `WIND_SWEEP_STEP_SEC` per third, looping every `WIND_SWEEP_PERIOD_SEC`
+  (`sweepState`): the third it is on swells (`sin` envelope, 0→1→0) above a low base (`WIND_BASE_LEVEL`
+  0.35); the other two sit at the base. A third with **no foliage stays silent even under the gust**.
+- **One BED voice**, pan 0, a steady centre wash whenever wind ≥ 2 — **not** foliage-gated (Han: *"ook
+  al zijn er geen bomen in beeld"*). `bedFraction`: ½ the rustle peak at wind 3, ¼ at wind 2.
+
+Level mapping (`windLevel` = `Math.round` of the §360 weather cycle's `windValue`, 0–3):
+`windLevelMult` → wind 3 = 1 ("zelfde geluid als nu", peak = `WIND_GUST_PEAK_GAIN` 'mp'), wind 2 = ½,
+wind 0–1 = 0 (total silence — no rustle, no bed).
+
+**Tuning follow-ups (Han 2026-09-01, same day).** `WIND_SWEEP_PERIOD_SEC` / `WIND_SWEEP_STEP_SEC`
+doubled `6 s / 2 s → 12 s / 4 s` (*"maak de oscillatie 100% trager"*). `WIND_MASTER_GAIN` = `0.5` — a
+single trim applied to every wind voice (all three rustle thirds AND the bed) at the two `rampParam`
+call sites (*"verlaag het volume van álle wind met 50%"*).
+
+**Foliage detection — precomputed per world** (Han's choice: *"per level vooraf bepaald"*).
+`buildWorld` (`ldtkWorld.js`) now returns `foliageChunkSet: Set<number>` — the `CHUNK_PX` (256 px)
+world-chunks, in ABSOLUTE X, that contain at least one **tree** foliage tile (`FOLIAGE_LAYERS` =
+Pine/Willow/Main_tree; the `Grass_decoration_*` layers are excluded — Han: *"geen gras"*). At runtime
+`thirdHasFoliage(set, cameraX, viewportWorldWidth, k)` maps screen-third `k`'s world-X span to chunk
+indices and checks membership. `RpgLevelPanel` feeds `windLevel` / `cameraX` / `viewportWorldWidth`
+(`size.w / zoom`) / `foliageChunkSet` into `envAudioRef.current`, which `useWorldAmbientMusic`'s tick
+reads live (same "live ref, no resubscribe on camera move" pattern as the bird/water voices).
+
+**Invariants.**
+- `windRustle.js` is pure — all gain/pan math is there and tested; `useWorldAmbientMusic` only owns the
+  AudioNodes and the 120 ms retarget loop.
+- The sweep is free-running wall-clock (`context.currentTime`), NOT grid-aligned — nothing visible is
+  synced to it, so unlike §359's grid voices it needs no `heardAt`/latency compensation.
+- Wind 0–1 is silent, full stop. The bed is the ONLY wind voice that ignores foliage.
+- `foliageChunkSet` is tree-foliage only; grass never rustles.
+- New import direction `levels/ldtk/ldtkWorld` → `audio/spatialPan` (just the `CHUNK_PX` constant;
+  `spatialPan.js` imports nothing, so no cycle).
+
+**Files.** `src/audio/windRustle.js` (new, pure); `src/hooks/useWorldAmbientMusic.js` (the #1091 gust
+`useEffect` replaced by the four-voice rustle effect; `WIND_GUST_BLOCK_MEASURES`/
+`WIND_GUST_TRIGGER_CHANCE` removed, `WIND_GUST_PEAK_GAIN`/`WIND_GUST_NOTE` kept);
+`src/levels/ldtk/ldtkWorld.js` (`foliageChunkSet` in the `buildWorld` return);
+`src/components/character/RpgLevelPanel.jsx` (`envAudioRef.current` gains `windLevel` / `cameraX` /
+`viewportWorldWidth` / `foliageChunkSet`).
+Tests: `src/audio/__tests__/windRustle.test.js` (level mapping, sweep timing + envelope bounds,
+foliage-gating, third-span geometry); `src/hooks/__tests__/useWorldAmbientMusic.test.js` (#1091 gust
+tests replaced with the four-voice wiring check).
+
+### §364. Night look — UAT round 2: darker, subtler white moon, point lights at sprite centre, firefly glow (Han 2026-09-01)
+
+Five items of feedback on §362/§363. (#5 — visible tile seams — is investigated below but not yet fixed.)
+
+**1 — night a touch darker.** `TIME_PHASES` night `illum` 0.12 → **0.10** (`weatherCycle.js`; §362 had
+lifted it 0.10 → 0.12). Still reads blue, not black, thanks to the lifted `AMBIENT_DARK_COLOR`.
+
+**2 — the moon reveal was too harsh, not white, and looked bottom-lit.** In `foliageLightingGLSL.js`
+`applyMoonLight`:
+- `MOON_DIR.y` flipped **+0.5 → −0.5**. §362 copied the sky `ambientLight` vector's sign, but this
+  shader's decoded-normal space effectively has Y pointing down (the point lights already assume that),
+  so +Y read as "from below". Now genuinely top-left.
+- Hard `max(dot(n, MOON_DIR), 0.0)` terminator → **squared half-Lambert** `wrap = dot*0.5+0.5; wrap*wrap`.
+  Smooth quadratic lit→unlit falloff, no sharp shadow edge ("minder harde schaduwen").
+- `MOON_COLOR` `vec3(0.85,0.9,1.0)` → **`vec3(1.0)`** (pure white); `DEFAULT_FOLIAGE_PARAMS.moonStrength`
+  **0.5 → 0.3** ("iets subtieler"). Debug slider unchanged.
+
+**3 — wisp & hero point lights sat at the sprite's feet.** `ldtkLights` (now `baseLights`) put the wisp
+light at `worldHeight: 0` (level floor) and the hero light at `groundHeightAt(...)` (its stand line).
+The #1032-r8 comment had already asked for "altijd in het midden van de sprite" and only the campfire
+ever got it. Now: wisp `worldHeight = groundHeightAt(NPC_X) + (wispFlying ? TILE : 0) + wispVariant.crop.h/2`;
+hero `worldHeight = groundHeightAt(playerX) + HERO_CROP.h/2`. (The two `wispVariant`/`wispFlying`
+`useMemo`s moved above `baseLights` so it can read them.)
+
+**4 — the firefly is a moving light source.** Han: *"ik zie nooit de vuurvlieg! ... Ze zijn ook een
+lightsource, sample voor de kleur eenmalig het limoengroen van de sprite."* (He's handling spawn
+himself — `bestiaryMetadata.json` `Firefly.tagsAdd = ["night","critter"]` — so this only covers the
+light.) `RpgLevelPanel`:
+- `fireflyVariant = findCreatureByName('Firefly')`; a mount effect loads its sprite sheet, crops the
+  first `fly` frame (16×16), and picks the **most green-dominant, brightest opaque pixel** (`g*2−r−b`)
+  as `fireflyLightColor` — the glow, not the muddy average. Lime `[0.7,1,0.2]` fallback.
+- `WorldWanderer` gains `emitLightPos` / `lightPosRef`: a firefly critter publishes its live `{x,y}`
+  into `critterLightPosRef` each frame (y is native px from the level top, same convention as
+  `campfireLight`), cleaned up on unmount — a separate registry from `birdPositionsRef` (which stays
+  x-only for the bird audio).
+- `critterWanderers` entries are tagged `isFirefly` (variant URL match). `ldtkLights` merges
+  `baseLights` with up to **4** firefly lights (nearest the hero, capped so wisp+hero+campfire+fireflies
+  ≤ `MAX_LIGHTS` 10), each at the tracked position, colour `fireflyLightColor * (1 - globalIllumination)`,
+  and the whole firefly set is skipped when `globalIllumination > 0.65` (daytime). Rebuilds on
+  `petFrame` (~10/s) so the glow follows the drifting sprite without a per-rAF re-render.
+
+**Invariants.**
+- `AMBIENT_DARK_COLOR` (GLSL) / `AMBIENT_DARK_RGB` (JS) still one colour in two encodings.
+- Moon strength is always `uMoonStrength * (1 - uGlobalIllumination)` — never visible by day.
+- Firefly lights never exceed 4, are night-only, and vanish cleanly when a firefly despawns
+  (registry delete) — a level with no fireflies placed adds zero lights.
+- The wisp/hero light-height formulas are "stand line + half crop height" — the same "sprite centre"
+  rule the campfire already used.
+
+**Files.** `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` half-Lambert, `MOON_DIR`,
+`MOON_COLOR`); `src/components/character/ForegroundFoliageLayer.jsx` (`moonStrength` default);
+`src/components/character/weatherCycle.js` (night illum); `src/components/character/RpgLevelPanel.jsx`
+(`baseLights` + merged `ldtkLights`, `wispVariant`/`wispFlying` moved up, `fireflyVariant` +
+`fireflyLightColor` sample effect + `critterLightPosRef`, `WorldWanderer` `emitLightPos`/`lightPosRef`,
+`critterWanderers` `isFirefly`, `EntityLayer` prop pass-through).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (night-floor asserts 0.12 → 0.10).
+
+**#5 — visible seams / grid stripes on tiles, "vooral in de tiles met animatie" — FIXED.** Investigation
+(Han: *"is dat niet al zo?"* re: integer zoom): the world SCALE already is a whole integer (`worldLayout.js`
+`N`), bar a `1.5` half-step offered only on `devicePixelRatio ≥ 2` (where 1.5 CSS-px = 3 whole device-px)
+and one non-home mount path with no `worldScale`. So integer zoom was NOT the problem. The real cause: the
+DOM tile layers scroll via `transform: translateX(-cameraX·zoom)` where `cameraX` is a **continuous float**
+(dead-zone follow, never rounded) — so the DOM slides sub-pixel while the WebGL foliage/water quads already
+snap their position to whole device pixels (`ForegroundFoliageLayer` §327 `Math.round(screenX·dpr)`, both
+the per-instance and instanced paths). The DOM and WebGL layers drift ±1 device px apart as the camera
+pans → a seam that crawls along the 16/32-px grid.
+**Fix:** snap the camera scroll offset to the SAME device-pixel grid — `RpgLevelPanel`'s `setCameraX`
+callback now computes `offsetPx = Math.round(-next·z·dpr) / dpr` (and `cameraOffsetRef`, read by the WebGL
+cull, gets that snapped value, so DOM + WebGL step in lockstep). `cameraX` state stays a float for the
+follow/clamp math — only the visible transform snaps. `LdtkAnimatedTiles.AnimatedTile` also rounds its own
+`left` / `bottom` to device px (the viewport-centre term can still be ½ px even at integer zoom).
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`setCameraX` offset snap),
+`src/components/character/LdtkAnimatedTiles.jsx` (per-tile `left`/`bottom` snap).
+
+**#5 round 2 (Han: "ik zie de naden nog steeds").** The camera snap alone wasn't enough — the seams
+survive on a **fractional `devicePixelRatio`** (Windows 125 % / 150 % display scaling → dpr 1.25 / 1.5).
+Both the WebGL foliage/water quads (`ForegroundFoliageLayer`, §327) and the campfire DOM tiles
+(`LdtkAnimatedTiles`) snapped each tile's **centre and size independently** — `round(centre·dpr)` +
+`round(size·dpr)`. At a fractional dpr, `round(cx·dpr) + round(w·dpr)/2` for tile A and
+`round((cx+w)·dpr) − round(w·dpr)/2` for tile B differ by ±1 device px at some boundaries, so a 1-px
+gap/overlap tiles across the whole grid. **Fix:** snap the four **EDGES** instead —
+`lDev = round((cx − w/2)·dpr)`, `rDev = round((cx + w/2)·dpr)`, likewise `bDev`/`tDev` — then the quad
+is `centre = (lDev+rDev)/2`, `size = rDev − lDev`. Because `cx + w/2 == cxNext − w/2` exactly, tile A's
+`rDev` **is** tile B's `lDev` at any dpr (and a stacked tile's `bDev` is the one above's `tDev`).
+Applied identically to `ForegroundFoliageLayer`'s per-instance loop AND its instanced (atlas) path, and
+to `LdtkAnimatedTiles.AnimatedTile` (which now derives `width`/`height` from rounded edges too). The
+cost is a ≤1-device-px texture stretch per tile instead of a visible seam.
+
+### §365. Wind-3 gusts are capped at 10 s (Han 2026-09-01)
+
+Follow-up to §360's wind track. Han: *"wanneer windkracht 3 gerold wordt, laat die maar 10 seconden op
+die kracht blazen, en zak dan af naar windkracht 2."* — a full-strength gust shouldn't sit at 3
+indefinitely (it could hold up to a full 30 s draw interval, plus repeat).
+
+**`weatherCycle.js` `tickWeather`:** after the wind-fade step, once `windTo === 3` has fully settled
+(`windFadeElapsed >= WIND_FADE_S`), a `wind3HoldS` timer accumulates `dt`. At `WIND_GUST3_HOLD_S`
+(10 s) it forces `windFrom = 3, windTo = 2, windFadeElapsed = 0` (ease down over the normal 3 s) and
+resets `windTimer` to 0 so the next random draw is a fresh 30 s away. `wind3HoldS` resets to 0 whenever
+`windTo !== 3`. Total 3 + 10 + 3 = 16 s < the 30 s draw interval, so a normal roll never interrupts a
+capped gust. `seekWind` also resets `wind3HoldS`, so a manually-picked 3 gets the same cap (consistent —
+"wind 3 always lasts ≤ 10 s"). New export `WIND_GUST3_HOLD_S`; new state field `wind3HoldS` (in
+`createWeatherState`).
+
+**Files.** `src/components/character/weatherCycle.js`.
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (new §365 hold-then-decay case; the
+`seekWind` easing test switched from picking 3 to picking 2 so the cap doesn't fire mid-assert).

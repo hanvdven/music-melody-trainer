@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-    baselineAdaptiveBpm, evaluateAdaptiveBpm, commitIndexFor, lcmOf,
-    ADAPTIVE_STEP, ADAPTIVE_LEVEL_REPEATS, NO_ANPM_BASELINE_FACTOR,
+    baselineAdaptiveBpm, commitIndexFor, lcmOf, diffStats,
+    ADAPTIVE_LEVEL_REPEATS, NO_ANPM_BASELINE_FACTOR,
     SPEED_UP_ACCURACY, SLOW_DOWN_ACCURACY,
 } from '../adaptiveTempo';
 
@@ -17,7 +17,7 @@ const lvl = (over = {}) => ({
 });
 
 // The stats shape useLevel.js's `emptyStats()` produces — every field is a cumulative counter, which is
-// what lets `evaluateAdaptiveBpm` diff two snapshots into a "just this block" delta.
+// what lets `diffStats` turn two snapshots into a "just this block" delta.
 const stats = (over = {}) => ({
     defeated: 0, misses: 0, perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0,
     secondAttemptCorrected: 0, wrongUncorrected: 0, missed: 0, extraNote: 0, ...over,
@@ -76,53 +76,43 @@ describe('adaptiveTempo — baselineAdaptiveBpm (#1102, Han\'s locked formula)',
     });
 });
 
-describe('adaptiveTempo — evaluateAdaptiveBpm (#1102, ±5% + [base/2, base] clamp)', () => {
-    const baseBpm = 100;
-
+describe('adaptiveTempo — the shared accuracy thresholds + diffStats (#1102/#1121/#1122)', () => {
     // #1122: these two thresholds are now also imported by gamification.js's nextAnpm() as the ONE
-    // definition of "clean run" / "genuinely struggling". Lock the values so an edit to either fails
-    // a test in BOTH subsystems (this one and gamification.test.js) rather than silently drifting.
+    // definition of "clean run" / "genuinely struggling", and #1121's ladder scores every rung against
+    // them. Lock the values so an edit to either fails a test in EVERY subsystem that reads them rather
+    // than silently drifting.
     it('exports the shared accuracy thresholds at 90 / 70', () => {
         expect(SPEED_UP_ACCURACY).toBe(90);
         expect(SLOW_DOWN_ACCURACY).toBe(70);
     });
 
-    it('speeds up by exactly 5% after a clean stretch (>=90% accuracy)', () => {
-        const prev = stats();
-        const curr = stats({ defeated: 10, perfect: 10 });   // 10/10 graded = 100%
-        expect(evaluateAdaptiveBpm({ prevStats: prev, currStats: curr, currentBpm: 80, baseBpm }))
-            .toBeCloseTo(80 * (1 + ADAPTIVE_STEP), 6);
+    // #1121: `diffStats` is now EXPORTED so `adaptiveLadder.evaluateLadder` scores a block off the SAME
+    // single diff — there is never a second diff of the same snapshot pair. The ±5%/clamp behaviour that
+    // used to be tested here as `evaluateAdaptiveBpm` moved WITH the function, into
+    // src/levels/__tests__/adaptiveLadder.test.js, where it is the ladder's TEMPO rung.
+    it('diffs only the NUMERIC fields of two cumulative snapshots', () => {
+        const before = stats({ defeated: 3, perfect: 2 });
+        const after = stats({ defeated: 10, perfect: 8, missed: 1 });
+        const delta = diffStats(before, after);
+        expect(delta.defeated).toBe(7);
+        expect(delta.perfect).toBe(6);
+        expect(delta.missed).toBe(1);
     });
 
-    it('slows down by exactly 5% after a rough stretch (<70% accuracy)', () => {
-        const prev = stats();
-        const curr = stats({ defeated: 5, perfect: 5, misses: 5, missed: 5 });   // 5/10 = 50%
-        expect(evaluateAdaptiveBpm({ prevStats: prev, currStats: curr, currentBpm: 80, baseBpm }))
-            .toBeCloseTo(80 * (1 - ADAPTIVE_STEP), 6);
+    it('drops non-numeric fields rather than producing NaN', () => {
+        const delta = diffStats({ defeated: 1 }, { defeated: 4, startedAt: null, hand: 'treble' });
+        expect(delta).toEqual({ defeated: 3 });
     });
 
-    it('HOLDS steady in the 70-90% deadband rather than chasing noise every block', () => {
-        const prev = stats();
-        const curr = stats({ defeated: 8, perfect: 8, misses: 2, missed: 2 });   // 8/10 = 80%
-        expect(evaluateAdaptiveBpm({ prevStats: prev, currStats: curr, currentBpm: 80, baseBpm })).toBe(80);
+    it('treats a missing `before` (or a missing field on it) as zero', () => {
+        expect(diffStats(null, stats({ defeated: 5 })).defeated).toBe(5);
+        expect(diffStats(undefined, stats({ perfect: 2 })).perfect).toBe(2);
+        expect(diffStats({}, stats({ missed: 3 })).missed).toBe(3);
     });
 
-    it('is a NO-OP when nothing was graded in the stretch (e.g. the very first block)', () => {
+    it('is the zero delta for the same snapshot twice — what makes "block 0 is a no-op" work', () => {
         const snapshot = stats({ defeated: 4, perfect: 4 });
-        // Same snapshot twice → zero delta → no notes → hold, regardless of the level\'s running accuracy.
-        expect(evaluateAdaptiveBpm({ prevStats: snapshot, currStats: snapshot, currentBpm: 80, baseBpm })).toBe(80);
-    });
-
-    it('clamps at the CEILING (the level\'s authored bpm) — a clean stretch there is a silent no-op', () => {
-        const curr = stats({ defeated: 10, perfect: 10 });
-        expect(evaluateAdaptiveBpm({ prevStats: stats(), currStats: curr, currentBpm: baseBpm, baseBpm }))
-            .toBe(baseBpm);
-    });
-
-    it('clamps at the FLOOR (authored bpm / 2) — a rough stretch there is a silent no-op', () => {
-        const curr = stats({ defeated: 1, perfect: 1, misses: 9, missed: 9 });
-        expect(evaluateAdaptiveBpm({ prevStats: stats(), currStats: curr, currentBpm: baseBpm / 2, baseBpm }))
-            .toBe(baseBpm / 2);
+        expect(Object.values(diffStats(snapshot, snapshot)).every((v) => v === 0)).toBe(true);
     });
 });
 

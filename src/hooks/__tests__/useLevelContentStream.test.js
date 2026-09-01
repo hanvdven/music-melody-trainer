@@ -324,6 +324,9 @@ describe('#1165 guard — a NON-sideScroll (static combat) level runs the same p
 });
 
 // ── #1102 re-fit ────────────────────────────────────────────────────────────────────────────
+// #1121 renamed the controller prop to `adaptiveDifficulty` and collapsed its three would-be readers
+// into ONE `blockSettingsFor(measure, startTime) -> { bpm, densityStep, pacing }`.
+const RUNG_0 = { bpm: 80, densityStep: 0, pacing: 'timed' };
 describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => {
     // 4/4 → a bar is exactly 3.0s at 80bpm and 2.4s at 100bpm: round numbers, so the accumulated
     // cursor can be asserted exactly.
@@ -337,11 +340,14 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
 
     it('reads the bpm FRESH per block and accumulates each block start at its OWN bar duration', () => {
         const seen = [];
-        const adaptiveTempo = {
-            bpmForMeasure: (measure, startTime) => { seen.push([measure, startTime]); return measure >= 2 ? 100 : 80; },
+        const adaptiveDifficulty = {
+            blockSettingsFor: (measure, startTime) => {
+                seen.push([measure, startTime]);
+                return { bpm: measure >= 2 ? 100 : 80, densityStep: 0, pacing: 'timed' };
+            },
             evaluate: vi.fn(),
         };
-        const { unmount } = renderStream(adaptiveLvl, { adaptiveTempo, statsRef: { current: {} } });
+        const { unmount } = renderStream(adaptiveLvl, { adaptiveDifficulty, statsRef: { current: {} } });
         // contentStart = 10 + 2 * 3.0 = 16 (the LEAD-IN is pinned to the level's own starting tempo and
         // never consults the controller); block 1's cursor = 16 + 2 * 3.0 = 22.
         expect(seen).toEqual([[0, 16], [2, 22]]);
@@ -359,7 +365,7 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
         const evaluate = vi.fn();
         const statsRef = { current: { defeated: 1 } };
         const { unmount } = renderStream(adaptiveLvl, {
-            adaptiveTempo: { bpmForMeasure: () => 80, evaluate }, statsRef,
+            adaptiveDifficulty: { blockSettingsFor: () => RUNG_0, evaluate }, statsRef,
         });
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(evaluate.mock.calls[0][0]).toEqual({ stats: statsRef.current, fromMeasure: 2, units: [2] });
@@ -368,15 +374,52 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
     });
 
     it('never consults the controller for a NON-adaptive level (byte-identical old behaviour)', () => {
-        const bpmForMeasure = vi.fn(() => 999);
+        const blockSettingsFor = vi.fn(() => ({ bpm: 999, densityStep: 3, pacing: 'timed' }));
         const evaluate = vi.fn();
         const { unmount } = renderStream({ ...adaptiveLvl, adaptive: false }, {
-            adaptiveTempo: { bpmForMeasure, evaluate }, statsRef: { current: {} },
+            adaptiveDifficulty: { blockSettingsFor, evaluate }, statsRef: { current: {} },
         });
-        expect(bpmForMeasure).not.toHaveBeenCalled();
+        expect(blockSettingsFor).not.toHaveBeenCalled();
         expect(evaluate).not.toHaveBeenCalled();
         expect(playMelodies.mock.calls.every((c) => c[3] === 80)).toBe(true);
         unmount();
+    });
+
+    // ── #1121: the DENSITY read, on the SAME per-block seam as the fresh bpm ───────────────
+    it('a non-zero densityStep changes THIS block\'s notesPerMeasure, and only this block\'s', () => {
+        // The ladder commits at a measure; every block from there on reads the new rung, and every
+        // block before it keeps the authored one. `generateBlock` is REAL here, so this asserts on
+        // the notes that actually reach the published treble Melody.
+        const dense = {
+            ...adaptiveLvl, id: 902, totalMeasures: 6,
+            // A high, unambiguous target so the count difference cannot be a rounding coincidence.
+            notesPerMeasure: 2,
+        };
+        const counts = (densityStepFor) => {
+            vi.clearAllMocks();
+            const { result, unmount } = renderStream(dense, {
+                adaptiveDifficulty: {
+                    blockSettingsFor: (measure) => ({ bpm: 80, densityStep: densityStepFor(measure), pacing: 'timed' }),
+                    evaluate: vi.fn(),
+                },
+                statsRef: { current: {} },
+                trebleSettings: { ...trebleSettings, notesPerMeasure: 2, smallestNoteDenom: 8 },
+            });
+            // SOUNDING notes only: `Melody.notes` also carries `null` tie/duration-continuation
+            // placeholders and `'r'` rests, and their COUNT is fixed by the grid — so counting raw
+            // entries would show no difference at all no matter how dense the line got.
+            const notes = result.current.treble.notes.filter((n) => n && n !== 'r').length;
+            unmount();
+            return notes;
+        };
+        const authored = counts(() => 0);
+        const densified = counts(() => 3);
+        expect(densified).toBeGreaterThan(authored);
+        // Only from the commit measure onwards: block 0 (measures 0-1) stays authored, so the total
+        // lands strictly between the two extremes.
+        const partial = counts((measure) => (measure >= 2 ? 3 : 0));
+        expect(partial).toBeGreaterThan(authored);
+        expect(partial).toBeLessThan(densified);
     });
 });
 

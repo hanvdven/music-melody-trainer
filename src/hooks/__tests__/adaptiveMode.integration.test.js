@@ -2,9 +2,10 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import useLevelContentStream from '../useLevelContentStream';
-import useAdaptiveTempo from '../useAdaptiveTempo';
+import useAdaptiveDifficulty from '../useAdaptiveDifficulty';
 import { LEVELS, applyLevelVariant } from '../../levels/levels';
 import { baselineAdaptiveBpm, ADAPTIVE_STEP, ADAPTIVE_LEVEL_REPEATS } from '../../levels/adaptiveTempo';
+import { MAX_TREBLE_DENSITY_STEP } from '../../levels/adaptiveLadder';
 import { blockMeasuresFor, blockCountFor } from '../../levels/levelBlockPlan';
 import Scale from '../../model/Scale';
 import InstrumentSettings from '../../model/InstrumentSettings';
@@ -13,11 +14,28 @@ import { TICKS_PER_WHOLE, secondsPerTick } from '../../constants/timing';
 vi.mock('../../audio/playMelodies', () => ({ default: vi.fn(() => 0) }));
 import playMelodies from '../../audio/playMelodies';
 
+// #1121: a PASS-THROUGH spy — the real generator still runs (every bpm/scheduling assertion below
+// depends on real material), but each block's own `instrumentSettings` is recorded so the ladder's
+// DENSITY rung can be asserted on the arguments generation actually received, not on controller state.
+vi.mock('../../generation/generateBlock', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        generateBlock: vi.fn((args) => actual.generateBlock(args)),
+    };
+});
+import { generateBlock } from '../../generation/generateBlock';
+
+/** The treble settings block k was generated with. Index 0 is the LEAD-IN. */
+const trebleArgsFor = (k) => generateBlock.mock.calls[k + 1][0].seriesArgs.instrumentSettings.treble;
+const bassArgsFor = (k) => generateBlock.mock.calls[k + 1][0].seriesArgs.instrumentSettings.bass;
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // #1102 — ADAPTIVE MODE, END TO END (letter `i`).
 //
-// The unit suites cover the pieces in isolation: `adaptiveTempo.test.js` (the two locked
-// formulas + the commit-index primitive), `useAdaptiveTempo.test.js` (decide/schedule/apply),
+// The unit suites cover the pieces in isolation: `adaptiveTempo.test.js` (the level-start formula +
+// the commit-index primitive), `adaptiveLadder.test.js` (the whole ordered difficulty ladder as a
+// pure policy), `useAdaptiveDifficulty.test.js` (decide/schedule/apply),
 // `levelVariants.test.js` (what the letter stamps onto a level). What NONE of them proves is
 // that the WIRING actually delivers Han's behaviour — that picking `i` on a real level starts
 // it at his formula's tempo and that a real graded stretch of play actually moves the tempo of
@@ -86,11 +104,11 @@ function mountAdaptiveLevel(lvl, statsRef) {
     const backingStopFnsRef = { current: [] };
 
     const hook = renderHook(() => {
-        const adaptiveTempo = useAdaptiveTempo({ bpmRef, setBpm, context });
+        const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, context });
         // App.jsx calls `begin` in `startLevel`, before the stream's effect ever runs. A render-phase
         // ref guard reproduces that ordering (begin only assigns to the controller's own ref).
         const begun = React.useRef(false);
-        if (!begun.current) { begun.current = true; adaptiveTempo.begin(lvl.adaptiveBaseBpm); }
+        if (!begun.current) { begun.current = true; adaptiveDifficulty.begin(lvl.adaptiveBaseBpm, lvl); }
         useLevelContentStream({
             active: true,
             lvl,
@@ -114,10 +132,10 @@ function mountAdaptiveLevel(lvl, statsRef) {
             bassReady: true,
             metronomeReady: true,
             levelMelodyReady: true,
-            adaptiveTempo,
+            adaptiveDifficulty,
             statsRef,
         });
-        return adaptiveTempo;
+        return adaptiveDifficulty;
     });
 
     // Advance BOTH clocks together: the stream schedules its next generation at an AudioContext
@@ -146,7 +164,10 @@ function mountSpiedStream(lvl, evaluate) {
     const wizardStopFnsRef = { current: [] };
     const backingStopFnsRef = { current: [] };
     const statsRef = { current: stats() };
-    const adaptiveTempo = { bpmForMeasure: () => lvl.bpm, evaluate };
+    const adaptiveDifficulty = {
+        blockSettingsFor: () => ({ bpm: lvl.bpm, densityStep: 0, pacing: 'timed' }),
+        evaluate,
+    };
     const hook = renderHook(() => useLevelContentStream({
         active: true, lvl, scale, timeSignature: lvl.timeSignature ?? DEFAULT_TS,
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
@@ -154,7 +175,7 @@ function mountSpiedStream(lvl, evaluate) {
         wizardInstrument, wizardVolume: 1, wizardStopFnsRef,
         bassInstrument, metronomeInstrument, timpaniInstrument, timpaniVolume: 1, backingStopFnsRef,
         bassReady: true, metronomeReady: true, levelMelodyReady: true,
-        adaptiveTempo, statsRef,
+        adaptiveDifficulty, statsRef,
     }));
     const run = (seconds, step = 0.5) => {
         act(() => {
@@ -254,9 +275,10 @@ describe('#1102 end-to-end — a graded stretch actually moves the scheduled tem
         expect(setBpmCalls[0]).toBeCloseTo(63, 6);
     });
 
-    // Han's locked clamp: `[authoredBpm/2, authoredBpm]`. Hitting a bound is a SILENT no-op this round —
-    // what happens BEYOND either bound is #1120 (floor → rubato) and #1121 (ceiling → note density).
-    it('clamps at the CEILING: a clean stretch at the authored tempo changes nothing', () => {
+    // Han's locked clamp: `[authoredBpm/2, authoredBpm]`. The TEMPO never leaves it — since #1121 the
+    // ladder continues past both bounds through NOTE DENSITY instead (asserted in its own describe
+    // block below); #1120 hangs gated pacing off the very bottom.
+    it('clamps at the CEILING: a clean stretch at the authored tempo never moves the TEMPO', () => {
         // anpm 60 → bpm = 60 * 4/3 = 80 = the authored bpm = the clamp ceiling.
         const lvl = lvlFor(60);
         expect(lvl.bpm).toBe(lvl.adaptiveBaseBpm);
@@ -265,7 +287,7 @@ describe('#1102 end-to-end — a graded stretch actually moves the scheduled tem
         expect(setBpmCalls).toEqual([]);
     });
 
-    it('clamps at the FLOOR: a rough stretch at half the authored tempo changes nothing', () => {
+    it('clamps at the FLOOR: a rough stretch at half the authored tempo never moves the TEMPO', () => {
         // anpm 30 → bpm = 40 = authoredBpm / 2 = the clamp floor.
         const lvl = lvlFor(30);
         expect(lvl.bpm).toBe(lvl.adaptiveBaseBpm / 2);
@@ -396,6 +418,141 @@ describe('#1102 end-to-end — an adaptive level plays through ~3x, then stops',
         run((plain.leadInBars + (blockCountFor(plain) + 4) * B) * barSecFor(plain, plain.bpm) + ANCHOR);
         expect(callsFor(metronomeInstrument)).toHaveLength(blockCountFor(plain) + 1);
         expect(playMelodies.mock.calls.every((c) => c[3] === plain.bpm)).toBe(true);
+        // #1121: and EVERY block was generated at the level's own authored density — the ladder is
+        // provably inert for a level that is not adaptive (acceptance criterion 10).
+        const authored = trebleArgsFor(0);
+        for (let k = 1; k < blockCountFor(plain); k++) {
+            expect(trebleArgsFor(k)).toBe(authored);   // the same OBJECT, not merely an equal one
+        }
+        unmount();
+    });
+});
+
+// ── #1121: at the ceiling, difficulty grows through CONTENT instead of tempo ────────────────
+describe('#1121 end-to-end — the ladder densifies at the ceiling and unwinds symmetrically', () => {
+    // Level 11: authored `notesPerMeasure` 4 on an eighth grid and, crucially, `insertBeatRests:
+    // false` — so every density notch shows up immediately. (Level 4 authors `insertBeatRests: true`,
+    // which already fills every beat, so its first notch is a documented silent no-op — see §361.)
+    const base = LEVELS[11];
+    // The AUTHORED density the ladder measures from is whatever `trebleSettings` this harness passes
+    // in — `useLevel.applyConfig` (which is what copies `lvl.notesPerMeasure` onto the settings in the
+    // real app) is not part of this integration. That is exactly right: the projection reads the
+    // SETTINGS BUNDLE, never the level object.
+    const AUTHORED_NPM = trebleSettings.notesPerMeasure;
+    const ceilingLevel = () => {
+        // Pick the ANPM that lands the starting tempo exactly ON the authored bpm, so the very first
+        // real decision has nowhere left to go on the tempo rung and must move the CONTENT instead.
+        for (let anpm = 1; anpm < 400; anpm++) {
+            const lvl = applyLevelVariant(base, 'i', anpm);
+            if (lvl.bpm === lvl.adaptiveBaseBpm) return lvl;
+        }
+        throw new Error('no ANPM pins level 11 at its ceiling');
+    };
+
+    /** Mount at the ceiling, feed one graded stretch, and run far enough to see the commit block. */
+    const runAtCeiling = (delta, blocks = 5) => {
+        const lvl = ceilingLevel();
+        const statsRef = { current: stats() };
+        const { unmount, setBpmCalls, run } = mountAdaptiveLevel(lvl, statsRef);
+        statsRef.current = delta;
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + blocks * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+        return { lvl, unmount, setBpmCalls, run, B };
+    };
+
+    it('a clean stretch AT the ceiling raises notesPerMeasure, at an unchanged tempo', () => {
+        const { lvl, unmount, setBpmCalls } = runAtCeiling(CLEAN);
+        // Blocks 0-2 predate the commit; block 3 is the commit index (see this file's header).
+        expect(trebleArgsFor(2).notesPerMeasure).toBe(AUTHORED_NPM);
+        expect(trebleArgsFor(3).notesPerMeasure).toBe(AUTHORED_NPM + 1);
+        // …and the SCROLL SPEED is untouched: every block, before and after, sounds at the ceiling.
+        expect(bassBlock(2)[3]).toBe(lvl.bpm);
+        expect(bassBlock(3)[3]).toBe(lvl.bpm);
+        expect(setBpmCalls).toEqual([]);   // nothing app-wide switched — no visual re-anchor at all
+        unmount();
+    });
+
+    it('keeps stepping ONE notch per block boundary, then holds silently at the cap', () => {
+        const lvl = ceilingLevel();
+        const statsRef = { current: stats() };
+        const { unmount, run, setBpmCalls } = mountAdaptiveLevel(lvl, statsRef);
+        const B = blockMeasuresFor(lvl);
+        const barSec = barSecFor(lvl, lvl.bpm);
+        // Keep the player perfectly clean for the whole run: every boundary sees a fresh graded
+        // stretch, so the ladder gets to step at every single one of them.
+        let played = 0;
+        run(ANCHOR + lvl.leadInBars * barSec);
+        for (let i = 0; i < blockCountFor(lvl) + 2; i++) {
+            played += 10;
+            statsRef.current = stats({ defeated: played, perfect: played });
+            run(B * barSec);
+        }
+        const seen = generateBlock.mock.calls.slice(1)
+            .map((c) => c[0].seriesArgs.instrumentSettings.treble.notesPerMeasure);
+        // Monotone, never more than one notch at a time, and never past the treble cap.
+        for (let i = 1; i < seen.length; i++) {
+            expect(seen[i] - seen[i - 1]).toBeGreaterThanOrEqual(0);
+            expect(seen[i] - seen[i - 1]).toBeLessThanOrEqual(1);
+        }
+        expect(Math.max(...seen)).toBeGreaterThan(AUTHORED_NPM);
+        expect(Math.max(...seen)).toBeLessThanOrEqual(AUTHORED_NPM + MAX_TREBLE_DENSITY_STEP);
+        // The cello is untouched for as long as the treble still has room — the bass is a LATER rung
+        // on the same ladder (Han q3), never a parallel knob.
+        const authoredBassNpm = bassArgsFor(0).notesPerMeasure;
+        seen.forEach((npm, k) => {
+            if (npm < AUTHORED_NPM + MAX_TREBLE_DENSITY_STEP) {
+                expect(bassArgsFor(k).notesPerMeasure).toBe(authoredBassNpm);
+            }
+        });
+        // …and this run really did reach the bass rungs, so the assertion above is not vacuous.
+        expect(bassArgsFor(seen.length - 1).notesPerMeasure).toBeGreaterThan(authoredBassNpm);
+        // And not one of those notches touched the app-wide tempo.
+        expect(setBpmCalls).toEqual([]);
+        unmount();
+    });
+
+    it('the ADDED density comes off before the bpm is allowed to drop again', () => {
+        const lvl = ceilingLevel();
+        const statsRef = { current: stats() };
+        const { unmount, setBpmCalls, run } = mountAdaptiveLevel(lvl, statsRef);
+        const B = blockMeasuresFor(lvl);
+        const barSec = barSecFor(lvl, lvl.bpm);
+        // Two clean stretches → the ladder climbs two density notches at the ceiling…
+        statsRef.current = stats({ defeated: 10, perfect: 10 });
+        run((lvl.leadInBars + 4 * B) * barSec + ANCHOR);
+        statsRef.current = stats({ defeated: 20, perfect: 20 });
+        run(3 * B * barSec);
+        const peak = Math.max(...generateBlock.mock.calls.slice(1)
+            .map((c) => c[0].seriesArgs.instrumentSettings.treble.notesPerMeasure));
+        expect(peak).toBeGreaterThan(AUTHORED_NPM);
+        expect(setBpmCalls).toEqual([]);   // the tempo never moved on the way up
+        // …then the player starts missing. The next commits must remove the added density, and ONLY
+        // once it is gone may the tempo fall.
+        for (let i = 0; i < 3; i++) {
+            statsRef.current = stats({
+                defeated: 20 + i, misses: 10 * (i + 1), missed: 10 * (i + 1),
+            });
+            run(3 * B * barSec);
+        }
+        const tail = generateBlock.mock.calls.slice(1)
+            .map((c) => c[0].seriesArgs.instrumentSettings.treble.notesPerMeasure);
+        expect(tail[tail.length - 1]).toBeLessThan(peak);          // density came off
+        expect(setBpmCalls).toEqual([]);                           // and the tempo still has not moved
+        unmount();
+    });
+
+    it('the level still ENDS at blockCountFor even on a run where the ladder moved', () => {
+        const lvl = ceilingLevel();
+        const statsRef = { current: stats() };
+        const { unmount, run } = mountAdaptiveLevel(lvl, statsRef);
+        statsRef.current = CLEAN;
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + (blockCountFor(lvl) + 4) * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+        // Density changes the CONTENT of a block, never the timeline: same block count as always.
+        expect(callsFor(metronomeInstrument)).toHaveLength(blockCountFor(lvl) + 1);
+        const after = playMelodies.mock.calls.length;
+        run(60);
+        expect(playMelodies.mock.calls.length).toBe(after);
         unmount();
     });
 });

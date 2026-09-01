@@ -56,14 +56,18 @@ import {
 // block that has been published is NEVER rewritten, re-offset or dropped. SheetRpgLayer's
 // slime/kill bookkeeping derives from these offsets and would desync the instant that broke.
 //
-// ── ADAPTIVE TEMPO (#1102) ──────────────────────────────────────────────────────────────
+// ── ADAPTIVE DIFFICULTY (#1102 tempo, #1121 density) ────────────────────────────────────
 // This stream is the SOLE decider for EVERY level — the classic per-wave decider effect in
 // App.jsx is gone with the mechanism it served. With one cadence, `commitIndexFor` is always
 // called with `units: [B]`, so Han's "force exact sync" between treble and bass/metronome is
 // now STRUCTURAL (they are the same block, generated and scheduled together at one bpm)
-// rather than arithmetic. `adaptiveTempo`/`statsRef` are deliberately NOT in this effect's
+// rather than arithmetic. `adaptiveDifficulty`/`statsRef` are deliberately NOT in this effect's
 // dependency array — subscribing to live stats would tear down and rebuild the whole JIT
 // schedule on every hit/miss, which is exactly why `useLevel.statsRef` exists.
+// #1121 adds a second per-block value on the SAME seam: the ladder's `densityStep`, projected
+// onto the treble/bass `notesPerMeasure`/`smallestNoteDenom` for THIS block only. It is read
+// ref-driven, exactly like the fresh bpm, and for exactly the same reason — see the hard
+// constraint spelled out at that read.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 export default function useLevelContentStream({
     active,            // level.active (see App.jsx — ONE activation condition for every level now)
@@ -102,7 +106,7 @@ export default function useLevelContentStream({
     bassReady,
     metronomeReady,
     levelMelodyReady,
-    adaptiveTempo = null,
+    adaptiveDifficulty = null,
     statsRef = null,
 }) {
     const [treble, setTreble] = useState(() => Melody.defaultTrebleMelody());
@@ -131,9 +135,14 @@ export default function useLevelContentStream({
         // Only a level whose blocks can actually BE Wizard-type needs the cast instrument ready.
         const mayCast = lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed';
         if (mayCast && sideScroll && !wizardInstrument) return;
-        const specs = trackSpecsForLevel(lvl, {
+        // #1121: hoisted into a named bundle because a block whose ladder rung is non-zero
+        // re-derives its OWN specs from the same authored settings (see `blockSpecs` below).
+        // `specs` itself stays the AUTHORED-density bundle: the song gate right below and the
+        // lead-in both want it, and neither is density-varying.
+        const levelSettings = {
             trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
-        });
+        };
+        const specs = trackSpecsForLevel(lvl, levelSettings);
         // A song-backed level slices the song's own measures; there is nothing to publish until
         // `handleLoadSong` has actually finished (mirrors the wizard-instrument gate above).
         if (specs.songTreble && !songMelody?.notes?.length) return;
@@ -270,7 +279,10 @@ export default function useLevelContentStream({
                 // — it reuses the FIRST content measure's harmony, the same "reuse the nearest real
                 // content" principle the retired metronomeLeadIn.js used.
                 chordProgression: chordContextFor(0, leadInBars),
-                seriesArgs: seriesArgsFor(scale),
+                // The lead-in is always generated at the level's AUTHORED density, for exactly the
+                // reason it is always generated at `startBpm`: no ladder commit can exist before the
+                // first block has been graded.
+                seriesArgs: seriesArgsFor(scale, specs),
             });
             // Only BASS is taken from the lead-in block: the level's treble starts at content
             // measure 0, and the lead-in's percussion is Han's authorized hardcoded timpani pattern
@@ -336,7 +348,10 @@ export default function useLevelContentStream({
         // difficulty targets, and there is no `currentMelodyContext` reference melody — a song's
         // material reaches the pipeline through `fixedOstinato` instead, so the block gets the
         // song's notes VERBATIM rather than re-spelled through `modulateMelody`.
-        function seriesArgsFor(blockScale) {
+        // #1121: `blockSpecs` is a PARAMETER rather than the effect-level `specs`, because the
+        // adaptive ladder can hand THIS block a different `instrumentSettings.treble/bass`
+        // (a density rung). Callers that are not density-varying — the LEAD-IN — pass `specs`.
+        function seriesArgsFor(blockScale, blockSpecs) {
             return {
                 oldTonic: blockScale.tonic,
                 oldMode: blockScale.name,
@@ -345,7 +360,7 @@ export default function useLevelContentStream({
                 oldDisplayScale: blockScale.displayNotes,
                 randConfig: { melody: true },
                 currentMelodies: {},
-                instrumentSettings: specs.instrumentSettings,
+                instrumentSettings: blockSpecs.instrumentSettings,
                 currentMelodyContext: {},
                 targetTrebleDifficulty: null,
                 targetBassDifficulty: null,
@@ -359,12 +374,30 @@ export default function useLevelContentStream({
         // measures × ITS OWN bar duration`. Byte-identical placement at a constant tempo.
         const generateAndScheduleBlock = (blockIndex, blockStartTime) => {
             const contentMeasure = blockIndex * B;
-            // The tempo THIS block is generated and scheduled at, read FRESH here rather than
-            // captured once for the whole effect — the same "re-read the live bpm at the top of
-            // each scheduling unit" pattern `Sequencer.scheduleBlock` already uses per measure.
-            const bpm = (sideScroll && lvl.adaptive && adaptiveTempo)
-                ? adaptiveTempo.bpmForMeasure(contentMeasure, blockStartTime)
-                : startBpm;
+            // The ladder position THIS block is generated and scheduled at, read FRESH here rather
+            // than captured once for the whole effect — the same "re-read the live value at the top
+            // of each scheduling unit" pattern `Sequencer.scheduleBlock` already uses per measure.
+            // ONE reader for all three values (#1121): the armed app-wide `setBpm` is a side effect
+            // of reading a due commit, so splitting this into per-value readers would make the
+            // arming depend on which one the stream happened to call first.
+            //
+            // ⚠ HARD CONSTRAINT — this value must NEVER travel through `setTrebleSettings` or any
+            // other member of this effect's dependency array (bottom of the file). Doing so tears
+            // the whole JIT effect down mid-level: every published Melody is reset to its default
+            // (the four `setX(Melody.defaultX())` calls above), every pending generation timer is
+            // cleared and every already-scheduled note is stopped — i.e. the §289 "level never
+            // ends" bug class, re-opened. Ref-driven, read fresh, per block. This is exactly why
+            // the density is a per-block GENERATION INPUT and not app state.
+            const ladder = (sideScroll && lvl.adaptive && adaptiveDifficulty)
+                ? adaptiveDifficulty.blockSettingsFor(contentMeasure, blockStartTime)
+                : null;
+            const bpm = ladder ? ladder.bpm : startBpm;
+            // #1121: rung 0 reuses the effect-level `specs` OBJECT, so a level that never leaves the
+            // authored density passes literally the same reference it did before this ticket.
+            const densityStep = ladder ? ladder.densityStep : 0;
+            const blockSpecs = densityStep
+                ? trackSpecsForLevel(lvl, levelSettings, { densityStep, timeSignature })
+                : specs;
             const barSec = barSecAt(bpm);
             const type = blockTypeForBlock(lvl, blockIndex);
             const isWizardBlock = type === 'Wizard';
@@ -385,7 +418,7 @@ export default function useLevelContentStream({
             // UNWRAPPED absolute window even for a gated level: past the song's last measure the
             // slice is empty, so a gated song level's treble stops growing at the song's true end
             // (no endless repeat) while its cello keeps flowing for as long as the gate holds.
-            const songSlice = (specs.songTreble && songMelody)
+            const songSlice = (blockSpecs.songTreble && songMelody)
                 ? sliceMelodyByRange(songMelody, measureLengthTicks, genMeasures, blockIndex * genMeasures)
                 : null;
 
@@ -394,8 +427,8 @@ export default function useLevelContentStream({
                 timeSignature,
                 numMeasures: genMeasures,
                 chordProgression: chordContextFor(chordWindowStart, genMeasures),
-                seriesArgs: seriesArgsFor(blockScale),
-                ...(specs.chordStrategy === 'song' ? {
+                seriesArgs: seriesArgsFor(blockScale, blockSpecs),
+                ...(blockSpecs.chordStrategy === 'song' ? {
                     chordStrategy: 'song',
                     songChords: chordProgression,
                     songMeasureCount: Math.max(1, totalContentMeasures),
@@ -482,8 +515,8 @@ export default function useLevelContentStream({
                 // #1102: THIS stream is the sole DECIDER, now for every level — one boundary, one
                 // adjustment. `units: [B]` because there IS only one cadence: treble and
                 // bass/metronome are the same block, so "force exact sync" is structural.
-                if (lvl.adaptive && adaptiveTempo && statsRef) {
-                    adaptiveTempo.evaluate({
+                if (lvl.adaptive && adaptiveDifficulty && statsRef) {
+                    adaptiveDifficulty.evaluate({
                         stats: statsRef.current,
                         fromMeasure: (blockIndex + 1) * B,
                         units: [B],
@@ -532,7 +565,7 @@ export default function useLevelContentStream({
             ownWizardStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
             ownBackingStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
         };
-        // `adaptiveTempo`/`statsRef` are deliberately excluded — see this file's header.
+        // `adaptiveDifficulty`/`statsRef` are deliberately excluded — see this file's header.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, lvl, levelAudioStart, context, scale, timeSignature,
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
