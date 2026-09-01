@@ -95,7 +95,7 @@ const barSecFor = (lvl, bpm) => {
  * `bpmRef` is the single source of truth for "the tempo now", `begin()` is called once at level
  * start with the level's AUTHORED tempo (what the clamp is expressed against).
  */
-function mountAdaptiveLevel(lvl, statsRef) {
+function mountAdaptiveLevel(lvl, statsRef, songMelody = null) {
     const context = { currentTime: 0 };
     const bpmRef = { current: lvl.bpm };
     const setBpmCalls = [];
@@ -109,10 +109,13 @@ function mountAdaptiveLevel(lvl, statsRef) {
         // ref guard reproduces that ordering (begin only assigns to the controller's own ref).
         const begun = React.useRef(false);
         if (!begun.current) { begun.current = true; adaptiveDifficulty.begin(lvl.adaptiveBaseBpm, lvl); }
-        useLevelContentStream({
+        const content = useLevelContentStream({
             active: true,
             lvl,
             scale,
+            // #1168: a song-backed level slices this instead of generating its treble. `null` for
+            // every procedural level, exactly as App.jsx passes it.
+            songMelody,
             timeSignature: lvl.timeSignature ?? DEFAULT_TS,
             trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
             percussionScale,
@@ -135,7 +138,7 @@ function mountAdaptiveLevel(lvl, statsRef) {
             adaptiveDifficulty,
             statsRef,
         });
-        return adaptiveDifficulty;
+        return { adaptiveDifficulty, content };
     });
 
     // Advance BOTH clocks together: the stream schedules its next generation at an AudioContext
@@ -159,7 +162,7 @@ function mountAdaptiveLevel(lvl, statsRef) {
  * callback for the same reason as above: `wizardStopFnsRef` / `backingStopFnsRef` / `timeSignature`
  * are all in the effect's dependency array.
  */
-function mountSpiedStream(lvl, evaluate) {
+function mountSpiedStream(lvl, evaluate, songMelody = null) {
     const context = { currentTime: 0 };
     const wizardStopFnsRef = { current: [] };
     const backingStopFnsRef = { current: [] };
@@ -171,7 +174,7 @@ function mountSpiedStream(lvl, evaluate) {
     const hook = renderHook(() => useLevelContentStream({
         active: true, lvl, scale, timeSignature: lvl.timeSignature ?? DEFAULT_TS,
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
-        percussionScale, chordProgression: null, context, levelAudioStart: ANCHOR,
+        percussionScale, chordProgression: null, songMelody, context, levelAudioStart: ANCHOR,
         wizardInstrument, wizardVolume: 1, wizardStopFnsRef,
         bassInstrument, metronomeInstrument, timpaniInstrument, timpaniVolume: 1, backingStopFnsRef,
         bassReady: true, metronomeReady: true, levelMelodyReady: true,
@@ -424,6 +427,120 @@ describe('#1102 end-to-end — an adaptive level plays through ~3x, then stops',
         for (let k = 1; k < blockCountFor(plain); k++) {
             expect(trebleArgsFor(k)).toBe(authored);   // the same OBJECT, not merely an equal one
         }
+        unmount();
+    });
+});
+
+// ── #1168: the SAME end-to-end guarantees on a SONG-backed level ────────────────────────────
+// Until #1168 a song level was ONE block (`blockMeasuresFor` fell through to `numMeasures`, which
+// for a song is the SONG'S LENGTH), so the decider fired exactly once — a seed, never a decision
+// (§354 limitation 5). And songs were excluded from the ×3 runway, because their treble slice is
+// unwrapped. Both are fixed by the same move: a flat 2-measure cadence, and a source materialised
+// ×3 so the unwrapped slice still stops at the level's true end. See §366.
+describe('#1168 end-to-end — a song-backed level adapts per block and still ends', () => {
+    const sakura = LEVELS[205];   // songId 'sakura', 4/4, 14 measures, bpm 72
+
+    /** A fake loaded song: one whole-measure note per measure, so slices are trivially checkable. */
+    const fakeSong = (measures, ts) => {
+        const mlt = (TICKS_PER_WHOLE * ts[0]) / ts[1];
+        const pool = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'];
+        return {
+            notes: Array.from({ length: measures }, (_, i) => pool[i % pool.length]),
+            durations: Array.from({ length: measures }, () => mlt),
+            offsets: Array.from({ length: measures }, (_, i) => i * mlt),
+            displayNotes: Array.from({ length: measures }, (_, i) => pool[i % pool.length]),
+        };
+    };
+
+    it('gives the controller a real decision at EVERY block boundary — not one seed for the whole song', () => {
+        const lvl = applyLevelVariant(sakura, 'i', 60);
+        // The actual ticket: 1 → ceil(14*3 / 2) = 21 evaluation points.
+        expect(blockMeasuresFor(lvl)).toBe(2);
+        expect(blockCountFor(lvl)).toBe(blockCountFor(sakura) * ADAPTIVE_LEVEL_REPEATS);
+        expect(blockCountFor(lvl)).toBeGreaterThan(1);
+
+        const evaluate = vi.fn();
+        const song = fakeSong(sakura.totalMeasures, lvl.timeSignature);
+        const { unmount, run } = mountSpiedStream(lvl, evaluate, song);
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + (blockCountFor(lvl) + 4) * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+        expect(evaluate).toHaveBeenCalledTimes(blockCountFor(lvl));
+        evaluate.mock.calls.forEach(([arg], k) => {
+            expect(arg.units).toEqual([B]);
+            expect(arg.fromMeasure).toBe((k + 1) * B);
+        });
+        unmount();
+    });
+
+    it('plays the song 3x verbatim, every track switching tempo at the same block, and then STOPS', () => {
+        // Pick the ANPM that lands the baseline strictly INSIDE Han's clamp [authored/2, authored], so a
+        // clean stretch genuinely steps the tempo up instead of being clipped at the ceiling. Derived,
+        // never a hardcoded number — the song's own note density decides it (§6c).
+        const lvl = (() => {
+            for (let anpm = 1; anpm < 400; anpm++) {
+                const v = applyLevelVariant(sakura, 'i', anpm);
+                if (v.bpm < v.adaptiveBaseBpm && v.bpm > v.adaptiveBaseBpm / 2) return v;
+            }
+            throw new Error('no ANPM lands Sakura inside its clamp');
+        })();
+        const song = fakeSong(sakura.totalMeasures, lvl.timeSignature);
+        const statsRef = { current: stats() };
+        const { unmount, run, result } = mountAdaptiveLevel(lvl, statsRef, song);
+        statsRef.current = CLEAN;
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + (blockCountFor(lvl) + 4) * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+
+        // The content really IS 3x long — the song's own notes, three times, seamlessly.
+        const treble = result.current.content.treble;
+        expect(treble.notes).toEqual([...song.notes, ...song.notes, ...song.notes]);
+        // …and it stops exactly there (§289): generation terminated, nothing further is scheduled.
+        expect(callsFor(metronomeInstrument)).toHaveLength(blockCountFor(lvl) + 1);
+        const after = playMelodies.mock.calls.length;
+        run(60);
+        expect(playMelodies.mock.calls.length).toBe(after);
+        expect(result.current.content.treble.notes.length).toBe(song.notes.length * ADAPTIVE_LEVEL_REPEATS);
+        // The tempo genuinely moved during the run, and cello/metronome/timpani moved together.
+        const k = blockCountFor(lvl) - 1;
+        expect(bassBlock(k)[3]).toBeGreaterThan(lvl.bpm);
+        expect(metronomeBlock(k)[3]).toBe(bassBlock(k)[3]);
+        expect(timpaniBlock(k)[3]).toBe(bassBlock(k)[3]);
+        unmount();
+    });
+
+    it('a NON-adaptive run of the same song plays through exactly ONCE, at one tempo', () => {
+        const song = fakeSong(sakura.totalMeasures, sakura.timeSignature);
+        const { unmount, run, result } = mountAdaptiveLevel(
+            { ...sakura, adaptiveBaseBpm: sakura.bpm }, { current: stats() }, song,
+        );
+        const B = blockMeasuresFor(sakura);
+        run((sakura.leadInBars + (blockCountFor(sakura) + 4) * B) * barSecFor(sakura, sakura.bpm) + ANCHOR);
+        expect(result.current.content.treble.notes).toEqual(song.notes);   // one pass, not three
+        expect(callsFor(metronomeInstrument)).toHaveLength(blockCountFor(sakura) + 1);
+        expect(playMelodies.mock.calls.every((c) => c[3] === sakura.bpm)).toBe(true);
+        unmount();
+    });
+
+    // Levels 1 and 2 are the shape the design note did not call out: a GATED song level. Its
+    // `blockCountFor` is Infinity by design (§867 — content must never run out during a freeze), so
+    // "the level ends" rests entirely on the TREBLE stopping at the level's true 3x end.
+    it('a GATED song level (levels 1/2) triples too, and its treble still stops at the 3x end', () => {
+        const gatedSong = LEVELS[1];
+        expect(gatedSong.songId).toBeTruthy();
+        expect(gatedSong.gatedScroll).toBe(true);
+        const lvl = applyLevelVariant(gatedSong, 'i', 60);
+        expect(lvl.totalMeasures).toBe(gatedSong.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
+        expect(lvl.contentPeriodMeasures).toBe(gatedSong.totalMeasures);
+        expect(blockCountFor(lvl)).toBe(Infinity);
+
+        const song = fakeSong(gatedSong.totalMeasures, lvl.timeSignature);
+        const { unmount, run, result } = mountAdaptiveLevel(lvl, { current: stats() }, song);
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + (lvl.totalMeasures + 12) * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+        // The cello keeps flowing forever (the gate may hold on any note) …
+        expect(result.current.content.bass.notes.length).toBeGreaterThan(0);
+        // … but the treble is exactly 3 passes of the song and never one note more.
+        expect(result.current.content.treble.notes)
+            .toEqual([...song.notes, ...song.notes, ...song.notes]);
         unmount();
     });
 });

@@ -59,6 +59,23 @@ import { densityOverrideFor } from './adaptiveLadder';
  *     different `numMeasures` would silently lose its alternation/modulation period under
  *     the fall-through. `MIXED_BLOCK_MEASURES` / `blockTypeAt` stay regardless —
  *     SheetRpgLayer imports them.
+ *
+ * ── A FOURTH SHAPE: SONG-BACKED LEVELS (#1168, Han 2026-09-01) ─────────────────────────
+ * A level with a `songId` (ids 1, 2, 200-206) is the one shape where `numMeasures` does NOT
+ * mean "chunk size" at all: `songLevelDefaults` (levels.js, §871) back-fills it from the song
+ * JSON as the SONG'S LENGTH, because the song is the single source of truth for its own
+ * musical metadata. So the fall-through made one block the WHOLE song — `blockCountFor` = 1,
+ * and the adaptive decider (one call per block) fired exactly once: a seed, never a decision
+ * (§354 limitation 5, the bug #1168 fixes).
+ *
+ * `numMeasures` cannot simply be re-authored to 2 for those levels — three consumers read it
+ * AS the song's length and would break: `normalizeLevel`'s `totalMeasures = ... ?? numMeasures`,
+ * `applyLevelVariant`'s `callResponseOverrides` (`totalMeasures: lvl.numMeasures * 2`, the §1155
+ * "de akkoorden zijn op" fix) and `useLevel.applyConfig`'s `setNumMeasures`. Duplicating the song
+ * length into levels.json to free the field would break §871's SSOT (§6c). So the song's cadence
+ * is stated HERE, like the three shapes above: one named constant, one branch, no JSON edit.
+ * It is UNCONDITIONAL — every song level generates in 2-measure chunks, adaptive or not (Han
+ * Q1, 2026-09-01: "kleine gen-chunk voor ALLE song levels, niet alleen letter i").
  */
 
 // Han's own spec for both 2-measure musical periods (see the cadence note above). Kept as
@@ -66,6 +83,13 @@ import { densityOverrideFor } from './adaptiveLadder';
 // musical decisions that happen to agree today — collapsing them would hide that.
 export const MIXED_BLOCK_MEASURES = 2;
 export const KEY_MODULATION_BLOCK_MEASURES = 2;
+
+// #1168: a song-backed level's own generation cadence — see the fourth bullet of the cadence
+// note above for why it cannot be `numMeasures` (which, for such a level, IS the song's length).
+// Kept as its own named constant rather than reusing MIXED_BLOCK_MEASURES for exactly the reason
+// stated just above: they are independent musical decisions that happen to agree at 2 today
+// (Han Q3, 2026-09-01: "2 maten flat", not the level's `visibleMeasures`).
+export const SONG_BLOCK_MEASURES = 2;
 
 /** The call/response GROUP size (#1101: `d` = 1 measure, `e` = 2; native Wizard levels omit it). */
 export const callGroupMeasuresFor = (lvl) => (lvl?.callResponseMeasures ?? 1);
@@ -89,6 +113,11 @@ export const blockMeasuresFor = (lvl) => {
     // A decorativeWizard level that call-response has NOT taken over (its Wizard branch above
     // already carries the alternation) modulates every 2 measures — see the cadence note.
     if (lvl?.decorativeWizard) return KEY_MODULATION_BLOCK_MEASURES;
+    // #1168: AFTER the three branches above and BEFORE the fall-through. ORDER IS LOAD-BEARING:
+    // a song level with letter d/e must keep the Wizard cadence (`callResponseMeasures * 2`),
+    // because `applyLevelVariant` also rewrites its `numMeasures` to the call GROUP size and
+    // doubles its `totalMeasures`. Pinned by a branch-order test in levels.test.js.
+    if (usesSongTreble(lvl)) return SONG_BLOCK_MEASURES;
     return lvl?.numMeasures || 2;
 };
 

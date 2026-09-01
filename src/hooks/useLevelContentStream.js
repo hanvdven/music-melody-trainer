@@ -174,6 +174,13 @@ export default function useLevelContentStream({
         const { leadInBars, metronomeBars } = leadInSpecFor(lvl);
         const groupMeasures = callGroupMeasuresFor(lvl);
         const totalContentMeasures = lvl.totalMeasures ?? lvl.numMeasures ?? B;
+        // #1168: the UN-multiplied content PERIOD, and how many passes of it the level's timeline is.
+        // An adaptive level's `totalMeasures` has already been multiplied by ADAPTIVE_LEVEL_REPEATS
+        // (`applyLevelVariant`), and `contentPeriodMeasures` is the original value it was multiplied
+        // FROM. It is `undefined` for EVERY non-adaptive level, so `contentPeriod` is exactly
+        // `totalContentMeasures` and `contentRepeats` is exactly 1 there — no new branch, byte-identical.
+        const contentPeriod = Math.max(1, lvl.contentPeriodMeasures ?? totalContentMeasures);
+        const contentRepeats = Math.max(1, Math.round(totalContentMeasures / contentPeriod));
         // §867/§1052: a gated level's content NEVER runs out — the player may stay frozen on one
         // note for an arbitrary real-time duration, so a fixed block count would eventually leave
         // the level with nothing left to generate (the cello simply going silent mid-level).
@@ -230,6 +237,33 @@ export default function useLevelContentStream({
             return slice.notes.length ? slice : null;
         };
         const timpaniGains = { treble: 0, bass: 0, percussion: timpaniVolume, chords: 0, metronome: 0 };
+
+        // ── THE SONG SOURCE (#1168, Han 2026-09-01) ────────────────────────────────────────
+        // An adaptive song level's timeline is `contentRepeats` passes of the song (Han Q2: a flat
+        // ×3 for every song, no per-song budget), so the SOURCE the blocks slice from is
+        // materialised that many times, at exactly `contentPeriod * measureLengthTicks` per pass —
+        // SEAMLESS, repeat-sign style: no bar of rest, no padding measure, no new notation (Han Q5).
+        // Concatenation reuses `appendChunk`, the SAME helper every track's publish path below
+        // already uses (§6c: no third melody slicer/concatenator), so the seam carries exactly the
+        // arrays the 1× path carries today.
+        //
+        // WHY THE WRAP IS MATERIALISED IN THE SOURCE, not in the slicer — this IS the §289 guard:
+        // `songSlice` below keeps its UNWRAPPED `sliceMelodyByRange` call, so "past the source's
+        // last measure the slice is empty" stays LITERALLY true, now against a source that really
+        // is 3× long. Content therefore stops at the level's true (3×) end, `slimeData.length`
+        // stops growing, and cumulative kills can catch up to it (`wavesForLevel` is 1). A modulo
+        // slicer here would INVERT that guard into "never empty" — the very property that makes the
+        // level's end provable. A block straddling a repeat seam gets both halves for free.
+        //
+        // `contentRepeats === 1` for every non-adaptive level, so `songSource` is then literally the
+        // same object reference as `songMelody`: no allocation, no array copying, provably identical.
+        let songSource = songMelody;
+        if (songMelody && contentRepeats > 1) {
+            songSource = new Melody([], [], [], []);
+            for (let pass = 0; pass < contentRepeats; pass++) {
+                songSource = appendChunk(songSource, songMelody, pass * contentPeriod * measureLengthTicks);
+            }
+        }
 
         let growingTreble = new Melody([], [], [], []);
         let growingBass = new Melody([], [], [], []);
@@ -418,8 +452,11 @@ export default function useLevelContentStream({
             // UNWRAPPED absolute window even for a gated level: past the song's last measure the
             // slice is empty, so a gated song level's treble stops growing at the song's true end
             // (no endless repeat) while its cello keeps flowing for as long as the gate holds.
-            const songSlice = (blockSpecs.songTreble && songMelody)
-                ? sliceMelodyByRange(songMelody, measureLengthTicks, genMeasures, blockIndex * genMeasures)
+            // #1168: the SOURCE is `songSource` — the song repeated `contentRepeats` times for an
+            // adaptive level, and `songMelody` itself otherwise. The window arithmetic is untouched,
+            // so "empty past the end" now means "empty past the level's true (3×) end".
+            const songSlice = (blockSpecs.songTreble && songSource)
+                ? sliceMelodyByRange(songSource, measureLengthTicks, genMeasures, blockIndex * genMeasures)
                 : null;
 
             const block = generateBlock({
@@ -431,7 +468,14 @@ export default function useLevelContentStream({
                 ...(blockSpecs.chordStrategy === 'song' ? {
                     chordStrategy: 'song',
                     songChords: chordProgression,
-                    songMeasureCount: Math.max(1, totalContentMeasures),
+                    // #1168: the modulo must be the song's OWN period, never the ×3 total — otherwise
+                    // the per-measure wrap inside `sliceSongChordsModulo` never wraps and the chords
+                    // (and with them the cello, which follows them via `force_chord_roots`) run dry
+                    // after pass 1. That is literally the §1155 "Sakura d/e: de akkoorden zijn op" bug
+                    // shape. For a d/e song `contentPeriodMeasures` is undefined and this is the
+                    // DOUBLED total — which is correct, because `handleLoadSong` doubles the chord
+                    // progression to match.
+                    songMeasureCount: contentPeriod,
                     blockStartMeasure: blockIndex * B,
                 } : {}),
                 // Fixed material for this block: block 0's remembered chunk for an authored

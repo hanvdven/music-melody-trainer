@@ -198,15 +198,34 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
             expect(applyLevelVariant(base, 'i', 60).bpm).toBe(baselineAdaptiveBpm(base, 60));
         });
 
-        it('does NOT repeat a SONG level — its slices never wrap, so 3x waves could never be cleared', () => {
-            // A song-backed level's per-block treble slice is deliberately unwrapped (empty past the
-            // song's last measure, useLevelContentStream's `songSlice`). Tripling its wave target while
-            // its slimes stop at the song's true end is the §289 "level never ends" bug class.
+        // #1168 (Han 2026-09-01) — THIS CASE IS THE INVERSION of the old "does NOT repeat a SONG level"
+        // guard, kept (never deleted) with its reasoning. That exclusion existed because a song-backed
+        // level's per-block treble slice is deliberately unwrapped (empty past the song's last measure,
+        // useLevelContentStream's `songSlice`), so tripling its wave target while its slimes stopped at
+        // the song's true end was the §289 "level never ends" bug class. #1168 removed the PREMISE
+        // rather than the guard: the song SOURCE is now genuinely materialised 3x in the stream, so the
+        // content really is as long as `totalMeasures` claims and the ONE wave is reachable. See §366.
+        it('DOES repeat a song level (#1168) — the source is materialised 3x, so the one wave is reachable', () => {
             const sakura = LEVELS[205];
             expect(sakura.songId).toBe('sakura');
             const v = applyLevelVariant(sakura, 'i', 60);
             expect(v.adaptive).toBe(true);
-            expect(v.totalMeasures).toBe(sakura.totalMeasures);
+            expect(v.totalMeasures).toBe(sakura.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
+            // The un-multiplied period survives the override — the stream needs it to know how long one
+            // pass of the song is (the chord modulo, and how many passes of the source to materialise).
+            expect(v.contentPeriodMeasures).toBe(sakura.totalMeasures);
+            // Half 1 of "the level must still end": generation is FINITE, so `total` stops growing.
+            expect(Number.isFinite(blockCountFor(v))).toBe(true);
+            expect(blockCountFor(v)).toBe(blockCountFor(sakura) * ADAPTIVE_LEVEL_REPEATS);
+            // Half 2: the wave target never scales with the runway — one cumulative clear, at 1x and 3x.
+            expect(wavesForLevel(v)).toBe(1);
+        });
+
+        it('stamps contentPeriodMeasures ONLY for an adaptive letter (undefined everywhere else)', () => {
+            const sakura = LEVELS[205];
+            expect(applyLevelVariant(sakura, 'e').contentPeriodMeasures).toBeUndefined();
+            expect(applyLevelVariant(sakura, null).contentPeriodMeasures).toBeUndefined();
+            expect(applyLevelVariant(base, 'f').contentPeriodMeasures).toBeUndefined();
         });
 
         it('does NOT repeat a non-sideScroll level — the stream never evaluates the controller there', () => {

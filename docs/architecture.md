@@ -23845,11 +23845,18 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
    is worth confirming it feels right. (Round 2 raised the `deriveLevelSpan` floor to 2 visible
    measures so the *baseline* itself is never narrower than that; a screen-width cap is still a
    follow-up.)
-5. **Song-backed levels get the baseline but effectively no live adaptation.** Their
-   `blockMeasuresFor` is the whole song (`numMeasures` was never migrated to the #1163 "chunk size"
-   model for songs), so `blockCountFor` is 1 and the decider runs once — a seed, never a decision.
-   They also do not repeat (see the scoping note above). Migrating song levels to a real chunk
-   cadence is the same work #1166 did for the ramp levels and belongs in its own ticket.
+5. ~~**Song-backed levels get the baseline but effectively no live adaptation.**~~ **FIXED by
+   #1168 — see §366.** Their `blockMeasuresFor` was the whole song (`numMeasures` was never migrated
+   to the #1163 "chunk size" model for songs), so `blockCountFor` was 1 and the decider ran once — a
+   seed, never a decision. They also did not repeat (see the scoping note above). #1168 did exactly
+   the migration this limitation asked for: a song level now has its own `SONG_BLOCK_MEASURES = 2`
+   cadence in `blockMeasuresFor` (**no `levels.json` edit** — a song's `numMeasures` must keep meaning
+   "the song's length"), and the `songId` exclusion on `adaptiveRepeats` is gone because the song
+   SOURCE is now genuinely materialised ×3 inside `useLevelContentStream`, so the unwrapped slice
+   still stops at the level's true end and the §289 guard survives intact. See §366 for the full
+   argument, Han's six locked answers, and the one accepted side effect (the cello on levels
+   1/2/200-206 regenerates per 2 bars). Compare §350 (the one content pipeline it lives in) and §353
+   (the same migration, for the ramp levels).
 6. Blocks past the first draw an EMPTY chord window on a procedural level, because the level's chord
    progression is generated once at `numMeasures` length while the block window advances linearly.
    This is **pre-existing** (every multi-block level since #1166 behaves this way) and is neither
@@ -24827,3 +24834,190 @@ capped gust. `seekWind` also resets `wind3HoldS`, so a manually-picked 3 gets th
 **Files.** `src/components/character/weatherCycle.js`.
 Tests: `src/components/character/__tests__/weatherCycle.test.js` (new §365 hold-then-decay case; the
 `seekWind` easing test switched from picking 3 to picking 2 so the cap doesn't fire mid-assert).
+
+---
+
+### §366. Song-backed levels get a real generation cadence — 2-measure chunks + the 3× adaptive runway (#1168, Han 2026-09-01)
+
+**Purpose / Symptom.** §354 limitation 5: a level with a `songId` (ids **1, 2, 200–206**) was ONE
+generation block, so `blockCountFor` was 1 and `useLevelContentStream`'s adaptive decider — which
+runs once per block boundary — fired exactly once. That single call is a *seed* (there is nothing to
+diff the first stats snapshot against), never a decision, so letter `i` on a song level gave the
+player the baseline tempo and then **nothing adapted for the rest of the song**. Songs were also
+deliberately excluded from #1102's ×3 evaluation runway (see "why the exclusion existed" below), so
+even the block count could not grow that way.
+
+**Root cause.** `blockMeasuresFor` fell through to `lvl.numMeasures || 2`, and for a song level
+`numMeasures` is **not** a chunk size at all: `songLevelDefaults` (levels.js, §871) back-fills it
+from the song JSON as the **song's LENGTH**, because the song is the single source of truth for its
+own musical metadata. One block = the whole song.
+
+#### How it works
+
+**1. The cadence — `levelBlockPlan.js`.** A new named constant `SONG_BLOCK_MEASURES = 2` and one
+branch in `blockMeasuresFor`:
+
+```js
+if (usesSongTreble(lvl)) return SONG_BLOCK_MEASURES;
+```
+
+It sits **after** the Wizard / Mixed / decorativeWizard branches and **before** the `numMeasures`
+fall-through. **Branch ORDER is load-bearing** — a song level with letter `d`/`e` must keep the
+call-response cadence (`callResponseMeasures * 2`), because `applyLevelVariant` also rewrites its
+`numMeasures` to the call GROUP size. The branch is **unconditional**: every song level generates in
+2-measure chunks whether or not it is adaptive (Han Q1). `blockCountFor` therefore goes 1 →
+`ceil(totalMeasures / 2)` (3…15 for the shipped songs) even at 1×, which alone is what gives the
+decider real boundaries.
+
+**No `levels.json` edit.** Re-authoring `numMeasures` as a chunk size — the literal #1166 shape —
+would break three consumers that read it AS the song's length (`normalizeLevel`'s
+`totalMeasures ?? numMeasures`, `applyLevelVariant`'s `callResponseOverrides`
+(`totalMeasures: lvl.numMeasures * 2`, the §1155 "de akkoorden zijn op" fix), and
+`useLevel.applyConfig`'s `setNumMeasures`), and pinning the song length into levels.json instead
+would break §871's SSOT (§6c). So the song's cadence is stated in the pure policy module that
+already owns three such per-level-SHAPE cadences.
+
+**2. The runway — `levels.js` `applyLevelVariant`.** The `lvl.songId == null` exclusion on
+`adaptiveRepeats` is gone; the condition is now `lvl.sideScroll && lvl.totalMeasures > 0`.
+(`!sideScroll` stays excluded for its own separate reason: a static level never consults the
+controller, so a longer one is pure padding.) Flat `ADAPTIVE_LEVEL_REPEATS = 3` for every song, no
+per-song budget (Han Q2).
+
+*Why the exclusion existed, and why removing it is safe:* it was written because a song level's
+per-block treble slice is deliberately UNWRAPPED, so tripling `totalMeasures` while the slimes stopped
+at the song's true end would have left the wave target unreachable — the §289 "level never ends" bug
+class. #1168 removes the **premise**, not the guard: the content is now genuinely 3× long (point 4
+below), and `wavesForLevel` is 1 either way, so there is nothing left to strand. The original comment
+is preserved in `levels.js` with this update appended (CLAUDE.md §4).
+
+**3. The period stamp — ONE new level field.** `adaptiveOverrides` additionally stamps
+`contentPeriodMeasures: lvl.totalMeasures` — the **un-multiplied** content period, written in the one
+place that does the multiplication. Exactly the "the original value must survive the override"
+pattern `adaptiveBaseBpm` already uses for the authored tempo. It is `undefined` for every
+non-adaptive level, which is what makes every non-adaptive path collapse to today's behaviour **by
+construction** rather than by coincidence. (A deliberate deviation from the design note, approved by
+Han: the design proposed a *second* field `songMeasures` on `songLevelDefaults` for the source repeat.
+With two fields, a **d/e call-response song** — whose content period is its DOUBLED length, not the
+song's own — would have computed a repeat count of 2 and pointlessly materialised a doubled source on
+a path that must stay unchanged. One field removes that class of coupling entirely.)
+
+**4. The two readers — `useLevelContentStream.js`.** Both derived once per effect run:
+
+```js
+const contentPeriod  = Math.max(1, lvl.contentPeriodMeasures ?? totalContentMeasures);
+const contentRepeats = Math.max(1, Math.round(totalContentMeasures / contentPeriod));
+```
+
+- **The chord period.** `songMeasureCount: contentPeriod` (was `Math.max(1, totalContentMeasures)`).
+  `generateBlock`'s `'song'` strategy wraps chords by `(measure mod songMeasureCount)`; handed the ×3
+  total it would never wrap, and the chords — and with them the cello, which follows them via
+  `force_chord_roots` — would run dry after pass 1. That is literally the §1155 *"Sakura d/e: de
+  akkoorden zijn op"* bug shape. For a d/e song `contentPeriodMeasures` is undefined and this stays
+  the doubled total, which is correct because `handleLoadSong` doubles the chord progression to match.
+- **The song SOURCE.** The song is concatenated `contentRepeats` times at exactly
+  `contentPeriod * measureLengthTicks` per pass — **seamless**, repeat-sign style: no bar of rest, no
+  padding measure, no new notation (Han Q5). The concatenation reuses `appendChunk`, the same helper
+  every track's publish path already uses (§6c: no third melody slicer/concatenator).
+
+#### The invariant: WHY THE LEVEL STILL ENDS (§289)
+
+The wrap is materialised **in the SOURCE, never in the slicer**. `songSlice` keeps its existing
+**UNWRAPPED** `sliceMelodyByRange` call with the same window arithmetic, so the guard the code has
+always carried — *"past the source's last measure the slice is empty, so a song never silently
+repeats"* — stays **literally true**, now against a source that genuinely is 3× long. The full chain:
+
+1. `totalMeasures` = songLen × 3 → `blockCountFor` = `ceil(3·songLen / 2)`, **finite**; the stream
+   stops generating.
+2. The treble source spans exactly 3 passes → every block has real content up to the 3× end and empty
+   slices after it → `slimeData.length` (`total`) stops growing.
+3. `wavesForLevel` is still `() => 1` → SheetRpgLayer's cumulative `killedCount >= total` fires ONCE,
+   `onWaveCleared` arms `pendingSongEndRef`.
+4. `levelFullTotalMeasures` = `lvl.totalMeasures` → `trebleFinalBarTick` sits at the 3× end →
+   `onSongEnd` when that barline crosses the strike line → the result screen.
+
+A **modulo slicer** would have INVERTED that guard into "never empty" — the exact property that makes
+the level's end provable. That is why it was rejected. A block straddling a repeat seam gets both
+halves for free, with no special case.
+
+A **gated** song level (ids 1/2) keeps `blockCountFor === Infinity` by design (§867: content must
+never run out while the scroll waits for the player); there, "the level ends" rests entirely on the
+treble stopping at the 3× end, which it does — pinned by an integration test.
+
+#### Han's six locked answers (2026-09-01)
+
+| Q | Answer |
+|---|---|
+| Q1 | **2-measure chunk for ALL song levels**, not gated on letter `i`. |
+| Q2 | Flat `ADAPTIVE_LEVEL_REPEATS = 3` for every song — no per-song budget, no cap logic. |
+| Q3 | Chunk = **2 measures flat**, not the level's `visibleMeasures`. Revisit only on UAT feel. |
+| Q4 | Song + `i` + no ANPM = **0.7× the song's authored tempo**, the same rule as procedural. Zero code: `baselineAdaptiveBpm`'s `NO_ANPM_BASELINE_FACTOR` branch already works against `lvl.bpm`, which for a song level IS `songDef.defaultTempo` via `songLevelDefaults`. No song branch. |
+| Q5 | **Seamless** repeats (repeat-sign style), no bar of rest, no new notation. |
+| Q6 | **No special-casing** for very long (La Bamba, 29 bars) or very short (level1-intro, 5 bars) songs. |
+
+#### The one accepted side effect (Han Q1, explicitly acknowledged)
+
+Song levels **1, 2, 200–206** now generate their **cello / bass line in 2-measure blocks** instead of
+one song-length block. Same generator, same `InstrumentSettings`, same chords underneath — but
+`generateNextSeries` rolls once per block, so **the cello line sounds different from before**. Not a
+regression: this is the same accepted side effect (a) of #1165 and the #1166/§353 ramp migration, now
+applied to the song levels. **Treble, chords, metronome and timpani stay byte-identical**: the treble
+is the song's own notes replayed verbatim (the union of contiguous slices IS the whole song), the
+chords come from the same per-measure `'song'` modulo, the metronome is a chunk-size-independent
+deterministic click track (`generateMetronomeChunk`, still outside `generateBlock`), and the timpani is
+sliced from one pattern built over `leadInBars + totalMeasures` (#1167/§356).
+
+#### What deliberately did NOT change
+
+- **The lead-in** — `leadInSpecFor` is still separate from `blockMeasuresFor`; cello+timpani on every
+  lead-in bar, metronome on the second half (Han's §248 rule).
+- **The wave model** — `wavesForLevel === () => 1`. **No file under `src/components/sheet-music/` is
+  touched by this ticket.**
+- **Routing** — the song's chords still go through `generateBlock`'s existing `chordStrategy: 'song'`,
+  and the song's treble still reaches the pipeline via `trackSpecsForLevel`'s
+  `randomizationRule: 'fixed'` + `fixedOstinato.treble`. No new routing key, no `source:` enum
+  (§6b/§6c: no per-instrument branching anywhere — the one new branch is a per-level-SHAPE cadence).
+- **Every procedural level**, adaptive or not, and **every d/e call-response run**: `contentRepeats`
+  is 1 and `songSource` is literally the same object reference as `songMelody`, so nothing is
+  allocated and nothing is copied.
+
+#### Rejected alternatives
+
+- **`numMeasures: 2` in levels.json / `songLevelDefaults`** — destroys the one field carrying the
+  song's length and breaks the three consumers listed above. Bigger blast radius, zero behavioural
+  gain.
+- **A per-block modulo slice of the song treble** (mirroring `sliceSongChordsModulo`) — works, but
+  needs a wrap-aware slicer at a second call site and inverts the §289 "empty past the end" guard.
+- **A bounded `loopForever` inside the stream** — the same alternative §354 already rejected for
+  procedural levels; it would still have to move `totalMeasures` / `levelFullTotalMeasures` anyway.
+- **Deriving the chord period from the chord melody's own tick span** — silently shrinks if a song's
+  last measures carry no chord.
+
+#### Known, pre-existing, deliberately-unfixed gaps (verified inert here)
+
+`appendChunk` does not carry `triplets` or `fermatas`, and `sliceMelodyByRange` does not carry
+`lyrics`. Both predate this ticket and are live for every track since #1165. They are inert for
+#1168: **no song under `src/songs/data/` ships a `triplets` array**, **every level sets
+`polyMultiplier: 1`**, and the 1× path never reaches the new concatenation at all
+(`contentRepeats === 1` short-circuits it), so no existing path's array handling changes. Recorded
+here rather than fixed, because extending `appendChunk` would change rendering for any future tuplet
+content without UAT.
+
+**Related.** §350 (the one per-block content pipeline this all lives in), §353 (the #1166 ramp
+`numMeasures` 8 → 2 migration this mirrors for songs), §354 (adaptive tempo — its limitation 5 is what
+this section closes), §361 (the adaptive difficulty ladder that consumes the extra block boundaries).
+
+**Files.** `src/levels/levelBlockPlan.js` (`SONG_BLOCK_MEASURES`, the branch, the cadence note's
+fourth bullet), `src/levels/levels.js` (`adaptiveRepeats` scope, `contentPeriodMeasures`, the
+`callResponseOverrides` tripwire comment), `src/hooks/useLevelContentStream.js` (`contentPeriod` /
+`contentRepeats`, the repeated `songSource`, `songMeasureCount`).
+Tests: `src/levels/__tests__/levelBlockPlan.test.js` (the cadence, the branch-order guard, the whole
+song roster), `src/levels/__tests__/levelVariants.test.js` (the old "does NOT repeat a SONG level"
+case INVERTED, not deleted, + the adaptive-only period stamp),
+`src/levels/__tests__/levels.test.js` (the `numMeasures`-means-song-length tripwire),
+`src/hooks/__tests__/useLevelContentStream.test.js` (fake song widened 4 → 6 measures so the "grows
+one block at a time" case still tests something; the "reassembles the song EXACTLY" case unchanged
+and green; new: 3× verbatim + seamless offsets, "and stops there", the 1×-not-materialised guard, and
+the `songMeasureCount` pins for 3× / plain / d-e),
+`src/hooks/__tests__/adaptiveMode.integration.test.js` (a real Sakura `i` run: `blockCountFor(lvl)`
+evaluations instead of one, 3× verbatim treble, every track switching at the same block, generation
+terminating — plus a non-adaptive song run and a gated song level).

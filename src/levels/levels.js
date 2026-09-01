@@ -730,6 +730,11 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
     // (§6c — one shared value, fixing it here fixes bass "for free", matching Han's own "de akkoorden (en
     // dus de bas)"). Scoped to songs only — a procedural level's `totalMeasures` semantics (already
     // folding in its own `numRepeats`/`numBlocks`) aren't touched here; no report of them being wrong.
+    // #1168 TRIPWIRE: `lvl.numMeasures` below still means "the SONG'S LENGTH", and #1168 deliberately kept
+    // it that way — that is precisely why the song's 2-measure generation cadence lives in
+    // `blockMeasuresFor` (`SONG_BLOCK_MEASURES`) and NOT in levels.json / `songLevelDefaults`. Re-authoring
+    // `numMeasures` as a chunk size would silently halve/wreck this line. Pinned by levels.test.js — "a
+    // song + letter e keeps the Wizard cadence AND the doubled length".
     const callResponseOverrides = variant.callResponseMeasures != null ? {
         enemyType: variant.enemyType,
         callResponseMeasures: variant.callResponseMeasures,
@@ -779,25 +784,43 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
     // structurally an ordinary longer level and ENDS through exactly the paths that already exist (§6c).
     // `callResponseOverrides` above already does this same scoped-`totalMeasures` trick for songs.
     //
-    // SCOPED to PROCEDURAL side-scroll levels (`songId == null`), and this exclusion is load-bearing, not
-    // caution: a song-backed level's per-block treble slice is deliberately UNWRAPPED (see
-    // `useLevelContentStream`'s `songSlice` — past the song's last measure the slice is empty, so a song
-    // never silently repeats), while `wavesForLevel` would demand 3x the wave clears. Its slimes would run
-    // out one third of the way in and `pendingSongEndRef` would never be set — the §289 "level never ends"
-    // bug class, reintroduced. `!sideScroll` is excluded for a different reason: the stream only evaluates
-    // the controller for a side-scroll level, so a longer static level would be pure padding.
+    // SCOPED to PROCEDURAL side-scroll levels (`songId == null`) UNTIL #1168 — kept here because it is
+    // the trace of a real bug, not caution. The reasoning was: a song-backed level's per-block treble
+    // slice is deliberately UNWRAPPED (see `useLevelContentStream`'s `songSlice` — past the song's last
+    // measure the slice is empty, so a song never silently repeats), while `wavesForLevel` would demand
+    // 3x the wave clears. Its slimes would run out one third of the way in and `pendingSongEndRef` would
+    // never be set — the §289 "level never ends" bug class, reintroduced.
+    //
+    // #1168 (Han 2026-09-01) removed the PREMISE instead of the guard, so the exclusion is gone: the song
+    // SOURCE is now genuinely materialised `ADAPTIVE_LEVEL_REPEATS` times inside `useLevelContentStream`
+    // (seamlessly, at `contentPeriodMeasures × measureLengthTicks` per pass), so the content really IS as
+    // long as `totalMeasures` claims. The slice stays UNWRAPPED against that longer source — "empty past
+    // the end" is still literally true, now at the 3x end — and `wavesForLevel` is 1 either way, so there
+    // is nothing left to strand. See §366.
+    //
+    // `!sideScroll` STAYS excluded, for its own separate reason: the stream only evaluates the controller
+    // for a side-scroll level, so a longer static level would be pure padding.
     // `totalNotesForLevel` scales with it, which is CORRECT: the player really does play 3x the notes over
     // ~3x the time, so #1099's post-completion ANPM (notes / elapsed minutes) is unchanged by the repeat.
     // `baselineAdaptiveBpm` is computed above from the UN-multiplied level and is invariant anyway —
     // `totalMeasures` appears in both its numerator (beats) and its denominator (notes) and cancels out.
     // `lvl.totalMeasures > 0` also guards the Level-0 draft object this function can be handed before
     // `normalizeLevel` has derived a length for it.
-    const adaptiveRepeats = (lvl.sideScroll && lvl.songId == null && lvl.totalMeasures > 0)
-        ? ADAPTIVE_LEVEL_REPEATS : 1;
+    const adaptiveRepeats = (lvl.sideScroll && lvl.totalMeasures > 0) ? ADAPTIVE_LEVEL_REPEATS : 1;
+    // #1168: `contentPeriodMeasures` is the UN-multiplied content period — exactly the same "the original
+    // value must survive the override" pattern `adaptiveBaseBpm` uses one line above for the authored
+    // tempo. ONE field, written in the ONE place that does the multiplication and read in the ONE place
+    // that has to undo it (`useLevelContentStream`: the song's chord modulo, and how many passes of the
+    // song source to materialise). Deliberately NOT a second `songMeasures` field on the level: this one
+    // is `undefined` for every non-adaptive level, so the repeat count there collapses to 1 BY
+    // CONSTRUCTION rather than by coincidence — including for a d/e call-response song, whose content
+    // period is its DOUBLED length, not the song's own.
     const adaptiveOverrides = variant.adaptive ? {
         adaptive: true,
         adaptiveBaseBpm: lvl.bpm,
-        ...(adaptiveRepeats > 1 ? { totalMeasures: lvl.totalMeasures * adaptiveRepeats } : {}),
+        ...(adaptiveRepeats > 1
+            ? { totalMeasures: lvl.totalMeasures * adaptiveRepeats, contentPeriodMeasures: lvl.totalMeasures }
+            : {}),
     } : {};
     const randomizeSongOverrides = (variant.randomizedNotes && lvl.songId != null) ? {
         randomizeSongMelody: true,

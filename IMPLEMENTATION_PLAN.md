@@ -7551,3 +7551,33 @@ Tests: worldLayout.test.js invariant-formule bijgewerkt + nieuwe ramp-describe. 
     ~3 frames erna — zelfde trade-off als §355/§357.
 (d) crop-ramp: op een net-te-kort scherm (world ~192–208 gpx) zie je nu eerst de ónderkant van het
     level verschijnen, niet de bovenkant.
+
+---
+
+## #1168 — Adaptieve modus `i` op song-levels: echte generatie-cadans + 3× runway ✅
+
+**Probleem (arch §354 limitatie 5):** een `songId`-level was ÉÉN generatieblok (`blockMeasuresFor`
+viel terug op `numMeasures`, wat voor een song de LENGTE van het lied is), dus `blockCountFor` = 1 en
+de adaptieve beslisser vuurde precies één keer — een seed, nooit een beslissing. Songs waren ook
+uitgesloten van de 3× runway.
+
+**Gedaan (4 edits, geen nieuw mechanisme):**
+- `levelBlockPlan.js`: `SONG_BLOCK_MEASURES = 2` + `if (usesSongTreble(lvl)) return SONG_BLOCK_MEASURES;`
+  NA de Wizard/Mixed/decorativeWizard-takken, VÓÓR de `numMeasures`-fallback. Onvoorwaardelijk (Han Q1:
+  alle song-levels, niet alleen letter `i`). **Geen levels.json-edit** — `numMeasures` blijft "de lengte
+  van het lied", want `callResponseOverrides` rekent daarop.
+- `levels.js`: `adaptiveRepeats` niet langer `songId == null`-uitgesloten; één nieuw veld
+  `contentPeriodMeasures` (de ON-vermenigvuldigde periode) gestempeld in `adaptiveOverrides`.
+- `useLevelContentStream.js`: `contentPeriod`/`contentRepeats` afgeleid; `songMeasureCount` =
+  `contentPeriod` (anders lopen de akkoorden — en dus de cello — leeg na pass 1, de §1155-bug); de
+  song-BRON wordt `contentRepeats` keer naadloos aan elkaar geplakt met `appendChunk`, en `songSlice`
+  houdt zijn bestaande ONGEWRAPTE `sliceMelodyByRange` — daardoor blijft de §289-garantie ("leeg voorbij
+  het eind") letterlijk waar, nu tegen het echte 3× eind.
+
+**Aanvaard neveneffect (Han Q1):** de CELLO op levels 1/2/200-206 klinkt anders (per 2 maten
+gegenereerd i.p.v. één song-lang blok). Melodie, akkoorden, metronoom en timpani blijven identiek.
+
+**Groen:** `npm run test:run` 1329 pass / 1 skip · `npm run lint` 0 errors · `npm run build` clean.
+arch **§366** toegevoegd, §354 limitatie 5 doorgestreept + verwezen.
+
+**Status:** ✅ impl klaar → Han UAT (12 acceptatiecriteria op ticket #1168).
