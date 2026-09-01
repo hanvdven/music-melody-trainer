@@ -5,6 +5,11 @@
 // gleitz.github.io CDN on every boot. Not part of the app bundle/runtime — a dev-only
 // build step, run manually when the instrument roster or the source .sf2 changes.
 //
+// NOTE (2026-09-01): `src/assets/FluidR3_GM.sf2` is NOT in the repo — at 141MB it exceeds
+// GitHub's 100MB file limit and was stripped from history. It is gitignored. The extraction
+// OUTPUT (`src/audio/localInstrumentBuffers.generated.js`) IS committed and is all the running
+// app needs. To re-run THIS script, drop your own copy of FluidR3_GM.sf2 at that path first.
+//
 // Root-pitch handling: SF2 zones often carry an unreliable `sample.header.originalPitch`
 // (many sample libraries, including this one's piano, set it to a constant regardless of the
 // zone's real recorded note) — the SPEC-correct root note is the zone's `OverridingRootKey`

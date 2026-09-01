@@ -4,8 +4,10 @@ import { generateBlock } from '../generation/generateBlock';
 import { generateMetronomeChunk } from '../generation/generateMetronomeChunk';
 import { doubleMelodyForCallResponse } from '../generation/sliceSongCallResponseBlock';
 import { sliceMelodyByRange } from '../utils/melodySlice';
+import buildTimpaniPattern from '../utils/timpaniPattern';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
+import { outputLatencySeconds } from '../audio/audioOutputLatency';
 import {
     blockMeasuresFor, blockTypeForBlock, resolveBlockScale, blockCountFor,
     leadInSpecFor, trackSpecsForLevel, callGroupMeasuresFor,
@@ -42,6 +44,12 @@ import {
 // Two tick ORIGINS are preserved exactly as the retired streams had them, because SheetMusic /
 // SheetRpgLayer depend on both: the published TREBLE's tick 0 is content measure 0, while the
 // published BASS/METRONOME's tick 0 is the FIRST LEAD-IN measure. Do not "unify" them here.
+//
+// ── "HEARD AT" TIMES (#1186) ────────────────────────────────────────────────────────────────────
+// Every audio time in this file (`levelAudioStart`, `contentStartTime`, `blockStartTime`) is the moment
+// the material must be HEARD — the same instant the visual clock puts it on the strike line. The
+// hardware's own output latency is subtracted at exactly ONE seam, `scheduleInto` below, so nothing
+// else in this file has to know about it. See src/audio/audioOutputLatency.js.
 //
 // ── APPEND-ONLY (CLAUDE.md §6, the level analogue of "Song is append-only") ──────────────
 // Every published Melody grows by concatenation at monotonically increasing tick offsets. A
@@ -81,9 +89,15 @@ export default function useLevelContentStream({
     wizardInstrument = null,
     wizardVolume,
     wizardStopFnsRef,
-    // Backing audio (cello + metronome) — the shared level-backing stop-fns ref.
+    // Backing audio (cello + metronome + timpani) — the shared level-backing stop-fns ref.
     bassInstrument,
     metronomeInstrument,
+    // #1167: the level's dedicated timpani Soundfont, or `null` when this level has no melodic
+    // percussion (App.jsx passes `percussionSettings.melodic ? timpaniRef.current : null`, exactly
+    // as it already does for `useLevelGatedRubatoAudio`) — so "does this level get timpani" is ONE
+    // decision, made at the call site, never re-derived here.
+    timpaniInstrument = null,
+    timpaniVolume = 1,
     backingStopFnsRef,
     bassReady,
     metronomeReady,
@@ -166,6 +180,48 @@ export default function useLevelContentStream({
         const lookaheadMeasures = Math.max(B, lvl.visibleMeasures ?? B);
         const runId = `${levelAudioStart ?? lvl.id ?? 'level'}`;
 
+        // ── TIMPANI (#1167, Han 2026-08-29: "Genereer de timpanen en cello gewoon mee met de chunks") ──
+        // MOVED HERE from App.jsx's one-shot `playMelodies` call. The history that call carried, kept:
+        //   #663 (Han 2026-08-03, "hard code de timpani voor nu"): timpani is the ONE Han-authorized
+        //     hardcoded pattern (`utils/timpaniPattern.js`), deliberately NOT routed through
+        //     MelodyGenerator — §6c is waived here by explicit instruction, not by omission.
+        //   #994 (live Kalinka UAT): *"alle opmaten cello+timpanen"* — timpani sounds through EVERY
+        //     lead-in measure; only the metronome is staggered.
+        //   #1052 → #867 rework → #1096: a GATED level's timpani is triggered in real time off the
+        //     gate's own frozen-aware clock by `useLevelGatedRubatoAudio.js` ("timpaan tel 3, wacht
+        //     rustig tot tel 3 komt"), so it is excluded from this fixed schedule — the same exclusion
+        //     cello and metronome already carry below, for the same reason.
+        // WHY IT MOVED: the one-shot was built once and scheduled for `leadInBars + totalMeasures` at
+        // the level's STARTING tempo. §346 called that harmless because it finished before the first
+        // adaptive commit; #1166 (numMeasures 8 → 2, so multi-block ramp levels) and #1102's ×3
+        // evaluation runway ended that — the pattern now spans ~24 measures while the tempo moves
+        // underneath it, i.e. audible timpani-vs-music drift (§354 limitation 1).
+        // HOW: the pattern for the WHOLE level is built ONCE from the SAME `buildTimpaniPattern` call
+        // App.jsx's notation memo uses (§108 keeps notation and audio argument-identical), then SLICED
+        // per block — exactly what `chordContextFor` below already does with the chord progression. The
+        // union of the slices IS the one-shot's array, so the notes are byte-identical; only WHEN each
+        // block is scheduled (and at which bpm) changes. Slicing the pre-built absolute-tick pattern —
+        // rather than rebuilding it per block — is what keeps this correct for a meter whose measure is
+        // not a whole number of quarter notes (7/8: the hit grid is uniform across the piece, so
+        // measure k's hits do NOT sit at the same in-measure offsets as measure 0's, see #1044).
+        // §867 PRESERVED: the pattern stays FINITE. It spans lead-in + the level's own declared
+        // content, so a block past the level's end slices to nothing and the timpani falls silent with
+        // the music — it can never loop forever, on any level.
+        // ALSO PRESERVED (Han 2026-08-10, "die twee mogen nooit onafhankelijk beginnen"): timpani must
+        // never start ahead of / independent from the treble melody. It used to need its own explicit
+        // `levelMelodyReady` gate in App.jsx for that; here it is structural — this effect returns
+        // early until `levelMelodyReady`, so timpani cannot exist before the melody does.
+        const timpaniEnabled = !!timpaniInstrument && sideScroll && !lvl.gatedScroll;
+        const timpaniPattern = timpaniEnabled
+            ? buildTimpaniPattern(leadInBars + totalContentMeasures, timeSignature)
+            : null;
+        const timpaniSlice = (startMeasure, measures) => {
+            if (!timpaniPattern) return null;
+            const slice = sliceMelodyByRange(timpaniPattern, measureLengthTicks, measures, startMeasure);
+            return slice.notes.length ? slice : null;
+        };
+        const timpaniGains = { treble: 0, bass: 0, percussion: timpaniVolume, chords: 0, metronome: 0 };
+
         let growingTreble = new Melody([], [], [], []);
         let growingBass = new Melody([], [], [], []);
         let growingMetronome = new Melody([], [], [], []);
@@ -178,10 +234,21 @@ export default function useLevelContentStream({
         const timers = [];
         const ownWizardStopFns = [];   // THIS run's scheduled cast StopFns
         const ownBackingStopFns = [];  // THIS run's scheduled cello/metronome StopFns
+        // #1186 (Han 2026-08-29, "de noot valt niet EXACT tegelijk met de metronoom klik op de perfect
+        // hit mark"): `scheduledStart` is the moment this material must be HEARD — the same instant the
+        // visual clock (SheetRpgLayer, whose t=0 IS `levelAudioStart`) puts it on the strike line. A
+        // sound only reaches the speakers `outputLatency` AFTER the AudioContext time it is scheduled
+        // at, so it must be handed to `playMelodies` exactly that much earlier. See
+        // audioOutputLatency.js for the measurement (48 ms in this project's own Chromium) and for why
+        // the correction lives here rather than inside `playMelodies` (which is shared with the
+        // Sequencer and the world's ambient music, neither of which has a visual clock to match).
+        // Read FRESH per call, never captured once: the value changes when the player switches output
+        // device mid-level, and this is the same "re-read the live value at the top of each scheduling
+        // unit" pattern the per-block bpm read below already uses.
         const scheduleInto = (ref, own, melodies, instruments, scheduledStart, namedInstruments, trackGains, bpm) => {
             const before = ref.current.length;
             playMelodies(
-                melodies, instruments, context, bpm, scheduledStart, null, null,
+                melodies, instruments, context, bpm, scheduledStart - outputLatencySeconds(context), null, null,
                 namedInstruments, null, trackGains, ref,
             );
             for (let i = before; i < ref.current.length; i++) own.push(ref.current[i]);
@@ -206,9 +273,10 @@ export default function useLevelContentStream({
                 seriesArgs: seriesArgsFor(scale),
             });
             // Only BASS is taken from the lead-in block: the level's treble starts at content
-            // measure 0, and the lead-in's percussion is the timpani one-shot App.jsx owns
-            // (Han's authorized hardcoded pattern, §663). Generating the whole block anyway keeps
-            // this path branch-free and off the SAME shared rhythm grid as every content block.
+            // measure 0, and the lead-in's percussion is Han's authorized hardcoded timpani pattern
+            // (§663) — scheduled just below from `timpaniSlice`, which #1167 moved into this stream
+            // from App.jsx's one-shot. Generating the whole block anyway keeps this path branch-free
+            // and off the SAME shared rhythm grid as every content block.
             growingBass = appendChunk(growingBass, leadIn.bass, 0);
             setBass(growingBass);
             const metronomeChunk = generateMetronomeChunk({
@@ -235,6 +303,14 @@ export default function useLevelContentStream({
                 scheduleInto(backingStopFnsRef, ownBackingStopFns, [metronomeChunk], [metronomeInstrument],
                     levelAudioStart + (leadInBars - metronomeBars) * leadInBarSec, { metronome: metronomeInstrument },
                     { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 }, startBpm);
+            }
+            // #1167: the lead-in's own timpani measures — the pattern's measures [0, leadInBars),
+            // at the level's starting tempo (no adaptive commit can exist before the first block
+            // has been graded), on the SAME anchor the lead-in cello uses.
+            const leadInTimpani = timpaniSlice(0, leadInBars);
+            if (leadInTimpani) {
+                scheduleInto(backingStopFnsRef, ownBackingStopFns, [leadInTimpani], [timpaniInstrument],
+                    levelAudioStart, { percussion: timpaniInstrument }, timpaniGains, startBpm);
             }
         };
 
@@ -393,6 +469,16 @@ export default function useLevelContentStream({
                         blockStartTime, { metronome: metronomeInstrument },
                         { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 }, bpm);
                 }
+                // #1167: THIS block's timpani measures, at THIS block's own tempo, on the same
+                // accumulated cursor as its cello and metronome — so the hardcoded pattern tracks an
+                // adaptive tempo change instead of drifting away from the music it plays under. The
+                // pattern lives on the LEAD-IN tick timeline (its measure 0 is the first lead-in
+                // measure), hence the `leadInBars +` in the slice window, exactly like `backingBaseTicks`.
+                const blockTimpani = timpaniSlice(leadInBars + blockIndex * B, B);
+                if (blockTimpani) {
+                    scheduleInto(backingStopFnsRef, ownBackingStopFns, [blockTimpani], [timpaniInstrument],
+                        blockStartTime, { percussion: timpaniInstrument }, timpaniGains, bpm);
+                }
                 // #1102: THIS stream is the sole DECIDER, now for every level — one boundary, one
                 // adjustment. `units: [B]` because there IS only one cadence: treble and
                 // bass/metronome are the same block, so "force exact sync" is structural.
@@ -452,7 +538,7 @@ export default function useLevelContentStream({
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
         percussionScale, chordProgression, songMelody,
         wizardInstrument, wizardVolume, wizardStopFnsRef,
-        bassInstrument, metronomeInstrument, backingStopFnsRef,
+        bassInstrument, metronomeInstrument, timpaniInstrument, timpaniVolume, backingStopFnsRef,
         bassReady, metronomeReady, levelMelodyReady]);
 
     return { treble, bass, metronome, percussion };

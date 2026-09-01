@@ -7056,3 +7056,30 @@ adaptieve bpm (met behoud §867: eindig, valt stil met de muziek); cello-drift v
 wordt al per blok op het blok-bpm gescheduled — mogelijk alleen waargenomen timpani-drift). Daarna
 de frame-perfecte audiosync-bug. Beide vragen een Opus-pass (Sonnet/main deed ronde-2 concern A+B
 omdat Opus op de sessielimiet zat).
+
+---
+
+## 2026-08-31 — #1186 audiosync + #1167 timpani per blok (Opus/high)
+
+- ✅ **#1186 frame-perfect audiosync.** EERST GEMETEN (tijdelijke harness op de echte
+  `useLevelContentStream`, gewoon níet-adaptief Level 4): metronoomklik-tijd, blok-cursor en
+  strike-line-passeertijd kwamen al op **0.000000 ms** overeen, voor elke noot en elk blok, en §108
+  klopte numeriek (96 === 96). Alle vier de verdachten uit het ticket zijn dus door meting
+  uitgesloten — de fout zit niet in het schema. ECHTE OORZAAK: `AudioContext.outputLatency` werd
+  nergens gemodelleerd (0 grep-hits in `src/`). Een geluid dat op T gepland is, is pas op
+  `T + outputLatency` te HOREN; gemeten in dit project's eigen Chromium: **48 ms** (baseLatency
+  10,7 ms). De visuele klok liep dus constant ~48 ms vóór op alles wat hoorbaar was. FIX: nieuwe
+  `src/audio/audioOutputLatency.js`; level-audio wordt precies zoveel eerder gescheduled, op één
+  naad (`scheduleInto`). De VISUELE klok is niet aangeraakt (geen risico voor scroll/gate/deltaMs).
+  Commit 4dff0c87, arch §355.
+- ✅ **#1167 timpani mee met de chunks** (Han: *"Genereer de timpanen en cello gewoon mee met de
+  chunks"*). De one-shot in App.jsx is weg; het patroon wordt één keer gebouwd (zelfde
+  `buildTimpaniPattern`-aanroep als de notatie, §108) en per blok gesliced op het blok-eigen bpm.
+  §867 behouden: eindig, valt stil met de muziek; gated levels blijven bij
+  `useLevelGatedRubatoAudio`. Commit b966b814, arch §356 + §354-limitatie 1 afgevinkt.
+- 🔎 **Cello: geen defect.** `block.bass` wordt al sinds #1165 per blok op het blok-bpm gescheduled
+  en `commitIndexFor` zorgt dat een commit alleen op een nog niet gegenereerd blok landt. Wat Han
+  hoorde was de timpani-drift + de 48 ms van #1186. Cello NIET gewijzigd.
+- ⏳ Follow-up (niet gedaan, apart ticket waard): klassieke (niet-level) playback — Sequencer +
+  `useSheetMusicHighlight` — heeft dezelfde audio-vs-beeld offset en gebruikt
+  `audioOutputLatency.js` nog niet.

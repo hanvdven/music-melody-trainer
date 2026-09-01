@@ -23805,15 +23805,16 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
 
 #### Known limitations (deliberate; UAT watch list)
 
-1. **The timpani one-shot is not re-rated.** App.jsx's `timpaniMelody` (Han's authorized hardcoded
-   pattern) is built once and scheduled at the level's STARTING tempo for `leadInBars +
+1. ~~**The timpani one-shot is not re-rated.**~~ **FIXED by #1167 — see §356.** App.jsx's
+   `timpaniMelody` was built once and scheduled at the level's STARTING tempo for `leadInBars +
    totalMeasures`. §346 claimed this was harmless because the pattern "is finished or nearly
    finished before the first commit can occur" — that was true when a level was one 8-measure block
-   and is **no longer true**: post-#1166 the first commit lands around measure 4-6, and the ×3
-   repeat means the timpani now spans ~24 measures. On an adaptive level whose tempo actually moves,
-   the timpani will progressively drift against the music. **Top UAT listening item**; re-rating it
-   means giving the one-shot the same per-block treatment the other tracks got, which is its own
-   ticket, not a line change here.
+   and stopped being true here: post-#1166 the first commit lands around measure 4-6, and the ×3
+   repeat stretched the timpani over ~24 measures while the tempo moved underneath it. Han
+   (2026-08-29): *"Genereer de timpanen en cello gewoon mee met de chunks."* The timpani is now a
+   block of `useLevelContentStream` like every other track, scheduled at each block's own
+   `bpmForMeasure`, so it tracks the adaptive tempo by construction. **Cello was verified NOT to
+   have this problem** (it was already per-block); see §356's "the cello finding".
 2. **Feedback is delayed by one lookahead** — a block is judged when its NEXT block is generated,
    up to one screenful before that block sounds. Inherent to generating ahead of playback.
 3. **The `setTimeout` that arms `setBpm` carries the usual 10-50ms drift.** Harmless here (unlike
@@ -23854,3 +23855,177 @@ and `src/hooks/__tests__/adaptiveMode.integration.test.js` (NEW — the real con
 content stream around a real level: baseline incl. the 0.7× case, ±5% / deadband / both clamp bounds
 observed on the ACTUAL scheduling arguments, all tracks switching at the same block, and the 3×
 block count terminating).
+
+---
+
+### §355. Frame-perfect level sync — audio output latency compensation (#1186, Han 2026-08-29)
+
+**Symptom.** Han, UAT of #1102 on Level 4: *"ik merk dat de noot niet EXACT tegelijk met de metronoom
+klik op de perfect hit mark (de rode streep) valt. Dit moet echt 100% frame perfect zijn; de hele app
+staat of valt bij audiosync."* At the frame a slime's notehead reaches the strike line, the metronome
+click for that beat is not coincident with it.
+
+#### What was MEASURED first (before any change)
+
+A temporary harness mounted the REAL `useLevelContentStream` for a plain **non-adaptive** Level 4
+(bpm 80, 4/4, `leadInBars` 2, `beatsOnScreen` 8) with `playMelodies` mocked, ran its whole JIT clock,
+and compared three quantities per note:
+
+| quantity | source |
+|---|---|
+| metronome click audio time | the actual `scheduledStart + tick · secondsPerTick(bpm)` the audio layer was handed |
+| block start cursor | the accumulated `blockStartTime` the stream threads through its recursion |
+| strike-line crossing time | SheetRpgLayer's own formula, `levelAudioStart + (tick/TICKS_PER_BEAT + beatsOnScreen) · 60/bpm` |
+
+**Result: the arithmetic is already exact.** For the first 12 notes, `strike − nearestClick =
+0.000000 ms` every time; the cursor matched the closed form `contentStart + k·B·barSec` to
+`0.000000000 ms` for every block; and the §108 invariant held numerically (`beatsOnScreen ·
+TICKS_PER_BEAT = 96 = leadInBars · measureLengthTicks`). So **all four candidate causes named on the
+ticket were ruled out by measurement**: the two tick origins (content vs lead-in) are correctly
+reconciled, the accumulated cursor does not drift per block, the §108 geometry is exact, and
+`playMelodies`'s past-time clamp is never reached (the anchor is picked 1.0 s ahead and each block is
+generated at least one screenful early). The offset is **constant, not growing** — it does not
+originate in the schedule at all.
+
+#### Root cause
+
+The app models the audio clock as if a scheduled sound were heard instantly. It is not:
+
+> a sound scheduled at AudioContext time `T` is HEARD when `currentTime` has advanced to
+> `T + outputLatency`.
+
+Nothing in the codebase read `AudioContext.outputLatency` (or `baseLatency`) — a grep across `src/`
+found zero references before this ticket. Measured in this project's own Chromium at 48 kHz:
+**`outputLatency` = 48 ms** (`baseLatency` 10.7 ms). The visual scroll, which reads the same
+`context.currentTime` every rAF frame and anchors t=0 at `levelAudioStart`, therefore ran ~48 ms
+AHEAD of everything audible — ≈ 6.4 % of a beat at 80 bpm, ≈ 3 display frames. Exactly the "small but
+real" desync reported, and it **predates adaptive mode** (measured on a plain non-adaptive level).
+
+#### Fix
+
+`src/audio/audioOutputLatency.js` (NEW) is the one place the app converts between "the time I
+schedule a sound at" and "the time it is heard". A level's audio times are now defined as **"heard
+at" times**, and every level schedule is issued `outputLatencySeconds(context)` earlier:
+
+- **The visual clock is untouched.** `levelAudioStart` stays SheetRpgLayer's literal t=0, so the
+  scroll geometry, `tempoScrollMs`, the gated-freeze clock, the hit windows and `deltaMs` grading all
+  keep their exact current semantics. Zero risk to the §1052/#1102 machinery.
+- **One seam.** `useLevelContentStream`'s `scheduleInto` subtracts the latency for EVERY level track
+  it schedules — lead-in cello, lead-in metronome, per-block cello / metronome / timpani (§356) and
+  the Wizard cast preview. Read FRESH per call (the value changes when the player switches output
+  device mid-level), the same "re-read the live value at the top of each scheduling unit" pattern the
+  per-block bpm read already uses.
+- **`outputLatency`, falling back to `baseLatency`, falling back to 0.** The fallback covers browsers
+  that never implemented `outputLatency` (Safari, older Firefox); 0 reproduces the pre-#1186
+  behaviour exactly.
+- **Capped at `MAX_COMPENSATED_LATENCY_S = 0.5 s`.** App.jsx picks its anchor only 1.0 s ahead, so an
+  uncapped bogus reading could push a level's opening bars into the past, where `playMelodies`
+  silently clamps them to "now" — the §166 bug class.
+- Deliberately **NOT** applied inside `playMelodies` itself: that function is shared with the
+  Sequencer, the world's ambient music and the instrument previews, none of which has a visual clock
+  to stay in step with.
+- The measured value is logged once per level, in App.jsx's existing `'anchor picked'`
+  `logger.debug`, so a "still not in sync" report can be read against the number the player's own
+  device actually reported instead of re-measuring it.
+
+#### Invariants
+
+- **§108 still holds exactly** — nothing about the geometry changed.
+- **The three moments coincide**: a note's strike-line crossing time, its beat's metronome click as
+  HEARD, and its own track's audio as HEARD, are equal to the nanosecond.
+- **A residual of at most one display frame remains** and is not compensated: the frame the rAF loop
+  computes is presented at the next vsync (~16 ms), so after this fix the audio is up to one frame
+  EARLY rather than three frames late. Inventing a display-latency constant would be exactly the
+  magic number §6c bans; `outputLatency` is the spec's own audio/video-sync quantity and is the
+  honest correction.
+- **Not compensated: gated (rubato) levels' cello/timpani.** `useLevelGatedRubatoAudio` triggers in
+  real time at `context.currentTime` off the visual clock and can never be earlier than "now"; it is
+  unchanged, so it is neither better nor worse than before. A gated level has no metronome to be out
+  of step with (§867).
+- **Classic (non-level) playback is unchanged.** The Sequencer + `useSheetMusicHighlight` have the
+  same class of audio-vs-visual offset; bringing them onto this helper is a separate ticket, not
+  smuggled in here.
+
+**Files.** NEW `src/audio/audioOutputLatency.js`; `src/hooks/useLevelContentStream.js`
+(`scheduleInto` + the "HEARD AT" header note); `src/App.jsx` (the timpani one-shot's own schedule —
+superseded by §356 — and the `'anchor picked'` diagnostic). Test: NEW
+`src/hooks/__tests__/levelAudioVisualSync.test.js` — §108 asserted numerically for EVERY side-scroll
+level, note-vs-click coincidence to 9 decimals with and without a reported latency, the cursor-vs-
+closed-form drift check, and the helper's fallback/cap behaviour.
+
+---
+
+### §356. Timpani generated WITH the chunks — per-block, tempo-tracking, still finite (#1167, Han 2026-08-29)
+
+**Purpose.** Han, UAT of #1102: *"Genereer de timpanen en cello gewoon mee met de chunks."* The
+level's timpani — Han's own authorized hardcoded pattern (§663, `utils/timpaniPattern.js`) — used to
+be ONE whole-level `playMelodies` call in App.jsx, built for `leadInBars + totalMeasures` and
+scheduled at the level's **starting** tempo. §346 called that harmless because the pattern finished
+before the first adaptive commit could land. #1166 (`numMeasures` 8 → 2, so the ramp levels became
+multi-block) and #1102's ×3 evaluation runway ended that: the pattern now spans ~24 measures while
+the tempo moves underneath it, i.e. audible timpani-vs-music drift (§354 limitation 1).
+
+**How it works now.** Timpani is a track of `useLevelContentStream`, on the same cadence as
+cello/metronome:
+
+- The pattern for the WHOLE level is built ONCE inside the stream effect, from the **same**
+  `buildTimpaniPattern(leadInBars + totalMeasures, timeSignature)` call App.jsx's notation memo
+  makes — §108's "the notation is built from the pattern the audio is scheduled from" therefore
+  still holds, with no prop threading and no second copy of the pattern.
+- It is then **sliced per block** with `sliceMelodyByRange`, exactly the way `chordContextFor`
+  already slices the chord progression: the lead-in takes pattern measures `[0, leadInBars)`, block
+  `k` takes `[leadInBars + k·B, +B)` (the pattern lives on the LEAD-IN tick timeline, like
+  bass/metronome — see §350's two-origins note).
+- Each slice is scheduled at that block's own `blockStartTime` and its own `bpm` — the accumulated
+  cursor and the fresh `bpmForMeasure` read every other track already uses. On an adaptive level the
+  timpani therefore adopts a committed tempo change at the SAME measure as cello and metronome,
+  structurally (one block, one bpm), not arithmetically.
+- Routing/volume: `timpaniInstrument` (`percussionSettings.melodic ? timpaniRef.current : null` —
+  the identical gate `useLevelGatedRubatoAudio` already uses, so "does this level get timpani" is
+  decided in exactly one place) and `timpaniVolume`, passed as props; the schedule goes through the
+  stream's own `scheduleInto`, so it inherits §355's output-latency compensation for free.
+
+**Why slice a pre-built pattern instead of rebuilding it per block.** For a meter whose measure is
+not a whole number of quarter notes (7/8 = 42 ticks), `buildTimpaniPattern` lays hits on a uniform
+absolute quarter-note grid, so measure `k`'s hits do NOT sit at the same in-measure offsets as
+measure 0's (#1044). Rebuilding `buildTimpaniPattern(B)` per block would silently re-phase every
+block for those meters. Slicing the absolute-tick pattern is byte-identical by construction — the
+union of the slices IS the old one-shot's array (asserted directly).
+
+**Invariants.**
+
+- **FINITE (§867 preserved).** The pattern spans lead-in + the level's own declared content, so a
+  block past the level's end slices to nothing and the timpani falls silent with the music. It can
+  never loop forever — including on a `gatedScroll` level, which takes no timpani from this schedule
+  at all (`useLevelGatedRubatoAudio` triggers it off the gate's own frozen-aware clock, #1096).
+- **Byte-identical notes.** Han's hardcoded C2-C2-C3-rest pattern is untouched; only *when* each
+  chunk is scheduled, and at which bpm, changed.
+- **Never starts ahead of the melody** (Han 2026-08-10, *"die twee mogen nooit onafhankelijk
+  beginnen"*). This used to need its own explicit `levelMelodyReady` gate in App.jsx; it is now
+  structural — the stream effect returns early until `levelMelodyReady`.
+- **The lead-in still carries timpani through EVERY lead-in measure** (§994, Han: *"alle opmaten
+  cello+timpanen"*); only the metronome is staggered, so the lead-in is the one chunk where the two
+  deliberately do not share a start time.
+
+**The cello finding (Han also perceived the cello as not following).** Verified: there is **no cello
+defect**. `block.bass` has been generated and scheduled per block at that block's own adaptive bpm on
+the accumulated cursor since #1165, and `adaptiveMode.integration.test.js` already asserts that
+cello, metronome and the Wizard cast carry the identical bpm at the identical commit block — a
+commit can only ever land on a block that has not been generated yet (`commitIndexFor`, the "never
+applied retroactively" invariant), so there is no already-scheduled block left needing a re-rate.
+What Han heard alongside the timpani drift was almost certainly the timpani itself, plus §355's
+48 ms output-latency offset, which applied to every track equally. **Cello was therefore not
+changed.**
+
+**Files.** `src/hooks/useLevelContentStream.js` (the `timpaniInstrument`/`timpaniVolume` props, the
+pattern + `timpaniSlice` helper, and the two schedule sites — lead-in and per block; it also carries
+the full history comment that moved with the code); `src/App.jsx` (the one-shot `playMelodies` call
+and its now-unused `playMelodies` import DELETED — the effect it lived in keeps only what was never
+about timpani: the cello/metronome channel volumes and the stale-handle reset; the stream gains the
+two new props). `App.jsx`'s `timpaniMelody` memo STAYS — it is still the notation / invisible-melody
+source (`LEVEL_TIMPANI_SLOT`), which is exactly why the stream rebuilds the identical pattern rather
+than being handed a different one. Tests: `src/hooks/__tests__/useLevelContentStream.test.js` (a
+`#1167` block — per-block cadence + shared cursor/bpm, the lead-in's own start, the chunks
+reassembling into the whole-level pattern, finiteness, the gated exclusion, and no-melodic-percussion
+scheduling nothing) and `src/hooks/__tests__/adaptiveMode.integration.test.js` (timpani adopts the
+committed tempo at the same block as cello).
