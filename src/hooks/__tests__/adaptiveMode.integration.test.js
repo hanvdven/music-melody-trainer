@@ -100,11 +100,15 @@ function mountAdaptiveLevel(lvl, statsRef, songMelody = null) {
     const bpmRef = { current: lvl.bpm };
     const setBpmCalls = [];
     const setBpm = (v) => { bpmRef.current = v; setBpmCalls.push(v); };
+    // #1120: App.jsx's `pacingMode` setter and the hidden-grade ring buffer, wired exactly as it does.
+    const setPacingModeCalls = [];
+    const hiddenGradesRef = { current: [] };
+    const setPacingMode = (v) => { hiddenGradesRef.current = []; setPacingModeCalls.push(v); };
     const wizardStopFnsRef = { current: [] };
     const backingStopFnsRef = { current: [] };
 
     const hook = renderHook(() => {
-        const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, context });
+        const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, setPacingMode, context });
         // App.jsx calls `begin` in `startLevel`, before the stream's effect ever runs. A render-phase
         // ref guard reproduces that ordering (begin only assigns to the controller's own ref).
         const begun = React.useRef(false);
@@ -137,6 +141,7 @@ function mountAdaptiveLevel(lvl, statsRef, songMelody = null) {
             levelMelodyReady: true,
             adaptiveDifficulty,
             statsRef,
+            hiddenGradesRef,
         });
         return { adaptiveDifficulty, content };
     });
@@ -153,7 +158,7 @@ function mountAdaptiveLevel(lvl, statsRef, songMelody = null) {
             }
         });
     };
-    return { ...hook, context, bpmRef, setBpmCalls, run };
+    return { ...hook, context, bpmRef, setBpmCalls, setPacingModeCalls, hiddenGradesRef, run };
 }
 
 /**
@@ -670,6 +675,133 @@ describe('#1121 end-to-end — the ladder densifies at the ceiling and unwinds s
         const after = playMelodies.mock.calls.length;
         run(60);
         expect(playMelodies.mock.calls.length).toBe(after);
+        unmount();
+    });
+});
+
+// ── #1120: the GATED PACING rung — and the invariant that keeps the level FINITE ────────────
+// THE ONE THAT MATTERS: `loopForever` (useLevelContentStream) and `blockCountFor`'s `Infinity`
+// (levelBlockPlan) stay bound to the AUTHORED `lvl.gatedScroll` field ALONE. A ladder-gated level is
+// PROCEDURAL, and a procedural level's `total` (SheetRpgLayer's `slimeData.length`) grows with the
+// stream — so an infinite stream there means `killedCount >= total` can never fire and the level
+// NEVER ENDS. That is §289, whose bug class has already bitten this codebase three times; this suite
+// exists so a fourth cannot land silently.
+describe('#1120 end-to-end — the ladder gates at the floor, and the level STILL ENDS', () => {
+    const base = LEVELS[4];   // procedural, side-scroll, plain Slime — in scope for the pacing rung
+
+    /**
+     * Mount at the FLOOR (anpm 30 → bpm 40 = adaptiveBaseBpm/2, the clamp floor, so the tempo rung is
+     * already spent) and keep the player struggling at every boundary: the ladder must then thin the
+     * content to the skeleton and only after that switch the pacing.
+     */
+    const runToGated = (lvl = applyLevelVariant(base, 'i', 30)) => {
+        const statsRef = { current: stats() };
+        const mounted = mountAdaptiveLevel(lvl, statsRef);
+        const B = blockMeasuresFor(lvl);
+        const barSec = barSecFor(lvl, lvl.bpm);
+        mounted.run(ANCHOR + lvl.leadInBars * barSec);
+        let played = 0;
+        for (let i = 0; i < blockCountFor(lvl) + 4; i++) {
+            played += 10;
+            // A genuinely rough stretch: 10 more notes faced, almost all missed.
+            statsRef.current = stats({ defeated: played, perfect: 1, misses: played, missed: played });
+            mounted.run(B * barSec);
+        }
+        return { ...mounted, lvl, B, statsRef };
+    };
+
+    it('flips to gated only at (floor bpm, skeleton content) — and the pacing really did flip', () => {
+        const lvl = applyLevelVariant(base, 'i', 30);
+        expect(lvl.bpm).toBe(lvl.adaptiveBaseBpm / 2);   // starts pinned AT the clamp floor
+        const { setPacingModeCalls, setBpmCalls, unmount } = runToGated(lvl);
+        expect(setPacingModeCalls).toContain('gated');
+        // The tempo rung was already fully spent before the pacing moved — it never moved at all here.
+        expect(setBpmCalls).toEqual([]);
+        // …and the content really was thinned first: the last generated block is at the skeleton rung.
+        expect(trebleArgsFor(blockCountFor(lvl) - 1).notesPerMeasure)
+            .toBeLessThan(trebleArgsFor(0).notesPerMeasure);
+        unmount();
+    });
+
+    it('THE HARD INVARIANT: the ladder NEVER sets loopForever — the block plan stays FINITE', () => {
+        const { lvl, unmount, run, setPacingModeCalls } = runToGated();
+        expect(setPacingModeCalls).toContain('gated');   // the run really did gate — not vacuous
+        // The authored field is untouched, so `blockCountFor` is untouched…
+        expect(lvl.gatedScroll).toBeFalsy();
+        expect(Number.isFinite(blockCountFor(lvl))).toBe(true);
+        expect(blockCountFor(lvl)).toBe(blockCountFor(base) * ADAPTIVE_LEVEL_REPEATS);
+        // …and the stream really did stop generating at that count: one lead-in call plus exactly
+        // `blockCountFor` content blocks, and nothing further ever again.
+        expect(generateBlock).toHaveBeenCalledTimes(blockCountFor(lvl) + 1);
+        const after = generateBlock.mock.calls.length;
+        run(120);
+        expect(generateBlock.mock.calls.length).toBe(after);
+        unmount();
+    });
+
+    it('never tears the content stream down: lvl identity and gatedScroll are unchanged', () => {
+        const lvl = applyLevelVariant(base, 'i', 30);
+        const { unmount, setPacingModeCalls, result } = runToGated(lvl);
+        expect(setPacingModeCalls).toContain('gated');
+        expect(lvl.gatedScroll).toBeFalsy();   // NEVER mutated — the flip is app state, not the level
+        // The published treble grew monotonically across the flip (append-only, never reset).
+        expect(result.current.content.treble.notes.length).toBeGreaterThan(0);
+        unmount();
+    });
+
+    it('picture and sound flip on ONE block boundary: cello, metronome AND timpani stop together', () => {
+        const { lvl, unmount, setPacingModeCalls } = runToGated();
+        expect(setPacingModeCalls).toContain('gated');
+        // Index 0 of each is the LEAD-IN, so `n - 1` is how many CONTENT blocks were put on the fixed
+        // schedule before the flip. All three tracks must stop at the identical block.
+        const bassBlocks = callsFor(bassInstrument).length - 1;
+        const metronomeBlocks = callsFor(metronomeInstrument).length - 1;
+        const timpaniBlocks = callsFor(timpaniInstrument).length - 1;
+        expect(bassBlocks).toBe(metronomeBlocks);
+        expect(timpaniBlocks).toBe(metronomeBlocks);
+        // …and the flip genuinely happened mid-level: fewer scheduled blocks than generated ones.
+        expect(metronomeBlocks).toBeGreaterThan(0);
+        expect(metronomeBlocks).toBeLessThan(blockCountFor(lvl));
+        unmount();
+    });
+
+    it('no DOUBLE timpani after the flip — the fixed schedule stops with the metronome', () => {
+        // The third guard the design note originally missed: `timpaniEnabled` is built once per
+        // effect, so without a per-BLOCK schedule guard every post-flip block would have kept putting
+        // timpani on the clock while the gate-clock hook fired it too — audibly drifting apart.
+        const { unmount } = runToGated();
+        expect(callsFor(timpaniInstrument).length).toBe(callsFor(metronomeInstrument).length);
+        unmount();
+    });
+
+    it('an adaptive WIZARD level parks at (floor, skeleton) and never gates', () => {
+        // Han q6's graceful consequence: there is no gate-aware cast timing, so the cast must never
+        // fire into a frozen screen. One predicate (`gatingAllowed`), no special case.
+        const wizard = LEVELS[13];
+        const lvl = applyLevelVariant(wizard, 'i', 1);   // far below the floor → clamped onto it
+        const { unmount, setPacingModeCalls } = runToGated(lvl);
+        expect(setPacingModeCalls).toEqual([]);
+        // …and the cast preview kept being scheduled for every block, exactly as before.
+        expect(callsFor(wizardInstrument).length).toBe(blockCountFor(lvl));
+        unmount();
+    });
+
+    it('a level that AUTHORS rubato is byte-identical: no metronome, no fixed cello, ever', () => {
+        // Levels 1/2 (variant 'a'): they start gated, so the ladder's pacing rung is unreachable for
+        // them (`gatingAllowed` excludes `gatedScroll`) and this ticket must change nothing at all.
+        const gated = LEVELS[1];
+        expect(gated.gatedScroll).toBe(true);
+        const mlt = (TICKS_PER_WHOLE * (gated.timeSignature?.[0] ?? 4)) / (gated.timeSignature?.[1] ?? 4);
+        const song = {
+            notes: ['C4', 'D4'], durations: [mlt, mlt], offsets: [0, mlt], displayNotes: ['C4', 'D4'],
+        };
+        const { unmount, run } = mountAdaptiveLevel(
+            { ...gated, adaptiveBaseBpm: gated.bpm }, { current: stats() }, song,
+        );
+        run(ANCHOR + 40 * barSecFor(gated, gated.bpm));
+        expect(callsFor(metronomeInstrument)).toHaveLength(0);
+        expect(callsFor(bassInstrument)).toHaveLength(0);
+        expect(callsFor(timpaniInstrument)).toHaveLength(0);
         unmount();
     });
 });

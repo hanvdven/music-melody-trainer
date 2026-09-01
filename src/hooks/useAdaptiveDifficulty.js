@@ -49,12 +49,20 @@ import { evaluateLadder } from '../levels/adaptiveLadder';
 // `commitIndexFor` (adaptiveTempo.js) picks a commit measure that is a boundary of EVERY stream feeding
 // the level, so both streams have a real chunk boundary exactly there and adopt the new position at the
 // same measure — Han's locked "force exact sync", not "eventual convergence".
-export default function useAdaptiveDifficulty({ bpmRef, setBpm, context }) {
+//
+// ── PACING gets a second moment too (#1120) ───────────────────────────────────────────────────────
+// The gated pacing rung is the one OTHER knob with something app-wide to switch when the commit block
+// actually sounds: the scroll must start waiting (SheetRpgLayer's `gatedScroll` prop), the metronome
+// must stop and the cello/timpani must hand over to the real-time gate clock. It rides the SAME armed
+// timeout as `setBpm` — the same `delayMs`, the same staleness re-check — so picture and sound flip
+// together on ONE block boundary. Deliberately NOT a second timer.
+export default function useAdaptiveDifficulty({ bpmRef, setBpm, setPacingMode = null, context }) {
     // A ref, not state: every consumer is an audio-scheduling callback running outside React's render
     // cycle (JIT stream generation, a setTimeout at an AudioContext time), and a re-render on every
     // difficulty decision would tear down the very JIT effects doing the deciding.
     const stateRef = useRef({
-        baseBpm: null, lvl: null, densityStep: 0, pacing: 'timed', prevStats: null, commit: null,
+        baseBpm: null, lvl: null, densityStep: 0, pacing: 'timed',
+        blocksSinceGatedExit: Infinity, prevStats: null, commit: null,
     });
 
     // Called once per level start. `baseBpm` is the level's AUTHORED tempo (`lvl.adaptiveBaseBpm`), which
@@ -63,9 +71,14 @@ export default function useAdaptiveDifficulty({ bpmRef, setBpm, context }) {
     // `lvl` is kept because the ladder's density rungs are SCOPED to procedural levels (a song-backed
     // level's treble is sliced with `randomizationRule: 'fixed'` and cannot take a density override).
     // Rung 0 = the level exactly as authored, so a fresh run always starts there.
+    // #1120: `pacing` resets to 'timed' on every (re)start — a fresh run always starts on the clock,
+    // never inheriting the previous run's rubato rescue (design edge case e). `blocksSinceGatedExit`
+    // starts at Infinity so the cooldown, which exists ONLY to stop re-gating right after an exit,
+    // can never block the FIRST gating of a run.
     const begin = useCallback((baseBpm, lvl = null) => {
         stateRef.current = {
-            baseBpm: baseBpm ?? null, lvl, densityStep: 0, pacing: 'timed', prevStats: null, commit: null,
+            baseBpm: baseBpm ?? null, lvl, densityStep: 0, pacing: 'timed',
+            blocksSinceGatedExit: Infinity, prevStats: null, commit: null,
         };
     }, []);
 
@@ -94,27 +107,42 @@ export default function useAdaptiveDifficulty({ bpmRef, setBpm, context }) {
                 setTimeout(() => {
                     if (stateRef.current.commit !== c) return;   // superseded, cancelled, or level restarted
                     stateRef.current.commit = null;
+                    // #1120: read BEFORE the state is overwritten below — `setPacingMode` must fire
+                    // only on a genuine flip, not on every landing commit.
+                    const pacingChanged = stateRef.current.pacing !== c.pacing;
                     // The landed rung becomes this hook's own idea of "where the ladder is", so the
                     // controller state and what the app adopted can never disagree.
                     stateRef.current.densityStep = c.densityStep;
                     stateRef.current.pacing = c.pacing;
+                    // #1120: the anti-flap cooldown starts when the EXIT actually LANDS, not when it
+                    // was decided a block earlier. Deliberately NOT copied wholesale from the commit
+                    // (`c.blocksSinceGatedExit` is the counter's value at DECISION time, so adopting
+                    // it would silently roll back the increment `evaluate` made on that same
+                    // boundary); only the exit's own reset is adopted. The ladder states the same
+                    // rule in policy terms — see `evaluateLadder`'s gated branch.
+                    if (pacingChanged && c.pacing === 'timed') stateRef.current.blocksSinceGatedExit = 0;
                     // Only the TEMPO rung has an app-wide value to switch. A density-only commit leaves
                     // the app's bpm completely untouched (its notes were already baked at generation).
                     if (c.bpm !== bpmRef.current) setBpm(c.bpm);
+                    // #1120: …and the PACING rung, on this same moment — one decision, one instant, so
+                    // the scroll starts/stops waiting exactly when the block it was decided for sounds.
+                    if (pacingChanged) setPacingMode?.(c.pacing);
                 }, delayMs);
             }
             return { bpm: c.bpm, densityStep: c.densityStep, pacing: c.pacing };
         }
         return { bpm: bpmRef.current, densityStep: s.densityStep, pacing: s.pacing };
-    }, [bpmRef, setBpm, context]);
+    }, [bpmRef, setBpm, setPacingMode, context]);
 
     // Called by the DECIDER after a graded stretch of content finished: the content stream at each of its
     // block boundaries. There is exactly ONE decider per level so a single boundary can never be
     // double-adjusted.
-    //   stats       — the level's CUMULATIVE `stats` snapshot right now (useLevel.js's `statsRef.current`).
-    //   fromMeasure — the earliest content measure the change may take effect at.
-    //   units       — every stream cadence that must agree on the commit measure (see commitIndexFor).
-    const evaluate = useCallback(({ stats, fromMeasure, units }) => {
+    //   stats        — the level's CUMULATIVE `stats` snapshot right now (useLevel.js's `statsRef.current`).
+    //   hiddenGrades — #1120's ring buffer of TRUE timing grades (App-owned ref, written per hit by
+    //                  SheetRpgLayer). Only meaningful while gated; the ladder ignores it otherwise.
+    //   fromMeasure  — the earliest content measure the change may take effect at.
+    //   units        — every stream cadence that must agree on the commit measure (see commitIndexFor).
+    const evaluate = useCallback(({ stats, hiddenGrades = null, fromMeasure, units }) => {
         const s = stateRef.current;
         const prev = s.prevStats;
         s.prevStats = stats;
@@ -128,11 +156,21 @@ export default function useAdaptiveDifficulty({ bpmRef, setBpm, context }) {
         const next = evaluateLadder({
             prevStats: prev,
             currStats: stats,
-            state: { bpm: bpmRef.current, densityStep: s.densityStep, pacing: s.pacing },
+            state: {
+                bpm: bpmRef.current, densityStep: s.densityStep, pacing: s.pacing,
+                blocksSinceGatedExit: s.blocksSinceGatedExit,
+            },
             baseBpm: s.baseBpm,
             lvl: s.lvl,
+            hiddenGrades,
         });
+        // #1120 anti-flap: count the boundaries that are graded UNDER timed pacing. Counted AFTER the
+        // decision so the boundary that itself decides the exit does not count toward its own
+        // cooldown, and only here — an evaluation that returned early above never graded anything.
+        if (s.pacing === 'timed') s.blocksSinceGatedExit += 1;
         // Deadband hold, or a rung that was already at its bound (the silent no-op convention).
+        // `blocksSinceGatedExit` is deliberately NOT part of this test: it is bookkeeping, not a rung,
+        // and a bump in it must never manufacture a commit.
         if (next.bpm === bpmRef.current && next.densityStep === s.densityStep && next.pacing === s.pacing) return;
         s.commit = { ...next, fromMeasure: commitIndexFor(fromMeasure, units), scheduled: false };
     }, [bpmRef]);

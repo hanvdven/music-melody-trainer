@@ -1,7 +1,9 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import useAdaptiveDifficulty from '../useAdaptiveDifficulty';
-import { MAX_DENSITY_STEP } from '../../levels/adaptiveLadder';
+import {
+    MAX_DENSITY_STEP, MIN_DENSITY_STEP, GATED_EXIT_WINDOW, GATED_REENTRY_COOLDOWN_BLOCKS,
+} from '../../levels/adaptiveLadder';
 
 // #1102 (adaptive tempo, Han 2026-08-28) + #1121 (the shared difficulty ladder, Han 2026-09-01).
 // The controller is the piece that keeps `bpmRef` the single source of truth for "the tempo NOW" while
@@ -20,12 +22,16 @@ describe('useAdaptiveDifficulty (#1102 tempo rung, #1121 ladder)', () => {
 
     let bpmRef;
     let setBpm;
+    let setPacingMode;
     let context;
     const setup = (base = 100, startBpm = 80, lvl = LVL) => {
         bpmRef = { current: startBpm };
         setBpm = vi.fn((v) => { bpmRef.current = v; });
+        setPacingMode = vi.fn();
         context = { currentTime: 0 };
-        const { result } = renderHook(() => useAdaptiveDifficulty({ bpmRef, setBpm, context }));
+        const { result } = renderHook(() => useAdaptiveDifficulty({
+            bpmRef, setBpm, setPacingMode, context,
+        }));
         act(() => result.current.begin(base, lvl));
         return result.current;
     };
@@ -186,6 +192,151 @@ describe('useAdaptiveDifficulty (#1102 tempo rung, #1121 ladder)', () => {
             const c = setup(100, 100, { id: 900, songId: 'kalinka', bpm: 100 });
             decideAtCeiling(c, 2);
             expect(c.blockSettingsFor(2, 5)).toEqual({ bpm: 100, densityStep: 0, pacing: 'timed' });
+        });
+    });
+
+    // ── #1120: the PACING rung, and its ONE armed moment ────────────────────────────────────────
+    describe('#1120 — the gated pacing rung at the bpm floor', () => {
+        // A level the rung is in scope for, pinned at the FLOOR with the content already thinned to
+        // the skeleton — i.e. the ladder is standing on its bottom rung.
+        const GATABLE = { id: 4, bpm: 100, adaptive: true, sideScroll: true, enemyType: 'Slime' };
+        const perfectWindow = () => Array.from({ length: GATED_EXIT_WINDOW }, () => 'perfect');
+
+        /** Walk the controller down to (floor, skeleton) with rough blocks, landing every commit. */
+        const walkToBottom = (c) => {
+            let played = 0;
+            let m = 0;
+            for (let i = 0; i < 60; i++) {
+                played += 10;
+                c.evaluate({
+                    stats: stats({ defeated: played, perfect: 1, misses: played, missed: played }),
+                    fromMeasure: m, units: [2],
+                });
+                c.blockSettingsFor(m, 0);
+                act(() => { vi.advanceTimersByTime(1); });
+                m += 2;
+                if (c.blockSettingsFor(m, 0).pacing === 'gated') break;
+            }
+            return m;
+        };
+
+        it('walks bpm → floor, density → skeleton, and only THEN commits pacing "gated"', () => {
+            const c = setup(100, 100, GATABLE);
+            const m = walkToBottom(c);
+            expect(c.blockSettingsFor(m, 0)).toEqual({
+                bpm: 50, densityStep: MIN_DENSITY_STEP, pacing: 'gated',
+            });
+            expect(bpmRef.current).toBe(50);   // the floor, reached before the pacing ever moved
+        });
+
+        it('ONE armed timeout fires BOTH setBpm and setPacingMode — picture and sound together', () => {
+            const c = setup(100, 100, GATABLE);
+            walkToBottom(c);
+            // The pacing flip itself: a density/pacing commit does not move the bpm, so what matters
+            // is that the pacing landed on exactly one moment, once.
+            expect(setPacingMode).toHaveBeenCalledTimes(1);
+            expect(setPacingMode).toHaveBeenCalledWith('gated');
+            // Every setBpm call happened BEFORE the flip — the tempo rung is fully spent by then.
+            expect(setBpm.mock.calls.every(([v]) => v >= 50)).toBe(true);
+        });
+
+        it('setPacingMode fires only on a genuine flip, never on every landing commit', () => {
+            const c = setup(100, 100, GATABLE);
+            // Three ordinary tempo commits at the top of the ladder: no pacing change at all.
+            for (let i = 0; i < 3; i++) {
+                c.evaluate({ stats: stats({ defeated: i * 10 }), fromMeasure: i * 2, units: [2] });
+                c.evaluate({ stats: stats({ defeated: i * 10 + 10, perfect: 10 }), fromMeasure: i * 2 + 2, units: [2] });
+                c.blockSettingsFor(i * 2 + 2, 0);
+                act(() => { vi.advanceTimersByTime(1); });
+            }
+            expect(setPacingMode).not.toHaveBeenCalled();
+        });
+
+        it('the gated exit needs the hidden buffer — block accuracy alone can never leave gated', () => {
+            const c = setup(100, 100, GATABLE);
+            const m = walkToBottom(c);
+            // A gated block reports ~100% accuracy by construction. With an EMPTY hidden buffer that
+            // must change nothing at all.
+            c.evaluate({ stats: stats({ defeated: 999, perfect: 999 }), fromMeasure: m, units: [2] });
+            act(() => { vi.advanceTimersByTime(1000); });
+            expect(c.blockSettingsFor(m + 4, 0).pacing).toBe('gated');
+            expect(setPacingMode).toHaveBeenCalledTimes(1);   // still just the entry
+        });
+
+        it('a full window of truly-perfect hidden grades commits the return to timed', () => {
+            const c = setup(100, 100, GATABLE);
+            let m = walkToBottom(c);
+            m += 2;
+            c.evaluate({
+                stats: stats({ defeated: 1000, perfect: 1000 }), hiddenGrades: perfectWindow(),
+                fromMeasure: m, units: [2],
+            });
+            expect(c.blockSettingsFor(m, 5)).toEqual({
+                bpm: 50, densityStep: MIN_DENSITY_STEP, pacing: 'timed',
+            });
+            act(() => { vi.advanceTimersByTime(6000); });
+            expect(setPacingMode).toHaveBeenLastCalledWith('timed');
+        });
+
+        it('one bad block straight after the exit does NOT re-gate — the cooldown holds', () => {
+            const c = setup(100, 100, GATABLE);
+            let m = walkToBottom(c);
+            m += 2;
+            c.evaluate({
+                stats: stats({ defeated: 1000, perfect: 1000 }), hiddenGrades: perfectWindow(),
+                fromMeasure: m, units: [2],
+            });
+            c.blockSettingsFor(m, 0);
+            act(() => { vi.advanceTimersByTime(1); });
+            expect(c.blockSettingsFor(m, 0).pacing).toBe('timed');
+            // …and now the player falls apart again, boundary after boundary.
+            const pacingAfter = [];
+            let played = 2000;
+            for (let i = 0; i < GATED_REENTRY_COOLDOWN_BLOCKS + 2; i++) {
+                m += 2;
+                played += 10;
+                c.evaluate({
+                    stats: stats({ defeated: played, perfect: 1, misses: played, missed: played }),
+                    fromMeasure: m, units: [2],
+                });
+                c.blockSettingsFor(m, 0);
+                act(() => { vi.advanceTimersByTime(1); });
+                pacingAfter.push(c.blockSettingsFor(m, 0).pacing);
+            }
+            // The FIRST boundary after the exit must still be timed (no flicker), and the level does
+            // eventually get its rescue back.
+            expect(pacingAfter[0]).toBe('timed');
+            expect(pacingAfter[pacingAfter.length - 1]).toBe('gated');
+        });
+
+        it('cancel() drops an unlanded pacing commit — it can never land on the next run', () => {
+            const c = setup(100, 100, GATABLE);
+            const m = walkToBottom(c);
+            setPacingMode.mockClear();
+            c.evaluate({
+                stats: stats({ defeated: 5000, perfect: 5000 }), hiddenGrades: perfectWindow(),
+                fromMeasure: m + 2, units: [2],
+            });
+            c.blockSettingsFor(m + 2, 5);      // arms the timer
+            act(() => c.cancel());
+            act(() => { vi.advanceTimersByTime(6000); });
+            expect(setPacingMode).not.toHaveBeenCalled();
+        });
+
+        it('begin() resets the pacing rung to timed — a replay never inherits a rubato rescue', () => {
+            const c = setup(100, 100, GATABLE);
+            walkToBottom(c);
+            act(() => c.begin(100, GATABLE));
+            expect(c.blockSettingsFor(0, 1)).toEqual({ bpm: 50, densityStep: 0, pacing: 'timed' });
+        });
+
+        it('an out-of-scope (Wizard) adaptive level PARKS at the bottom and never gates', () => {
+            const c = setup(100, 100, { ...GATABLE, enemyType: 'Wizard' });
+            const m = walkToBottom(c);
+            expect(c.blockSettingsFor(m, 0).pacing).toBe('timed');
+            expect(c.blockSettingsFor(m, 0).densityStep).toBe(MIN_DENSITY_STEP);
+            expect(bpmRef.current).toBe(50);
+            expect(setPacingMode).not.toHaveBeenCalled();
         });
     });
 });

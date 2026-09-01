@@ -3,7 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import {
     evaluateLadder, densityOverrideFor, slotsPerMeasure,
+    gatingAllowed, shouldExitGated, pushHiddenGrade,
     MIN_DENSITY_STEP, MAX_TREBLE_DENSITY_STEP, MAX_DENSITY_STEP,
+    GATED_EXIT_WINDOW, GATED_EXIT_REQUIRED, GATED_REENTRY_COOLDOWN_BLOCKS,
 } from '../adaptiveLadder';
 import { ADAPTIVE_STEP } from '../adaptiveTempo';
 import { trackSpecsForLevel } from '../levelBlockPlan';
@@ -369,6 +371,161 @@ describe('adaptiveLadder — scope and the rung-0 identity', () => {
         expect(specs.instrumentSettings.treble.notesPerMeasure).toBe(5);
         // Every other authored field survives the shallow merge.
         expect(specs.instrumentSettings.treble.range).toEqual(settings.trebleSettings.range);
+    });
+});
+
+// ── (j) #1120: the GATED PACING rung at the very bottom of the same ladder ─────────────────
+describe('adaptiveLadder — #1120 the GATED PACING rung', () => {
+    // A level the rung is actually in scope for: adaptive, side-scroll, procedural, plain Slime.
+    const GATABLE = { id: 4, bpm: BASE, adaptive: true, sideScroll: true, enemyType: 'Slime' };
+    const BOTTOM = rung({ bpm: FLOOR, densityStep: MIN_DENSITY_STEP, blocksSinceGatedExit: Infinity });
+    const perfects = (n, total = GATED_EXIT_WINDOW) => [
+        ...Array.from({ length: total - n }, () => 'tooSlow'),
+        ...Array.from({ length: n }, () => 'perfect'),
+    ];
+    const gatedState = (over = {}) => rung({
+        bpm: FLOOR, densityStep: MIN_DENSITY_STEP, pacing: 'gated', blocksSinceGatedExit: 0, ...over,
+    });
+    const exitAt = (state, hiddenGrades) => evaluateLadder({
+        prevStats: ZERO, currStats: CLEAN, state, baseBpm: BASE, lvl: GATABLE, hiddenGrades,
+    });
+
+    // ── the entry condition ────────────────────────────────────────────────────────────────
+    it('gates ONLY from (floor bpm, skeleton density, still struggling) — never one notch earlier', () => {
+        expect(easier(BOTTOM, GATABLE).pacing).toBe('gated');
+        // One notch of tempo left → the TEMPO moves, pacing does not.
+        expect(easier(rung({ bpm: FLOOR * 1.2, densityStep: MIN_DENSITY_STEP }), GATABLE).pacing).toBe('timed');
+        // One notch of density left → the CONTENT thins, pacing does not.
+        expect(easier(rung({ bpm: FLOOR, densityStep: MIN_DENSITY_STEP + 1 }), GATABLE).pacing).toBe('timed');
+        // And a CLEAN block at the bottom climbs back up instead of gating.
+        expect(harder(BOTTOM, GATABLE).pacing).toBe('timed');
+        expect(harder(BOTTOM, GATABLE).densityStep).toBe(MIN_DENSITY_STEP + 1);
+    });
+
+    it('gatingAllowed is ONE predicate: procedural, adaptive, side-scroll, non-Wizard, not authored-gated', () => {
+        expect(gatingAllowed(GATABLE)).toBe(true);
+        expect(gatingAllowed({ ...GATABLE, songId: 'kalinka' })).toBe(false);
+        expect(gatingAllowed({ ...GATABLE, enemyType: 'Wizard' })).toBe(false);
+        expect(gatingAllowed({ ...GATABLE, enemyType: 'Mixed' })).toBe(false);
+        expect(gatingAllowed({ ...GATABLE, gatedScroll: true })).toBe(false);
+        expect(gatingAllowed({ ...GATABLE, sideScroll: false })).toBe(false);
+        expect(gatingAllowed({ ...GATABLE, adaptive: false })).toBe(false);
+        expect(gatingAllowed(null)).toBe(false);
+    });
+
+    it('an out-of-scope level PARKS at (floor, skeleton) instead — no crash, no branch', () => {
+        for (const lvl of [
+            { ...GATABLE, songId: 'kalinka' },
+            { ...GATABLE, enemyType: 'Wizard' },
+            { ...GATABLE, enemyType: 'Mixed' },
+            { ...GATABLE, gatedScroll: true },
+        ]) {
+            expect(easier(BOTTOM, lvl)).toBe(BOTTOM);   // the very same object — nothing moved
+        }
+    });
+
+    it('the anti-flap cooldown blocks re-gating for GATED_REENTRY_COOLDOWN_BLOCKS boundaries', () => {
+        for (let n = 0; n < GATED_REENTRY_COOLDOWN_BLOCKS; n++) {
+            expect(easier(rung({ ...BOTTOM, blocksSinceGatedExit: n }), GATABLE).pacing).toBe('timed');
+        }
+        expect(easier(rung({ ...BOTTOM, blocksSinceGatedExit: GATED_REENTRY_COOLDOWN_BLOCKS }), GATABLE).pacing)
+            .toBe('gated');
+        // A state that predates the counter is never blocked from its FIRST gating.
+        const noCounter = { bpm: FLOOR, densityStep: MIN_DENSITY_STEP, pacing: 'timed' };
+        expect(easier(noCounter, GATABLE).pacing).toBe('gated');
+    });
+
+    // ── the exit condition ─────────────────────────────────────────────────────────────────
+    it('shouldExitGated needs a FULL window — a partially filled one can never exit', () => {
+        expect(shouldExitGated(null)).toBe(false);
+        expect(shouldExitGated([])).toBe(false);
+        // Even ALL-perfect, if there are not yet GATED_EXIT_WINDOW of them.
+        expect(shouldExitGated(Array.from({ length: GATED_EXIT_WINDOW - 1 }, () => 'perfect'))).toBe(false);
+    });
+
+    it('shouldExitGated is false at REQUIRED-1 and true at REQUIRED of the last WINDOW', () => {
+        expect(shouldExitGated(perfects(GATED_EXIT_REQUIRED - 1))).toBe(false);
+        expect(shouldExitGated(perfects(GATED_EXIT_REQUIRED))).toBe(true);
+        // Only the LAST window counts — a great start followed by a bad stretch does not exit.
+        expect(shouldExitGated([
+            ...Array.from({ length: GATED_EXIT_WINDOW, }, () => 'perfect'),
+            ...Array.from({ length: GATED_EXIT_WINDOW }, () => 'muchTooSlow'),
+        ])).toBe(false);
+    });
+
+    it('pushHiddenGrade keeps the buffer at exactly GATED_EXIT_WINDOW, newest last', () => {
+        const buf = [];
+        for (let i = 0; i < GATED_EXIT_WINDOW * 3; i++) pushHiddenGrade(buf, `g${i}`);
+        expect(buf).toHaveLength(GATED_EXIT_WINDOW);
+        expect(buf[buf.length - 1]).toBe(`g${GATED_EXIT_WINDOW * 3 - 1}`);
+    });
+
+    it('while gated NOTHING else can move — the block accuracy is ignored in BOTH directions', () => {
+        const g = gatedState();
+        // A "clean" gated block (accuracy is ~100% by construction) does not climb the ladder…
+        expect(exitAt(g, perfects(0))).toBe(g);
+        // …and a "rough" one does not thin anything further either.
+        expect(evaluateLadder({
+            prevStats: ZERO, currStats: ROUGH, state: g, baseBpm: BASE, lvl: GATABLE, hiddenGrades: perfects(0),
+        })).toBe(g);
+        // Nor does the deadband.
+        expect(evaluateLadder({
+            prevStats: ZERO, currStats: OK_ISH, state: g, baseBpm: BASE, lvl: GATABLE, hiddenGrades: perfects(0),
+        })).toBe(g);
+    });
+
+    it('exits to EXACTLY (floor, skeleton, timed) with the cooldown counter reset', () => {
+        expect(exitAt(gatedState(), perfects(GATED_EXIT_REQUIRED))).toEqual({
+            bpm: FLOOR, densityStep: MIN_DENSITY_STEP, pacing: 'timed', blocksSinceGatedExit: 0,
+        });
+    });
+
+    it('GATED IS NOT TERMINAL: after the exit the ladder climbs again — CONTENT first, then tempo', () => {
+        const exited = exitAt(gatedState(), perfects(GATED_EXIT_REQUIRED));
+        const next = harder(exited, GATABLE);
+        expect(next.densityStep).toBe(MIN_DENSITY_STEP + 1);
+        expect(next.bpm).toBe(FLOOR);            // the tempo waits its turn
+        expect(next.pacing).toBe('timed');
+    });
+
+    it('a hit-by-hit recovery drives gated → timed and back down again, terminating each way', () => {
+        // Enter gated…
+        let state = easier(BOTTOM, GATABLE);
+        expect(state.pacing).toBe('gated');
+        // …play truly in time for a full window…
+        state = exitAt(state, perfects(GATED_EXIT_WINDOW));
+        expect(state.pacing).toBe('timed');
+        // …struggle again: the cooldown holds for one boundary, then it may gate once more.
+        expect(easier(state, GATABLE).pacing).toBe('timed');
+        expect(easier({ ...state, blocksSinceGatedExit: GATED_REENTRY_COOLDOWN_BLOCKS }, GATABLE).pacing)
+            .toBe('gated');
+    });
+
+    // ── the mutual-exclusion property the gated audio path relies on ───────────────────────
+    it('gated pacing and the BASS density rungs can never both be active', () => {
+        // They sit at opposite ends of one totally ordered scale: gating requires
+        // densityStep === MIN_DENSITY_STEP, the bass rungs require step > MAX_TREBLE_DENSITY_STEP.
+        // This matters concretely — useLevelGatedRubatoAudio's cello logic assumes exactly one whole
+        // note per measure and would mis-trigger a busier bass line.
+        for (let d = MIN_DENSITY_STEP; d <= MAX_DENSITY_STEP; d++) {
+            const next = easier(rung({ bpm: FLOOR, densityStep: d, blocksSinceGatedExit: Infinity }), GATABLE);
+            if (next.pacing === 'gated') expect(next.densityStep).toBe(MIN_DENSITY_STEP);
+        }
+        expect(MIN_DENSITY_STEP).toBeLessThanOrEqual(MAX_TREBLE_DENSITY_STEP);
+    });
+
+    it('still changes at most ONE of {bpm, densityStep, pacing} per call, gated rungs included', () => {
+        const STATES = [BOTTOM, gatedState(), rung({ bpm: FLOOR, densityStep: MIN_DENSITY_STEP + 1 })];
+        for (const state of STATES) {
+            for (const next of [
+                harder(state, GATABLE),
+                easier(state, GATABLE),
+                exitAt(state, perfects(GATED_EXIT_WINDOW)),
+            ]) {
+                const changed = ['bpm', 'densityStep', 'pacing'].filter((k) => next[k] !== state[k]);
+                expect(changed.length).toBeLessThanOrEqual(1);
+            }
+        }
     });
 });
 

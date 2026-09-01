@@ -29,7 +29,13 @@ import LyricsLayer from './LyricsLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { freshTempoAnchor, tempoNormalizedMs } from './tempoScrollAnchor';
 import { StaffQuarterNote } from './staffNoteGlyph';
-import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
+import {
+    gradeHit, hiddenTimingGrade, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS,
+} from '../../levels/gradeHit';
+// #1120: the adaptive ladder's gated-exit ring buffer. Only the BUFFER helper is imported — the
+// policy that reads it (`shouldExitGated`) stays entirely in the ladder module; this component just
+// records the signal.
+import { pushHiddenGrade } from '../../levels/adaptiveLadder';
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 // #1165: moved verbatim (same signature, same 2-measure period) out of the retired
@@ -682,6 +688,13 @@ export default function SheetRpgLayer({
     // without a second, independent freeze-tracking mechanism (§6c — reuses `gatedPauseAccumMsRef`'s own
     // math, does not duplicate it).
     gatedElapsedMsRef = null,
+    // #1120 (the adaptive ladder's GATED PACING rung): an App-owned ring buffer this component pushes
+    // the HIDDEN TRUE timing grade of every side-scroll kill into, imperatively, exactly like
+    // `gatedElapsedMsRef` above (never React state — this runs per keypress inside an effect that
+    // must not re-render the RPG layer). The RECORDED grade is untouched; see the combat effect below
+    // and `hiddenTimingGrade` (gradeHit.js) for why the recorded one cannot answer the ladder's
+    // "is this player ready for timed pacing again?" question.
+    hiddenGradesRef = null,
     // #990 (Han 2026-08-14, RPG-level wrong-note feedback): a ref this component populates with a
     // FUNCTION returning "which note name(s) would currently count as a hit" — the exact same
     // inWindow/next-slime logic the combatNote effect below already uses to judge a played note,
@@ -1189,6 +1202,22 @@ export default function SheetRpgLayer({
         rawSinceAnchorMs - waveStartRef.current * INTERVAL_MS,
         geomRef.current.beatMs,
     );
+    // #1120: a SECOND, independent anchor for the value written into `gatedElapsedMsRef`.
+    //
+    // WHY IT MUST BE TEMPO-NORMALIZED AT ALL: `useLevelGatedRubatoAudio` derives the measure the
+    // cello should be singing as `elapsedMs / barMs`. For an AUTHORED gated level (1/2/3) the tempo
+    // never changes, so raw ms and one constant `barMs` agree exactly. For a LADDER-gated level the
+    // bpm has already walked from `lvl.bpm` down to the floor across many blocks BEFORE gating, so
+    // the accumulated RAW elapsed corresponds to no single `barMs` at all and that division would
+    // name a different measure than the one on screen.
+    //
+    // WHY ITS OWN ANCHOR, and not `tempoAnchorRef` above: `tempoScrollMs` also subtracts
+    // `waveStartRef.current * INTERVAL_MS`, and reusing it would change Level 3's (multi-wave,
+    // authored-gated) cello behaviour. With a separate anchor the value is byte-identical to the
+    // plain `tRawMs` this used to write for EVERY constant-tempo level — `tempoNormalizedMs` returns
+    // `rawMs` unchanged while `anchor.beats`/`anchor.rawMs` are both still 0 — so levels 1/2/3 are
+    // provably untouched by this ticket.
+    const gateTempoAnchorRef = useRef(freshTempoAnchor());
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
     // (which needs the full {sl, idx, delta} shape for grading/resolution bookkeeping) AND
@@ -1481,7 +1510,15 @@ export default function SheetRpgLayer({
             // #1096: imperative ref write (never React state — this runs every rAF frame) so
             // useLevelGatedRubatoAudio.js can trigger cello/timpani off the SAME frozen-aware clock the
             // visual scroll already uses, instead of a fixed AudioContext-time schedule.
-            if (gatedElapsedMsRef) gatedElapsedMsRef.current = tRawMs;
+            // #1120: TEMPO-NORMALIZED (its own anchor — see `gateTempoAnchorRef`'s declaration), so a
+            // ladder-gated level's cello/timpani measure index stays continuous across the tempo
+            // changes that happened on the way DOWN to the floor. Byte-identical to the plain
+            // `tRawMs` this wrote before, for every level whose tempo never changes.
+            if (gatedElapsedMsRef) {
+                gatedElapsedMsRef.current = tempoNormalizedMs(
+                    gateTempoAnchorRef.current, tRawMs, geomRef.current.beatMs,
+                );
+            }
             const t = Math.round(tRawMs / INTERVAL_MS);
             // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost"): logs the FIRST tick this loop
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
@@ -1893,6 +1930,10 @@ export default function SheetRpgLayer({
             // change that already happened must keep its accrued beats.
             if (scrollStartTime == null || isFirstAnchoredWave) {
                 tempoAnchorRef.current = freshTempoAnchor();
+                // #1120: the gate clock's own anchor resets on exactly the same occasions, so a
+                // replay starts it clean too. (It is never re-anchored on a LATER wave, for the same
+                // reason the scroll anchor is not.)
+                gateTempoAnchorRef.current = freshTempoAnchor();
             }
             const g = geomRef.current;
             const scrollElapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);
@@ -1957,6 +1998,27 @@ export default function SheetRpgLayer({
                 const grade = wrongAttemptRef.current.has(target.idx)
                     ? { category: 'secondAttemptCorrected', points: 0.5, timingTier: geomRef.current.gatedScroll ? 'perfect' : gradeHit(target.delta, bMs).category }
                     : (geomRef.current.gatedScroll ? { category: 'perfect', points: 1 } : gradeHit(target.delta, bMs));
+                // #1120 (the adaptive ladder's GATED PACING rung): alongside — never instead of — the
+                // RECORDED grade above, record the HIDDEN TRUE timing grade of this same hit. Nothing
+                // about scoring changes: `grade` is untouched, and so are stats, the judgment popup,
+                // the result screen, the L/R split charts and the ANPM sample.
+                //
+                // ORDER MATTERS: `frozenExtraMs` is read HERE, BEFORE the unfreeze branch just below
+                // mutates `gatedFrozenRef`/`gatedPauseAccumMsRef` and arms the catch-up ramp — it is
+                // the real time the gate has spent frozen on THIS note, off the never-frozen raw
+                // clock, i.e. exactly the lateness that branch is about to absorb. Without adding it
+                // back, `target.delta` is ~0 for every gated hit (the gate FREEZES the clock, it does
+                // not merely relabel the grade) and the exit condition would be true 100% of the time.
+                if (hiddenGradesRef) {
+                    const frozenExtraMs = (geomRef.current.gatedScroll && gatedFrozenRef.current)
+                        ? (rawTRawMsRef.current - gatedFreezeStartRawMsRef.current) : 0;
+                    pushHiddenGrade(hiddenGradesRef.current, hiddenTimingGrade({
+                        deltaMs: target.delta,
+                        frozenExtraMs,
+                        beatMs: bMs,
+                        secondAttempt: wrongAttemptRef.current.has(target.idx),
+                    }));
+                }
                 resolvedRef.current.add(target.idx);
                 // #1052: a correct hit while gated-frozen unfreezes the scroll clock, resuming EXACTLY
                 // where it froze — the real time just spent frozen is folded into `gatedPauseAccumMsRef`

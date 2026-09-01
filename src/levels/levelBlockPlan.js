@@ -172,6 +172,12 @@ export const resolveBlockScale = (lvl, scale, blockIndex) => (lvl?.decorativeWiz
  * `totalMeasures` for exactly this reason, §1155 UAT). So one division answers every shape.
  */
 export const blockCountFor = (lvl) => {
+    // ⚠ HARD INVARIANT (#1120): `Infinity` is bound to the AUTHORED `gatedScroll` FIELD alone. The
+    // adaptive difficulty ladder can put a PROCEDURAL level into gated PACING at its bpm floor, and it
+    // must never reach this line: a procedural level's `total` grows with the stream, so an infinite
+    // block count there means the level can never end (§289). A ladder-gated level keeps the finite
+    // count below and simply takes longer in real time. See useLevelContentStream.js's `loopForever`
+    // and docs/architecture.md §367.
     if (lvl?.gatedScroll) return Infinity;
     const total = lvl?.totalMeasures ?? lvl?.numMeasures ?? 0;
     return Math.max(1, Math.ceil(total / blockMeasuresFor(lvl)));

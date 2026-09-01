@@ -68,6 +68,13 @@ import {
 // onto the treble/bass `notesPerMeasure`/`smallestNoteDenom` for THIS block only. It is read
 // ref-driven, exactly like the fresh bpm, and for exactly the same reason — see the hard
 // constraint spelled out at that read.
+// #1120 adds a THIRD on the same seam: the ladder's `pacing`. A block generated while the ladder
+// has gated the level skips the FIXED-SCHEDULE cello/metronome/timpani, because
+// `useLevelGatedRubatoAudio` triggers them off the gate's own clock instead. `pacingMode` is app
+// state, but this stream reads the per-BLOCK value from the controller and NEVER subscribes to it
+// (it is not in the dependency array, exactly as the bpm is not) — content is generated ahead of
+// when it sounds, so "is the level gated right now" is the wrong question here; "will it be gated
+// when THIS block sounds" is the right one, and that is what `blockSettingsFor` answers.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 export default function useLevelContentStream({
     active,            // level.active (see App.jsx — ONE activation condition for every level now)
@@ -108,6 +115,10 @@ export default function useLevelContentStream({
     levelMelodyReady,
     adaptiveDifficulty = null,
     statsRef = null,
+    // #1120: the App-owned ring buffer of HIDDEN true-timing grades SheetRpgLayer writes per hit. Read
+    // ONLY at the decider call below and, like `statsRef`/`adaptiveDifficulty`, deliberately excluded
+    // from this effect's dependency array — see this file's header.
+    hiddenGradesRef = null,
 }) {
     const [treble, setTreble] = useState(() => Melody.defaultTrebleMelody());
     const [bass, setBass] = useState(() => Melody.defaultBassMelody());
@@ -184,6 +195,20 @@ export default function useLevelContentStream({
         // §867/§1052: a gated level's content NEVER runs out — the player may stay frozen on one
         // note for an arbitrary real-time duration, so a fixed block count would eventually leave
         // the level with nothing left to generate (the cello simply going silent mid-level).
+        //
+        // ⚠ HARD INVARIANT (#1120): this stays bound to the AUTHORED `lvl.gatedScroll` field ALONE.
+        // The adaptive ladder's gated PACING rung must NEVER set it. A ladder-gated level is
+        // PROCEDURAL, and a procedural level's `total` (SheetRpgLayer's `slimeData.length`) grows with
+        // the stream — so an infinite stream there means `killedCount >= total` can never fire and the
+        // level can NEVER end: §289, whose bug class has already bitten this codebase three times.
+        // It is safe for the SHIPPED gated levels (1/2) only because they are SONG levels whose treble
+        // slice is unwrapped and therefore stops growing at the song's true end.
+        // A ladder-gated level instead keeps its ordinary FINITE block plan (totalMeasures × repeats)
+        // and simply takes longer in real time: generation is DEADLINE-driven (see the timer at the
+        // bottom of `generateAndScheduleBlock`), so while the scroll is frozen the deadlines still
+        // pass and the level's finite content is merely generated early, then waits. Asserted by a
+        // regression test (adaptiveMode.integration.test.js), not reasoned about once and forgotten.
+        // See also `blockCountFor` (levelBlockPlan.js) and docs/architecture.md §367.
         const loopForever = !!lvl.gatedScroll;
         // Without a clock there is nothing to stream against, so a static level builds its whole
         // (always finite — `gatedScroll` implies `sideScroll`) content in one synchronous pass.
@@ -227,6 +252,11 @@ export default function useLevelContentStream({
         // never start ahead of / independent from the treble melody. It used to need its own explicit
         // `levelMelodyReady` gate in App.jsx for that; here it is structural — this effect returns
         // early until `levelMelodyReady`, so timpani cannot exist before the melody does.
+        // #1120: this BUILD-time condition keeps `!lvl.gatedScroll` — an AUTHORED gated level builds no
+        // pattern at all, exactly as before. A ladder-gated level DOES build one (it started timed and
+        // may return to timed), and simply stops SCHEDULING it from the flip block onward: the
+        // per-block `fixedSchedule` guard below is what decides that, so the two timpani sources can
+        // never sound at once. §356's "the pattern stays FINITE" property is untouched either way.
         const timpaniEnabled = !!timpaniInstrument && sideScroll && !lvl.gatedScroll;
         const timpaniPattern = timpaniEnabled
             ? buildTimpaniPattern(leadInBars + totalContentMeasures, timeSignature)
@@ -340,6 +370,11 @@ export default function useLevelContentStream({
             // geen metronoom") — there is no fixed tempo to click to when the scroll waits for
             // the player. Both tracks' CONTENT is still generated above, only the fixed-schedule
             // AUDIO trigger is skipped, which keeps this function uniform per block.
+            // #1120: these three lead-in guards stay bound to the AUTHORED `lvl.gatedScroll` and are
+            // deliberately NOT made per-block like the content blocks' below. The lead-in is always at
+            // the level's very start, where the ladder's pacing is always 'timed' (`begin()` resets it
+            // and no commit can exist before the first block has been graded) — so a per-block read
+            // here could only ever return the same answer. Do not "fix" this later.
             if (leadIn.bass?.notes?.length && !lvl.gatedScroll) {
                 scheduleInto(backingStopFnsRef, ownBackingStopFns, [leadIn.bass], [bassInstrument],
                     levelAudioStart, { bass: bassInstrument },
@@ -432,6 +467,16 @@ export default function useLevelContentStream({
             const blockSpecs = densityStep
                 ? trackSpecsForLevel(lvl, levelSettings, { densityStep, timeSignature })
                 : specs;
+            // #1120: "does THIS block's backing go on the clock?" — ONE boolean, computed once and used
+            // at all three fixed-schedule sites below (cello, metronome, timpani), never re-derived per
+            // site (§6c). False for an AUTHORED gated level (as before) AND for any block the ladder
+            // has switched to gated pacing: `useLevelGatedRubatoAudio` triggers cello and timpani off
+            // the gate's own frozen-aware clock instead, and Han's §867 rule holds unchanged — "wel
+            // timpanen, geen metronoom": there is no tempo to click to while the scroll waits for you.
+            // Per BLOCK, not per render: a block is generated a screenful before it sounds, so the
+            // question is what the pacing will be when this block sounds — which is exactly what
+            // `blockSettingsFor` answers, and why the flip needs nothing already scheduled cancelled.
+            const fixedSchedule = !lvl.gatedScroll && (ladder ? ladder.pacing !== 'gated' : true);
             const barSec = barSecAt(bpm);
             const type = blockTypeForBlock(lvl, blockIndex);
             const isWizardBlock = type === 'Wizard';
@@ -536,12 +581,12 @@ export default function useLevelContentStream({
                         blockStartTime - leadOffsetSeconds, null,
                         { treble: wizardVolume, bass: 0, percussion: 0, chords: 0, metronome: 0 }, bpm);
                 }
-                if (block.bass?.notes?.length && !lvl.gatedScroll) {
+                if (block.bass?.notes?.length && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [block.bass], [bassInstrument],
                         blockStartTime, { bass: bassInstrument },
                         { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 }, bpm);
                 }
-                if (metronomeChunk.notes.length && !lvl.gatedScroll) {
+                if (metronomeChunk.notes.length && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [metronomeChunk], [metronomeInstrument],
                         blockStartTime, { metronome: metronomeInstrument },
                         { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 }, bpm);
@@ -551,8 +596,11 @@ export default function useLevelContentStream({
                 // adaptive tempo change instead of drifting away from the music it plays under. The
                 // pattern lives on the LEAD-IN tick timeline (its measure 0 is the first lead-in
                 // measure), hence the `leadInBars +` in the slice window, exactly like `backingBaseTicks`.
+                // #1120: `fixedSchedule` gates the timpani too — the THIRD fixed-schedule track, and
+                // the one that would otherwise DOUBLE (this schedule plus useLevelGatedRubatoAudio's
+                // gate-clock trigger, drifting apart) from the flip block onward.
                 const blockTimpani = timpaniSlice(leadInBars + blockIndex * B, B);
-                if (blockTimpani) {
+                if (blockTimpani && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [blockTimpani], [timpaniInstrument],
                         blockStartTime, { percussion: timpaniInstrument }, timpaniGains, bpm);
                 }
@@ -562,6 +610,10 @@ export default function useLevelContentStream({
                 if (lvl.adaptive && adaptiveDifficulty && statsRef) {
                     adaptiveDifficulty.evaluate({
                         stats: statsRef.current,
+                        // #1120: the gated rung's exit signal. Meaningless (and ignored) while the
+                        // ladder is timed; while gated it is the ONLY input, because the block
+                        // accuracy is ~100% by construction there.
+                        hiddenGrades: hiddenGradesRef?.current,
                         fromMeasure: (blockIndex + 1) * B,
                         units: [B],
                     });
@@ -609,7 +661,8 @@ export default function useLevelContentStream({
             ownWizardStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
             ownBackingStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
         };
-        // `adaptiveDifficulty`/`statsRef` are deliberately excluded — see this file's header.
+        // `adaptiveDifficulty`/`statsRef`/`hiddenGradesRef` are deliberately excluded — see this
+        // file's header.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, lvl, levelAudioStart, context, scale, timeSignature,
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,

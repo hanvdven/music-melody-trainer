@@ -23244,6 +23244,8 @@ to `generateMetronomeChunk.js`, its bass half is now `generateBlock`), and
 - **`Infinity` blocks for a gated level** (`loopForever`, §867/§1052): the player may freeze on one
   note for an arbitrary real-time duration, so content must never run out. The chord LOOKUP wraps
   back into the level's own range; the block's tick position and start time keep increasing linearly.
+  ⚠ **Bound to the AUTHORED `lvl.gatedScroll` field ALONE** — the adaptive ladder's gated PACING rung
+  must never set it, or a procedural level can never end (§289). See §367's HARD INVARIANT.
 
 **Per-level policy is DATA, not branches** — `src/levels/levelBlockPlan.js` is pure (no React, no
 audio) and therefore directly unit-testable: `blockMeasuresFor`, `blockTypeForBlock` / `blockTypeAt`,
@@ -23865,7 +23867,7 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
 **No longer out of scope — the two clamp bounds now continue into a LADDER (#1121, §361).** What used
 to be a silent no-op at either bound is now the next rung of one monotone difficulty scale: at the
 CEILING, difficulty grows through NOTE DENSITY at the same tempo; at the FLOOR the content thins toward
-a skeleton, and #1120 hangs gated pacing off the very bottom. The tempo rung documented in this section
+a skeleton, and #1120 hangs gated pacing off the very bottom (**§367**). The tempo rung documented in this section
 is byte-identical inside that ladder — `evaluateAdaptiveBpm` MOVED into `evaluateLadder`
 (`src/levels/adaptiveLadder.js`) rather than being wrapped, and the controller was renamed to
 `useAdaptiveDifficulty`. Read §361 alongside this section.
@@ -24033,6 +24035,9 @@ union of the slices IS the old one-shot's array (asserted directly).
   block past the level's end slices to nothing and the timpani falls silent with the music. It can
   never loop forever — including on a `gatedScroll` level, which takes no timpani from this schedule
   at all (`useLevelGatedRubatoAudio` triggers it off the gate's own frozen-aware clock, #1096).
+  #1120 gained a SECOND reader of that exclusion: a ladder-gated level BUILDS the pattern (it started
+  timed) and merely stops SCHEDULING it per block from the flip onward, so this finiteness property is
+  untouched while the double-timpani it would otherwise cause is avoided. See §367.
 - **Byte-identical notes.** Han's hardcoded C2-C2-C3-rest pattern is untouched; only *when* each
   chunk is scheduled, and at which bpm, changed.
 - **Never starts ahead of the melody** (Han 2026-08-10, *"die twee mogen nooit onafhankelijk
@@ -24365,8 +24370,11 @@ state = { bpm, densityStep, pacing }
   densityStep : SIGNED integer. 0 = the level exactly as AUTHORED.
                 positive = denser than authored (harder); negative = thinner (easier).
   bpm         : the existing continuous value, clamped to [baseBpm/2, baseBpm].
-  pacing      : 'timed' | 'gated'.  #1120 owns this rung; #1121 leaves it always 'timed'.
+  pacing      : 'timed' | 'gated'.  #1120 owns this rung (LANDED — §367); #1121 left it always 'timed'.
 ```
+
+*(#1120 also added `blocksSinceGatedExit` — anti-flap bookkeeping owned by `useAdaptiveDifficulty`,
+read by the ladder but never a rung. See §367.)*
 
 EASIEST → HARDEST:
 
@@ -24381,9 +24389,15 @@ EASIEST → HARDEST:
 
 | direction | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| HARDER (accuracy ≥ `SPEED_UP_ACCURACY` 90) | `pacing==='gated'` → the gated EXIT rule (#1120) | `densityStep < 0` → +1 (restore content FIRST) | `bpm < ceiling` → ×1.05, clamped | `densityStep < MAX_DENSITY_STEP` → +1 | else hold (silent no-op) |
-| EASIER (accuracy < `SLOW_DOWN_ACCURACY` 70) | `densityStep > 0` → −1 (remove ADDED density FIRST) | `bpm > floor` → ×0.95, clamped | `densityStep > MIN_DENSITY_STEP` → −1 (thin toward the skeleton) | else hold (#1120 turns this into `pacing='gated'`) | — |
+| HARDER (accuracy ≥ `SPEED_UP_ACCURACY` 90) | `densityStep < 0` → +1 (restore content FIRST) | `bpm < ceiling` → ×1.05, clamped | `densityStep < MAX_DENSITY_STEP` → +1 | else hold (silent no-op) | — |
+| EASIER (accuracy < `SLOW_DOWN_ACCURACY` 70) | `densityStep > 0` → −1 (remove ADDED density FIRST) | `bpm > floor` → ×0.95, clamped | `densityStep > MIN_DENSITY_STEP` → −1 (thin toward the skeleton) | `gatingAllowed(lvl)` + cooldown → `pacing='gated'` (#1120) | else hold (park) |
 | HOLD (70 ≤ accuracy < 90) | nothing moves — the #1102 deadband is untouched | | | | |
+
+**#1120 corrected where the gated rule sits.** `pacing === 'gated'` is decided **BEFORE either
+accuracy branch**, not as HARDER rule 1 as this table originally showed: while gated, the block
+accuracy is ~100% by construction (every hit is RECORDED `'perfect'`, §1052) and carries no
+information at all, so it must never reach the rules above in EITHER direction. The gated boundary's
+only question is the EXIT, answered off the hidden true-timing buffer — see §367.
 
 Because every branch returns immediately, **exactly one of `{bpm, densityStep, pacing}` differs from
 the input state on any single call** — "one decider, one boundary, one change in flight" (§354) is a
@@ -24585,9 +24599,9 @@ c. **Call-response / Wizard blocks** (`shape: 'call-response'`): only the RESPON
 d. A **negative** `densityStep` is reachable in this ticket only once the level is already at the bpm
    floor; without #1120 the ladder then parks at (floor, `MIN_DENSITY_STEP`) instead of gating. That is a
    correct, shippable intermediate state — #1121 is independently useful without #1120.
-e. **#1120** hangs the gated-pacing rung off the bottom of this same ladder (HARDER rule 1 / EASIER
-   rule 4), reusing this ticket's signed `densityStep`, full-state commit and single `blockSettingsFor`
-   reader.
+e. **#1120** hangs the gated-pacing rung off the bottom of this same ladder (EASIER rule 4, with the
+   gated EXIT decided before either accuracy branch), reusing this ticket's signed `densityStep`,
+   full-state commit and single `blockSettingsFor` reader. **LANDED — see §367.**
 
 **Files.** NEW `src/levels/adaptiveLadder.js`. EDIT `src/levels/adaptiveTempo.js` (export `diffStats`;
 `evaluateAdaptiveBpm` removed; header rewritten). RENAME `src/hooks/useAdaptiveTempo.js` →
@@ -25021,3 +25035,228 @@ the `songMeasureCount` pins for 3× / plain / d-e),
 `src/hooks/__tests__/adaptiveMode.integration.test.js` (a real Sakura `i` run: `blockCountFor(lvl)`
 evaluations instead of one, 3× verbatim treble, every track switching at the same block, generation
 terminating — plus a non-adaptive song run and a gated song level).
+
+### §367. The ladder's GATED PACING rung — rubato rescue at the bpm floor, and the return to timed (#1120, Han 2026-09-01)
+
+**Purpose.** §361's difficulty ladder walks a struggling player down two knobs — the tempo to the
+clamp FLOOR (`baseBpm/2`), then the note density to a SKELETON line. Han's #1120 answer is that the
+ladder does not stop there: *"de ladder gaat door voorbij de bpm-floor."* Once slowing down and
+thinning out have both been exhausted and the player is STILL under `SLOW_DOWN_ACCURACY`, the level
+stops asking them to keep up at all and switches PACING MODEL: the scroll starts WAITING for each note
+(the rubato/input-paced `gatedScroll` behaviour levels 1/2 already author) instead of running the
+clock. It is a rescue, not a punishment — and it is **not terminal**: when the player demonstrably
+plays in time again, the level hands itself back to timed pacing and the ladder climbs from there.
+
+**Where the rung sits.** At the very bottom of the ONE monotone scale in §361 — never a second
+controller and never a parallel state machine:
+
+| rung | position | knob |
+|---|---|---|
+| **0 (easiest)** | **gated pacing @ skeleton density @ floor bpm** | **`pacing` (#1120)** |
+| 1 | floor bpm, density climbing back to authored | `densityStep` (#1121) |
+| 2 | authored density, bpm floor→ceiling | `bpm` (#1102) |
+| 3 (hardest) | ceiling bpm, density above authored | `densityStep` (#1121) |
+
+So THREE conditions must ALL hold before a level can gate: `bpm === floor` **and**
+`densityStep === MIN_DENSITY_STEP` **and** the block accuracy is still `< SLOW_DOWN_ACCURACY`. You
+cannot stumble into it one notch early — asserted directly (`adaptiveLadder.test.js`, "gates ONLY
+from (floor bpm, skeleton density, still struggling)").
+
+**Scope — ONE predicate, `gatingAllowed(lvl)`** (`src/levels/adaptiveLadder.js`):
+`adaptive && sideScroll && !songId && !gatedScroll && enemyType ∉ {Wizard, Mixed}`. A song-backed
+treble is sliced `randomizationRule: 'fixed'`; a level that AUTHORS rubato starts gated so the rung is
+unreachable for it (levels 1/2 are byte-identical to before this ticket); and Wizard/Mixed are
+excluded because there is no gate-aware cast timing — the cast would fire on its own fixed schedule
+into a frozen screen, which is exactly why `availableVariantLetters` already refuses the
+gated+wizard combination (Han q6). The graceful consequence, and it needs no special case: an adaptive
+Wizard/Mixed or song level simply **PARKS** at (floor, skeleton) and never gates.
+
+#### The HIDDEN TRUE GRADE — why the obvious exit signal is dead
+
+Han's q3 answer was *"keep computing the real deltaMs-based grade under the hood while the visible
+grade stays force-'perfect', and exit when the hidden grade is perfect on ≥8 of the last 10 notes."*
+Taken literally that condition is **true 100% of the time**, and the plan_review bounce settled the
+mechanism (Han approved it verbatim):
+
+> The gate does not merely relabel the grade — **it FREEZES THE CLOCK.** `SheetRpgLayer` pins `tRawMs`
+> at `gatedFreezeStartRawMs` the instant the earliest unresolved slime reaches its own arrival
+> instant, and the delta the combat effect grades with (`elapsedMs − (beat + beatsOnScreen)·beatMs`)
+> is computed from that frozen clock. So `target.delta` is ~0 — at most one frame — for every gated
+> hit NO MATTER how long the player actually sat there. At a 40-bpm floor `gradeHit`'s perfect window
+> is ±187 ms, so a naive re-grade returns `'perfect'` forever.
+
+**The fix, and it invents nothing.** `hiddenTimingGrade` (`src/levels/gradeHit.js`) adds back the real
+frozen time — the exact value the unfreeze branch one line further down already computes to fold into
+`gatedPauseAccumMsRef`:
+
+```
+frozenExtraMs = gatedFrozen ? (rawTRawMs − gatedFreezeStartRawMs) : 0     // the never-frozen raw clock
+hiddenGrade   = gradeHit(target.delta + frozenExtraMs, beatMs)?.category  // the ONE grader (§6c)
+```
+
+A player hitting notes as they arrive, whom the gate never had to wait for, grades `'perfect'`; a
+player the gate waited 400 ms for does not. `gradeHit` stays the single timing grader — it is now
+called on EVERY side-scroll kill, gated or not, never duplicated into a second formula.
+
+**ORDER MATTERS** in `SheetRpgLayer`'s combat effect: `frozenExtraMs` is read BEFORE the unfreeze
+branch mutates `gatedFrozenRef`/`gatedPauseAccumMsRef` and arms the catch-up ramp.
+
+**Second attempts (the one place the two grades differ in KIND, not strictness).** A corrected second
+attempt counts as **not perfect** in the hidden buffer however well the correction itself was timed —
+the player needed two tries — while the RECORDED grade still reports `secondAttemptCorrected` to stats
+exactly as before. Without this the exit is trivially satisfied by anyone who eventually presses the
+right key.
+
+**The exit rule.** `shouldExitGated(hiddenGrades)`: at least `GATED_EXIT_REQUIRED` (8) of the last
+`GATED_EXIT_WINDOW` (10) hidden grades are `'perfect'`. A **partially filled** window can never exit
+(edge case c): three perfect notes since gating is evidence the player has barely started, not that
+they have recovered. On exit the ladder resumes at exactly (floor bpm, `MIN_DENSITY_STEP`, `'timed'`)
+and climbs through §361's ordinary HARDER rules — **content back first, then tempo**.
+
+**Anti-flap.** `GATED_REENTRY_COOLDOWN_BLOCKS = 1`: at least one graded boundary must pass in timed
+pacing after an exit before the ladder may gate again, so one bad block right afterwards cannot make
+the pacing model flicker. The counter (`blocksSinceGatedExit`) is bookkeeping owned by
+`useAdaptiveDifficulty`, not a rung — it is deliberately NOT part of the "did anything change?" test,
+so a bump in it can never manufacture a commit. It starts at `Infinity` on `begin()` so the FIRST
+gating of a run is never blocked, and resets to 0 when the exit actually LANDS.
+
+**The buffer.** An App-owned ref (`hiddenGradesRef`), written imperatively per hit by `SheetRpgLayer`
+via `pushHiddenGrade` — the same convention as `gatedElapsedMsRef`, never React state (a re-render per
+keypress would tear down the RPG layer, §6). It is CLEARED on every pacing flip, which is what makes
+the rule mean "8 of the last 10 notes **since gating**". `pushHiddenGrade` lives next to
+`shouldExitGated` so the window size has exactly one definition.
+
+#### The flip: one decision, two moments — and nothing is ever cancelled
+
+The pacing rung rides the **existing** `commitIndexFor` + armed-`setTimeout` machinery that already
+lands `setBpm` (§354, §361) — the same commit object, the same `delayMs`, the same staleness re-check.
+There is no second timer. `evaluate` is called from inside block *k*'s own generation with
+`fromMeasure: (k+1)·B`, so the commit lands on a block that has **not been generated yet**: blocks
+already generated and scheduled simply play out at their own pacing, and **nothing already scheduled
+is ever cancelled**. The audio moment (this block's backing skips the fixed schedule) and the visual
+moment (`SheetRpgLayer`'s `gatedScroll` prop flips) are armed for the same block start time, so
+picture and sound switch together.
+
+**`pacingMode`** is plain app state in `App.jsx`. It must NEVER enter `useLevelContentStream`'s
+dependency array — that would tear the whole JIT schedule down mid-level (§289). The stream does not
+read it at all: a block is generated a screenful before it sounds, so the stream asks the CONTROLLER
+what the pacing will be at THAT block (`blockSettingsFor`). `lvl.gatedScroll` is never mutated and
+`level.current`'s identity never changes.
+
+**The FOUR consumers of the combined value** `gatedNow = level.active && (lvl.gatedScroll || pacingMode === 'gated')`,
+computed once in `App.jsx` and never re-derived per site (§6c):
+
+1. `SheetMusic`/`SheetRpgLayer`'s `gatedScroll` prop → `geomRef` → the scroll freeze.
+2. `showExpectedNoteGlow` (the due-piano-key glow, §1052's fourth follow-up) — a ladder-gated level IS
+   gated, and withholding the glow would make the rescue feel like a different, worse mode.
+3. `useLevelGatedRubatoAudio`'s `active` — the real-time cello/timpani trigger.
+4. …and the content stream's own guards, which are per-BLOCK instead (see below), for the reason above.
+
+**Han's §867 rule holds unchanged: NO metronome while gated** (*"wel timpanen, geen metronoom"*, q4).
+A click track is actively misleading when the scroll is waiting for you — there is no tempo to aim at.
+Timpani keeps sounding off the gate clock, exactly as on levels 1/2.
+
+**THREE fixed-schedule guards, now per-block.** Inside `generateAndScheduleBlock`:
+`fixedSchedule = !lvl.gatedScroll && ladder.pacing !== 'gated'` — one boolean, used at the cello, the
+metronome AND the timpani. The timpani one is the guard the design note originally missed: without it
+every post-flip block would have kept putting timpani on the clock while `useLevelGatedRubatoAudio`
+fired it off the gate clock too — audible double timpani, drifting apart. `timpaniEnabled` /
+`timpaniPattern` keep their BUILD-time `!lvl.gatedScroll` condition (an authored gated level builds
+nothing; §356's "the pattern stays FINITE" is untouched); only the SCHEDULING is per-block. The
+LEAD-IN's three guards stay bound to the authored field on purpose — the lead-in is always at the
+level's very start, where the ladder's pacing is always `'timed'`.
+
+#### ⚠ THE HARD INVARIANT — the ladder NEVER sets `loopForever`
+
+`loopForever` (`useLevelContentStream`) and `blockCountFor`'s `Infinity` (`levelBlockPlan.js`) stay
+bound to the **AUTHORED** `lvl.gatedScroll` FIELD ALONE. The pacing rung must never reach either.
+
+*Why.* An infinite stream is safe for the SHIPPED gated levels (1/2) only because they are `songId`
+levels whose treble slice is unwrapped and therefore stops growing at the song's true end — so
+`SheetRpgLayer`'s `total` stabilises and `killedCount >= total` can eventually fire. A **procedural**
+level (exactly this ticket's scope) has no such stop: its `total` (`slimeData.length`) grows with the
+stream, so an infinite stream means the level can **NEVER END** — §289, whose bug class has already
+bitten this codebase three times.
+
+*Why the finite plan is safe while the scroll is frozen.* Generation is DEADLINE-driven in real time,
+not scroll-driven: while the gate waits, the generation deadlines still pass, so the level's finite
+content is simply generated EARLY and then waits for the player. They eventually reach the final
+barline and the level ends through exactly the paths that already exist. A ladder-gated level keeps its
+ordinary finite block plan (`totalMeasures × ADAPTIVE_LEVEL_REPEATS`) and merely takes longer in real
+time. **Asserted by a test**, not reasoned about once and forgotten
+(`adaptiveMode.integration.test.js`, "THE HARD INVARIANT").
+
+#### The tempo-normalized gate clock, and live-bpm rubato audio
+
+`useLevelGatedRubatoAudio` derives the measure the cello should be singing as `elapsedMs / barMs`.
+Both halves of that division were wrong for a ladder-gated level, and both are fixed:
+
+- **`barMs`/`beatMs` now derive from the LIVE bpm, inside the rAF loop** (`bpmRef`, read fresh every
+  frame) instead of a `lvl.bpm` captured once in the effect. A ladder-gated level's tempo is the
+  adaptive FLOOR, not `lvl.bpm`, so the captured value put the cello on a bar of the wrong length.
+  This is the same "re-read the live value at the top of each scheduling unit" pattern the content
+  stream uses per block and `Sequencer.scheduleBlock` per measure. `bpmRef` is a stable ref OBJECT, so
+  listing it in the dependency array cannot restart the loop; the bpm STATE must never appear there —
+  that would re-arm the effect on every tempo commit and re-open the #1096 "extra cello" bug.
+- **`gatedElapsedMsRef` is now TEMPO-NORMALIZED**, through `tempoNormalizedMs` with its **OWN anchor**
+  (`gateTempoAnchorRef`, beside `tempoAnchorRef` in `SheetRpgLayer`). A ladder-gated level's bpm has
+  already walked from `lvl.bpm` down to the floor across many blocks before gating, so the accumulated
+  RAW elapsed corresponds to NO single `barMs`. A separate anchor — not the scroll's — because
+  `tempoScrollMs` also subtracts `waveStartRef * INTERVAL_MS`, and reusing it would change Level 3's
+  (multi-wave, authored-gated) cello behaviour.
+
+The two halves are consistent BY CONSTRUCTION: `tempoNormalizedMs`'s contract is "the number that,
+divided by the CURRENT `beatMs`, yields the true beats elapsed". For every constant-tempo level the
+anchor's `beats`/`rawMs` both stay 0 and it returns `rawMs` unchanged — so **levels 1/2/3 are
+byte-identical**, asserted directly (`useLevelGatedRubatoAudio.test.js`, "is BYTE-IDENTICAL at a
+constant tempo").
+
+#### Edge cases
+
+a. **The level ends WHILE gated** — the final barline still crosses (finite content, above) and the
+   result screen appears normally.
+b. **Gating armed but the level ends first** — the controller's `cancel()` already drops any unlanded
+   commit on level end/replay; inherited unchanged, and it drops the pacing half with it.
+c. **Fewer than `GATED_EXIT_WINDOW` hits since gating** — cannot exit; a partially filled window
+   returns `false`.
+d. **A second-attempt correction while gated** — not perfect in the hidden buffer (see above).
+e. **Pause / resume / replay** — `pacingMode` resets to `'timed'` (and the buffer clears) in
+   `startLevel`, `handleReplayLevel` and the level-end effect, beside the existing
+   `adaptiveDifficulty.begin()`/`cancel()` calls. A fresh run always starts on the clock.
+f. **ANPM** — a gated run reports ~100% accuracy and is player-paced, i.e. a clean-but-slow sample, so
+   under §358's rule ANPM **HOLDS**. A rubato rescue can never punish the player's skill number. That
+   is intended, not a loophole.
+
+#### What must NOT change (and is asserted)
+
+- The RECORDED grade while gated stays `'perfect'`. Stats, the judgment popup, the result screen, the
+  L/R split charts and the ANPM sample are byte-identical; the true grade is a hidden signal only.
+- A level that AUTHORS rubato behaves exactly as before (no metronome, no fixed-schedule cello, no
+  timpani from the stream's schedule).
+- `lvl.gatedScroll` is never mutated; `level.current`'s identity never changes; the content stream is
+  never torn down mid-level.
+- Gated pacing and the BASS density rungs can never both be active — they sit at opposite ends of one
+  totally ordered scale (gating requires `MIN_DENSITY_STEP`, the bass rungs require
+  `> MAX_TREBLE_DENSITY_STEP`). This matters concretely: `useLevelGatedRubatoAudio`'s cello logic
+  assumes exactly one whole note per measure and would mis-trigger a busier bass line.
+
+**Files.** EDIT `src/levels/adaptiveLadder.js` (`GATED_EXIT_WINDOW`/`GATED_EXIT_REQUIRED`/
+`GATED_REENTRY_COOLDOWN_BLOCKS`, `gatingAllowed`, `shouldExitGated`, `pushHiddenGrade`, the gated
+branch + EASIER rule 4 in `evaluateLadder`). EDIT `src/levels/gradeHit.js` (`hiddenTimingGrade`).
+EDIT `src/hooks/useAdaptiveDifficulty.js` (`setPacingMode` on the SAME armed commit,
+`blocksSinceGatedExit`, `hiddenGrades` forwarded). EDIT `src/hooks/useLevelContentStream.js`
+(`hiddenGradesRef` prop, the per-block `fixedSchedule` guard at all three sites, the `loopForever`
+invariant comment). EDIT `src/hooks/useLevelGatedRubatoAudio.js` (`bpmRef`, live `barMs`/`beatMs`).
+EDIT `src/components/sheet-music/SheetRpgLayer.jsx` (`hiddenGradesRef` prop, the hidden-grade write,
+`gateTempoAnchorRef` + the tempo-normalized `gatedElapsedMsRef`). EDIT
+`src/components/sheet-music/SheetMusic.jsx` (forwards `hiddenGradesRef`). EDIT
+`src/levels/levelBlockPlan.js` (the `blockCountFor` invariant comment). EDIT `src/App.jsx`
+(`pacingMode` + `setPacingMode` clearing the buffer, `hiddenGradesRef`, the combined `gatedNow` at its
+three render consumers, the three resets). Tests:
+`src/levels/__tests__/adaptiveLadder.test.js` (+13: entry, scope/park, cooldown, the exit window,
+"gated is not terminal", mutual exclusion), `src/levels/__tests__/gradeHit.test.js` (+5: the frozen
+delta, the timed identity, second attempts), `src/hooks/__tests__/useAdaptiveDifficulty.test.js` (+8:
+the walk to the bottom, ONE armed moment for bpm+pacing, the exit, the cooldown, `cancel`/`begin`, the
+Wizard park), `src/hooks/__tests__/useLevelGatedRubatoAudio.test.js` (+4: byte-identical at a constant
+tempo, a halved tempo, no loop restart), `src/hooks/__tests__/adaptiveMode.integration.test.js` (+7,
+including the MANDATORY "THE HARD INVARIANT: the ladder NEVER sets `loopForever`" regression).
