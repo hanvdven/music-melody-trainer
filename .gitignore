@@ -50,3 +50,9 @@ test_chords_complex.js
 # 622MB profiler trace + 381MB third-party SFZ sample pack: source material, not repo material.
 src/assets/ASSET DROP/Trace-*.json
 src/assets/ASSET DROP/MuldjordKit SFZ+WAV-*/
+
+# FluidR3_GM.sf2 (141MB) — build-time-only source for scripts/extract-soundfont-samples.mjs.
+# The EXTRACTED output (src/audio/localInstrumentBuffers.generated.js) is what the app loads and
+# IS committed. Drop this .sf2 in locally only if you need to re-run the extraction. Stripped from
+# history 2026-09-01 (exceeded GitHub's 100MB limit) — see scripts/extract-soundfont-samples.mjs.
+src/assets/FluidR3_GM.sf2
