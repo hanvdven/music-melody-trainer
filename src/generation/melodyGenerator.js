@@ -92,6 +92,16 @@ class MelodyGenerator {
             });
         }
         this.scale = Array.isArray(Scale?.notes) ? Scale.notes : [];
+        // Mode-aware display spelling of the scale degrees, index-parallel to `this.scale`.
+        // `this.scale` holds the AUDIO spelling (allNotesArray.js — pitch-class 6 is always
+        // 'F♯', never 'G♭'), so without this the treble melody's displayNotes fall back to the
+        // raw audio spelling in Melody.fromFlattenedNotes (its scale-context re-spelling is
+        // gated on all three of notes/displayNotes/tonic being present). That mis-spelled a
+        // flat mode's pitch-class-6 degree as F♯ — e.g. C Locrian's 5th showed F♯ instead of
+        // G♭ (Han 2026-09-03, Level 8 variant 'g' → C Locrian). `Scale.displayNotes` is
+        // computed per-mode by generateDisplayScale (delta-from-major), so it correctly keeps
+        // F♯ where the mode wants it (C Lydian's raised 4th) and flats it where it doesn't.
+        this.displayNotes = Array.isArray(Scale?.displayNotes) ? Scale.displayNotes : this.scale;
         this.numAccidentals = Scale ? Scale.numAccidentals : 0;
         this.tonic = Scale ? Scale.tonic : null;
         // #435: keep the raw Scale object so the voices post-step can spawn auxiliary
