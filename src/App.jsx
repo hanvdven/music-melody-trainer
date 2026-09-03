@@ -1859,7 +1859,12 @@ const App = () => {
     // decorative-only wizard) is already fully determined by existing level data — SheetRpgLayer's OWN
     // in-level sprite pick uses this exact same decorativeWizard check (WIZARD_URL vs WIZARD_GREEN_URL,
     // §6d single source of truth) — no new level field needed for the Wizard case specifically.
-    const wizardColorName = level.current?.decorativeWizard ? 'Green' : 'Black';
+    // Green = Level 11's decorative-only wizard; Yellow = the "YellowWizard" blind-timing trainer
+    // (Han 2026-09-04, "nu enkel nog het portret van de tovenaar aan het einde van het level"); Black =
+    // every other real combat Wizard level. Matches SheetRpgLayer's own in-level sprite pick (§6d).
+    const wizardColorName = level.current?.decorativeWizard ? 'Green'
+        : level.current?.enemyType === 'YellowWizard' ? 'Yellow'
+        : 'Black';
     const levelResultSpeaker = useMemo(() => {
         const lv = level.current;
         const npcName = lv?.npc;
@@ -1869,7 +1874,7 @@ const App = () => {
             const variant = findCreatureByName(npcName, lv?.npcColorVariant || null);
             if (variant) return { kind: 'npc', entity: npcName, variant };
         }
-        if (lv?.decorativeWizard || lv?.enemyType === 'Wizard') return { kind: 'wizard', entity: 'wizard' };
+        if (lv?.decorativeWizard || lv?.enemyType === 'Wizard' || lv?.enemyType === 'YellowWizard') return { kind: 'wizard', entity: 'wizard' };
         return { kind: 'slime', entity: 'slime' };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [level.current?.id]);
