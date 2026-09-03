@@ -1069,6 +1069,9 @@ export default function SheetRpgLayer({
     // a fixed-length, fixed-order constant, so no Map/key bookkeeping is needed for it).
     const barlineScrollRef = useRef(null);
     const noteScrollRef = useRef(null);
+    // Yellow wizard only: chord labels / lyrics get their OWN scrolling group when the noteheads are
+    // pulled into a separately-masked group (see the render block). Null / unused for every other level.
+    const chordLyricScrollRef = useRef(null);
     const restScrollRef = useRef(null);
     const realScrollRef = useRef(null);
     const bassScrollRef = useRef(null);
@@ -1616,6 +1619,7 @@ export default function SheetRpgLayer({
                 const noteTransform = `translate(${NOTE_STAFF_DX - framePx}, 0)`;
                 if (barlineScrollRef.current) barlineScrollRef.current.setAttribute('transform', barlineTransform);
                 if (noteScrollRef.current) noteScrollRef.current.setAttribute('transform', noteTransform);
+                if (chordLyricScrollRef.current) chordLyricScrollRef.current.setAttribute('transform', noteTransform);   // yellow wizard split-out chord/lyric group
                 if (restScrollRef.current) restScrollRef.current.setAttribute('transform', noteTransform);
                 if (realScrollRef.current) realScrollRef.current.setAttribute('transform', noteTransform);
                 if (bassScrollRef.current) bassScrollRef.current.setAttribute('transform', noteTransform);
@@ -2363,11 +2367,10 @@ export default function SheetRpgLayer({
         triple: findAnim(wizardVariant, 'song_attack_triple'),
     }), [wizardVariant]);
     // The wizard sprite sheet URL: black from enemyAssets' curated kebab file (unchanged), yellow from
-    // the manifest variant's own animations (they all share the one sheet). `?? WIZARD_URL` is a
-    // defensive fallback for the (impossible) case the manifest lookup misses.
-    const wizardSheetUrl = isYellowWizard
-        ? (findAnim(wizardVariant, 'idle')?.url ?? wizardVariant?.animations?.[0]?.url ?? WIZARD_URL)
-        : WIZARD_URL;
+    // the manifest variant's own `url` (the variant-level sheet — `bestiaryAssets.js` puts it on the
+    // variant object, NOT on each animation; per-animation `url` only exists for the handful of
+    // creatures whose animations live in separate files). `?? WIZARD_URL` is a defensive fallback.
+    const wizardSheetUrl = isYellowWizard ? (wizardVariant?.url ?? WIZARD_URL) : WIZARD_URL;
     // #863 round 2 perf fix: factored into a function (not inlined here) so BOTH this render body's initial
     // paint AND the rAF loop's per-frame update (below) run the EXACT SAME cast-sync scan (§6c) — reads
     // `slimesRef.current`/`geomRef.current` (kept fresh every render, see their declarations above) rather
@@ -2782,14 +2785,32 @@ export default function SheetRpgLayer({
                                 )}
                             </g>
                         )}
-                        {(noteStaffContent || chordStaffContent || lyricsStaffContent) && (
+                        {/* Normal (non-yellow-wizard, or debug): notes + chords + lyrics share ONE scrolling
+                            group. */}
+                        {!(isYellowWizard && !debugMode) && (noteStaffContent || chordStaffContent || lyricsStaffContent) && (
                             <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
-                                {/* Yellow wizard: only the NOTEHEADS are conjured away (`rpgYellowCastGate`);
-                                    chord labels / lyrics keep scrolling normally. Debug mode shows every
-                                    notehead (mask bypassed) so alignment can be inspected. */}
-                                {isYellowWizard && !debugMode
-                                    ? <g mask="url(#rpgYellowCastGate)">{noteStaffContent}</g>
-                                    : noteStaffContent}
+                                {noteStaffContent}
+                                {chordStaffContent}
+                                {lyricsStaffContent}
+                            </g>
+                        )}
+                        {/* Yellow wizard: the noteheads are "conjured away" by the wizard `wizardSpawnLeadMeasures`
+                            measures before their beat. The `rpgYellowCastGate` mask MUST sit on a NON-translated
+                            wrapper — `maskUnits="userSpaceOnUse"` resolves in the referencing element's user
+                            space, so putting it inside the per-frame `translate(-scrollPx)` would make the gate
+                            scroll WITH the notes instead of standing still. So: a static masked wrapper, with the
+                            notes' OWN scrolling group (its own ref, transform pushed by the rAF loop just like
+                            `noteScrollRef`) inside it. Chord labels / lyrics keep scrolling unmasked in their own
+                            group. Debug mode takes the normal branch above (every notehead visible). */}
+                        {isYellowWizard && !debugMode && noteStaffContent && (
+                            <g mask="url(#rpgYellowCastGate)">
+                                <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
+                                    {noteStaffContent}
+                                </g>
+                            </g>
+                        )}
+                        {isYellowWizard && !debugMode && (chordStaffContent || lyricsStaffContent) && (
+                            <g ref={chordLyricScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
                                 {chordStaffContent}
                                 {lyricsStaffContent}
                             </g>
