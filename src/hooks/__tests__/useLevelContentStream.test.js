@@ -2,7 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import useLevelContentStream from '../useLevelContentStream';
 import { LEVELS, LEVEL_BASS_SIMPLE } from '../../levels/levels';
-import { blockMeasuresFor, blockTypeAt, blockCountFor, SONG_BLOCK_MEASURES } from '../../levels/levelBlockPlan';
+import { blockMeasuresFor, blockTypeAt, blockTypeForBlock, blockCountFor, SONG_BLOCK_MEASURES } from '../../levels/levelBlockPlan';
 import Scale from '../../model/Scale';
 import InstrumentSettings from '../../model/InstrumentSettings';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../../constants/timing';
@@ -251,16 +251,22 @@ describe('#1165 guard — Wizard call-response (was useLevelTrebleStream)', () =
         unmount();
     });
 
-    // "Yellow wizard" (Han 2026-09-03): Level 16 / mode-variant 'j' — a Wizard level with `wizardSilent`.
-    // Same call-response melody, same cadence, same cello — but the wizard casts SILENTLY (no
-    // `wizardInstrument` schedule at all), and it must not wait on the cast instrument to start streaming.
-    describe('yellow wizard (wizardSilent)', () => {
+    // "Yellow wizard" (Han 2026-09-03): Level 16 / mode-variant 'j' — its OWN `enemyType: 'YellowWizard'`,
+    // deliberately NOT grafted onto the black wizard. It generates like a NORMAL side-scroll level: normal
+    // block cadence, NO call/response collapse, NO cast audio at all. The "hide 1 measure ahead + swap to
+    // projectile" is purely a SheetRpgLayer render concern (`isYellowWizard`), nothing the stream does.
+    describe('yellow wizard (enemyType: YellowWizard)', () => {
         const yellow = LEVELS[16];
 
-        it('is a Wizard level with the same 2-measure call-response cadence as the black wizard', () => {
-            expect(yellow.enemyType).toBe('Wizard');
-            expect(yellow.wizardSilent).toBe(true);
-            expect(blockMeasuresFor(yellow)).toBe(blockMeasuresFor(native));
+        it('is NOT a Wizard level and does NOT use the call-response block cadence', () => {
+            expect(yellow.enemyType).toBe('YellowWizard');
+            expect(yellow.wizardSilent).toBeUndefined();
+            // normal cadence = the level's own numMeasures (the Slime fall-through), not the black
+            // wizard's `callGroupMeasuresFor * 2`, and every block is a plain Slime-type block (no
+            // call/response `shape` handed to generateBlock).
+            expect(blockMeasuresFor(yellow)).toBe(yellow.numMeasures);
+            expect(blockTypeForBlock(yellow, 0)).toBe('Slime');
+            expect(blockTypeForBlock(yellow, 3)).toBe('Slime');
         });
 
         it('schedules ZERO wizard-cast audio, but still the cello + metronome', () => {
@@ -271,15 +277,15 @@ describe('#1165 guard — Wizard call-response (was useLevelTrebleStream)', () =
             unmount();
         });
 
-        it('still collapses the call half to rests and keeps real notes in the response half', () => {
+        it('generates a NORMAL melody — real notes in the first measure too (no call-half rest collapse)', () => {
             const { result, unmount } = renderStream(yellow);
             const t = result.current.treble;
-            const call = t.offsets.map((o, i) => ({ o, n: t.notes[i] })).filter((e) => e.o != null && e.o < MLT);
-            expect(call.length).toBeGreaterThan(0);
-            for (const e of call) expect(e.n).toBe('r');
-            const response = t.offsets.map((o, i) => ({ o, n: t.notes[i] }))
-                .filter((e) => e.o != null && e.o >= MLT && e.o < 2 * MLT);
-            expect(response.some((e) => e.n !== 'r' && e.n !== 'c')).toBe(true);
+            const firstMeasure = t.offsets
+                .map((o, i) => ({ o, n: t.notes[i] }))
+                .filter((e) => e.o != null && e.o < MLT);
+            expect(firstMeasure.length).toBeGreaterThan(0);
+            // NOT all rests — unlike the black wizard's collapsed "call" measure.
+            expect(firstMeasure.some((e) => e.n !== 'r' && e.n !== 'c')).toBe(true);
             unmount();
         });
 

@@ -112,13 +112,6 @@ export const WIZARD_URL = sheetUrl('wizard-black');
 // the SAME WIZARD_FRAME/COLS/ROWS/CROP below apply verbatim) — replaces the earlier CSS `hue-rotate`
 // filter approximation now that a real asset exists (§6d: use the canonical art, don't fake it).
 export const WIZARD_GREEN_URL = sheetUrl('wizard-green');
-// "Yellow wizard" level type + mode-variant 'j' (Han 2026-09-03): the blind perfect-timing
-// trainer's caster. Copied from "Yellow Wizard sheet.png" — byte-identical 384×704 sheet
-// dimensions to wizard-black.png / wizard-green.png, so the SAME WIZARD_FRAME/COLS/ROWS/CROP/
-// IDLE_CELLS and the Black creature's `song_attack_*` cell+flash indices apply verbatim (§6d:
-// same canonical art, only recoloured). The yellow wizard makes NO cast audio — see
-// `wizardSilent` in levels.js / useLevelContentStream.js / SheetRpgLayer.jsx.
-export const WIZARD_YELLOW_URL = sheetUrl('wizard-yellow');
 export const WIZARD_FRAME = { w: 64, h: 64 };
 export const WIZARD_COLS = 6, WIZARD_ROWS = 11;
 // crop measured via pngjs union bbox over idle + cast2 cells (same technique as the bestiary generator's

@@ -340,10 +340,9 @@
     "polyMultiplier": 1,
     "fixedBass": true,
     "debugOnlyLines": true,
-    "enemyType": "Wizard",
-    "wizardSilent": true,
+    "enemyType": "YellowWizard",
     "wizardSpawnLeadMeasures": 1,
-    "intro": "De gele wizard tovert de noten weg. Je ziet de 2 kwartnoten eerst — onthoud ze, en speel ze op de tel in de volgende maat zonder ze te zien of te horen."
+    "intro": "Een gewone melodie — maar de gele wizard tovert elke noot één maat voordat je hem moet spelen weg en verandert hem in een projectiel. Onthoud wat je zag en speel op de tel."
   },
   {
     "id": 19,

@@ -171,13 +171,15 @@
 //                          drives the `numRepeats` default above (Wizard/Mixed → 2, else → 1).
 //   wizardSpawnLeadMeasures  number, Wizard/Mixed only — how many measures ahead a projectile/cast
 //                            becomes visible/audible.
-//   wizardSilent          OPTIONAL boolean (Level 16 + mode-variant 'j', Han 2026-09-03). Marks a
-//                          `enemyType: 'Wizard'` level as the "YELLOW wizard": the cast makes NO audio
-//                          (useLevelContentStream drops the cast-preview schedule) and the real
-//                          noteheads stay VISIBLE until the cast flash, then hard-cut to the blue
-//                          projectile (SheetRpgLayer `wizardSilent` branch + yellow sprite). Everything
-//                          else — projectile flight, cast windup/flash sync, hit window — is the black
-//                          wizard's, unchanged. A blind perfect-timing trainer.
+//   "YellowWizard"        enemyType value (Level 16 + mode-variant 'j', Han 2026-09-03). A blind
+//                          perfect-timing trainer, built as its OWN mechanic — NOT grafted onto the
+//                          black-wizard call-response logic. The level GENERATES normally (every measure
+//                          has its notes, no call/response collapse) and the notation renders normally,
+//                          BUT each notehead is HIDDEN `wizardSpawnLeadMeasures` measures before its own
+//                          beat and replaced by the blue projectile (the combat target), while a static
+//                          YELLOW wizard (bestiary "Wizard (Portrait)" / "Yellow" — sprite + cast anims)
+//                          plays a SILENT cast. Shares only the low-level projectile/spawn-glow/cast-sync
+//                          pieces with the black wizard, never its block cadence or note-layer split.
 //   decorativeWizard       OPTIONAL boolean (Level 11, Han 2026-08-06). A non-combat, green-tinted
 //                          idle Wizard shown alongside Slime enemies, purely visual — pairs with the
 //                          forward-only Major/Minor scale alternation every 2 measures
@@ -671,12 +673,14 @@ export const LEVEL_MODE_VARIANTS = {
     // `adaptiveOverrides` below and docs/architecture.md §354 (which supersedes §346/§298; an earlier
     // version of this comment pointed at §344, which is a different feature entirely).
     i: { label: 'Adaptive speed', iconKey: 'adaptiveSpeed', adaptive: true },
-    // "Yellow wizard" (Han 2026-09-03, chat interview): a blind perfect-timing trainer. `yellowWizard: true`
-    // (see `applyLevelVariant`'s `yellowWizardOverrides`) forces `enemyType: 'Wizard'` + `wizardSilent: true`
-    // on whatever level it's applied to — same projectile/cast machinery as the black wizard (Level 13), but
-    // the wizard makes NO sound and the real noteheads stay VISIBLE until the cast flash, then hard-cut to
-    // the blue projectile (SheetRpgLayer.jsx `wizardSilent` branch). Immediately selectable — no
-    // `notYetImplemented`. Also shipped as a standalone numbered level (Level 16, levels.json).
+    // "Yellow wizard" (Han 2026-09-03, chat interview): a blind perfect-timing trainer, built as its OWN
+    // mechanic — NOT grafted onto the black-wizard call-response logic. `yellowWizard: true` (see
+    // `applyLevelVariant`'s `yellowWizardOverrides`) forces `enemyType: 'YellowWizard'` on whatever level
+    // it's applied to. That level GENERATES normally (every measure has its notes) and RENDERS its notation
+    // normally, but each notehead is hidden `wizardSpawnLeadMeasures` measures before its beat and swapped
+    // for the blue projectile, while a static YELLOW wizard casts SILENTLY (SheetRpgLayer.jsx
+    // `isYellowWizard` branch). Immediately selectable — no `notYetImplemented`. Also shipped as a
+    // standalone numbered level (Level 16, levels.json).
     j: { label: 'Gele wizard', iconKey: 'yellowWizard', yellowWizard: true },
 };
 
@@ -844,17 +848,15 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
             randomizationRule: 'arp_group',
         },
     } : {};
-    // "Yellow wizard" (Han 2026-09-03): reuses the ENTIRE black-wizard mechanism — `enemyType: 'Wizard'`
-    // so `blockMeasuresFor`/`blockTypeForBlock` (levelBlockPlan.js) and every projectile/cast-visual branch
-    // in SheetRpgLayer.jsx apply unchanged — and layers `wizardSilent: true` on top. `wizardSilent` is the
-    // ONLY new gate: it drops the cast-preview AUDIO (useLevelContentStream.js) and flips SheetRpgLayer to
-    // the yellow sprite + "noteheads visible until the cast flash" rendering. This is the SAME pattern d/e
-    // use to force `enemyType` onto any level (see `callResponseOverrides`), minus the call/response
-    // regrouping — a yellow-wizard level keeps its own authored measure shape. `wizardSpawnLeadMeasures`
-    // is defaulted to 1 here only when the level didn't author its own (Level 16 does).
+    // "Yellow wizard" (Han 2026-09-03): its OWN enemyType, deliberately NOT `'Wizard'` — a YellowWizard
+    // level generates and renders like a NORMAL side-scroll level (no call/response block cadence, no
+    // odd/even note-layer split), it just hides each notehead `wizardSpawnLeadMeasures` measures ahead of
+    // its beat and swaps in the blue projectile (SheetRpgLayer's `isYellowWizard` branch). Forces the
+    // type onto whatever level the letter is applied to — same "any level becomes X" pattern as d/e's
+    // `callResponseOverrides` — and defaults the cast lead to 1 measure only if the level didn't author
+    // its own.
     const yellowWizardOverrides = variant.yellowWizard ? {
-        enemyType: 'Wizard',
-        wizardSilent: true,
+        enemyType: 'YellowWizard',
         wizardSpawnLeadMeasures: lvl.wizardSpawnLeadMeasures ?? 1,
     } : {};
     return {
@@ -911,10 +913,10 @@ export const availableVariantLetters = (lvl, letters) => letters.filter((letter)
     // generation now DOES the modulating itself when `decorativeWizard` is set (one stream, two jobs) —
     // no exclusion needed here any more. See that hook's `blockScale` for the merged mechanism.
     if (variant.gatedScroll && (lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed')) return false;
-    // 'j' (yellow wizard) is NOT excluded on gatedScroll levels even though it forces `enemyType: 'Wizard'`:
-    // the audio/visual desync the clause above guards against is specifically the wizard-CAST AUDIO firing
-    // on a fixed schedule while the gate freezes the visuals — and `wizardSilent` means there is no cast
-    // audio at all, so the failure mode simply doesn't exist for this variant (Han 2026-09-03).
+    // 'j' (yellow wizard, `enemyType: 'YellowWizard'`) is NOT excluded on gatedScroll levels: the
+    // audio/visual desync the clause above guards against is the wizard-CAST AUDIO firing on a fixed
+    // schedule while the gate freezes the visuals — and the yellow wizard's cast is SILENT, so that
+    // failure mode does not exist for it (Han 2026-09-03).
     // #1154 (Han: "de al reeds random nummers hebben geen variant H"): only a FIXED song benefits from
     // "keep the chords, generate a new melody" — a procedural level is already fresh content every
     // playthrough, offering 'h' there would be a visible no-op choice.

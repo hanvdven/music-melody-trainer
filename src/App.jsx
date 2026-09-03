@@ -3393,9 +3393,8 @@ const App = () => {
                             // natively — a black static wizard is always shown, and each note renders
                             // as a Slime or Projectile per its OWN block (Han: "de noten van de
                             // wizardmaten moeten geen slime hebben, maar een projectile krijgen").
-                            enemyType={level.active ? level.current.enemyType : 'Slime'}   // #679 Level 9 — Wizard/projectile combat
+                            enemyType={level.active ? level.current.enemyType : 'Slime'}   // #679 Level 9 — Wizard/projectile combat; also 'YellowWizard' (Han 2026-09-03)
                             wizardSpawnLeadMeasures={level.active ? (level.current.wizardSpawnLeadMeasures ?? 1) : 1}   // #686
-                            wizardSilent={level.active && !!level.current?.wizardSilent}   // Yellow wizard (Han 2026-09-03): silent cast, noteheads visible until the flash
                             // #1155 (Han 2026-08-24, "N . 2" labeling for call-response): only set for a
                             // call-response level (d/e) — null for every other level, so its measure
                             // numbering is completely untouched (see BarlinesLayer.jsx's own comment).

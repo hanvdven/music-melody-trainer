@@ -9,7 +9,7 @@ import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim, findCreatu
 // gebruik de eerste 5 frames van static projectiles 5 met een fade out"): the Wizard/projectile enemy pair.
 import {
     SLIME_COLS, SLIME_ROWS,
-    WIZARD_URL, WIZARD_GREEN_URL, WIZARD_YELLOW_URL, WIZARD_FRAME, WIZARD_COLS, WIZARD_ROWS, WIZARD_CROP, WIZARD_IDLE_CELLS,
+    WIZARD_URL, WIZARD_GREEN_URL, WIZARD_FRAME, WIZARD_COLS, WIZARD_ROWS, WIZARD_CROP, WIZARD_IDLE_CELLS,
     PROJECTILE_URL, PROJECTILE_FRAME, PROJECTILE_CROP, PROJECTILE_COLS, PROJECTILE_ROWS, PROJECTILE_LOOP_FRAMES,
     PROJECTILE_DEATH_URL, PROJECTILE_DEATH_FRAME, PROJECTILE_DEATH_CROP, PROJECTILE_DEATH_COLS,
     PROJECTILE_DEATH_ROWS, PROJECTILE_DEATH, PROJECTILE_DEATH_OPACITY,
@@ -782,13 +782,6 @@ export default function SheetRpgLayer({
     // BarlinesLayer's #1155 labeling already reads), null/1 = every level whose call/response group is
     // a single measure (unchanged behaviour).
     callResponseGroupMeasures = null,
-    // "Yellow wizard" (Han 2026-09-03): this is still an `enemyType: 'Wizard'` level in every mechanical
-    // respect (projectile flight, cast windup/flash sync, hit window) — `wizardSilent` only flips the
-    // three things that make it the YELLOW wizard: (1) the caster sprite → yellow; (2) NO cast audio
-    // (handled upstream in useLevelContentStream.js — nothing to do here); (3) the real noteheads stay
-    // VISIBLE until the cast flash, then hard-cut to the projectile (the `rpgYellowCastGate` mask on the
-    // `realScrollRef` group below), instead of being debug-only like the black wizard's.
-    wizardSilent = false,
     // Level 11 (Han 2026-08-06): a purely decorative, non-combat green wizard shown alongside Slime
     // enemies — see the render block near the real Wizard's own static render for the full rationale.
     decorativeWizard = false,
@@ -812,9 +805,19 @@ export default function SheetRpgLayer({
     // Wizard-block note) via `blockTypeAt` (useLevelMixedStream.js) instead of the single level-wide
     // `isWizard` flag every other branch in this file still uses.
     const isMixed = enemyType === 'Mixed';
+    // "Yellow wizard" (Han 2026-09-03): its OWN mechanic, NOT grafted onto the black wizard. The level
+    // generates + renders like a NORMAL Slime level (`noteStaffContent`, no call/response split), but
+    // every note is combat-rendered as a blue PROJECTILE that appears — and whose notehead is
+    // simultaneously HIDDEN (`rpgYellowCastGate` mask) — `wizardSpawnLeadMeasures` measures before its
+    // beat, with a static YELLOW wizard casting silently on the right. Shares the black wizard's
+    // low-level projectile/spawn-glow/cast-sync helpers only, never its block cadence or note layers.
+    const isYellowWizard = enemyType === 'YellowWizard';
+    // "notes are projectiles for this whole level" — true for a black Wizard level AND a YellowWizard
+    // level. (Mixed decides this per-note via `blockTypeAt`, so it stays a separate check.)
+    const projectileCombat = isWizard || isYellowWizard;
     // both happen to be 5 today, but kept as a named derived value (not the Slime constant) so a future
     // change to either death animation's length can never silently desync the other (§6c: no hardcoding).
-    const DEATH_FRAMES = (isWizard || isMixed) ? PROJECTILE_DEATH.frames : SLIME_DEATH.frames;
+    const DEATH_FRAMES = (projectileCombat || isMixed) ? PROJECTILE_DEATH.frames : SLIME_DEATH.frames;
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
     const hero = useMemo(() => ensureVisible(savedChar), [savedChar]);
@@ -1271,7 +1274,9 @@ export default function SheetRpgLayer({
         dist: viewRight - effectiveStartX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
         // #863 round 2: isMixed/spawnLeadBeats added so `computeWizardCast` (below) can run from the rAF
         // loop's mount-time-only closure without stale-closure-capturing these render-scoped values.
-        isMixed, spawnLeadBeats,
+        // `isYellowWizard`/`projectileCombat` (Han 2026-09-03) added for the same reason — the cast-sync
+        // scan and the per-frame projectile updates both run from that closure.
+        isMixed, spawnLeadBeats, isYellowWizard, projectileCombat,
         // #863 round 2: staff-position inputs `judgmentY`/`hitFrameMs` (below) need for the SAME reason.
         // `DEATH_FRAMES` — the dying-entity rAF-loop update (below) needs it too.
         bassStart, staffHeight, trebleStart, hitFrameMs: frameMs / 2, DEATH_FRAMES,
@@ -2203,7 +2208,7 @@ export default function SheetRpgLayer({
         // 1 sprite FRAME before the projectile's own visibility gate so the flourish's grow+fade-in (first
         // half of SPAWN_GLOW_FRAMES) completes exactly as the projectile appears (Han: "maximum opacity als
         // projectiel er is").
-        if (isWizard || isMixed) {
+        if (projectileCombat || isMixed) {
             const visibleSinceMs = (beatsOnScreen - spawnLeadBeats) * beatMs;
             const glowTriggerMs = visibleSinceMs - frameMs;
             slimesRef.current.forEach((sl) => {
@@ -2342,15 +2347,27 @@ export default function SheetRpgLayer({
     // `preferIdle` path uses, so the wrap length always matches the animation actually drawn.
     const npcIdleLen = npcVariant ? ((findIdleAnim(npcVariant) || findMoveAnim(npcVariant))?.cells.length || 1) : 1;
     // #790 (Han 2026-08-09, SSOT): the song-timed attack cells/flash-indices used to be hardcoded in
-    // enemyAssets.js — now read from the SAME "Wizard (Portrait)"/Black bestiary entry the generator writes
+    // enemyAssets.js — now read from the SAME "Wizard (Portrait)" bestiary entry the generator writes
     // `song_attack_single/double/triple` onto (§6c), via the shared `findCreatureVariantByName`/`findAnim`
     // helpers (bestiaryAssets.js) every other creature lookup in this file already uses.
-    const wizardBlackVariant = useMemo(() => findCreatureVariantByName('Wizard (Portrait)', 'Black'), []);
+    // Yellow wizard (Han 2026-09-03): the SAME lookup, just the "Yellow" colour variant — its sprite
+    // sheet AND its `song_attack_*` cells/flashIndices come straight from the bestiary manifest (NOT a
+    // hand-copied kebab file), so re-classifying it in the Bestiary editor needs no code change here.
+    const wizardVariant = useMemo(
+        () => findCreatureVariantByName('Wizard (Portrait)', isYellowWizard ? 'Yellow' : 'Black'),
+        [isYellowWizard],
+    );
     const wizardSongAttack = useMemo(() => ({
-        single: findAnim(wizardBlackVariant, 'song_attack_single'),
-        double: findAnim(wizardBlackVariant, 'song_attack_double'),
-        triple: findAnim(wizardBlackVariant, 'song_attack_triple'),
-    }), [wizardBlackVariant]);
+        single: findAnim(wizardVariant, 'song_attack_single'),
+        double: findAnim(wizardVariant, 'song_attack_double'),
+        triple: findAnim(wizardVariant, 'song_attack_triple'),
+    }), [wizardVariant]);
+    // The wizard sprite sheet URL: black from enemyAssets' curated kebab file (unchanged), yellow from
+    // the manifest variant's own animations (they all share the one sheet). `?? WIZARD_URL` is a
+    // defensive fallback for the (impossible) case the manifest lookup misses.
+    const wizardSheetUrl = isYellowWizard
+        ? (findAnim(wizardVariant, 'idle')?.url ?? wizardVariant?.animations?.[0]?.url ?? WIZARD_URL)
+        : WIZARD_URL;
     // #863 round 2 perf fix: factored into a function (not inlined here) so BOTH this render body's initial
     // paint AND the rAF loop's per-frame update (below) run the EXACT SAME cast-sync scan (§6c) — reads
     // `slimesRef.current`/`geomRef.current` (kept fresh every render, see their declarations above) rather
@@ -2361,7 +2378,7 @@ export default function SheetRpgLayer({
     // whose OWN block is Wizard-type, so the wizard never winds up to cast on a Slime-block note.
     const computeWizardCast = (atTick) => {
         const g = geomRef.current;
-        if (!((g.isWizard || g.isMixed) && g.sideScroll)) return { cells: WIZARD_IDLE_CELLS, frame: -1 };
+        if (!((g.isWizard || g.isMixed || g.isYellowWizard) && g.sideScroll)) return { cells: WIZARD_IDLE_CELLS, frame: -1 };
         const visibleGateMs = (g.beatsOnScreen - g.spawnLeadBeats) * g.beatMs;
         const oneBeatLater = (a, b) => a && b && Math.abs(b.beat - a.beat - 1) < 0.01;
         const data = slimesRef.current;
@@ -2400,13 +2417,15 @@ export default function SheetRpgLayer({
     // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
     const dist = viewRight - effectiveStartX;
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
-    // "Yellow wizard" (Han 2026-09-03): the screen-X at which a note's cast "flashes" — the SAME instant
-    // its projectile crosses the visibility gate (`msSinceSpawn === (beatsOnScreen - spawnLeadBeats) *
-    // beatMs`, see the projectile's own `visibleSinceMs` check below) mapped back through the linear
-    // `noteX` glide. A real notehead is shown while it is to the RIGHT of this line (pre-flash) and cut
-    // once it passes to the LEFT. `castFadePx` softens that cut over ~100 ms of scroll travel (Han:
-    // "harde cut op de flash, dan snelle 100 ms fade"). Constant per render — the notes scroll past a
-    // stationary gate — so it drives a static `userSpaceOnUse` mask, no per-frame work.
+    // "Yellow wizard" (Han 2026-09-03): the screen-X where the yellow wizard "conjures a note away" —
+    // the SAME instant its blue projectile crosses the visibility gate (`msSinceSpawn === (beatsOnScreen
+    // - spawnLeadBeats) * beatMs` = `wizardSpawnLeadMeasures` measures before the beat, see the
+    // projectile's own `visibleSinceMs` check below), mapped back through the linear `noteX` glide. The
+    // NORMAL notehead layer (`noteStaffContent`) is shown while a note is to the RIGHT of this line and
+    // cut once it scrolls past to the LEFT — exactly as the projectile appears in its place. `castFadePx`
+    // softens the cut over ~100 ms of scroll travel (Han: "harde cut op de flash, dan snelle 100 ms
+    // fade"). Constant per render — notes scroll past a stationary gate — so it drives a static
+    // `userSpaceOnUse` mask, no per-frame work. Only used when `isYellowWizard`.
     const castGateVisibleMs = Math.max(0, (beatsOnScreen - spawnLeadBeats) * beatMs);
     const castGateX = viewRight - (beatsOnScreen > 0 ? (castGateVisibleMs / (beatsOnScreen * beatMs)) * dist : 0);
     const castFadePx = beatsOnScreen > 0 ? (100 / (beatsOnScreen * beatMs)) * dist : 0;
@@ -2725,13 +2744,14 @@ export default function SheetRpgLayer({
                         <mask id="rpgLaneFade" maskUnits="userSpaceOnUse" x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)}>
                             <rect x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)} fill="url(#rpgLaneFadeGrad)" />
                         </mask>
-                        {/* "Yellow wizard" (Han 2026-09-03): the real noteheads (realScrollRef group) are shown
-                            while a note sits to the RIGHT of its cast line (`castGateX`) and cut once it scrolls
-                            past — the exact instant the wizard's cast flashes and its projectile appears. Opaque
-                            (white) from `castGateX` rightward, a ~100 ms (`castFadePx`) ramp to transparent, black
-                            to the left. Same userSpaceOnUse pattern as `rpgLaneFade` above so the inner
-                            per-frame translate never disturbs it. Only referenced when `wizardSilent`. */}
-                        {wizardSilent && (
+                        {/* "Yellow wizard" (Han 2026-09-03): masks the NORMAL notehead layer so each notehead is
+                            visible while it sits to the RIGHT of its cast line (`castGateX`) and cut once it
+                            scrolls past — the exact instant the yellow wizard conjures it away and its blue
+                            projectile appears. Opaque (white) from `castGateX` rightward, a ~100 ms (`castFadePx`)
+                            ramp to transparent, black to the left. Same userSpaceOnUse pattern as `rpgLaneFade`
+                            above so the inner per-frame translate never disturbs it. Only built for a
+                            YellowWizard level. */}
+                        {isYellowWizard && (
                             <>
                                 <linearGradient id="rpgYellowCastGateGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
                                     <stop offset={0} stopColor="#000" />
@@ -2764,32 +2784,25 @@ export default function SheetRpgLayer({
                         )}
                         {(noteStaffContent || chordStaffContent || lyricsStaffContent) && (
                             <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
-                                {noteStaffContent}
+                                {/* Yellow wizard: only the NOTEHEADS are conjured away (`rpgYellowCastGate`);
+                                    chord labels / lyrics keep scrolling normally. Debug mode shows every
+                                    notehead (mask bypassed) so alignment can be inspected. */}
+                                {isYellowWizard && !debugMode
+                                    ? <g mask="url(#rpgYellowCastGate)">{noteStaffContent}</g>
+                                    : noteStaffContent}
                                 {chordStaffContent}
                                 {lyricsStaffContent}
                             </g>
                         )}
                         {/* #692 Level 9 — every note: a plain rest (rhythm guide, no pitch), always visible. */}
                         {noteStaffContentRest && <g ref={restScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentRest}</g>}
-                        {/* #692 — the REAL notes/rests. Black wizard: visible ONLY in debug mode (Han:
-                            "onzichtbaar, maar zichtbaar in debug mode"). YELLOW wizard (`wizardSilent`, Han
-                            2026-09-03): always drawn at full opacity, but the whole scrolling group is behind
-                            the `rpgYellowCastGate` mask so each notehead is only visible until it scrolls past
-                            its cast line — then hard-cut (with a ~100 ms softening). Debug mode keeps every
-                            real note visible (mask bypassed), same reveal convention as the black wizard.
-                            §6: the rAF loop only pushes `transform` onto `realScrollRef` (never opacity), so a
-                            per-render `opacity`/`mask` here is safe — same reasoning as the debugMode gate. */}
-                        {noteStaffContentReal && (() => {
-                            const inner = (
-                                <g ref={realScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}
-                                    opacity={wizardSilent || debugMode ? 1 : 0} style={{ pointerEvents: 'none' }}>
-                                    {noteStaffContentReal}
-                                </g>
-                            );
-                            return wizardSilent && !debugMode
-                                ? <g mask="url(#rpgYellowCastGate)">{inner}</g>
-                                : inner;
-                        })()}
+                        {/* #692 — the REAL notes/rests, visible ONLY in debug mode (Han: "onzichtbaar, maar
+                            zichtbaar in debug mode"). */}
+                        {noteStaffContentReal && (
+                            <g ref={realScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`} opacity={debugMode ? 1 : 0} style={{ pointerEvents: 'none' }}>
+                                {noteStaffContentReal}
+                            </g>
+                        )}
                         {/* #661: bass/percussion ride the SAME translate as treble so a beat lines up
                             vertically across all 3 scrolling staves. */}
                         {noteStaffContentBass && <g ref={bassScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentBass}</g>}
@@ -2816,8 +2829,9 @@ export default function SheetRpgLayer({
                 // Projectile when ITS OWN beat falls in a Wizard-type block, Slime otherwise. Every
                 // `isWizard` check below this point uses `itemIsWizard` instead, so a real Wizard level
                 // (all notes Wizard) and a Slime level (all notes Slime) are both special cases of this
-                // same per-item decision.
-                const itemIsWizard = isWizard || (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) === 'Wizard');
+                // same per-item decision. Yellow wizard (Han 2026-09-03): also all-projectile, so it
+                // rides the SAME branch — `projectileCombat` folds in `isWizard || isYellowWizard`.
+                const itemIsWizard = projectileCombat || (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) === 'Wizard');
                 // #863 perf fix: a live (on-screen, not dying) entity registers itself in `slimeRefsMap` via
                 // this callback ref so the bucket-A rAF loop can push its position/frame every frame without
                 // going through React. Any branch below that returns null/switches to a non-live render
@@ -3082,7 +3096,7 @@ export default function SheetRpgLayer({
             {/* #686 spawn-glow flourishes — rendered AFTER the Projectiles above (so the flash sits IN
                 FRONT of a projectile it coincides with) but BEFORE the Wizard below (so it renders
                 BEHIND the wizard sprite — Han: "achter de wizard, en voor het projectiel"). */}
-            {(isWizard || isMixed) && spawnGlows.map((g) => {
+            {(projectileCombat || isMixed) && spawnGlows.map((g) => {
                 // #863 round 2: registers this spawn-glow's imperative handle for the rAF loop.
                 const liveSpawnGlowRef = (el) => {
                     if (el) spawnGlowRefsMap.current.set(g.key, { el, startTick: g.startTick });
@@ -3097,13 +3111,13 @@ export default function SheetRpgLayer({
                 Wizard renderer + the hue-rotate/filter approach already used for Level 11's green
                 variant, rather than new art) — its cast animation is the SAME `wizardCells`/`wizardFrame`
                 computed above, now gated on Wizard-type NOTES specifically instead of the whole level. */}
-            {(isWizard || isMixed) && sideScroll && (
+            {(isWizard || isMixed || isYellowWizard) && sideScroll && (
                 // "Yellow wizard" (Han 2026-09-03): identical renderer + cast choreography (`wizardCells`/
-                // `wizardFrame` are computed the same way), only the sprite sheet is the recoloured yellow
-                // one — same 384×704 layout, so WIZARD_CROP/COLS/ROWS and the Black creature's
-                // `song_attack_*` cell/flash indices all apply verbatim (§6d).
+                // `wizardFrame` are computed the same way) — the sprite sheet AND its `song_attack_*`
+                // cells come from the bestiary "Wizard (Portrait)" / "Yellow" variant (`wizardSheetUrl` /
+                // `wizardVariant`), sourced from the manifest like every other creature (§6c).
                 <Wizard ref={wizardRef} x={wizardX} y={wizardY} cells={wizardCells} frame={wizardFrame}
-                    url={wizardSilent ? WIZARD_YELLOW_URL : WIZARD_URL} />
+                    url={wizardSheetUrl} />
             )}
             {/* Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard. die doet elke 2 maten een
                 spell en wisselt dan van toonladder"): a PURELY DECORATIVE wizard, same sprite/position as

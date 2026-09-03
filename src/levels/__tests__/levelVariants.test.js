@@ -360,12 +360,16 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
     });
 
     describe('variant j (Yellow wizard, Han 2026-09-03)', () => {
-        it('forces enemyType Wizard + wizardSilent onto any level, defaulting the cast lead to 1 measure', () => {
+        it('forces enemyType YellowWizard onto any level, defaulting the cast lead to 1 measure', () => {
             const v = applyLevelVariant(base, 'j');
-            expect(v.enemyType).toBe('Wizard');
-            expect(v.wizardSilent).toBe(true);
+            expect(v.enemyType).toBe('YellowWizard');
+            expect(v.wizardSilent).toBeUndefined();   // NOT the black-wizard grafted approach
             expect(v.wizardSpawnLeadMeasures).toBe(1);
             expect(v).not.toBe(base);   // never mutates the shared object
+        });
+
+        it('does NOT turn the level into a call-response level (no callResponseMeasures)', () => {
+            expect(applyLevelVariant(base, 'j').callResponseMeasures).toBeUndefined();
         });
 
         it('keeps a level\'s own authored wizardSpawnLeadMeasures if it has one', () => {
