@@ -7581,3 +7581,36 @@ gegenereerd i.p.v. één song-lang blok). Melodie, akkoorden, metronoom en timpa
 arch **§366** toegevoegd, §354 limitatie 5 doorgestreept + verwezen.
 
 **Status:** ✅ impl klaar → Han UAT (12 acceptatiecriteria op ticket #1168).
+
+
+---
+
+## 🐞 #1168 UAT ronde 2 — "4 metronomen/cello's op net andere tempo's" (Han 2026-09-03) — ✅ opgelost
+
+**Melding (Sakura 205 + letter `i`):** *"bij sommige maten gaat het helemaal bad: ik hoor 4
+metronomen/cello's op net andere tempo's. Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."*
+
+**Hypothese uit de test-notitie is FOUT gebleken (gemeten, niet geraden).** Live gereproduceerd in een
+echte browser (Playwright op de dev-server; elke effect-run/cleanup met dependency-diff, elke
+`playMelodies`-schedule met zijn gevraagde starttijd vs. de klok op dat moment, elke armed/landed
+ladder-commit): een run van 200 s Sakura + `i` — passief én met stats — is volledig schoon. Het effect
+draait één keer, precies één schedule per (track, blok), alles in de toekomst. Een tempowisseling
+verandert niets in de dependency-array. #1120 en #1121 zijn NIET de oorzaak en blijven in `test`.
+
+**Echte oorzaak:** `playMelodies` SLAAT een verstreken `scheduledStart` niet over maar KLEMT hem naar
+`now + safetyBuffer`. Zodra `useLevelContentStream`'s effect ná de start van het levelgeluid opnieuw
+draait (welke dependency dan ook), begint de JIT-ketting weer bij de opmaat en blok 0 tegen de
+oorspronkelijke, allang verstreken `contentStartTime` — alle verstreken blokken worden dan naar
+hetzelfde moment geklemd en klinken tegelijk, elk nog op de bpm van zijn eigen blok. Geforceerd op
+maat ~26: **11 schedules (opmaat + blok 0-9), allemaal te laat, op 3 verschillende bpm's (50 / 40.7 /
+38.7)** — exact wat Han hoort. #1168 is de regressie in BLAST RADIUS: een song-level was één blok, nu
+21.
+
+**Fix:** `SCHEDULE_SAFETY_BUFFER_SECONDS` naar `constants/timing.js` (één bron, §6c) → één guard in
+`scheduleInto` die een verstreken schedule DROPT i.p.v. hem te laten klemmen; een verstreken blok doet
+niet meer mee aan de ladder (geen `blockSettingsFor`-read die `setBpm` met delay 0 armt, geen
+`evaluate`) maar wordt wél nog gegenereerd/gepubliceerd (append-only); nieuwe foutcode
+**E035-LEVEL-AUDIO-PAST-DUE**. Regressietest in `adaptiveMode.integration.test.js` (faalt aantoonbaar
+zonder de guard). arch **§369**, §366 kruisverwijzing.
+
+**Status:** ✅ impl klaar → Han UAT.

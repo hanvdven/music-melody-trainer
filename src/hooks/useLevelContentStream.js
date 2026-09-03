@@ -5,9 +5,10 @@ import { generateMetronomeChunk } from '../generation/generateMetronomeChunk';
 import { doubleMelodyForCallResponse } from '../generation/sliceSongCallResponseBlock';
 import { sliceMelodyByRange } from '../utils/melodySlice';
 import buildTimpaniPattern from '../utils/timpaniPattern';
-import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, SCHEDULE_SAFETY_BUFFER_SECONDS } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
 import { outputLatencySeconds } from '../audio/audioOutputLatency';
+import logger from '../utils/logger';
 import {
     blockMeasuresFor, blockTypeForBlock, resolveBlockScale, blockCountFor,
     leadInSpecFor, trackSpecsForLevel, callGroupMeasuresFor,
@@ -307,6 +308,40 @@ export default function useLevelContentStream({
         const timers = [];
         const ownWizardStopFns = [];   // THIS run's scheduled cast StopFns
         const ownBackingStopFns = [];  // THIS run's scheduled cello/metronome StopFns
+
+        // ── PAST-DUE GUARD (#1168 UAT round 2, Han 2026-09-03) ─────────────────────────────────
+        // Han: *"bij sommige maten gaat het helemaal bad: ik hoor 4 metronomen/cello's op net andere
+        // tempo's. Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."* See §369.
+        //
+        // "Has this material's own moment already gone by?" — the ONE question every schedule below
+        // must answer before it reaches `playMelodies`, because `playMelodies` does NOT skip a start
+        // time that has passed: it CLAMPS it forward to `now + SCHEDULE_SAFETY_BUFFER_SECONDS` (its
+        // own `adjustedStart`). That clamp is right for the Sequencer's short-horizon per-measure
+        // scheduling; for a level, which hands over whole blocks many bars ahead, it turns "this
+        // block is history" into "play this entire block RIGHT NOW, on top of whatever is sounding".
+        //
+        // That is exactly what Han heard. If this effect is torn down and re-run after the level's
+        // audio has started (ANY dependency change — a late `songMelody`/`chordProgression`/
+        // instrument/settings identity), the chain restarts from the lead-in and block 0 against the
+        // ORIGINAL, long-elapsed `contentStartTime`. Measured in a real browser at content measure
+        // ~26: eleven schedules (lead-in + blocks 0-9) all past-due, all clamped to the same instant,
+        // each still carrying the bpm ITS OWN block was generated at — several cello and metronome
+        // tracks sounding at once at slightly different tempos. It is a #1168 regression only in
+        // BLAST RADIUS: a song level used to be ONE block (`blockMeasuresFor` fell through to the
+        // song's length), so the same latent restart re-scheduled exactly one block at one tempo and
+        // was inaudible; with `SONG_BLOCK_MEASURES` it re-schedules every elapsed block at every
+        // tempo the ladder has visited.
+        //
+        // Threshold imported from the timing SSOT (`constants/timing.js`), never re-typed (§6c): the
+        // guard must fire on exactly the condition `playMelodies`'s own clamp fires on, or it would
+        // leave a sliver of the bug behind.
+        // Read FRESH per call, like `outputLatencySeconds` itself — see `scheduleInto`.
+        const isPastDue = (heardAt) => (heardAt - outputLatencySeconds(context))
+            < context.currentTime + SCHEDULE_SAFETY_BUFFER_SECONDS;
+        // Logged ONCE per effect run: a level whose audio has already started must never re-enter
+        // this effect, so a single drop is a real anomaly worth a grep-able trace (§7a) rather than a
+        // silent recovery. Not fatal — dropping is the CORRECT behaviour once the moment has passed.
+        let pastDueLogged = false;
         // #1186 (Han 2026-08-29, "de noot valt niet EXACT tegelijk met de metronoom klik op de perfect
         // hit mark"): `scheduledStart` is the moment this material must be HEARD — the same instant the
         // visual clock (SheetRpgLayer, whose t=0 IS `levelAudioStart`) puts it on the strike line. A
@@ -319,6 +354,20 @@ export default function useLevelContentStream({
         // device mid-level, and this is the same "re-read the live value at the top of each scheduling
         // unit" pattern the per-block bpm read below already uses.
         const scheduleInto = (ref, own, melodies, instruments, scheduledStart, namedInstruments, trackGains, bpm) => {
+            // ⚠ #1168 UAT round 2 — THE guard, at the ONE seam every level schedule passes through, so
+            // no call site can forget it and no future track can reintroduce the pile-up. See the
+            // `isPastDue` comment above for the full mechanism.
+            if (isPastDue(scheduledStart)) {
+                if (!pastDueLogged) {
+                    pastDueLogged = true;
+                    logger.error('useLevelContentStream', 'E035-LEVEL-AUDIO-PAST-DUE',
+                        new Error('level audio schedule dropped: its moment had already passed'), {
+                            level: lvl.id, scheduledStart, now: context.currentTime, bpm,
+                            outputLatencyS: outputLatencySeconds(context),
+                        });
+                }
+                return;
+            }
             const before = ref.current.length;
             playMelodies(
                 melodies, instruments, context, bpm, scheduledStart - outputLatencySeconds(context), null, null,
@@ -457,7 +506,18 @@ export default function useLevelContentStream({
             // cleared and every already-scheduled note is stopped — i.e. the §289 "level never
             // ends" bug class, re-opened. Ref-driven, read fresh, per block. This is exactly why
             // the density is a per-block GENERATION INPUT and not app state.
-            const ladder = (sideScroll && lvl.adaptive && adaptiveDifficulty)
+            //
+            // #1168 UAT round 2: a block whose own moment has already passed is still GENERATED and
+            // PUBLISHED — append-only (see this file's header): the staff and SheetRpgLayer's
+            // slime/kill bookkeeping need every block of the timeline to exist, and after a mid-level
+            // effect restart the elapsed blocks are how the growing Melodies are rebuilt. What such a
+            // block must NOT do is take part in the LIVE machinery: no audio (dropped by
+            // `scheduleInto`'s guard), no ladder read (which would arm the app-wide `setBpm` with
+            // `delayMs` 0 and land a tempo change instantly — measured, see §369) and no `evaluate`
+            // (which would hand the decider a burst of fake block boundaries in a single tick and
+            // corrupt its snapshot diffing).
+            const alreadySounded = sideScroll && isPastDue(blockStartTime);
+            const ladder = (!alreadySounded && sideScroll && lvl.adaptive && adaptiveDifficulty)
                 ? adaptiveDifficulty.blockSettingsFor(contentMeasure, blockStartTime)
                 : null;
             const bpm = ladder ? ladder.bpm : startBpm;
@@ -607,7 +667,9 @@ export default function useLevelContentStream({
                 // #1102: THIS stream is the sole DECIDER, now for every level — one boundary, one
                 // adjustment. `units: [B]` because there IS only one cadence: treble and
                 // bass/metronome are the same block, so "force exact sync" is structural.
-                if (lvl.adaptive && adaptiveDifficulty && statsRef) {
+                // #1168 UAT round 2: `!alreadySounded` — see the `alreadySounded` comment above. A block
+                // being rebuilt after the fact has no graded stretch of play behind it to decide on.
+                if (lvl.adaptive && adaptiveDifficulty && statsRef && !alreadySounded) {
                     adaptiveDifficulty.evaluate({
                         stats: statsRef.current,
                         // #1120: the gated rung's exit signal. Meaningless (and ignored) while the

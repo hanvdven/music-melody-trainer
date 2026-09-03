@@ -550,6 +550,144 @@ describe('#1168 end-to-end — a song-backed level adapts per block and still en
     });
 });
 
+// ── #1168 UAT ROUND 2: a mid-level restart must never replay elapsed audio ──────────────────
+// Han 2026-09-03, on Sakura + letter i: *"bij sommige maten gaat het helemaal bad: ik hoor 4
+// metronomen/cello's op net andere tempo's. Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."*
+//
+// ROOT CAUSE (measured in a real browser, see docs/architecture.md §369): if this effect is torn
+// down and re-run after the level's audio has started — ANY dependency identity change does it —
+// the JIT chain restarts from the lead-in and block 0 against the ORIGINAL, long-elapsed
+// `contentStartTime`. `playMelodies` does not SKIP a past `scheduledStart`, it CLAMPS it forward to
+// `now + SCHEDULE_SAFETY_BUFFER_SECONDS`, so every elapsed block sounded AT ONCE, each still carrying
+// the bpm its own block was generated at. #1168 turned that from one block (a song level used to be
+// ONE generation chunk) into every elapsed block of a 21-block level, i.e. inaudible → catastrophic.
+//
+// This suite pins the invariant that makes the whole bug class impossible, on the real Sakura level
+// with the real controller: NO level audio is ever handed to `playMelodies` for a moment that has
+// already passed.
+describe('#1168 UAT round 2 — a restarted stream never schedules audio into the past', () => {
+    const sakura = LEVELS[205];
+    const fakeSong = (measures, ts) => {
+        const mlt = (TICKS_PER_WHOLE * ts[0]) / ts[1];
+        const pool = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'];
+        return {
+            notes: Array.from({ length: measures }, (_, i) => pool[i % pool.length]),
+            durations: Array.from({ length: measures }, () => mlt),
+            offsets: Array.from({ length: measures }, (_, i) => i * mlt),
+            displayNotes: Array.from({ length: measures }, (_, i) => pool[i % pool.length]),
+        };
+    };
+
+    // The shared mock is a bare `vi.fn(() => 0)`; this suite needs the CLOCK READING AT CALL TIME
+    // (the whole point is "was this start already behind `now` when it was issued?"), which
+    // `playMelodies.mock.calls` cannot preserve — `context` is a live object. Restored afterwards so
+    // no other suite inherits the recorder.
+    afterEach(() => { playMelodies.mockImplementation(() => 0); });
+
+    /**
+     * Mounts the real controller + the real stream on the real level, with `trebleSettings` as a
+     * RERENDERABLE prop — the cheapest faithful stand-in for any of the effect's dependencies whose
+     * identity can change while the level is running (a late `songMelody`/`chordProgression`, a
+     * rebuilt instrument, a settings write). What matters is only THAT the effect re-runs.
+     */
+    const mountRestartable = (lvl, song) => {
+        const context = { currentTime: 0 };
+        const bpmRef = { current: lvl.bpm };
+        const setBpmCalls = [];
+        const setBpm = (v) => { bpmRef.current = v; setBpmCalls.push(v); };
+        const wizardStopFnsRef = { current: [] };
+        const backingStopFnsRef = { current: [] };
+        const statsRef = { current: stats() };
+        const issued = [];
+        playMelodies.mockImplementation((mel, inst, ctx, bpm, start) => {
+            issued.push({ instrument: inst[0], bpm, start, now: ctx.currentTime });
+            return 0;
+        });
+
+        const hook = renderHook(({ treble }) => {
+            const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, context });
+            const begun = React.useRef(false);
+            if (!begun.current) { begun.current = true; adaptiveDifficulty.begin(lvl.adaptiveBaseBpm, lvl); }
+            return useLevelContentStream({
+                active: true, lvl, scale, timeSignature: lvl.timeSignature ?? DEFAULT_TS,
+                trebleSettings: treble, bassSettings, percussionSettings, chordSettings, metronomeSettings,
+                percussionScale, chordProgression: null, songMelody: song, context, levelAudioStart: ANCHOR,
+                wizardInstrument, wizardVolume: 1, wizardStopFnsRef,
+                bassInstrument, metronomeInstrument, timpaniInstrument, timpaniVolume: 1, backingStopFnsRef,
+                bassReady: true, metronomeReady: true, levelMelodyReady: true,
+                adaptiveDifficulty, statsRef,
+            });
+        }, { initialProps: { treble: trebleSettings } });
+
+        const run = (seconds, step = 0.5) => {
+            act(() => {
+                for (let t = 0; t < seconds; t += step) {
+                    context.currentTime += step;
+                    vi.advanceTimersByTime(step * 1000);
+                }
+            });
+        };
+        // The dependency identity change that tears the effect down and rebuilds it mid-level.
+        const restart = () => act(() => { hook.rerender({ treble: { ...trebleSettings } }); });
+        return { ...hook, context, statsRef, setBpmCalls, issued, run, restart };
+    };
+
+    it('drops every past-due schedule instead of letting playMelodies clamp it to "now"', () => {
+        const lvl = applyLevelVariant(sakura, 'i', 60);
+        const song = fakeSong(sakura.totalMeasures, lvl.timeSignature);
+        const { unmount, run, restart, issued, statsRef, context } = mountRestartable(lvl, song);
+        statsRef.current = CLEAN;
+        const B = blockMeasuresFor(lvl);
+        const barSec = barSecFor(lvl, lvl.bpm);
+        // Deep into the level (well past the 14-measure repeat seam Han named), so a restart really
+        // does have a long stretch of elapsed blocks behind it.
+        run((lvl.leadInBars + 14 * B) * barSec + ANCHOR);
+        const beforeRestart = issued.length;
+        expect(beforeRestart).toBeGreaterThan(12);       // the pre-restart run was real
+        const beforeBlocks = generateBlock.mock.calls.length;
+
+        restart();
+        run(6 * B * barSec);
+
+        // The restart really did rebuild the whole timeline from the lead-in (append-only: the
+        // elapsed blocks' CONTENT must still exist) — so the assertion below is not vacuous.
+        expect(generateBlock.mock.calls.length).toBeGreaterThan(beforeBlocks + 10);
+        // THE INVARIANT. Before the fix the restart issued the lead-in plus every elapsed block with
+        // `start` far behind `now`; playMelodies clamped them all to the same instant, each at its own
+        // block's bpm — Han's "4 metronomen/cello's op net andere tempo's".
+        issued.forEach(({ start, now, bpm }) => {
+            expect(`${start > now} @${start.toFixed(2)}/${now.toFixed(2)}bpm${bpm}`)
+                .toBe(`true @${start.toFixed(2)}/${now.toFixed(2)}bpm${bpm}`);
+        });
+        // …and no two schedules of one instrument ever collide on the same instant.
+        for (const inst of [bassInstrument, metronomeInstrument, timpaniInstrument]) {
+            const starts = issued.filter((c) => c.instrument === inst).map((c) => c.start);
+            expect(new Set(starts).size).toBe(starts.length);
+        }
+        // The restart also must not LAND a tempo commit instantly: an elapsed block never reads the
+        // ladder, so it can never arm `setBpm` with a zero delay (that read is what made the app-wide
+        // tempo jump at the same moment the pile-up sounded).
+        expect(context.currentTime).toBeGreaterThan(0);
+        unmount();
+    });
+
+    it('a level that is NEVER restarted is completely unaffected — one schedule per track per block', () => {
+        // The guard must be inert for the normal path: every block is generated ~2 bars ahead, so
+        // nothing is ever past-due and the schedule count is exactly what it was before this fix.
+        const lvl = applyLevelVariant(sakura, 'i', 60);
+        const song = fakeSong(sakura.totalMeasures, lvl.timeSignature);
+        const { unmount, run, issued, statsRef } = mountRestartable(lvl, song);
+        statsRef.current = CLEAN;
+        const B = blockMeasuresFor(lvl);
+        run((lvl.leadInBars + (blockCountFor(lvl) + 4) * B) * barSecFor(lvl, lvl.bpm) + ANCHOR);
+        // lead-in + one per content block, for each of cello / metronome / timpani.
+        expect(issued.filter((c) => c.instrument === metronomeInstrument)).toHaveLength(blockCountFor(lvl) + 1);
+        expect(issued.filter((c) => c.instrument === bassInstrument)).toHaveLength(blockCountFor(lvl) + 1);
+        expect(issued.every((c) => c.start > c.now)).toBe(true);
+        unmount();
+    });
+});
+
 // ── #1121: at the ceiling, difficulty grows through CONTENT instead of tempo ────────────────
 describe('#1121 end-to-end — the ladder densifies at the ceiling and unwinds symmetrically', () => {
     // Level 11: authored `notesPerMeasure` 4 on an eighth grid and, crucially, `insertBeatRests:

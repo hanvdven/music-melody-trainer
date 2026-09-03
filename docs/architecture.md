@@ -25036,6 +25036,13 @@ the `songMeasureCount` pins for 3× / plain / d-e),
 evaluations instead of one, 3× verbatim treble, every track switching at the same block, generation
 terminating — plus a non-adaptive song run and a gated song level).
 
+**UAT round 2 (Han 2026-09-03) — "ik hoor 4 metronomen/cello's op net andere tempo's": see §369.**
+Going from ONE block per song level to twenty-one turned a latent, previously-inaudible defect
+(`useLevelContentStream` restarting its JIT chain from block 0 against an already-elapsed
+`contentStartTime`, whose past-due schedules `playMelodies` CLAMPS to "now" instead of skipping)
+into an audible pile-up of every elapsed block at every tempo the ladder had visited. Fixed by a
+past-due guard at `scheduleInto`; the cadence and the 3× runway described above are unchanged.
+
 ### §367. The ladder's GATED PACING rung — rubato rescue at the bpm floor, and the return to timed (#1120, Han 2026-09-01)
 
 **Purpose.** §361's difficulty ladder walks a struggling player down two knobs — the tempo to the
@@ -25260,3 +25267,110 @@ the walk to the bottom, ONE armed moment for bpm+pacing, the exit, the cooldown,
 Wizard park), `src/hooks/__tests__/useLevelGatedRubatoAudio.test.js` (+4: byte-identical at a constant
 tempo, a halved tempo, no loop restart), `src/hooks/__tests__/adaptiveMode.integration.test.js` (+7,
 including the MANDATORY "THE HARD INVARIANT: the ladder NEVER sets `loopForever`" regression).
+
+---
+
+### §369. Level audio is NEVER scheduled into the past — the "4 metronomen/cello's" pile-up (#1168 UAT round 2, Han 2026-09-03)
+
+**Symptom (Han, UAT of #1168 on Sakura = level 205 + letter `i`).**
+*"bij sommige maten gaat het helemaal bad: ik hoor 4 metronomen/cello's op net andere tempo's.
+Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."* — at some measures several cello and
+metronome tracks sound simultaneously at slightly different tempos, after an adaptive tempo commit.
+HIGH severity; it blocked #1168's UAT.
+
+**What it is NOT.** The `test`-note's working hypothesis ("something from #1120's `pacingMode` or
+#1121 crept into `useLevelContentStream`'s dependency array, so a tempo commit re-runs the effect")
+was measured and **ruled out**. Instrumented live in a real browser (Playwright against the dev
+server: every effect run/cleanup with a per-dependency diff, every `playMelodies` schedule with its
+requested start vs the clock at call time, every armed/landed ladder commit), a 200-second Sakura +
+`i` run — passive *and* stats-driven, through six tempo commits and nineteen blocks — is completely
+clean: the effect runs **once**, there is exactly **one** schedule per (track, block), and every
+requested start is in the future. A tempo commit changes nothing in the dependency array, and the
+block chain never forks. #1120 and #1121 are not implicated.
+
+**Root cause — `playMelodies` CLAMPS a past start instead of skipping it.**
+`playMelodies` computes `adjustedStart = Math.max(scheduledStart, currentTime + safetyBuffer)`. That
+clamp is correct for the Sequencer, which schedules a measure at a time on a short horizon and must
+never hand smplr a moment the audio thread has already passed. It is **actively harmful** for a
+level, which hands over whole blocks many bars ahead: there, "this block's moment has passed" is
+silently converted into *"play this entire block RIGHT NOW"*.
+
+That becomes audible the moment `useLevelContentStream`'s effect is torn down and re-run **after the
+level's audio has started**. The chain then restarts from `generateLeadIn()` and
+`generateAndScheduleBlock(0, contentStartTime)` against the ORIGINAL, long-elapsed
+`contentStartTime`, and:
+
+* every elapsed block's `scheduledStart` is in the past → clamped to the same instant, so they all
+  sound **together**;
+* each one still carries the bpm **its own block** was generated at (`blockSettingsFor` returns the
+  live ladder position), so the pile-up is at several *different* tempos — Han's "op net andere
+  tempo's" is literally the ladder's history playing at once;
+* `generateAt` is in the past for all of them too, so `delayMs` clamps to 0 and the whole elapsed
+  span is regenerated in one burst rather than over time;
+* the elapsed block's own ladder read arms the app-wide `setBpm` with `delayMs` 0, so the tempo
+  jumps at that same instant.
+
+Forced once, deliberately, at content measure ~26 of a live Sakura + `i` run (one dependency
+identity change, nothing else): **eleven schedules — lead-in plus blocks 0-9 — all past-due, all
+clamped to the same moment, at three different bpms (50 / 40.7 / 38.7).** That is the reported
+sound, reproduced exactly.
+
+**Why it is a #1168 regression, even though the defect is older.** Only the BLAST RADIUS is new.
+Before #1168 a song level was ONE generation chunk (`blockMeasuresFor` fell through to
+`numMeasures`, which for a song level is the song's own length, §366), so the same latent restart
+re-scheduled exactly one block, at one tempo, whose start IS `contentStartTime` — inaudible in
+practice, and never reported. `SONG_BLOCK_MEASURES = 2` makes Sakura + `i` twenty-one blocks, so the
+identical restart now re-schedules **every already-elapsed block at every tempo the ladder has
+visited**. The trigger (which dependency changed in Han's session) is not the bug: a level whose
+audio has started must survive a restart, and it did not.
+
+**Fix — one guard, at the one seam, plus the ladder consequence.**
+
+1. `SCHEDULE_SAFETY_BUFFER_SECONDS` moved out of `playMelodies`'s function body into
+   `src/constants/timing.js` (the timing SSOT, CLAUDE.md §8/§6c). Both the clamp and the new guard
+   now read the SAME threshold, so the guard cannot fire on a slightly different condition than the
+   clamp it exists to prevent.
+2. `useLevelContentStream`'s `scheduleInto` — the single seam every level track passes through
+   (lead-in cello/metronome/timpani, per-block cello/metronome/timpani, the Wizard cast preview) —
+   **drops** a schedule whose heard-at moment is already past, instead of handing it to
+   `playMelodies`. Placed in `scheduleInto` and not at the six call sites so no future track can
+   reintroduce the pile-up. `isPastDue(heardAt)` subtracts `outputLatencySeconds(context)` first,
+   because every audio time in that file is a "heard at" time (§355).
+3. A block whose moment has passed (`alreadySounded`) no longer takes part in the LIVE machinery: no
+   `blockSettingsFor` read (so it can never arm `setBpm` with a zero delay) and no
+   `adaptiveDifficulty.evaluate` (so a restart cannot hand the decider a burst of fake block
+   boundaries in one tick and corrupt its cumulative-snapshot diffing). It **is** still generated and
+   published — append-only (§350): the staff and SheetRpgLayer's slime/kill bookkeeping need every
+   block of the timeline to exist, and after a restart the elapsed blocks are how the growing
+   Melodies are rebuilt.
+4. New error code **E035-LEVEL-AUDIO-PAST-DUE**, logged once per effect run. Dropping is the correct
+   behaviour, but a level whose audio has started should never re-enter this effect at all — so a
+   single drop is a real anomaly and now names itself in the log instead of having to be inferred
+   from a UAT report.
+
+**Invariants this establishes.**
+
+* **A level never puts audio on the clock at a moment that has already passed.** Whatever happens to
+  this effect's lifecycle, the worst case is now *silence* for the elapsed span (self-correcting from
+  the next future block boundary), never a pile-up. This also strictly improves the §166 cold-start
+  race, whose documented failure mode was the very same clamp "collapsing/overlapping the level's
+  opening bars".
+* **The past never drives the ladder.** Only a block that is still going to sound reads the adaptive
+  controller or offers it a decision.
+* **The guard is inert on the normal path.** Blocks are generated ~`lookaheadMeasures` bars ahead
+  (at least 2 bars, i.e. seconds), so nothing is ever near the threshold; pinned by a test that
+  asserts the unchanged "lead-in + exactly one schedule per content block per track" count.
+
+**Still true / deliberately NOT changed.** The effect's dependency array is untouched. Making the
+per-track settings / `scale` / `chordProgression` / `songMelody` ref-driven (so the effect could not
+be torn down mid-level at all — the "⚠ HARD CONSTRAINT" already written at the ladder read) would
+remove the *trigger* class as well, but `chordProgression` and `songMelody` arriving late are real
+start-up gates that the re-run currently resolves, so that is its own ticket, not a UAT hotfix.
+
+**Files.** `src/constants/timing.js` (`SCHEDULE_SAFETY_BUFFER_SECONDS`),
+`src/audio/playMelodies.js` (imports it instead of the inline `0.05`),
+`src/hooks/useLevelContentStream.js` (`isPastDue` + the `scheduleInto` drop + `alreadySounded`
+gating the ladder read and `evaluate` + E035), `src/hooks/__tests__/adaptiveMode.integration.test.js`
+(a restartable Sakura + `i` harness: "drops every past-due schedule instead of letting playMelodies
+clamp it to now" — verified to FAIL without the guard, with the lead-in re-issued 120 s in the past —
+and "a level that is NEVER restarted is completely unaffected"), `CLAUDE.md` (§7a: E035).

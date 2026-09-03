@@ -23,6 +23,18 @@ export const ticksPerSecond = (bpm) => bpm / (240 / TICKS_PER_WHOLE);
 // Seconds per beat (quarter note). Equals 60 / bpm.
 export const secondsPerBeat = (bpm) => 60 / bpm;
 
+// How far ahead of `context.currentTime` a requested audio start must still be for `playMelodies`
+// to honour it. Anything closer — or already past — is PULLED FORWARD to `now + this` by that
+// function's own `adjustedStart` clamp, which exists so the Sequencer's short-horizon per-measure
+// scheduling can never hand smplr a start time the audio thread has already gone past.
+//
+// It lives HERE, not inside playMelodies (#1168 UAT round 2, Han 2026-09-03), because a SECOND
+// caller now needs the clamp's exact threshold: `useLevelContentStream` schedules whole blocks many
+// bars ahead, and for it "this moment has passed" must mean DROP, not "replay it at now" — see
+// docs/architecture.md §369. Re-typing 0.05 at that call site would be exactly the magic number
+// CLAUDE.md §6c forbids, and this module already owns the app's timing constants (§8).
+export const SCHEDULE_SAFETY_BUFFER_SECONDS = 0.05;
+
 // #994 (Han 2026-08-17): `LEVEL_LEAD_IN_BARS = 2` used to live here. It could not survive becoming
 // per-level, because a single global constant was doing THREE unrelated jobs at once — the audible
 // count-in length, the JIT backing-generation chunk size, and the visual/notation lead-in span — and

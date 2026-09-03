@@ -449,6 +449,12 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   never stop `requestAnimationFrame` from being re-requested for the OTHER subscribers sharing the same
   ticker — same "one bad frame doesn't permanently freeze everything" pattern as E023-FOLIAGE-DRAW-FRAME
   and E028-SHEETRPG-IMPERATIVE-FRAME, generalized across every subsystem now sharing one rAF loop
+- **E035-LEVEL-AUDIO-PAST-DUE** — a level audio schedule (`useLevelContentStream`'s `scheduleInto`)
+  was DROPPED because its "heard at" moment had already passed. Dropping is the correct behaviour —
+  `playMelodies` would otherwise CLAMP it forward and replay a whole elapsed block at "now" (the
+  #1168 UAT "4 metronomen/cello's op net andere tempo's" pile-up) — but a level whose audio has
+  started should never re-enter that effect at all, so a single drop is a real anomaly worth a
+  grep-able trace. Logged once per effect run. See docs/architecture.md §369
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 
