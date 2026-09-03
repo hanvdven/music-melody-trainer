@@ -134,11 +134,12 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
     // of their own (applyLevelVariant's `?? lvl.colorScheme` fallback keeps whatever the level already
     // had, same as omitting the field on any other variant would). Only 'i' (still unimplemented) and a-f
     // (color presets by design) are checked against that requirement.
+    // Yellow wizard (j, Han 2026-09-03): same category as g/h/i — a mechanic variant, no colour of its own.
     it('every LEVEL_MODE_VARIANTS entry has a label and an iconKey; color-preset ones also have a colorScheme/colorScope', () => {
         Object.values(LEVEL_MODE_VARIANTS).forEach((variant) => {
             expect(typeof variant.label).toBe('string');
             expect(typeof variant.iconKey).toBe('string');
-            if (!variant.notYetImplemented && !variant.modulated && !variant.randomizedNotes && !variant.adaptive) {
+            if (!variant.notYetImplemented && !variant.modulated && !variant.randomizedNotes && !variant.adaptive && !variant.yellowWizard) {
                 expect(typeof variant.colorScheme).toBe('string');
                 expect(typeof variant.colorScope).toBe('string');
             }
@@ -358,6 +359,33 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         });
     });
 
+    describe('variant j (Yellow wizard, Han 2026-09-03)', () => {
+        it('forces enemyType Wizard + wizardSilent onto any level, defaulting the cast lead to 1 measure', () => {
+            const v = applyLevelVariant(base, 'j');
+            expect(v.enemyType).toBe('Wizard');
+            expect(v.wizardSilent).toBe(true);
+            expect(v.wizardSpawnLeadMeasures).toBe(1);
+            expect(v).not.toBe(base);   // never mutates the shared object
+        });
+
+        it('keeps a level\'s own authored wizardSpawnLeadMeasures if it has one', () => {
+            const withLead = { ...base, wizardSpawnLeadMeasures: 2 };
+            expect(applyLevelVariant(withLead, 'j').wizardSpawnLeadMeasures).toBe(2);
+        });
+
+        it('is offered for every sideScroll level shape — including gated ones (no cast audio → no desync)', () => {
+            const gated = { ...base, gatedScroll: true };
+            expect(availableVariantLetters(gated, ['j'])).toEqual(['j']);
+            expect(availableVariantLetters(LEVELS[13], ['j'])).toEqual(['j']);   // even on the black-wizard level
+        });
+
+        it('carries no colour of its own — the level keeps whatever it already had', () => {
+            const v = applyLevelVariant(base, 'j');
+            expect(v.colorScheme).toBe(base.colorScheme);
+            expect(v.colorScope).toBe(base.colorScope);
+        });
+    });
+
     // #1100 acceptance criterion ("colorMode per variant reuses the existing NoteColoringStaffOverlay
     // SCHEMES enum values"): levels.js's own comment on LEVEL_MODE_VARIANTS says values "must match
     // NoteColoringStaffOverlay.jsx's COLOR_SCHEMES/COLOR_SCOPES" but nothing enforced it — exactly the
@@ -367,7 +395,7 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         const schemeValues = COLOR_SCHEMES.map((s) => s.value);
         const scopeValues = COLOR_SCOPES.map((s) => s.value);
         Object.entries(LEVEL_MODE_VARIANTS).forEach(([letter, variant]) => {
-            if (variant.notYetImplemented || variant.modulated || variant.randomizedNotes || variant.adaptive) return;   // no color config of their own — nothing to check
+            if (variant.notYetImplemented || variant.modulated || variant.randomizedNotes || variant.adaptive || variant.yellowWizard) return;   // no color config of their own — nothing to check
             expect(schemeValues, `letter ${letter} colorScheme`).toContain(variant.colorScheme);
             expect(scopeValues, `letter ${letter} colorScope`).toContain(variant.colorScope);
         });

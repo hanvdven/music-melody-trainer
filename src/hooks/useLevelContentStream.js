@@ -145,7 +145,9 @@ export default function useLevelContentStream({
             if (!levelMelodyReady) return;
         }
         // Only a level whose blocks can actually BE Wizard-type needs the cast instrument ready.
-        const mayCast = lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed';
+        // `wizardSilent` (the YELLOW wizard, Han 2026-09-03) casts with NO audio, so it never waits
+        // on — nor uses — `wizardInstrument`; its blocks are still Wizard-type for every visual.
+        const mayCast = (lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed') && !lvl.wizardSilent;
         if (mayCast && sideScroll && !wizardInstrument) return;
         // #1121: hoisted into a named bundle because a block whose ladder rung is non-zero
         // re-derives its OWN specs from the same authored settings (see `blockSpecs` below).
@@ -636,7 +638,11 @@ export default function useLevelContentStream({
                 // shifted EARLIER by leadOffsetSeconds so the cast finishes exactly as the response
                 // half begins; the call half's own (silent) rests shift earlier still, which is
                 // inaudible and harmless.
-                if (isWizardBlock && wizardInstrument) {
+                // `wizardSilent` (the YELLOW wizard, Han 2026-09-03): the whole point is that the
+                // cast is SILENT — the player reads the noteheads (visible until the cast flash),
+                // then plays from memory with no reference tone. `leadOffsetSeconds` still governs
+                // the projectile/cast-animation timing in SheetRpgLayer; only this audio is dropped.
+                if (isWizardBlock && wizardInstrument && !lvl.wizardSilent) {
                     scheduleInto(wizardStopFnsRef, ownWizardStopFns, [block.treble], [wizardInstrument],
                         blockStartTime - leadOffsetSeconds, null,
                         { treble: wizardVolume, bass: 0, percussion: 0, chords: 0, metronome: 0 }, bpm);

@@ -322,6 +322,30 @@
     "intro": "Er staat een groene wizard bij — elke 2 maten wisselt de toonladder tussen majeur en mineur (dezelfde tonic). Alleen NIEUWE maten na de wissel klinken in de nieuwe toonladder."
   },
   {
+    "id": 16,
+    "name": "Level 16 — Gele wizard",
+    "bpm": 80,
+    "numMeasures": 2,
+    "numRepeats": 1,
+    "notesPerMeasure": 2,
+    "variability": 30,
+    "range": {
+      "min": "C4",
+      "max": "G4"
+    },
+    "totalMeasures": 8,
+    "sideScroll": true,
+    "smallestNoteDenom": 4,
+    "insertBeatRests": true,
+    "polyMultiplier": 1,
+    "fixedBass": true,
+    "debugOnlyLines": true,
+    "enemyType": "Wizard",
+    "wizardSilent": true,
+    "wizardSpawnLeadMeasures": 1,
+    "intro": "De gele wizard tovert de noten weg. Je ziet de 2 kwartnoten eerst — onthoud ze, en speel ze op de tel in de volgende maat zonder ze te zien of te horen."
+  },
+  {
     "id": 19,
     "name": "Level 19 — Twee handen",
     "bpm": 80,

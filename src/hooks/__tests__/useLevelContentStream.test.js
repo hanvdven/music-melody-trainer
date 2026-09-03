@@ -250,6 +250,46 @@ describe('#1165 guard — Wizard call-response (was useLevelTrebleStream)', () =
         expect(inResponseHalf.length).toBeGreaterThan(0);
         unmount();
     });
+
+    // "Yellow wizard" (Han 2026-09-03): Level 16 / mode-variant 'j' — a Wizard level with `wizardSilent`.
+    // Same call-response melody, same cadence, same cello — but the wizard casts SILENTLY (no
+    // `wizardInstrument` schedule at all), and it must not wait on the cast instrument to start streaming.
+    describe('yellow wizard (wizardSilent)', () => {
+        const yellow = LEVELS[16];
+
+        it('is a Wizard level with the same 2-measure call-response cadence as the black wizard', () => {
+            expect(yellow.enemyType).toBe('Wizard');
+            expect(yellow.wizardSilent).toBe(true);
+            expect(blockMeasuresFor(yellow)).toBe(blockMeasuresFor(native));
+        });
+
+        it('schedules ZERO wizard-cast audio, but still the cello + metronome', () => {
+            const { unmount } = renderStream(yellow);
+            expect(castCalls().length).toBe(0);
+            expect(bassCalls().length).toBeGreaterThan(0);
+            expect(metronomeCalls().length).toBeGreaterThan(0);
+            unmount();
+        });
+
+        it('still collapses the call half to rests and keeps real notes in the response half', () => {
+            const { result, unmount } = renderStream(yellow);
+            const t = result.current.treble;
+            const call = t.offsets.map((o, i) => ({ o, n: t.notes[i] })).filter((e) => e.o != null && e.o < MLT);
+            expect(call.length).toBeGreaterThan(0);
+            for (const e of call) expect(e.n).toBe('r');
+            const response = t.offsets.map((o, i) => ({ o, n: t.notes[i] }))
+                .filter((e) => e.o != null && e.o >= MLT && e.o < 2 * MLT);
+            expect(response.some((e) => e.n !== 'r' && e.n !== 'c')).toBe(true);
+            unmount();
+        });
+
+        it('starts streaming even when no wizard-cast instrument is provided', () => {
+            const { result, unmount } = renderStream(yellow, { wizardInstrument: null });
+            expect(result.current.treble.offsets.some((o) => o != null)).toBe(true);
+            expect(castCalls().length).toBe(0);
+            unmount();
+        });
+    });
 });
 
 // ── RETIRED: useLevelMixedStream ────────────────────────────────────────────────────────────
