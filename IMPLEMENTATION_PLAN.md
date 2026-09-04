@@ -7,7 +7,32 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
-## 2026-09-04 — ⏳ #1191 "sterrenhemel" — celestiële laag (design → design_review)
+## 2026-09-04 — ✅ #1191 UAT-fix: sterrenhemel schokkerig → 60 fps
+
+Han (UAT): "de beweging van de sterren is schokkerig ... sommige sterren
+verspringen meerdere frames ... kan de hemel gewoon aan 60 fps?"
+
+Oorzaak = framerate, niet GPX-geometrie: `CelestialSky` was een throttled
+`useFrameLoop`-subscriber op `throttleMs: 100` (10 fps) **plus** een
+"redraw pas als iets ≥ 1 hele game-pixel bewoog" early-out. Samen klonterden ze
+continue beweging tot sprongen van meerdere pixels (sterren bij de horizon —
+azimut daar samengedrukt — bewegen het snelst en sprongen 2-3 px per redraw).
+
+Fix (alleen `CelestialSky.jsx` render-cadans; model/data/`weatherCycle`
+onaangeroerd):
+- `{ priority: 'throttled', throttleMs: 0 }` → elke frame, nog steeds ná de
+  clock-critical camera/scroll-pass, dus geen risico voor die.
+- `movedPx < 1` early-out verwijderd; skip nog enkel een byte-identieke frame
+  (bevroren `cycleT` én illum settled binnen 0.004). Elke ster stapt nu exact
+  1 game-pixel per frame, glad over 60 fps.
+- Comments + `docs/architecture.md` §374 (2 invariant-bullets) bijgewerkt naar de
+  nieuwe cadans + UAT-noot.
+- Restschokkerigheid: een héél trage ster stapt nog 1 px tegelijk (geen
+  sub-pixel zonder AA, wat een pixel-art hemel niet mag) — bij 60 fps onmerkbaar.
+
+`lint` 0 errors · `build` clean · `test:run` 1428 pass / 1 skip.
+
+## 2026-09-04 — ✅ #1191 "sterrenhemel" — celestiële laag (impl → test)
 
 FR (L3): sterrenveld + sterrenbeelden + zon + maan boven de RPG-wereld, aangedreven
 door de auto weer-cyclus. Interview met Han afgerond (in chat).

@@ -25963,12 +25963,19 @@ weather clock — not a decorative twinkle layer.
   excess. No second star clock, no `SIDEREAL_RATIO` constant to keep in sync.
 - Star/constellation opacity is a pure function of `globalIllumination`. No second day/night state.
 - `CelestialSky` does NOT react to `cameraX`: celestial objects are at infinity, parallax factor 0. The
-  canvas never redraws on a pan, only on a `cycleT`/illumination change (and it early-outs until
-  something has moved a whole game pixel, or the illumination has stepped by the same 0.004 epsilon the
-  weather loop uses).
-- No bare `requestAnimationFrame`: it is a THROTTLED subscriber (100 ms) on the shared `useFrameLoop`
-  ticker, and the whole draw body is wrapped so one bad frame logs `E037-CELESTIAL-SKY-DRAW-FRAME` and
-  the ticker keeps running for every other subscriber.
+  canvas never redraws on a pan, only on a `cycleT`/illumination change — but it redraws on ANY such
+  change, once per frame. It skips only a byte-for-byte identical frame (frozen `cycleT` AND illumination
+  settled within the same 0.004 epsilon the weather loop uses). **UAT (Han 2026-09-04): it originally
+  redrew at 10 fps AND gated on "moved ≥ 1 whole game pixel", which lumped continuous motion into
+  multi-pixel star jumps. Both are gone — per-frame redraw, no whole-pixel gate — so every star steps
+  exactly one game pixel at a time across 60 fps. A very slow star still advances in 1-px steps (no
+  sub-pixel motion without antialiasing, which a pixel-art sky must not have); at 60 fps that is
+  imperceptible.**
+- No bare `requestAnimationFrame`: it is a `'throttled'`-PRIORITY subscriber on the shared `useFrameLoop`
+  ticker with `throttleMs: 0` — i.e. it runs every frame, but AFTER the `'critical'` camera/scroll pass
+  so it can never delay clock-driven position. The whole draw body is wrapped so one bad frame logs
+  `E037-CELESTIAL-SKY-DRAW-FRAME` and the ticker keeps running for every other subscriber. The per-frame
+  cost is ~200 visible `fillRect`s plus the moon's 169-px terminator loop — sub-millisecond.
 - Everything is drawn with integer-coordinate `fillRect`; `ctx.arc()` is never used, and star sizes are
   GAME pixels (sprite px), not CSS px.
 - `celestialModel.js` is pure: no DOM, no `Date`/`performance.now`, no module-level mutable state. All

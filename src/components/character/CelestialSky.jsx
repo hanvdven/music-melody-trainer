@@ -29,11 +29,17 @@ import { CONSTELLATIONS } from './data/constellationLines';
 //     integer-coordinate `fillRect`; `ctx.arc()` is never used (it antialiases, which is the one
 //     thing a pixel-art sky must not do).
 //   • NO rAF LOOP OF ITS OWN. It subscribes to the shared `useFrameLoop` ticker as a THROTTLED
-//     subscriber (#1162 Fase 8). The sky sweeps ~0.75°/s, i.e. about one game pixel every 0.4 s, so
-//     10 fps is generous.
+//     subscriber (#1162 Fase 8) — "throttled" only in the priority sense (it runs AFTER the
+//     clock-critical camera/scroll pass so it can never delay them), NOT rate-limited: `throttleMs`
+//     is 0, so it draws every frame. UAT (Han 2026-09-04): at the original 10 fps the sky moved in
+//     visible lurches — a star near the horizon (azimuth is compressed there, so it travels fastest)
+//     would accumulate 2–3 game pixels between redraws and jump all at once. Per-frame redraw + no
+//     whole-pixel early-out (below) means every star steps exactly one game pixel at a time, spread
+//     smoothly across 60 fps. The per-frame cost is ~200 visible `fillRect`s plus the moon's 169-px
+//     terminator loop — sub-millisecond, safe in the throttled pass.
 //   • ZERO RE-RENDERS. The clock is read out of `weatherRef` inside the draw callback, never out of
-//     React state — putting `cycleT` into state would re-render the whole RpgLevelPanel 12×/s and
-//     undo #1162 Fase 8's "a steady phase costs 0 re-renders".
+//     React state — putting `cycleT` into state would re-render the whole RpgLevelPanel every frame
+//     and undo #1162 Fase 8's "a steady phase costs 0 re-renders".
 //
 // CLAUDE.md §3a (debug hit boxes) is N/A here: this layer has `pointerEvents: 'none'` and no
 // handlers at all, so there is no hit region to visualise.
@@ -151,7 +157,10 @@ export default function CelestialSky({
     const illumRef = useRef(globalIllumination);
     illumRef.current = globalIllumination;
 
-    // Last-drawn clock/illumination, for the "nothing moved a whole pixel" early-out. `null` forces
+    // Last-drawn clock/illumination, for a cheap "the frame is byte-for-byte identical" skip (a truly
+    // frozen cycle — not normally reachable in the world, where `cycleT` advances every frame, but
+    // insurance). It is NOT a whole-pixel motion gate any more: that batched sub-pixel motion into
+    // ≥1px lumps and, at the old 10 fps, into the multi-pixel jumps Han flagged at UAT. `null` forces
     // the next tick to redraw (used on mount and whenever a layout/toggle prop changes).
     const lastCycleTRef = useRef(null);
     const lastIllumRef = useRef(null);
@@ -186,12 +195,17 @@ export default function CelestialSky({
             const illum = illumRef.current;
             const dpp = degPerPx(Wpx);
 
-            // Early-out: redraw only when something moved at least a whole game pixel (the sky
-            // rotates a full 360° per cycle) or the illumination crossfade stepped.
-            if (lastCycleTRef.current != null) {
-                const dCycle = Math.abs(cycleT - lastCycleTRef.current);
-                const movedPx = Math.min(dCycle, 1 - dCycle) * 360 / dpp;
-                if (movedPx < 1 && Math.abs(illum - lastIllumRef.current) < ILLUM_EPSILON) return;
+            // Skip ONLY a byte-for-byte identical frame (frozen clock AND settled illumination). Any
+            // motion at all redraws — each star then advances at most one game pixel per frame, which
+            // at 60 fps is the smoothest a pixel-perfect sky can move. (Previously this gated on
+            // "moved < 1 whole pixel", which lumped motion together and, at 10 fps, produced the
+            // multi-pixel star jumps Han reported at UAT.)
+            if (
+                lastCycleTRef.current != null &&
+                cycleT === lastCycleTRef.current &&
+                Math.abs(illum - lastIllumRef.current) < ILLUM_EPSILON
+            ) {
+                return;
             }
             lastCycleTRef.current = cycleT;
             lastIllumRef.current = illum;
@@ -337,7 +351,9 @@ export default function CelestialSky({
             // adds WHICH layer failed, the same per-layer attribution E023/E028/E031 give.
             logger.error('CelestialSky', 'E037-CELESTIAL-SKY-DRAW-FRAME', err);
         }
-    }, [Wpx, Hpx, horizonY, debugMode, showConstellationLines, showConstellationNames], { priority: 'throttled', throttleMs: 100 });
+        // `throttled` priority (runs after the clock-critical camera/scroll pass so it can never
+        // delay them) but `throttleMs: 0` — i.e. every frame. See the top-of-file cadence note.
+    }, [Wpx, Hpx, horizonY, debugMode, showConstellationLines, showConstellationNames], { priority: 'throttled', throttleMs: 0 });
 
     if (Wpx <= 0 || Hpx <= 0) return null;   // pre-ResizeObserver measurement
 
