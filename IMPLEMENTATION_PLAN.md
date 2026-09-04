@@ -7,6 +7,32 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — ✅ #1192 UAT r1: helder blauwer · geen vlekken · bewolkte nacht donker · waterige zon wit
+
+Han: (1) "zeer heldere dag, echt mooi helder blauw, nog niet gezien" (2) "bewolkte
+nacht moet ook donker worden. Maak de achtergrond gewoon wit (bewolkt) / mat grijs
+(zwaar bewolkt) met subtiele gradient; de vlekken hoeven niet." (3) "Waterige zon:
+wit, niet geel."
+
+- **HELDER blauwer** (`SkyGradientBackdrop.cloudSkyStop` op 0): `CLEAR_SAT_GAIN` 0.45→0.85
+  **+** nieuwe lerp naar `CLEAR_SKY_BLUE [64,132,220]` (`CLEAR_BLUE_SHARE 0.55`). r0
+  satureerde alleen de bleke cyaan → bleef flets; de blauw-lerp maakt 't echt blauw.
+- **Vlekken WEG**: `buildMottleField`/`valueNoise`/`hash2`/alle `MOTTLE_*`/FIELD+PAINT-
+  effects/de sibling-`<canvas>`/`cloudSeed`+`sizePx`+`zoom` props allemaal verwijderd.
+  `SkyGradientBackdrop` is weer een kale gradient-`<div>`. `E039-SKY-MOTTLE-PAINT` in
+  CLAUDE.md §7a → **RETIRED** (nummer blijft staan voor oude logs).
+- **Bewolkt = wit, zwaar = mat grijs, subtiele gradient**: nieuwe `cloudSheetAt(f, darkT,
+  illum)` — `CLOUD_SHEET_WHITE [250,250,250]` × `lerp(1, CLOUD_SHEET_VGRAD 0.92, f)` (zachte
+  top→horizon val) × `lerp(1, OVERCAST_DARK_SCALE 0.46, darkT)` (wit→grijs ~[115]) ×
+  `lerp(1, OVERCAST_NIGHT_DIM 0.26, 1−illum)` (nacht écht donker; was 0.45).
+- **Waterige zon wit** (`CelestialSky`): glow/body-kleur lerpt `SUN_GLOW_RGB [255,233,160]`
+  → `SUN_WET_GLOW_RGB [255,255,255]` op `wet`.
+- `weather.cloudSeed` blijft in de state (comment bijgewerkt) — gereserveerd voor de
+  wolkensprites-vervolgfase.
+- Tests: `skyGradientBackdrop.test.js` §375-blok herschreven (geen `cloudFlatBase` meer,
+  subtiele-gradient asserts, `cloudSheetAt`-case). `lint` 0 · `build` clean · `test:run`
+  1462 pass / 1 skip. Doc §375 herzien.
+
 ## 2026-09-04 — #1191 UAT r4: labels niet meer blurry + maan/zon-schijven
 
 Han: (a) sterrenbeeld-namen zien er blurry uit — schaaleffect? (b) dag-maan: de
@@ -259,8 +285,17 @@ DialogueBox-instanties.
 - `OscillatingText`: `parseEmphasis(text)` → `[{text,emph}]` (markers gestript),
   per-char `emph`-vlag → emph-char krijgt `fontFamily: Bitfantasy`, rest SandyForest.
 - `DialogueBox`: body + naam-plaat → `SandyForest`; standalone `@font-face` toegevoegd.
-  Naam-plaat blijft `fontSize*0.75`. Beide fonts delen 1024-em/64-per-designpx grid
-  (co-existeren al in `BestiaryPixel`), dus zelfde px-waarde = pixel-match.
+  Beide fonts delen 1024-em/64-per-designpx grid (co-existeren al in `BestiaryPixel`),
+  dus zelfde px-waarde = pixel-match.
+- **UAT r4 (naam-grootte):** Han: "letters naam en tekstvak niet even groot; tekstvak
+  is ideaal — is die pixel perfect?" → ja: `fontSizeFor(scale)` is zo gebouwd dat een
+  kapitaal exact `8·scale` schermpx is (heel getal bij elke echte scale, ook de
+  1.5-halfstap). Naam-plaat gebruikt nu diezelfde `fontSize` (was `·0.75`) → zelfde
+  grootte + pixel-perfect. Plaat: `minWidth: portraitSize` (64gpx-vloer) + `width:
+  fit-content` + `marginLeft: portraitSize/2` & `translateX(-50%)` → gecentreerd op
+  het portret, groeit alleen voor lange namen (Prosperus/Modulatus).
+- **UAT r5:** Han: "naam is altijd BF" → naam-plaat font terug naar `Bitfantasy`
+  (body blijft SandyForest, nadruk BF). Grootte/centrering ongewijzigd.
 - `*emphasis*`-markers toegevoegd in `npcDialogue.js` (alle 6 workers), `WISP_LINES`,
   `conversationContent.js` (wizard/npc/slime). LOREM ongemoeid.
 - Tests: `parseEmphasis` (OscillatingText.test) + balanced-`*` check (npcDialogue.test).

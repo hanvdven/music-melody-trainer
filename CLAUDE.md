@@ -466,11 +466,10 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   label face) rejected; the debug-only names pass is skipped rather than rendering the labels in a
   wrong fallback font (`CelestialSky.jsx`). An `@font-face` no DOM node uses is never fetched and
   `ctx.font` does not trigger a load, hence the explicit request
-- **E039-SKY-MOTTLE-PAINT** — building or painting the procedural cloud-mottle noise layer in
-  `SkyGradientBackdrop.jsx` (§375) threw (e.g. `getContext('2d')` returning null under jsdom, or a
-  pathological canvas size failing the `Uint8Array` allocation); the mottle is skipped and the rendered
-  sky gradient underneath is kept, rather than blanking the world's backdrop — the same boundary
-  reasoning as E036-SKY-SAMPLE in the same file
+- **E039-SKY-MOTTLE-PAINT** — *RETIRED (§375 UAT r1, Han "de vlekken hoeven niet").* Was: building or
+  painting the procedural cloud-mottle noise layer in `SkyGradientBackdrop.jsx` threw. The mottle
+  layer was removed when the overcast sky became a plain white/grey subtle gradient; the code no
+  longer emits this. Left listed so old logs still resolve — do not reuse the number.
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

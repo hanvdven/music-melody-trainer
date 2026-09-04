@@ -59,7 +59,10 @@ const CONSTELLATION_LABEL_FONT = `italic ${CONSTELLATION_LABEL_PX}px BestiaryPix
 
 // Every visual constant lives here so a UAT round is a one-line retune.
 const SUN_CORE = '#fff6d8';
-const SUN_GLOW = '255, 233, 160';
+const SUN_GLOW_RGB = [255, 233, 160];   // warm yellow — the crisp (dry) sun's glow
+// §375 UAT r1 (Han: "Waterige zon: wit, niet geel"): the watery sun's glow/body lerps from the warm
+// yellow above toward pure white as `wet` rises, so a fully overcast sun is white.
+const SUN_WET_GLOW_RGB = [255, 255, 255];
 // Two QUANTISED alpha rings rather than a smooth radial gradient — same pixel-art spirit as the
 // foliage shader's waveSteps/dither. A real gradient reads as a blurry blob at this scale.
 const SUN_GLOW_RINGS = [{ pad: 6, alpha: 0.10 }, { pad: 3, alpha: 0.22 }];
@@ -428,16 +431,19 @@ export default function CelestialSky({
             // radius so the bigger disc still sinks correctly.
             const sunR = Math.round(SUN_R_GPX * (1 + SUN_WATERY_R_GAIN * wet));
             if (sunAlphaMul > 0 && inAzWindow(sun) && sun.altDeg >= -(sunR * dpp)) {
+                // §375 UAT r1: warm yellow when crisp, white when fully watery.
+                const g = mixRgbInt(SUN_GLOW_RGB, SUN_WET_GLOW_RGB, wet);
+                const glow = `rgba(${g[0]}, ${g[1]}, ${g[2]}, 1)`;
                 for (const ring of SUN_GLOW_RINGS) {
                     const pad = Math.round(ring.pad * (1 + SUN_WATERY_R_GAIN * wet));
                     const a = ring.alpha * lerpNum(1, SUN_WET_RING_ALPHA_SCALE, wet) * sunAlphaMul;
-                    fillDisc(ctx, sunXY.x, sunXY.y, sunR + pad, `rgba(${SUN_GLOW}, 1)`, a);
+                    fillDisc(ctx, sunXY.x, sunXY.y, sunR + pad, glow, a);
                 }
                 if (wet > 0) {
                     for (const ring of SUN_WET_EXTRA_RINGS) {
-                        fillDisc(ctx, sunXY.x, sunXY.y, sunR + ring.pad, `rgba(${SUN_GLOW}, 1)`, ring.alpha * wet * sunAlphaMul);
+                        fillDisc(ctx, sunXY.x, sunXY.y, sunR + ring.pad, glow, ring.alpha * wet * sunAlphaMul);
                     }
-                    fillDisc(ctx, sunXY.x, sunXY.y, sunR, `rgba(${SUN_GLOW}, 1)`, SUN_WET_BODY_ALPHA * wet * sunAlphaMul);
+                    fillDisc(ctx, sunXY.x, sunXY.y, sunR, glow, SUN_WET_BODY_ALPHA * wet * sunAlphaMul);
                 }
                 fillDisc(ctx, sunXY.x, sunXY.y, sunR, SUN_CORE, (1 - wet) * sunAlphaMul);
             }

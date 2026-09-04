@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mixNight, sunsetFactor, sunsetWeightAt, cloudSkyStop, cloudFlatBase } from '../SkyGradientBackdrop';
+import { mixNight, sunsetFactor, sunsetWeightAt, cloudSkyStop, cloudSheetAt } from '../SkyGradientBackdrop';
 import { CLOUD_COVER } from '../weatherCycle';
 
 // §372 — the rendered sky-gradient backdrop. These cover the two pure colour helpers; the canvas
@@ -51,15 +51,14 @@ describe('sunsetFactor', () => {
     });
 });
 
-// §375 "weertypen" (#1192, Han 2026-09-04): the per-stop cloud-cover colour transform. The mottle
-// canvas itself is not unit-tested (jsdom has no real 2D canvas) — its noise field is pure arithmetic
-// exercised by the same `cloudCoverT` axis these cases cover.
+// §375 "weertypen" (#1192, Han 2026-09-04): the per-stop cloud-cover colour transform.
+// UAT r1 (Han): the procedural mottle canvas was DROPPED ("de vlekken hoeven niet"); an overcast sky
+// is now the flat white/grey sheet with a subtle top→horizon falloff, and a clouded NIGHT is dark.
 describe('§375 cloudSkyStop', () => {
     // A representative sampled sky: bluish top → near-white horizon (the §372 fallback endpoints).
     const TOP = [143, 208, 217];
     const HORIZON = [223, 243, 245];
     const STOPS = [TOP, HORIZON];
-    const BASE = cloudFlatBase(STOPS);
     const SUNSET_RGB = [255, 150, 130];
     const spread = (c) => Math.max(...c) - Math.min(...c);
     const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -76,58 +75,75 @@ describe('§375 cloudSkyStop', () => {
         for (const illum of [1, 0.75, 0.33, 0.2, 0.12, 0]) {
             for (const f of [0, 0.25, 0.5, 0.75, 1]) {
                 for (const stop of STOPS) {
-                    expect(cloudSkyStop(stop, f, illum, CLOUD_COVER.LIGHT, BASE))
+                    expect(cloudSkyStop(stop, f, illum, CLOUD_COVER.LIGHT))
                         .toEqual(legacyStop(stop, f, illum));
                 }
             }
         }
     });
 
-    it('CLEAR saturates the sky — more at the top stop than at the horizon (ac6)', () => {
-        const lightTop = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.LIGHT, BASE);
-        const clearTop = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.CLEAR, BASE);
-        const lightHor = cloudSkyStop(HORIZON, 1, 1, CLOUD_COVER.LIGHT, BASE);
-        const clearHor = cloudSkyStop(HORIZON, 1, 1, CLOUD_COVER.CLEAR, BASE);
+    it('CLEAR pushes the sky bluer + more saturated — more at the top than the horizon (ac6)', () => {
+        const lightTop = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.LIGHT);
+        const clearTop = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.CLEAR);
+        const lightHor = cloudSkyStop(HORIZON, 1, 1, CLOUD_COVER.LIGHT);
+        const clearHor = cloudSkyStop(HORIZON, 1, 1, CLOUD_COVER.CLEAR);
 
+        // more saturated (bigger channel spread) at both stops…
         expect(spread(clearTop)).toBeGreaterThan(spread(lightTop));
         expect(spread(clearHor)).toBeGreaterThan(spread(lightHor));
-        // "het blauw blauwer" more than "de witte fade minder wit"
-        expect(spread(clearTop) - spread(lightTop)).toBeGreaterThan(spread(clearHor) - spread(lightHor));
-        // it stays a SKY: blue is still the dominant channel at the top
+        // …and the change is bigger at the top ("het blauw blauwer") than at the horizon
+        const chg = (a, b) => a.reduce((s, v, i) => s + Math.abs(v - b[i]), 0);
+        expect(chg(clearTop, lightTop)).toBeGreaterThan(chg(clearHor, lightHor));
+        // it stays a SKY: blue is still the dominant channel at the top, and clearly bluer than LIGHT
         expect(clearTop[2]).toBeGreaterThan(clearTop[0]);
+        expect(clearTop[2] - clearTop[0]).toBeGreaterThan(lightTop[2] - lightTop[0]);
     });
 
-    it('OVERCAST collapses top and horizon onto one flat colour, day AND night (ac4)', () => {
+    it('OVERCAST collapses the stops close together (a subtle gradient, not a hard fade), day AND night (ac4)', () => {
         for (const illum of [1, 0.12]) {
-            const lTop = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.LIGHT, BASE);
-            const lHor = cloudSkyStop(HORIZON, 1, illum, CLOUD_COVER.LIGHT, BASE);
-            const oTop = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.OVERCAST, BASE);
-            const oHor = cloudSkyStop(HORIZON, 1, illum, CLOUD_COVER.OVERCAST, BASE);
+            const lTop = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.LIGHT);
+            const lHor = cloudSkyStop(HORIZON, 1, illum, CLOUD_COVER.LIGHT);
+            const oTop = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.OVERCAST);
+            const oHor = cloudSkyStop(HORIZON, 1, illum, CLOUD_COVER.OVERCAST);
             const gap = (a, b) => a.reduce((s, v, i) => s + Math.abs(v - b[i]), 0);
-            expect(gap(oTop, oHor)).toBeLessThan(0.1 * gap(lTop, lHor));
-            expect(spread(oTop)).toBe(0);   // fully desaturated sheet
+            // far closer together than the LIGHT sky's top↔horizon spread…
+            expect(gap(oTop, oHor)).toBeLessThan(0.5 * gap(lTop, lHor));
+            // …but NOT identical — a gentle top→horizon falloff (Han: "met subtiele gradient")
+            expect(gap(oTop, oHor)).toBeGreaterThan(0);
+            expect(lum(oTop)).toBeGreaterThan(lum(oHor));   // top a touch lighter than the horizon
+            expect(spread(oTop)).toBe(0);                   // neutral grey, no tint
         }
-        // …and an overcast NIGHT is a DIM flat grey, not day-bright (Han, plan_review Q2)
-        const day = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.OVERCAST, BASE);
-        const night = cloudSkyStop(TOP, 0, 0.12, CLOUD_COVER.OVERCAST, BASE);
-        expect(lum(night)).toBeLessThan(lum(day));
+        // an overcast NIGHT is DARK — much darker than the overcast day (Han UAT r1)
+        const day = cloudSkyStop(TOP, 0, 1, CLOUD_COVER.OVERCAST);
+        const night = cloudSkyStop(TOP, 0, 0.12, CLOUD_COVER.OVERCAST);
+        expect(lum(night)).toBeLessThan(0.5 * lum(day));
         expect(lum(night)).toBeGreaterThan(0);
     });
 
-    it('DARK_OVERCAST is a mid grey — darker than OVERCAST at the same illum (ac3)', () => {
+    it('DARK_OVERCAST is a matte grey — darker than OVERCAST at the same illum (ac3)', () => {
         for (const illum of [1, 0.12]) {
-            const over = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.OVERCAST, BASE);
-            const dark = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.DARK_OVERCAST, BASE);
+            const over = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.OVERCAST);
+            const dark = cloudSkyStop(TOP, 0, illum, CLOUD_COVER.DARK_OVERCAST);
             expect(lum(dark)).toBeLessThan(lum(over));
             expect(spread(dark)).toBe(0);   // grey, not tinted
         }
     });
 
+    it('cloudSheetAt: white → matte grey with a subtle vertical falloff, dark at night', () => {
+        const whiteTop = cloudSheetAt(0, 0, 1);
+        const whiteHor = cloudSheetAt(1, 0, 1);
+        expect(spread(whiteTop)).toBe(0);
+        expect(whiteTop[0]).toBeGreaterThan(whiteHor[0]);        // subtle falloff
+        expect(whiteHor[0]).toBeGreaterThan(0.85 * whiteTop[0]); // …but SUBTLE
+        expect(cloudSheetAt(0, 1, 1)[0]).toBeLessThan(0.6 * whiteTop[0]);   // DARK_OVERCAST = matte grey
+        expect(cloudSheetAt(0, 0, 0.12)[0]).toBeLessThan(0.5 * whiteTop[0]); // night is dark
+    });
+
     it('is continuous across the whole axis — no jump-cuts (ac2)', () => {
         for (const illum of [1, 0.33, 0.12]) {
-            let prev = cloudSkyStop(TOP, 0, illum, 0, BASE);
+            let prev = cloudSkyStop(TOP, 0, illum, 0);
             for (let t = 0.01; t <= 1.0001; t += 0.01) {
-                const cur = cloudSkyStop(TOP, 0, illum, t, BASE);
+                const cur = cloudSkyStop(TOP, 0, illum, t);
                 cur.forEach((v, i) => expect(Math.abs(v - prev[i])).toBeLessThanOrEqual(8));
                 prev = cur;
             }

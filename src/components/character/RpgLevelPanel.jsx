@@ -2220,17 +2220,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 static theme backdrop — a hard-coded CSS `linear-gradient` div + `Background layers_layer
                 5.png` — is now this one component: 5 stops sampled once from layer-5, night mix + dusk/
                 dawn horizon glow baked in from the auto weather cycle's `globalIllumination`. */}
-            {/* §375 (#1192): the cloud-cover blend + the procedural mottle canvas. `cloudCoverT` is
-                handed over QUANTISED to 0.05 (the raw continuous value never drives a React render —
-                see the tick loop's invariant note); `cloudSeed` keys the cached noise field so the
-                blob shapes are stable for the session; `sizePx`/`zoom` are the SAME values
-                <CelestialSky> below already receives, so the mottle is native game px. */}
+            {/* §375 (#1192): the cloud-cover colour blend. `cloudCoverT` is handed over QUANTISED to
+                0.05 (the raw continuous value never drives a React render — see the tick loop's
+                invariant note). §375 UAT r1 (Han: "de vlekken hoeven niet"): the procedural mottle
+                canvas is gone, so this is a plain gradient div again — no size/seed props. */}
             <SkyGradientBackdrop
                 globalIllumination={foliageParams.globalIllumination}
                 cloudCoverT={quantCloudCover(wOut)}
-                cloudSeed={wOut.cloudSeed}
-                sizePx={size}
-                zoom={zoom}
             />
             {/* §374 (#1191, Han 2026-09-04): the celestial layer sits between the rendered sky gradient
                 and EVERY parallax layer below, so a setting sun/moon simply sinks behind the scenery

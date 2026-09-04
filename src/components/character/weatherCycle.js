@@ -205,10 +205,10 @@ export function createWeatherState(rand = Math.random) {
         // The one place the cloud track differs from wind: its draw interval is a RANGE (60..120 s),
         // so the currently-rolled interval has to live on the state rather than being a constant.
         cloudNextDrawS: pickCloudInterval(rand),
-        // §375: seed for the procedural mottle noise field (SkyGradientBackdrop). Rolled ONCE, here,
-        // and carried through `weatherCycleStore` — so the blob pattern is stable for the whole
-        // session and survives a music LEVEL. Han (plan_review Q3): the shapes must NOT change while
-        // a cloud type eases in, or the pattern visibly "pops" at full alpha; only tint and alpha fade.
+        // §375: a stable-per-session seed (rolled ONCE, carried through `weatherCycleStore`). It drove
+        // the procedural cloud-mottle noise field, which §375 UAT r1 removed ("de vlekken hoeven
+        // niet"). Kept — still exported by `weatherOutputs` — because the planned cloud-SPRITES-per-
+        // parallax-layer follow-up will want exactly this: one stable per-session seed for placement.
         cloudSeed: Math.floor(rand() * CLOUD_SEED_RANGE),
         // critter day↔night crossfade
         critterKind: 'day',

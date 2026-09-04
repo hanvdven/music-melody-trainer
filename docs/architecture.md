@@ -25820,16 +25820,19 @@ black **Antophon**, yellow **Prosperus**, green **Modulatus**).
 - **Audio.** `conversationEntities.js` `ENTITY_AUDIO_PROFILE` gains one instrument per worker (vibraphone
   / glockenspiel / trumpet / piccolo / orchestral_harp / accordion), shared default tone pool — resolved
   through the existing `getEntityAudioProfile` / `useConversationInstruments` path, no new wiring.
-- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a pixel-art tab **exactly the
-  portrait column's width (64 game px)**, centred over the portrait, sitting ON the box's top edge
-  (bottom border dropped so it reads as attached), Bitfantasy font (a text font, never Maestro — CLAUDE.md
-  §1a), same `var(--text-primary)`/`var(--panel-bg)` chrome as the box. A flow sibling *above* the box,
-  NOT absolutely positioned, so the bottom panel's `overflow: hidden` in compact/world mode can never
-  clip it. Font size is `fontSizeFor(scale) · 0.75` — the `0.75` is deliberate: it keeps the cap height
-  an integer multiple of the native pixel grid (`8·scale·0.75 = 6·scale`) so the plate stays
-  pixel-perfect like the dialogue text (an earlier `0.82` fell off the grid — Han, "waarom zijn de
-  letters kleiner / zijn ze pixel perfect?"). The first letter is force-capitalised at render time
-  (`charAt(0).toUpperCase()`) regardless of the stored `displayName`. `RpgLevelBottomPanel` resolves a
+- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a pixel-art tab centred over the
+  portrait column, sitting ON the box's top edge (bottom border dropped so it reads as attached), same
+  `var(--text-primary)`/`var(--panel-bg)` chrome as the box. A flow sibling *above* the box, NOT
+  absolutely positioned, so the bottom panel's `overflow: hidden` in compact/world mode can never clip
+  it; `marginLeft: portraitSize/2` + `translateX(-50%)` keeps it centred on the portrait's centre at any
+  width. `minWidth: portraitSize` is the "even breed als het portret (64 game px)" floor; it only grows
+  past that for a long name (Prosperus / Modulatus), staying centred. Font: the name is **always Bitfantasy**
+  (Han UAT: "naam is altijd BF") at the **same `fontSizeFor(scale)` as the body** — so name and body
+  letters are the same size and the plate is pixel-perfect (`fontSizeFor` is built so a Bitfantasy
+  capital is `8·scale` px = a whole number of screen px at every real scale, integer or the 1.5
+  half-step; an earlier `·0.82` fell off that grid, a `·0.75` was on-grid but a different size). The
+  first letter is force-capitalised at render time (`charAt(0).toUpperCase()`) regardless of the stored
+  `displayName`. `RpgLevelBottomPanel` resolves a
   worker's portrait via `findCreatureByName(entity)` (its own classified sprite, fed to the canonical
   `CreatureSprite` renderer, §6d) and passes `speakerName={entityDisplayName(entity)}`. `App.jsx`'s
   level-complete `DialogueBox` passes `speakerName` for the wizard/slime post-combat speakers
@@ -25847,14 +25850,16 @@ The F/Space/Enter interact key in `useRpgLevelState` picked only wisp/slime; it 
 (cleared on unmount / leaving LDtk scenery).
 
 **UAT r3 — fonts (Han: "Gebruik SandyForest als tekst ... Bitfantasy in de tekstvakken voor benadrukte
-woorden").** The dialogue **body** and the **name plate** now render in **SandyForest**;
-**Bitfantasy** is kept only for `*asterisk*`-wrapped emphasis runs. `OscillatingText.parseEmphasis(text)`
+woorden").** The dialogue **body** now renders in **SandyForest**; **Bitfantasy** is kept for
+`*asterisk*`-wrapped emphasis runs AND for the **name plate** (Han UAT: "naam is altijd BF"). `OscillatingText.parseEmphasis(text)`
 splits `text` into `[{ text, emph }]` segments (markers stripped; multi-word runs OK; a lone `*` stays
 literal); the char-stream carries a per-char `emph` flag so the existing word-nowrap grouping + wobble
 seed are unchanged, an emphasised char just also gets `font-family: 'Bitfantasy'`. Both faces share the
 1024-unit em / 64-units-per-design-pixel grid (they already co-exist in the `BestiaryPixel` family,
-App.css), so the same `fontSizeFor(scale)` px value keeps them pixel-matched; the name plate stays at
-`· 0.75` (`6·scale`). `DialogueBox` registers a standalone `@font-face` for `SandyForest`. Example
+App.css), so the same `fontSizeFor(scale)` px value keeps them pixel-matched; the name plate uses that
+same `fontSizeFor(scale)` too (see the Name plate bullet — a later UAT round dropped its `·0.75` so name
+and body letters are the same size). `DialogueBox` registers a standalone `@font-face` for `SandyForest`.
+Example
 `*emphasis*` markers were added across `npcDialogue.js`, `WISP_LINES` (useRpgLevelState.js), and
 `conversationContent.js`'s wizard/npc/slime lines (LOREM left plain). Applies to ALL `DialogueBox`
 instances (world NPCs, decorative slime, level-complete panel).
@@ -26093,15 +26098,20 @@ layer projects onto; §370 owns the separate moon-RIM light.
 **Purpose.** The RPG world had two auto-cycling weather tracks (wind and time-of-day, §360). Han asked
 for a third — cloud cover — with four types, verbatim:
 
-- **DONKER BEWOLKT:** "lucht is grijs en vlekkerig, globalIllumination iets omlaag, zon EN maan niet
-  zichtbaar."
-- **BEWOLKT:** "achtergrond wit + vlekkerig, de zon is *waterig* (diffuus) achter de wolken; maan en
-  sterren niet zichtbaar."
+- **DONKER BEWOLKT:** "lucht is grijs …, globalIllumination iets omlaag, zon EN maan niet zichtbaar."
+- **BEWOLKT:** "achtergrond wit …, de zon is *waterig* (diffuus) achter de wolken; maan en sterren
+  niet zichtbaar."
 - **LICHT BEWOLKT:** "as is" — the current look, unchanged.
 - **HELDER:** "maak de witte fade (horizon) minder wit en het blauw blauwer."
 
+**UAT r1 (Han) changed four things:** (1) the procedural "vlekkerig" mottle canvas was **removed
+entirely** ("de vlekken hoeven niet") — an overcast sky is now just the flat white/grey sheet with a
+*subtle* top→horizon falloff; (2) an overcast **night must go properly dark**, not the r0 half-dim;
+(3) HELDER now also lerps toward a real deep sky-blue, not just a saturation bump, and (4) the watery
+sun is **white, not yellow**.
+
 Cloud SPRITES per parallax layer are explicitly **out of scope** — Han supplies that art later and it
-becomes its own ticket.
+becomes its own ticket. (`weather.cloudSeed` — a stable per-session seed — is kept for it.)
 
 **How it works — one scalar, three ramps, zero per-type branches.**
 
@@ -26123,8 +26133,8 @@ moment that value is retuned).
 | ramp | formula | 1 at | drives |
 |---|---|---|---|
 | `cloudClearness(t)` | `clamp01((LIGHT − t) / (LIGHT − CLEAR))` | CLEAR | sky saturation boost |
-| `cloudCollapseT(t)` | `clamp01((t − LIGHT) / (OVERCAST − LIGHT))` | OVERCAST + DARK | flat sheet, mottle alpha, hiding moon/stars, watery sun, moonlight gate |
-| `cloudDarkT(t)` | `clamp01((t − OVERCAST) / (DARK − OVERCAST))` | DARK | white→grey sheet, mottle tint, hiding the sun |
+| `cloudCollapseT(t)` | `clamp01((t − LIGHT) / (OVERCAST − LIGHT))` | OVERCAST + DARK | overcast sheet, hiding moon/stars, watery sun, moonlight gate |
+| `cloudDarkT(t)` | `clamp01((t − OVERCAST) / (DARK − OVERCAST))` | DARK | white→matte-grey sheet, hiding the sun |
 
 - **The track itself** (`weatherCycle.js`) mirrors the wind track field-for-field:
   `cloudType` / `cloudCover` / `cloudFrom` / `cloudTo` / `cloudFadeElapsed` / `cloudTimer`, eased with
@@ -26148,46 +26158,33 @@ moment that value is retuned).
   `CelestialSky`'s `starOpacity`, `RpgLevelPanel`'s `domAmbientTint`/`bgNight`/`moonPresence`) keeps
   reading that single scalar and knows nothing about clouds. `illumMultiplier` is also emitted, but
   **diagnostic/test only — nothing may ever multiply it in again.**
-- **`SkyGradientBackdrop` colour (§372's pipeline, bookended).** The per-stop pipeline is now four
-  ordered ops in the exported, unit-testable `cloudSkyStop(dayStop, f, illum, cloudCoverT, flatBase)`:
-  1. *(new)* **CLEAR saturation boost** — rotate the stop away from its OWN Rec.601 luma by
-     `CLEAR_SAT_GAIN (0.45) × clearWeightAt(f) × clearness`, where `clearWeightAt(f)` falls from 1.0 at
-     the top stop ("het blauw blauwer") to `CLEAR_HORIZON_SHARE (0.45)` at the horizon ("de witte fade
-     minder wit" — saturating a near-white stop is what pulls its residual cyan back out). Saturating
-     the *sampled art* rather than lerping toward an invented blue means it keeps working if Han ever
-     repaints layer-5 (§6c).
+- **`SkyGradientBackdrop` colour (§372's pipeline, bookended).** The per-stop pipeline is four ordered
+  ops in the exported, unit-testable `cloudSkyStop(dayStop, f, illum, cloudCoverT)`:
+  1. *(new)* **CLEAR (HELDER)** — a saturation bump around the stop's OWN Rec.601 luma
+     (`CLEAR_SAT_GAIN = 0.85`) **and** a lerp toward a real deep sky-blue `CLEAR_SKY_BLUE = [64,132,220]`
+     by `CLEAR_BLUE_SHARE = 0.55`, both weighted by `clearWeightAt(f) × clearness` — `clearWeightAt(f)`
+     falls from 1.0 at the top stop ("het blauw blauwer") to `CLEAR_HORIZON_SHARE (0.4)` at the horizon
+     ("de witte fade minder wit"). UAT r1: the r0 version only *saturated* and stayed pale — the blue
+     lerp is what makes HELDER actually read as a vivid blue sky.
   2. **`mixNight(c, illum)` — UNCHANGED.**
   3. **The dusk/dawn `sunsetFactor` lerp — UNCHANGED**, except its weight is additionally scaled by
      `(1 − collapseT)`: a pink horizon under a solid cloud sheet would be wrong.
-  4. *(new)* **Flat-sheet collapse** — `lerpRgb(c, sheet, collapseT)`, where the sheet is DERIVED from
-     the sampled art: `cloudFlatBase(dayStops)` = the whitest sampled stop, fully desaturated, scaled by
-     `lerp(1, OVERCAST_DARK_SCALE (0.55), darkT) × lerp(1, OVERCAST_NIGHT_DIM (0.45), 1 − illum)`.
+  4. *(new)* **Overcast-sheet collapse** — `lerpRgb(c, cloudSheetAt(f, darkT, illum), collapseT)`.
+     `cloudSheetAt` is an explicit neutral **white** `CLOUD_SHEET_WHITE = [250,250,250]` (Han UAT r1:
+     "gewoon wit") scaled by `lerp(1, CLOUD_SHEET_VGRAD (0.92), f)` (a SUBTLE top→horizon falloff — "met
+     subtiele gradient", not a dead flat fill) × `lerp(1, OVERCAST_DARK_SCALE (0.46), darkT)`
+     (white → matte grey ≈ `[115,115,115]`) × `lerp(1, OVERCAST_NIGHT_DIM (0.26), 1 − illum)` (an
+     overcast NIGHT is properly dark — the r0 0.45 was too light).
 
   **`mixNight` is never bypassed and there is no threshold anywhere in the component** — the sheet is
-  simply lerped over its result, and carries its own night dim. So an overcast sky is the same flat
-  grey day AND night, only dimmer at night (Han, plan_review Q2 = ja), and at LIGHT/CLEAR op 4 is a
-  mathematical no-op.
-- **"Vlekkerig" — the procedural mottle canvas.** A sibling `<canvas>` inside `SkyGradientBackdrop`
-  (the mottle IS the sky; it must never separate from the gradient), sized to `viewport / zoom` GAME
-  pixels, `imageRendering: 'pixelated'`, integer `fillRect` only — the CelestialSky convention. Split
-  into two passes:
-  - **FIELD pass** (keyed on size + seed): a two-octave value-noise field — an integer
-    xorshift-multiply `hash2`, bilinear interpolation through the file's existing `smoothstep`, octave
-    A at `MOTTLE_CELL_GPX = 24` game px and octave B at half that (derived), mixed by
-    `MOTTLE_OCTAVE_MIX = 0.35`, contrast-stretched by `MOTTLE_CONTRAST = 1.6`, then **quantised to
-    `MOTTLE_LEVELS = 4` alpha levels** (level 0 = absent). Quantising a smoothly interpolated field is
-    what makes it read as hard-edged pixel-art blotches with ZERO blur — the same discipline as
-    `SUN_GLOW_RINGS` / `MOON_SHADE`. Never a CSS/radial gradient, never `ctx.arc`, never a filter.
-  - **PAINT pass** (keyed on the field + the quantised cover): `peakAlpha = MOTTLE_PEAK_ALPHA (0.35) ×
-    collapseT` — if 0, the canvas is simply left empty, so CLEAR and LIGHT pay literally nothing. Blob
-    colour lerps WHITE → `flatBase × MOTTLE_SHADOW_SCALE (0.62)` on `darkT` (white blobs at OVERCAST,
-    cool grey at DARK_OVERCAST), and each row is run-length encoded into one `fillRect` per run of
-    equal level.
-  - **The seed** is `weather.cloudSeed`, rolled ONCE in `createWeatherState()` and carried through
-    `weatherCycleStore` — stable for the whole session and across a music LEVEL, never `Math.random` at
-    mount. So the blob SHAPES never change; only tint and alpha ease (Han, plan_review Q3 = akkoord).
-    Regenerating the field on a *type* change would visibly swap the pattern at the START of an ease,
-    while the old pattern is still at full alpha — a pop.
+  simply lerped over its result, and carries its own night dim. So an overcast sky is the same colour
+  day AND night, only much darker at night, and at LIGHT/CLEAR op 4 is a mathematical no-op.
+- **UAT r1: the procedural "vlekkerig" mottle canvas is GONE.** Han: *"de vlekken hoeven niet. Maak de
+  achtergrond maar gewoon wit (bewolkt) en mat grijs (zwaar bewolkt) met subtiele gradient."* The
+  sibling `<canvas>`, its two-octave value-noise field, the `MOTTLE_*` constants, the FIELD/PAINT
+  effects, the `cloudSeed` / `sizePx` / `zoom` props to `SkyGradientBackdrop`, and the
+  `E039-SKY-MOTTLE-PAINT` code path were all removed — `SkyGradientBackdrop` is a plain gradient
+  `<div>` again. `weather.cloudSeed` stays (see the sprite-phase note above).
 - **`CelestialSky` visibility.** No new prop: the draw callback already calls
   `weatherOutputs(weatherRef.current)`, so it simply also destructures `cloudCoverT`. Four pass-groups,
   each gated by ONE continuous multiply:
@@ -26203,9 +26200,12 @@ moment that value is retuned).
     never a blur or shadow: the radius grows by `SUN_WATERY_R_GAIN (0.6)`, the two existing rings widen
     with it and dim toward `SUN_WET_RING_ALPHA_SCALE (0.6)`, two EXTRA soft rings of the identical
     `{pad, alpha}` shape (`SUN_WET_EXTRA_RINGS`) fade in, a `SUN_WET_BODY_ALPHA (0.5)` diffuse body is
-    added, and the hard `SUN_CORE` is faded out by `(1 − wet)`. The sink-behind-the-scenery condition is
-    recomputed with the watery radius so the bigger disc still sinks correctly. At `wet = 0` every new
-    term is multiplied by 0 and `sunR === SUN_R_GPX`, so CLEAR/LIGHT render bit-identically to §374.
+    added, and the hard `SUN_CORE` is faded out by `(1 − wet)`. **UAT r1 (Han: "Waterige zon: wit, niet
+    geel"):** the glow/body colour lerps from the warm `SUN_GLOW_RGB [255,233,160]` toward pure white
+    `SUN_WET_GLOW_RGB [255,255,255]` on `wet`, so a fully overcast sun is white. The
+    sink-behind-the-scenery condition is recomputed with the watery radius so the bigger disc still
+    sinks correctly. At `wet = 0` every new term is multiplied by 0 and `sunR === SUN_R_GPX`, so
+    CLEAR/LIGHT render bit-identically to §374.
   - Debug **orbit paths and live position markers are deliberately NOT gated** — they are debug
     affordances, and Han must still be able to see where the hidden sun/moon are.
 - **Moonlight consistency (Han, plan_review Q1 = ja).** `foliageParams.moonShine` (§374 UAT r2) drives
@@ -26236,33 +26236,32 @@ moment that value is retuned).
   `CLOUD_COVER.LIGHT` equals the old `mixNight` + sunset result exactly, for every illum and every stop
   fraction.
 - A **legacy persisted state with no cloud fields defaults to LIGHT** (every ramp 0 ⇒ "unchanged") and
-  has a fresh mottle seed rolled on its first `tickWeather` — `weatherOutputs` stays a pure derivation
+  has a fresh `cloudSeed` rolled on its first `tickWeather` — `weatherOutputs` stays a pure derivation
   and never rolls anything.
 - `tickWeather` remains **pure** (spreads, never mutates) and adds **no new timer**.
-- CLAUDE.md §3a (debug hit boxes) is **N/A**: the mottle canvas has `pointerEvents: 'none'` and no
-  handlers; the "Weather" picker reuses the existing `LevelPicker` buttons, which are real DOM buttons
-  with their own hit region.
+- CLAUDE.md §3a (debug hit boxes) is **N/A**: `SkyGradientBackdrop` is a `pointerEvents: 'none'` div;
+  the "Weather" picker reuses the existing `LevelPicker` buttons, which are real DOM buttons with their
+  own hit region.
 - **Cloud SPRITES per parallax layer are a separate future phase** (Han supplies the art).
 
 **Files:** `src/components/character/weatherCycle.js` (the cloud track: constants, `CLOUD_BAG`, the
 three ramps, `cloudIllumMultiplier`, `pickCloud`, state fields incl. `cloudSeed`, the two `tickWeather`
 blocks, `seekCloud`, the `weatherOutputs` additions and the single `globalIllumination` line),
-`src/components/character/SkyGradientBackdrop.jsx` (`cloudSkyStop` / `cloudFlatBase` / `sunsetWeightAt`
-exports, the mottle field + paint passes and the sibling canvas, new `cloudCoverT` / `cloudSeed` /
-`sizePx` / `zoom` props), `src/components/character/CelestialSky.jsx` (cloud read off `weatherRef`, the
-four gated pass-groups, `drawMoonDisc` alpha parameter, the watery-sun constants, `CLOUD_EPSILON` in
-the identical-frame early-out), `src/components/character/RpgLevelPanel.jsx` (`quantCloudCover`,
-`quantMoonShine` × `(1 − collapseT)`, two discrete terms in the `setWeather` list, the
-`<SkyGradientBackdrop>` props, the "Weather" `LevelPicker` + `CLOUD_PICK_LABELS`), `CLAUDE.md`
-(E039-SKY-MOTTLE-PAINT). Tests: the four `§375 cloud cover` describes in
-`src/components/character/__tests__/weatherCycle.test.js` and the `§375 cloudSkyStop` describe in
-`src/components/character/__tests__/skyGradientBackdrop.test.js`. New error code
-**E039-SKY-MOTTLE-PAINT** — building or painting the mottle threw; the mottle is skipped and the
-rendered gradient underneath survives, the same boundary reasoning as E036-SKY-SAMPLE in the same file.
+`src/components/character/SkyGradientBackdrop.jsx` (`cloudSkyStop` / `cloudSheetAt` / `sunsetWeightAt`
+exports, the CLEAR blue-lerp + saturation, the white/matte-grey subtle-gradient sheet, the single new
+`cloudCoverT` prop — **UAT r1 removed the mottle canvas + its FIELD/PAINT passes + the
+`cloudSeed`/`sizePx`/`zoom` props**), `src/components/character/CelestialSky.jsx` (cloud read off
+`weatherRef`, the four gated pass-groups, `drawMoonDisc` alpha parameter, the watery-sun constants +
+the UAT-r1 warm→white glow lerp, `CLOUD_EPSILON` in the identical-frame early-out),
+`src/components/character/RpgLevelPanel.jsx` (`quantCloudCover`, `quantMoonShine` × `(1 − collapseT)`,
+two discrete terms in the `setWeather` list, the `<SkyGradientBackdrop>` prop, the "Weather"
+`LevelPicker` + `CLOUD_PICK_LABELS`), `CLAUDE.md` (`E039-SKY-MOTTLE-PAINT` marked **RETIRED** — the
+mottle it guarded was removed in UAT r1; the number is left listed so old logs resolve). Tests: the
+four `§375 cloud cover` describes in `src/components/character/__tests__/weatherCycle.test.js` and the
+`§375 cloudSkyStop` describe in `src/components/character/__tests__/skyGradientBackdrop.test.js`.
 
 **Cross-references.** §360 (the auto weather cycle) now has a THIRD track; §372
-(`SkyGradientBackdrop`) owns the gradient this recolours and the canvas this sits on; §374
-(`CelestialSky`) owns the sun/moon/stars this hides and the `moonShine` knob this gates; §141 owns
-`HORIZON_PX`; §334 owns `worldScale`, the `zoom` the mottle canvas is sized against.
+(`SkyGradientBackdrop`) owns the gradient this recolours; §374 (`CelestialSky`) owns the
+sun/moon/stars this hides and the `moonShine` knob this gates; §141 owns `HORIZON_PX`.
 
 **Note.** §374 was the last section header, so this is §375.
