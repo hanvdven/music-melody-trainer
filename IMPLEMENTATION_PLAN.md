@@ -7,6 +7,37 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — #1191 UAT r4: labels niet meer blurry + maan/zon-schijven
+
+Han: (a) sterrenbeeld-namen zien er blurry uit — schaaleffect? (b) dag-maan: de
+midden-gradient is donkerder dan het onbelichte stuk (zou niet). (c) zon/maan-
+cirkels: uiteinden 1 gpx → maak ≥3 gpx. Alles in `CelestialSky.jsx`.
+
+### ✅ (a) Namen op een aparte full-res canvas
+Waren op de game-px canvas (16px) → die wordt ×zoom CSS-opgeschaald met
+`image-rendering:pixelated` → canvas-AA-randen worden chunky halo's. Nu: 2e
+`<canvas>` op volle CSS-resolutie (`labelCanvasRef`, geen upscale, boven de
+sky-canvas in DOM), tekst op `16·zoom`px. `zoom` is integer in world-mode
+(`worldScale`, §334) → exact veelvoud van 16px native → pixel-perfect, nooit
+her-vergroot. Elke redraw gewist+hertekend zolang namen aan + sterren op; leeg
+overdag; gewist via effect als de toggle uit gaat.
+
+### ✅ (b) Maanschijf monotone shades
+r3 varieerde ALPHA per shade (0.18→1). Over een heldere daghemel leest een
+low-alpha donkergrijs licht, maar een mid-alpha midgrijs donker → donkere ring.
+Nu: één uniforme `MOON_DISC_ALPHA=0.9`, alleen de fill-KLEUR ramp't grijs→wit
+(`MOON_SHADE[]` = 4 voorgemengde grijzen). Helderheid nu monotoon op elke
+achtergrond; schijf effectief opaak.
+
+### ✅ (c) Schijf-randen ≥3 gpx
+Nieuwe `discHalfWidth(r,dy) = max(1, round(√(r²−dy²)))` — `round` i.p.v. `floor`
+(ronder klein cirkeltje) + 1px-vloer zodat boven/onder 3px zijn i.p.v. 1px-punt;
+`round` houdt bij r=6/7 al volle breedte over dy∈{−2..2} → links/rechts ook ≥5
+rijen. Gebruikt door `fillDisc` (zon + gloedringen) en `drawMoonDisc`.
+
+Doc §374 rasterisatie- + debug-affordances-bullets bijgewerkt. `lint` 0 · `build`
+clean · `test:run` 1441 pass / 1 skip.
+
 ## 2026-09-04 — #1191 UAT r3: maansikkel minder gepixelleerd + ⏳ weertypen (nieuw ticket)
 
 ### ✅ Maansikkel 4-level terminator
@@ -216,7 +247,24 @@ Files: `SkyGradientBackdrop.jsx`, `RpgLevelPanel.jsx` (comments).
 
 `build` clean · `lint` 0 errors · `test:run` 1389 pass. Doc §370 r9 + §372 UAT.
 
-## 2026-09-04 — 🔨 NPC-namen + dialoog (6 workers) + maanlicht −15pp
+## 2026-09-04 — ✅ NPC-namen + dialoog (6 workers) + maanlicht −15pp
+
+(§370 r6→r9, §372, §373 allemaal ✅ — inclusief 2 UAT-fix-rondes: hitbox 48×48 +
+F/Space-interact, en naam-plaat pixel-perfect/gecentreerd/64px. Zie ⏳-blok hieronder
+voor de openstaande SandyForest-font-CR.)
+
+### ✅ Font-CR → SandyForest body + naam, Bitfantasy voor *benadrukte* woorden (§373 UAT r3)
+Interview-antwoorden: dialoogtekst → SandyForest · nadruk via `*sterretjes*` · alle
+DialogueBox-instanties.
+- `OscillatingText`: `parseEmphasis(text)` → `[{text,emph}]` (markers gestript),
+  per-char `emph`-vlag → emph-char krijgt `fontFamily: Bitfantasy`, rest SandyForest.
+- `DialogueBox`: body + naam-plaat → `SandyForest`; standalone `@font-face` toegevoegd.
+  Naam-plaat blijft `fontSize*0.75`. Beide fonts delen 1024-em/64-per-designpx grid
+  (co-existeren al in `BestiaryPixel`), dus zelfde px-waarde = pixel-match.
+- `*emphasis*`-markers toegevoegd in `npcDialogue.js` (alle 6 workers), `WISP_LINES`,
+  `conversationContent.js` (wizard/npc/slime). LOREM ongemoeid.
+- Tests: `parseEmphasis` (OscillatingText.test) + balanced-`*` check (npcDialogue.test).
+`build` clean · `lint` 0 err · `test:run` 1441 pass. Doc §373 UAT r3.
 
 Han: "maanlicht is heel cute! maak het allemaal 15 procentpunten minder fel
 (opacity 70→55 etc)." + "geef alle NPC's wat tekst (engels) en een naam".

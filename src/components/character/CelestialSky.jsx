@@ -49,9 +49,11 @@ import { CONSTELLATIONS } from './data/constellationLines';
 // the app already has the curated `'BestiaryPixel'` family (App.css / §334 / §351) — one @font-face
 // split by style: normal = CelticTime, ITALIC = SandyForest, bold = Bitfantasy. Han's "third
 // (italic)" is SandyForest, reached via `font-style: italic`. Both faces are unitsPerEm 1024 with
-// 64 units per design-pixel, so their native size is 16 px (1 design-pixel = 1 screen-pixel there);
-// anything smaller sub-samples the grid and blurs. 16 px game-pixels is chunky but this is a
-// debug-only overlay, and it is the smallest size that stays pixel-perfect with this font.
+// 64 units per design-pixel, so their native size is 16 px (1 design-pixel = 1 screen-pixel there).
+// §374 UAT r4: the labels render at `16 · zoom` px on a FULL-RESOLUTION overlay canvas (see
+// `labelCanvasRef`) — 16·zoom is an exact multiple of the 16 px native size, so still pixel-perfect,
+// and it is never CSS-upscaled afterwards. `CONSTELLATION_LABEL_FONT` (16 px) is used only for the
+// one-time `document.fonts.load()` — the loaded face covers every size.
 const CONSTELLATION_LABEL_PX = 16;
 const CONSTELLATION_LABEL_FONT = `italic ${CONSTELLATION_LABEL_PX}px BestiaryPixel, monospace`;
 
@@ -62,21 +64,32 @@ const SUN_GLOW = '255, 233, 160';
 // foliage shader's waveSteps/dither. A real gradient reads as a blurry blob at this scale.
 const SUN_GLOW_RINGS = [{ pad: 6, alpha: 0.10 }, { pad: 3, alpha: 0.22 }];
 const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0
-const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152
-// The unlit part of the disc stays FAINTLY visible ("a grey moon disc shows a crescent"). One of the
-// two genuine visual judgement calls in §374 — expect Han to retune this at UAT.
-const MOON_EARTHSHINE_ALPHA = 0.18;
-// §374 UAT r3 (Han: "de maanfasen zijn té gepixelleerd. voeg ook pixels aan 70 en 30 procent toe ...
-// voor iets gladdere randen"): the terminator is a 4-LEVEL step instead of a hard binary edge — a
-// pixel within ±1 gpx of the true terminator line gets a 30 %- or 70 %-lit shade. Still all
-// integer-coord `fillRect` (cr6): this is a quantised pixel-art dither of the boundary, NOT sub-pixel
-// antialiasing. `MOON_SHADE[0..3]` = earthshine · 30 % · 70 % · full, each a pre-mixed rgb + alpha.
+const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the grey of the unlit disc
+// §374 UAT r4 (Han, screenshot of the day moon: "de gradient in het midden is donkerder dan het
+// onbelichte stuk, zou niet moeten"). The r3 version varied ALPHA per shade (0.18 → 1). Over a BRIGHT
+// day sky a low-alpha dark-grey earthshine reads light, but a mid-alpha mid-grey reads dark — so the
+// terminator band punched a dark ring between two lighter areas. Fix: ONE uniform alpha for the whole
+// disc, and let ONLY the fill colour ramp earthshine-grey → white. Lightness is then monotone over
+// ANY background. The disc is now effectively opaque ("a grey moon disc shows a crescent" — it always
+// was meant to be a disc, not a translucent ghost).
+const MOON_DISC_ALPHA = 0.9;
+// §374 UAT r3: a 4-LEVEL terminator (earthshine · 30 % · 70 % · full) instead of a hard binary edge,
+// so the crescent edge softens by one game pixel each side. Quantised pixel-art dither, not sub-pixel
+// AA (cr6). Just the four fill colours now — alpha is the constant above.
 const rgbStr = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
 const mixRgbInt = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => ({
-    fill: rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)),
-    alpha: MOON_EARTHSHINE_ALPHA + (1 - MOON_EARTHSHINE_ALPHA) * t,
-}));
+const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)));
+
+// §374 UAT r4 (Han: "de zon en maancirkels ... uiteinden boven, onder, links, rechts één game-pixel
+// ... Maak die randen ten minste 3 gpx breed"). A raw `floor(√(r²−dy²))` disc tapers to a single
+// pixel at all four poles, which read as spikes on a disc this small. This profile: `round` (not
+// `floor`) so the small circle is rounder, and a min half-width of 1 (⇒ 3 px) so the top and bottom
+// rows are never a 1-px nub. `round` already holds full width for dy ∈ {−2..2} at r = 6/7, so the
+// left/right extremes are ≥ 5 rows tall too. Returns −1 for rows outside the disc.
+function discHalfWidth(r, dy) {
+    if (Math.abs(dy) > r) return -1;
+    return Math.max(1, Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))));
+}
 const CONSTELLATION_LINE_COLOR = '#9fd8ff';
 const CONSTELLATION_LINE_ALPHA = 0.45;
 const CONSTELLATION_NAME_COLOR = '#cfe4ff';
@@ -100,7 +113,7 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     for (let dy = -r; dy <= r; dy++) {
-        const w = Math.floor(Math.sqrt(Math.max(0, r * r - dy * dy)));
+        const w = discHalfWidth(r, dy);   // ≥3 px at every pole (UAT r4), never a 1-px spike
         ctx.fillRect(cx - w, cy + dy, 2 * w + 1, 1);
     }
 }
@@ -120,19 +133,21 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  *
  * §374 UAT r3: instead of a hard `su ≥ 0` binary, bucket `su` into 4 shades — earthshine below −1,
  * 30 % in [−1,0), 70 % in [0,1), full at/above +1 — so the crescent edge softens by one game pixel
- * each side. 169 tests per redraw at R = 6 — negligible.
+ * each side. UAT r4: one uniform `MOON_DISC_ALPHA` for every shade (only the colour ramps), and the
+ * disc outline comes from `discHalfWidth` (≥3 px poles), not a `dx²+dy² ≤ r²` circle test. 169 tests
+ * per redraw at R = 6 — negligible.
  */
 function drawMoonDisc(ctx, cx, cy, r, k, sx, sy) {
+    ctx.globalAlpha = MOON_DISC_ALPHA;
     for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-            if (dx * dx + dy * dy > r * r) continue;
+        const halfW = discHalfWidth(r, dy);
+        if (halfW < 0) continue;
+        for (let dx = -halfW; dx <= halfW; dx++) {
             const u = dx * sx + dy * sy;
             const v = -dx * sy + dy * sx;
-            const w = Math.sqrt(Math.max(0, r * r - v * v));
-            const su = u - w * (1 - 2 * k);
-            const shade = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
-            ctx.globalAlpha = shade.alpha;
-            ctx.fillStyle = shade.fill;
+            const wt = Math.sqrt(Math.max(0, r * r - v * v));   // terminator half-width on this row
+            const su = u - wt * (1 - 2 * k);
+            ctx.fillStyle = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
             ctx.fillRect(cx + dx, cy + dy, 1, 1);
         }
     }
@@ -172,6 +187,14 @@ export default function CelestialSky({
     showConstellationNames = false,
 }) {
     const canvasRef = useRef(null);
+    // §374 UAT r4 (Han: the constellation names "zien er blurry uit ... een of ander schalingseffect?").
+    // Yes — they were drawn at 16 px on the native-game-pixel main canvas, which is then CSS-upscaled by
+    // `zoom` with `image-rendering: pixelated`. Magnifying already-rasterised (and canvas-antialiased)
+    // text ×zoom turns its soft edge pixels into chunky grey halos. Fix: the names get their OWN canvas
+    // at full CSS resolution (no upscale), drawn at `16 · zoom` px. `zoom` is an integer in world mode
+    // (`worldScale`, §334), so 16·zoom is an exact multiple of the font's 16 px native size ⇒ still
+    // pixel-perfect, and any residual canvas AA is now at true screen-pixel granularity (invisible).
+    const labelCanvasRef = useRef(null);
     // The illumination arrives as a normal prop (it is literally the same `foliageParams`
     // globalIllumination every other consumer reads — cr3), but the draw callback must not depend on
     // a render to see it, so it is mirrored into a ref every render.
@@ -207,7 +230,14 @@ export default function CelestialSky({
     // Any change to geometry or to what is drawn invalidates the early-out.
     useEffect(() => {
         lastCycleTRef.current = null;
-    }, [Wpx, Hpx, horizonY, debugMode, showConstellationLines, showConstellationNames]);
+    }, [Wpx, Hpx, horizonY, zoom, debugMode, showConstellationLines, showConstellationNames]);
+
+    // Wipe the label overlay the moment names are toggled off (or the canvas resizes) — otherwise the
+    // last frame's names would hang there until the next redraw that happens to run the names pass.
+    useEffect(() => {
+        const lc = labelCanvasRef.current;
+        if (lc && !showConstellationNames) lc.getContext('2d').clearRect(0, 0, lc.width, lc.height);
+    }, [showConstellationNames, sizePx.w, sizePx.h]);
 
     useFrameLoop(() => {
         const canvas = canvasRef.current;
@@ -236,6 +266,16 @@ export default function CelestialSky({
             ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0, 0, Wpx, Hpx);
             ctx.globalAlpha = 1;
+
+            // The full-res label overlay (UAT r4). Cleared every redraw whenever names are enabled; the
+            // names pass below repaints it only when the stars are actually up, so by day it stays blank.
+            const lcanvas = labelCanvasRef.current;
+            let lctx = null;
+            if (showConstellationNames && fontReadyRef.current && lcanvas) {
+                lctx = lcanvas.getContext('2d');
+                lctx.imageSmoothingEnabled = false;
+                lctx.clearRect(0, 0, lcanvas.width, lcanvas.height);
+            }
 
             const geom = { Wpx, horizonY };
             const lst = localSiderealDeg(cycleT, lunationPhase);
@@ -282,23 +322,24 @@ export default function CelestialSky({
                         }
                     }
                 }
-                if (showConstellationNames && fontReadyRef.current) {
-                    ctx.globalAlpha = alpha * CONSTELLATION_NAME_ALPHA;
-                    ctx.fillStyle = CONSTELLATION_NAME_COLOR;
-                    // Explicit font — never inherited, never Maestro (CLAUDE.md §1a / cr5). This is
-                    // `BestiaryPixel` italic (= SandyForest) at its 16 px native size on integer
-                    // coordinates, the standard mitigation for canvas text antialiasing (which cannot
-                    // be turned off).
-                    ctx.font = CONSTELLATION_LABEL_FONT;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
+                if (lctx) {
+                    lctx.globalAlpha = alpha * CONSTELLATION_NAME_ALPHA;
+                    lctx.fillStyle = CONSTELLATION_NAME_COLOR;
+                    // Explicit font — never inherited, never Maestro (CLAUDE.md §1a / cr5). `BestiaryPixel`
+                    // italic (= SandyForest) at `16 · zoom` px = an exact multiple of its 16 px native
+                    // size, drawn on the full-res overlay so it is NOT re-magnified afterwards.
+                    lctx.font = `italic ${CONSTELLATION_LABEL_PX * zoom}px BestiaryPixel, monospace`;
+                    lctx.textAlign = 'center';
+                    lctx.textBaseline = 'middle';
                     for (const c of CONSTELLATIONS) {
                         const pts = [...new Set(c.segments.flat())].map((hr) => starXY.get(hr)).filter(Boolean);
                         if (pts.length === 0) continue;
-                        const cx = Math.round(pts.reduce((a, p) => a + p[0], 0) / pts.length);
-                        const cy = Math.round(pts.reduce((a, p) => a + p[1], 0) / pts.length);
-                        ctx.fillText(c.name, cx, cy);
+                        // Centroid in game px (starXY is game px) → full-res px by ×zoom.
+                        const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+                        const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+                        lctx.fillText(c.name, Math.round(cx * zoom), Math.round(cy * zoom));
                     }
+                    lctx.globalAlpha = 1;
                 }
             }
 
@@ -381,15 +422,27 @@ export default function CelestialSky({
     if (Wpx <= 0 || Hpx <= 0) return null;   // pre-ResizeObserver measurement
 
     return (
-        <canvas
-            ref={canvasRef}
-            aria-hidden
-            width={Wpx}
-            height={Hpx}
-            style={{
-                position: 'absolute', inset: 0, width: '100%', height: '100%',
-                imageRendering: 'pixelated', pointerEvents: 'none',
-            }}
-        />
+        <>
+            {/* The sky itself — native game-px, nearest-neighbour upscaled by `zoom`. */}
+            <canvas
+                ref={canvasRef}
+                aria-hidden
+                width={Wpx}
+                height={Hpx}
+                style={{
+                    position: 'absolute', inset: 0, width: '100%', height: '100%',
+                    imageRendering: 'pixelated', pointerEvents: 'none',
+                }}
+            />
+            {/* UAT r4: constellation names only (debug). Full CSS resolution so `16·zoom` px text is
+                NOT re-magnified. Sits above the sky canvas in DOM order. */}
+            <canvas
+                ref={labelCanvasRef}
+                aria-hidden
+                width={Math.round(sizePx.w)}
+                height={Math.round(sizePx.h)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            />
+        </>
     );
 }

@@ -25840,11 +25840,34 @@ black **Antophon**, yellow **Prosperus**, green **Modulatus**).
 worker with no entry just gets no dialogue/plate (its `EntityHitZone` isn't rendered, `onClick` unset).
 Callers that pass no `speakerName` (LevelSplash) render exactly as before.
 
+**UAT r2 — hit zone + keyboard.** `HIT_ZONE_GPX` `16 → 48` (the shared wisp/slime/worker click target).
+The F/Space/Enter interact key in `useRpgLevelState` picked only wisp/slime; it now picks the nearest of
+{wisp, slime, ...worker NPCs} within `NPC_INTERACT_RANGE`, the workers registered via a new
+`registerWorldInteractables([{ x, run }])` that `RpgLevelPanel` fills in an effect from `workerNpcs`
+(cleared on unmount / leaving LDtk scenery).
+
+**UAT r3 — fonts (Han: "Gebruik SandyForest als tekst ... Bitfantasy in de tekstvakken voor benadrukte
+woorden").** The dialogue **body** and the **name plate** now render in **SandyForest**;
+**Bitfantasy** is kept only for `*asterisk*`-wrapped emphasis runs. `OscillatingText.parseEmphasis(text)`
+splits `text` into `[{ text, emph }]` segments (markers stripped; multi-word runs OK; a lone `*` stays
+literal); the char-stream carries a per-char `emph` flag so the existing word-nowrap grouping + wobble
+seed are unchanged, an emphasised char just also gets `font-family: 'Bitfantasy'`. Both faces share the
+1024-unit em / 64-units-per-design-pixel grid (they already co-exist in the `BestiaryPixel` family,
+App.css), so the same `fontSizeFor(scale)` px value keeps them pixel-matched; the name plate stays at
+`· 0.75` (`6·scale`). `DialogueBox` registers a standalone `@font-face` for `SandyForest`. Example
+`*emphasis*` markers were added across `npcDialogue.js`, `WISP_LINES` (useRpgLevelState.js), and
+`conversationContent.js`'s wizard/npc/slime lines (LOREM left plain). Applies to ALL `DialogueBox`
+instances (world NPCs, decorative slime, level-complete panel).
+
 **Files:** `src/model/npcDialogue.js` (new), `src/audio/conversationEntities.js`,
-`src/hooks/useRpgLevelState.js`, `src/components/character/RpgLevelPanel.jsx` (`clickWorkerNpc` threaded
-to `EntityLayer` → `WorkerNpcSlot` + its `EntityHitZone`), `src/components/character/DialogueBox.jsx`
-(`speakerName` plate), `src/components/character/RpgLevelBottomPanel.jsx` (worker portrait + name),
-`src/App.jsx` (level-result `speakerName`). Tests: `src/model/__tests__/npcDialogue.test.js`.
+`src/hooks/useRpgLevelState.js` (`clickWorkerNpc`, `registerWorldInteractables`, `WISP_LINES` emphasis),
+`src/components/character/RpgLevelPanel.jsx` (`clickWorkerNpc` threaded to `EntityLayer` →
+`WorkerNpcSlot` + its `EntityHitZone`; `HIT_ZONE_GPX 48`; interactables effect),
+`src/components/character/DialogueBox.jsx` (`speakerName` plate, SandyForest body + plate, SandyForest
+`@font-face`), `src/components/character/OscillatingText.jsx` (`parseEmphasis` + per-char font),
+`src/components/character/RpgLevelBottomPanel.jsx` (worker portrait + name), `src/model/
+conversationContent.js` (emphasis markers), `src/App.jsx` (level-result `speakerName`). Tests:
+`src/model/__tests__/npcDialogue.test.js`, `src/components/character/__tests__/OscillatingText.test.jsx`.
 
 **Note.** §372 was the last section header, so this is §373.
 
@@ -25910,19 +25933,26 @@ weather clock — not a decorative twinkle layer.
   Everything is integer-coordinate `fillRect`; `ctx.arc()` is never called. Stars: magnitude buckets
   `< 1.5 → 3 gpx` (a 3×3 block MINUS its corners — the canonical pixel-art "circle of 3"; a solid square
   reads as a blob), `< 3.0 → 2 gpx` (2×2), else 1 gpx; colour quantised from B−V into five deliberately
-  bright hexes (blue-white → orange-red). Sun: a per-row filled disc (R = 7 gpx) plus two QUANTISED
-  alpha glow rings at R+3 / R+6 (not a smooth gradient — same pixel-art spirit as the foliage shader's
-  `waveSteps`/dither). Moon: a per-pixel TERMINATOR test (R = 6 gpx) — for each pixel, `u` along the
-  screen-space sun direction, `v` across it, `w = √(R²−v²)`, signed distance from the terminator
-  `su = u − w·(1−2k)`. That is the two-circle crescent construction done directly in pixels: exact at
-  ANY limb angle, pixel-perfect, no arc. **UAT r3 (Han: "de maanfasen zijn té gepixelleerd. voeg ook
-  pixels aan 70 en 30 procent toe"):** instead of a hard `su ≥ 0` binary, `su` buckets into 4 shades —
-  earthshine (`< −1`), 30 % (`[−1,0)`), 70 % (`[0,1)`), full (`≥ +1`), each a pre-mixed rgb + alpha in
-  `MOON_SHADE[]` — so the crescent edge softens by one game pixel each side. Still integer-coord
-  `fillRect`; this is a quantised 4-level dither of the boundary, not sub-pixel AA. The unlit part
-  stays faintly visible at `MOON_EARTHSHINE_ALPHA = 0.18` (= `MOON_SHADE[0].alpha`). The sun's SCREEN
-  position is computed even while the sun is below the horizon — that is what keeps the crescent
-  pointing the right way after dark.
+  bright hexes (blue-white → orange-red). **Disc rasteriser (`discHalfWidth`, UAT r4 — Han: sun/moon
+  "uiteinden ... één game-pixel ... Maak die randen ten minste 3 gpx breed"):** per-row half-width is
+  `max(1, round(√(r²−dy²)))` — `round` (not `floor`) for a rounder small circle, and a 1-px floor so
+  the top/bottom rows are 3 px, never a 1-px spike; `round` already holds full width across `dy ∈
+  {−2..2}` at r = 6/7 so the left/right extremes are ≥ 5 rows too. Used by both the sun disc/glow and
+  the moon. Sun: a per-row filled disc (R = 7 gpx) plus two QUANTISED alpha glow rings at R+3 / R+6
+  (not a smooth gradient — same pixel-art spirit as the foliage shader's `waveSteps`/dither). Moon: a
+  per-pixel TERMINATOR test (R = 6 gpx) — for each pixel, `u` along the screen-space sun direction, `v`
+  across it, `wt = √(R²−v²)`, signed distance from the terminator `su = u − wt·(1−2k)`. That is the
+  two-circle crescent construction done directly in pixels: exact at ANY limb angle, pixel-perfect, no
+  arc. **UAT r3 (Han: "voeg ook pixels aan 70 en 30 procent toe"):** instead of a hard `su ≥ 0`
+  binary, `su` buckets into 4 shades — earthshine (`< −1`), 30 % (`[−1,0)`), 70 % (`[0,1)`), full
+  (`≥ +1`) — so the crescent edge softens by one game pixel each side. **UAT r4 (Han, screenshot: "de
+  gradient in het midden is donkerder dan het onbelichte stuk"):** the r3 version varied ALPHA per
+  shade (0.18 → 1), which over a bright DAY sky made the mid-band read darker than the low-alpha
+  earthshine — a dark ring. Fixed: ONE uniform `MOON_DISC_ALPHA = 0.9` for the whole disc, only the
+  fill COLOUR ramps (`MOON_SHADE[]` = 4 pre-mixed greys), so lightness is monotone over any
+  background; the disc is effectively opaque ("a grey moon disc shows a crescent"). Still integer-coord
+  `fillRect` — a quantised 4-level dither, not sub-pixel AA. The sun's SCREEN position is computed even
+  while the sun is below the horizon — that is what keeps the crescent pointing the right way after dark.
 - **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
   `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Deep night
   (illum 0.12 since §374 UAT r2 — see below) → ~0.94, dusk/dawn (0.33) → 0.23, day (1.0) → 0. The 0.05
@@ -25935,8 +25965,15 @@ weather clock — not a decorative twinkle layer.
   barely dim (see above). `weatherCycle.test.js` night-floor asserts updated to 0.12.
 - **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
   names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
-  (one 1-gpx dot every 3 steps), names are centroid labels drawn with an explicit
-  `ctx.font = 'italic 16px BestiaryPixel'`. The World debug panel (top-left) also gains a **`Moon phase`**
+  (one 1-gpx dot every 3 steps) on the game-px sky canvas. **Names (UAT r4 — Han: they "zien er blurry
+  uit ... een of ander schalingseffect?"):** they used to be drawn at 16 px on the game-px canvas,
+  which is then CSS-upscaled ×`zoom` with `image-rendering: pixelated` — magnifying already-rasterised
+  canvas text turns its AA edge into chunky halos. Now the names get their OWN full-CSS-resolution
+  `<canvas>` sibling (`labelCanvasRef`, no upscale, above the sky canvas in DOM order), drawn at
+  `16 · zoom` px. `zoom` is an integer in world mode (`worldScale`, §334) so `16·zoom` is an exact
+  multiple of the font's 16 px native size — still pixel-perfect, and never re-magnified. It is cleared
+  and repainted each redraw while names are on and the stars are up; blank by day; wiped by an effect
+  when the toggle goes off. The World debug panel (top-left) also gains a **`Moon phase`**
   `LevelPicker` (§374 UAT r2, #1191): `Auto / New / First ¼ / Full / Last ¼` → `weatherCycle.js`
   `seekLunation(state, null | 0 | 0.25 | 0.5 | 0.75)`, which pins `weatherOutputs().lunationPhase`. That
   drives the moon, the sun's RA drift AND the star sphere together — a jump in lunation TIME, so Han can
@@ -25948,10 +25985,10 @@ weather clock — not a decorative twinkle layer.
   de derde gebruikt"*): the labels use the app's existing curated **`'BestiaryPixel'`** family
   (`App.css` / §334 / §351) — one `@font-face` split by style: normal = CelticTime, **italic =
   SandyForest**, bold = Bitfantasy. Han's "third (italic)" is SandyForest, reached with
-  `ctx.font = 'italic 16px BestiaryPixel'`. Both faces are `unitsPerEm 1024` with 64 units per
-  design-pixel, so **16 px is their native size** (1 design-pixel = 1 screen-pixel); smaller sub-samples
-  the grid and blurs, so 16 px game-pixels is the floor — chunky, but this is a debug-only overlay.
-  The `PixelNewspaperIII` `@font-face` the first cut added is removed. The load gotcha stands: the
+  `font-style: italic`. Both faces are `unitsPerEm 1024` with 64 units per design-pixel, so **16 px is
+  their native size** (1 design-pixel = 1 screen-pixel); the labels render at `16 · zoom` px (an exact
+  multiple) on the full-res overlay described above. The `PixelNewspaperIII` `@font-face` the first cut
+  added is removed. The load gotcha stands: the
   normal `BestiaryPixel` face is already loaded (ScalesPanel / WorldPiano use it in the DOM) but the
   ITALIC face may not be, and `ctx.font` never triggers a font load — so `CelestialSky` still
   `document.fonts.load('italic 16px BestiaryPixel')` on mount and skips the names pass until it
@@ -26035,8 +26072,10 @@ layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `
 `seekLunation` wiring; UAT r2: `quantMoonShine` + `moonShine` in `pushWeatherToFoliage`/the tick gate,
 `bgRimOpacity` × `moonShine`), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js`
 (`lunationOverride`, `seekLunation`, night `illum` 0.05 → 0.12), `celestialModel.js` (`moonShine` +
-`MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels),
-`ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx` (premultiply `uMoonStrength` by `p.moonShine ?? 1`;
+`MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels; UAT
+r3 4-level moon terminator; UAT r4 `discHalfWidth` ≥3-px poles, uniform `MOON_DISC_ALPHA`, full-res
+`labelCanvasRef` overlay for the names), `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx`
+(premultiply `uMoonStrength` by `p.moonShine ?? 1`;
 `DEFAULT_FOLIAGE_PARAMS.moonShine`), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the
 first cut added is removed — labels now use the existing `BestiaryPixel` family). Tests:
 `src/components/character/__tests__/celestialModel.test.js` (27 cases — incl. the
