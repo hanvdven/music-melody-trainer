@@ -28,15 +28,22 @@ door (`{...state}`), `cyclesElapsed` telt eronder door. Legacy persisted state z
 (Auto/New/First ¼/Full/Last ¼) in het World-debugpaneel, na "Wind". Een pin
 verschuift maan + zon-RA + sterrenbol samen (sprong in lunatie-tijd). +5 tests.
 
-### ⛔ (1) Maangloed enkel als de maan schijnt — GEBLOKKEERD
-Raakt `foliageLightingGLSL.js` + `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx` +
-`LdtkScenery.jsx` (`applyMoonLight` / shader-mains / `computeMoonRim`), en die files
-hebben NU niet-gecommitte parallelle §370-r9-wijzigingen in de tree. Niet
-interleaven. Plan zodra r9 geland is: `celestialModel` levert `moonShine` 0..1 =
-(maan boven horizon) · `illumFraction` · `smoothstep(0,~15°, altitude)`; via een
-gequantiseerde `foliageParams.moonShine` (change-detect epsilon) → nieuwe
-`uMoonShine` uniform, vermenigvuldigd in `applyMoonLight`'s `present`; en
-`bgRimOpacity` × `moonShine`. Richting blijft de vaste linksboven `MOON_DIR`.
+### ✅ (1) Maangloed enkel als de maan schijnt
+Han: "ander werk is niet gecommit maar wél af" → doorgezet (geen GLSL-wijziging,
+dus geen botsing met de parallelle §370-r9-shaderwerk).
+- `celestialModel.js`: `moonShine(moon)` 0..1 = 0 als `belowHorizon`, anders
+  `illumFraction · clamp(altDeg/MOON_SHINE_ALT_FADE_DEG(12°))`. +3 tests.
+- `RpgLevelPanel.jsx`: `quantMoonShine(out)` (0.05-stappen) → `foliageParams.moonShine`
+  in `pushWeatherToFoliage` + in de per-tick change-detect (mag, want gequantiseerd
+  & grof — anders dan `cycleT`). `bgRimOpacity` × `moonShine`. `moonPresence`
+  onder­grens 0.08→0.13 (nieuwe 0.12-floor).
+- `ForegroundFoliageLayer.jsx` (non-inst + inst) + `LdtkLitGround.jsx`: elke
+  `uMoonStrength`-upload × `(p.moonShine ?? 1)`. GEEN nieuwe uniform, GEEN GLSL-diff.
+  `DEFAULT_FOLIAGE_PARAMS.moonShine: 1` (dev-harness / andere callers ongemoeid).
+- Richting blijft de vaste linksboven `MOON_DIR` (Han's keuze). GLSL `moonPresence()`
+  is nog op 0.05 getuned — §370-r9-auteur kan bijstellen als 't bij 0.12 afwijkt.
+- NB: `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx` dragen in deze commit ook
+  de al-afgeronde §370-r9-wijzigingen mee die in de tree stonden (Han's go-ahead).
 
 ### ✅ (4) Constellatie-namen → BestiaryPixel italic (SandyForest)
 Han: "kijk beter ... hoe worden fonts in de bestiary gerenderd?" → `App.css` heeft de

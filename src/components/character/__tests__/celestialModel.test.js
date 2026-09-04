@@ -4,6 +4,7 @@ import {
     DUSK_ANCHOR_T, DAWN_ANCHOR_T,
     solarHourAngleDeg, localSiderealDeg, altAz, degPerPx, projectToScreen,
     sunPosition, moonPosition, illuminatedFraction, brightLimbUnitVector,
+    moonShine, MOON_SHINE_ALT_FADE_DEG,
     starOpacity, starSizeGpx, starColor, everVisibleFromSouth,
 } from '../celestialModel';
 import { BRIGHT_STARS } from '../data/brightStars';
@@ -147,6 +148,33 @@ describe('moonPosition — the 28-cycle lunation', () => {
         for (let i = 1; i <= 50; i++) {
             expect(illuminatedFraction(i / 100)).toBeGreaterThan(illuminatedFraction((i - 1) / 100));
         }
+    });
+
+    // §374 UAT r2 (#1191): the scalar that gates §370's moonlight on the REAL moon.
+    it('moonShine is 0 whenever the moon is below the horizon', () => {
+        expect(moonShine(moonPosition(MID_NIGHT_T, 0))).toBe(0);        // new moon: down all night
+        expect(moonShine(moonPosition(MID_DAY_T, 0.5))).toBe(0);        // full moon: down all day
+        expect(moonShine(moonPosition(DAWN_ANCHOR_T, 0.25))).toBe(0);   // first quarter has set by dawn
+    });
+
+    it('moonShine tracks the lit fraction for a moon that is well up', () => {
+        // Full moon transiting due south at midnight — high altitude, so altFade is saturated.
+        const full = moonShine(moonPosition(MID_NIGHT_T, 0.5));
+        expect(full).toBeCloseTo(1, 6);
+        // A gibbous moon (lunationPhase 0.4) up at the same time: dimmer than full, still positive.
+        const gibbous = moonShine(moonPosition(MID_NIGHT_T, 0.4));
+        expect(gibbous).toBeGreaterThan(0);
+        expect(gibbous).toBeLessThan(full);
+    });
+
+    it('moonShine fades in over the first MOON_SHINE_ALT_FADE_DEG of altitude', () => {
+        // Construct two "up" moon states at the same phase but different altitude by sampling near
+        // the full-moon rise (just after dusk) vs its transit.
+        const rising = moonPosition(DUSK_ANCHOR_T + 0.01, 0.5);   // low
+        const high = moonPosition(MID_NIGHT_T, 0.5);              // ~zenith-ish
+        expect(rising.altDeg).toBeLessThan(MOON_SHINE_ALT_FADE_DEG);
+        expect(moonShine(rising)).toBeLessThan(moonShine(high));
+        expect(moonShine(rising)).toBeGreaterThanOrEqual(0);
     });
 });
 

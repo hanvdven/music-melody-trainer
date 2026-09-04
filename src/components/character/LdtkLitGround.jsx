@@ -115,7 +115,10 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362 — directional top-left moon
+    // #weather §370: top-left moon rim on the ground/building/decor silhouettes (uv rect = the whole
+    // composited canvas). texelSize/uv are the same ones edgeLightFactor above already uses.
+    float moonRim = moonRimFactor(uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0));
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -313,7 +316,10 @@ function LdtkLitGround({
             gl.uniform1f(u.uGlobalIllumination, p.globalIllumination);
             gl.uniform1f(u.uNormalStrength, p.normalStrength);
             gl.uniform1f(u.uFlatIllumination, p.flatIllumination);
-            gl.uniform1f(u.uMoonStrength, p.moonStrength ?? 0.5);   // #weather §362
+            // §374 UAT r2 (#1191): premultiply by the real moon's shine (0 when it is down / new) so
+            // §370's moonlight only shows when the moon is actually up and lit. `?? 1` = unchanged
+            // for callers that don't supply it.
+            gl.uniform1f(u.uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, ids.diffuse);

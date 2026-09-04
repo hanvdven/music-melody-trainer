@@ -499,7 +499,8 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362 — directional top-left moon
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV);   // #weather §370
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -702,9 +703,18 @@ void main() {
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
     );
+    // #weather §368 r3 (Han: "allicht een probleem met het lijmen van de normal-maps? In debug zie ik dat
+    // die is opgebouwd in stroken; lijkt of die stroken strepen geven die prominent zichtbaar zijn in de
+    // nacht"). EXACTLY right: this is the instanced path, so uNormal is the shared ATLAS canvas — but
+    // normalUV was tile-local [0,1] (correct for the NON-instanced path's per-tile normal texture, wrong
+    // here). Every foliage instance was sampling the same [0,1] slice of the packed atlas = a vertical
+    // scan across ALL packed rows = the atlas's own strip layout projected onto every tile -> the
+    // horizontal stripes, worst at night when the moon lit that garbage relief. Map through vDiffuseUV
+    // (the per-instance atlas rect), identical to duv above — the diffuse and normal atlases share one
+    // packing layout (useLdtkFoliageAtlas).
     vec2 normalUV = vec2(
-        clamp((shiftedNativeX + 0.5) / vWorldWidth, 0.0, 1.0),
-        clamp((nativeY + 0.5) / vWorldHeight, 0.0, 1.0)
+        mix(vDiffuseUV.x, vDiffuseUV.z, clamp((shiftedNativeX + 0.5) / vWorldWidth, 0.0, 1.0)),
+        mix(vDiffuseUV.y, vDiffuseUV.w, clamp((nativeY + 0.5) / vWorldHeight, 0.0, 1.0))
     );
 
     vec4 diffuse = texture2D(uDiffuse, duv);
@@ -720,9 +730,20 @@ void main() {
     vec3 sampledNormal = normalize(texture2D(uNormal, normalUV).rgb * 2.0 - 1.0);
     vec3 n = (vInstanceKind > 0.5) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
 
-    vec3 trueColor = diffuse.rgb;
+    // #weather §368 r2 (Han: "De illum moet als allerlaatste worden toegepast! Dus na pixel switch en
+    // shimmer. De pixels in de boom steken nog steeds hard af, ik zie soms fel-groene pixels.").
+    // OLD ORDER: shimmer was baked INTO trueColor, THEN darkened, THEN the point lights / moon "revealed"
+    // trueColor (= the SHIMMERED colour) back out at full brightness — so a bright shimmer band (the
+    // Color blend mode literally recolours bright pixels to the shimmer hue) got re-lit by the moon into
+    // fel-groene pixels + hard horizontal bands.
+    // NEW ORDER: the lights/moon reveal the PLAIN diffuse only; the shimmer is applied LAST, on top of
+    // the fully-lit/darkened colour, so at night it can only ever be a faint scene-matched sheen.
+    vec3 baseColor = diffuse.rgb;
+    float waveQuant = 0.0;
+    float shimmerStrength = 0.0;
+    vec3 shimmerColor = vec3(1.0);
     if (vHasWave > 0.5 && wantsWave) {
-        float waveQuant = quantizeWave(wave01, worldX, groundDist);
+        waveQuant = quantizeWave(wave01, worldX, groundDist);
         if (uDebugChannel == 2) {
             gl_FragColor = vec4(vec3(waveQuant), 1.0);
             return;
@@ -730,22 +751,29 @@ void main() {
         vec3 ambientLight = normalize(vec3(0.0, 0.5, 0.8));
         float ambientNdotl = max(dot(n, ambientLight), 0.0);
         float ambientWeight = (vInstanceKind > 0.5) ? (0.6 + 0.4 * ambientNdotl) : (0.4 + 0.6 * ambientNdotl);
-        float strengthScale = uHighlightStrength * ambientWeight;
-        trueColor = blendHighlightDual(diffuse.rgb, HIGHLIGHT_COLOR, waveQuant, strengthScale, uWaveBlendMode, uWaveBlendMode2);
-
-        if (waveQuant > vWhiteCapThreshold) {
-            float capMix = clamp((waveQuant - vWhiteCapThreshold) / max(1.0 - vWhiteCapThreshold, 0.0001), 0.0, 1.0) * vWhiteCapStrength;
-            trueColor = mix(trueColor, vec3(1.0), capMix);
-        }
+        shimmerStrength = uHighlightStrength * ambientWeight;
+        // Foliage shimmer tracks day/night — day mint (112,255,153), night blue (49,78,158).
+        shimmerColor = mix(vec3(49.0, 78.0, 158.0) / 255.0, vec3(112.0, 255.0, 153.0) / 255.0, clamp(uGlobalIllumination, 0.0, 1.0));
     } else if (uDebugChannel == 2) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
+    // --- illum / lighting: reveals PLAIN diffuse, never the shimmer ---
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
-    vec3 darkened = trueColor * ambientTint;
-    vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362 — directional top-left moon
+    vec3 darkened = baseColor * ambientTint;
+    vec3 lit = applyPointLights(baseColor, darkened, n, worldX, groundDist, edgeFactor);
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
+
+    // --- shimmer LAST, on the fully-lit colour ---
+    if (vHasWave > 0.5 && wantsWave) {
+        lit = blendHighlightDual(lit, shimmerColor, waveQuant, shimmerStrength, uWaveBlendMode, uWaveBlendMode2);
+        if (waveQuant > vWhiteCapThreshold) {
+            float capMix = clamp((waveQuant - vWhiteCapThreshold) / max(1.0 - vWhiteCapThreshold, 0.0001), 0.0, 1.0) * vWhiteCapStrength;
+            lit = mix(lit, vec3(1.0), capMix);
+        }
+    }
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -888,6 +916,11 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     // shader scales it by (1 - globalIllumination) so it only shows as the cycle darkens. Debug slider
     // in FoliageParamsPanel. UAT round 2 (§364, Han: "iets subtieler"): 0.5 → 0.3.
     moonStrength: 0.3,
+    // §374 UAT r2 (#1191, Han: "maangloed enkel als de maan schrijnt"): 0..1, how much the REAL moon
+    // is lighting the world (RpgLevelPanel derives it from celestialModel — moon altitude + lit
+    // fraction). Premultiplied into `uMoonStrength` at every upload site. Default 1 = "always shining"
+    // so the dev harness / any caller that doesn't drive it is unchanged.
+    moonShine: 1,
     // #141 round 26 drove skew/stretch off a 3-level low/med/high "weather" picker (1/2/3 px). #weather
     // (Han 2026-09-01): the auto cycle now sets both to the same eased 0..3 wind value every ~3 s; the
     // shader uniforms `uSkewAmount`/`uStretchAmount` read them unchanged.
@@ -1223,7 +1256,10 @@ function ForegroundFoliageLayer({
             gl.uniform1f(uStretchAmount, p.stretchAmount);
             gl.uniform1f(uNormalStrength, p.normalStrength);
             gl.uniform1f(uFlatIllumination, p.flatIllumination);
-            gl.uniform1f(uMoonStrength, p.moonStrength ?? 0.5);   // #weather §362
+            // §374 UAT r2 (#1191, Han: "maangloed enkel als de maan schrijnt"): premultiply by the
+            // REAL moon's shine (0 when it is below the horizon or new) so §370's sheen/rim only show
+            // when the moon is actually up and lit. `?? 1` keeps non-world callers unchanged.
+            gl.uniform1f(uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374
             // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
             // per-instance-only (water exclusive), see the draw loop below.
 
@@ -1365,7 +1401,7 @@ function ForegroundFoliageLayer({
                 gl.uniform1f(iu.uGlobalIllumination, p.globalIllumination);
                 gl.uniform1f(iu.uNormalStrength, p.normalStrength);
                 gl.uniform1f(iu.uFlatIllumination, p.flatIllumination);
-                gl.uniform1f(iu.uMoonStrength, p.moonStrength ?? 0.5);   // #weather §362
+                gl.uniform1f(iu.uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374 (see non-instanced path)
 
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);

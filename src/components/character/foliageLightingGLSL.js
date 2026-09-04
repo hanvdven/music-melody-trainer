@@ -52,11 +52,10 @@ uniform float uMoonStrength;
 // per his explicit choice to share ONE constant across every edge-lit consumer (crates/fences AND the
 // new front-of-entities ground/building/decor layers), not a separate per-layer value.
 export const EDGE_LIGHT_PIXELS = 2.0;
-// #weather §362 (Han 2026-09-01, "de nacht is iets te donker, ik wil een blauwwitte donkere kleur —
-// maanlicht"): lifted from the near-black vec3(0.05,0.08,0.18) to a lighter, bluer-whiter tone so a
-// fully-dark scene still reads as moonlit rather than black. The CSS-side twin `AMBIENT_DARK_RGB` in
-// RpgLevelPanel.jsx (used for the DOM day/night tint + the new background overlay) must stay in sync.
-export const AMBIENT_DARK_COLOR = 'vec3(0.11, 0.15, 0.25)';
+// #weather §362 lifted the near-black vec3(0.05,0.08,0.18) to a lighter blue-white. §370 (Han: "echt
+// donkerblauw") pulls it back DOWN and BLUER — deep, saturated, low R/G. The CSS-side twin
+// `AMBIENT_DARK_RGB` in RpgLevelPanel.jsx (DOM day/night tint + background overlay) must stay in sync.
+export const AMBIENT_DARK_COLOR = 'vec3(0.03, 0.06, 0.17)';
 
 export const LIGHTING_FUNCTIONS_GLSL = `
 const float EDGE_LIGHT_PIXELS = ${EDGE_LIGHT_PIXELS.toFixed(1)};
@@ -164,7 +163,14 @@ vec3 applyPointLight(vec3 trueColor, vec3 currentColor, vec3 normal, float world
     float flatGlow = closeness * edgeFactor * uLightStrength * uFlatIllumination;
     float intensity = clamp(directional + flatGlow, 0.0, 1.0);
     if (intensity <= 0.0) return currentColor;
-    vec3 revealed = blendLightDual(trueColor, lightColor, uHuePull, uLightBlendMode, uLightBlendMode2);
+    // §370 r4/r5 (Han: near a light, restore the pixel's own colour with a warm/cool/green tint instead
+    // of flat grey). OLD: blendLightDual(trueColor, lightColor, ...) colour-dodge washed bright pixels
+    // toward white, so ambient-blue then light-white read as grey. NOW: revealed = the pixel's OWN
+    // colour, luminance-preserved, with a gentle hue cast of the light (pulled toward neutral so no
+    // channel is crushed).
+    vec3 lc = lightColor / max(dot(lightColor, vec3(0.299, 0.587, 0.114)), 0.001);   // luminance = 1
+    lc = mix(vec3(1.0), lc, 0.7);
+    vec3 revealed = clamp(trueColor * lc, 0.0, 1.0);
     return mix(currentColor, revealed, intensity);
 }
 
@@ -191,15 +197,74 @@ vec3 applyPointLights(vec3 trueColor, vec3 currentColor, vec3 normal, float worl
 //   - "iets subtieler" + "dat mag wit zijn" → MOON_COLOR is pure white and the default uMoonStrength
 //     dropped 0.5 → 0.3 (DEFAULT_FOLIAGE_PARAMS).
 const vec3 MOON_DIR = normalize(vec3(-0.55, -0.5, 0.65));
-const vec3 MOON_COLOR = vec3(1.0);   // white
-vec3 applyMoonLight(vec3 trueColor, vec3 currentColor, vec3 normal, float edgeFactor) {
-    float strength = uMoonStrength * (1.0 - uGlobalIllumination);
-    if (strength <= 0.0) return currentColor;
-    // Half-Lambert: no hard 0-crossing, so no harsh shadow edge. Squared for a gentle shoulder.
-    float wrap = dot(normalize(normal), MOON_DIR) * 0.5 + 0.5;
-    float intensity = clamp(edgeFactor * strength * wrap * wrap, 0.0, 1.0);
-    if (intensity <= 0.0) return currentColor;
-    vec3 revealed = blendLightDual(trueColor, MOON_COLOR, intensity, uLightBlendMode, uLightBlendMode2);
-    return mix(currentColor, revealed, intensity);
+const vec3 MOON_RIM_COLOR = vec3(1.0);            // white rim
+// §370 r9 (Han, screenshot: "manenschijn is te heftig ... Mijn binaire 30% opacity is te simplistisch.
+// Slimmer gebruik van de normal map en de bestaande kleuren: dakpannen-highlights moeten maanlicht
+// vangen, de donkere rand onder het dak juist NIET"). r8's binary step lit EVERY up-left-facing texel by
+// the same 30 %, ignoring the tone the artist painted -> the whole roof/facade glowed flat. r9 is a
+// LUMINANCE-MASKED directional sheen: the moon rides the art's EXISTING highlights.
+//   - soft directional term (smoothstep, no hard step): near-flat normals get almost nothing, only
+//     strongly moon-facing relief gets the full term;
+//   - luminance mask from the texel's OWN painted colour (pre-darkening): only pixels the artist already
+//     drew light (tile highlights, plaster) respond; dark recesses (the eave band) stay ~0;
+//   - additive via screenBlend: self-limiting, never blows a light pixel to white, does nothing to black.
+const vec3 MOON_GLOW_COLOR = vec3(0.92, 0.96, 1.0);   // barely-cool near-white moonlight
+const float MOON_FACING_LO = 0.45;   // dot(normal, MOON_DIR): below -> no sheen
+const float MOON_FACING_HI = 0.95;   // at/above -> full directional term
+const float MOON_LUM_LO = 0.35;      // texel luminance: below -> masked out (dark recess = no sheen)
+const float MOON_LUM_HI = 0.75;      // at/above -> full luminance term (a painted highlight)
+const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*hi rarely both hit 1
+
+// §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
+// gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
+// (illum <= 0.08). Fades in as dusk crosses into night and back out well before dawn's brightness ramps.
+float moonPresence() {
+    return 1.0 - smoothstep(0.08, 0.20, uGlobalIllumination);
+}
+
+// #weather §370 r2 (Han's exact spec): a directional moon RIM. For an opaque pixel, look for an EMPTY
+// (transparent) pixel toward screen-UP / LEFT / RIGHT and set an opacity:
+//   above  → adjacent px .70, next down .50, next .20
+//   left   → adjacent px .70, next right .30
+//   right  → adjacent px .50
+//   clash  → the highest opacity wins.
+// Neighbour samples are clamped to the tile's own UV rect so the gap-free foliage atlas never bleeds an
+// adjacent tile's alpha in. On the foliage path duv already carries the wind pixel-switch
+// (shiftedNativeX), so the rim shifts along with the leaves for free.
+float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect) {
+    float vUp = min(uvRect.y, uvRect.w);     // atlases are drawn top-down → smaller v = higher on screen
+    float uL = min(uvRect.x, uvRect.z);
+    float uR = max(uvRect.x, uvRect.z);
+    // §370 r6 (Han: "maak het allemaal 15 procentpunten minder fel — dus opacity 70→55 etc").
+    float r = 0.0;
+    if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < 0.5)        r = max(r, 0.55);
+    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < 0.5) r = max(r, 0.35);
+    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 3.0, vUp))).a < 0.5) r = max(r, 0.05);
+    if      (texture2D(tex, vec2(max(duv.x - texelSize.x, uL), duv.y)).a < 0.5)        r = max(r, 0.55);
+    else if (texture2D(tex, vec2(max(duv.x - texelSize.x * 2.0, uL), duv.y)).a < 0.5) r = max(r, 0.15);
+    if      (texture2D(tex, vec2(min(duv.x + texelSize.x, uR), duv.y)).a < 0.5)        r = max(r, 0.35);
+    return r;
+}
+
+// §370 r9: baseColor is the texel's OWN diffuse rgb BEFORE ambient darkening / point lights — the
+// luminance mask reads it so the sheen tracks the art's painted highlights, not the (already night-
+// darkened) currentColor.
+vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFactor, float rimFactor) {
+    float present = moonPresence();   // §370 r4: night only, gone by dawn
+    if (present <= 0.0) return currentColor;
+    // moonScale normalises uMoonStrength around its 0.3 default (same normalisation the rim uses) so the
+    // debug dial still scales it; present fades the whole thing in/out with the night.
+    float moonScale = clamp(uMoonStrength / 0.3, 0.0, 2.0);
+    // Soft directional term — near-flat normals ~0, only strongly moon-facing relief gets the full term.
+    float d = smoothstep(MOON_FACING_LO, MOON_FACING_HI, dot(normalize(normal), MOON_DIR));
+    // Luminance mask from the texel's own painted colour: a dark eave recess (low luminance) stays ~0.
+    float lum = dot(baseColor, vec3(0.299, 0.587, 0.114));
+    float hi = smoothstep(MOON_LUM_LO, MOON_LUM_HI, lum);
+    float sheen = clamp(edgeFactor * present * moonScale * d * hi * MOON_SHEEN_SCALE, 0.0, 1.0);
+    vec3 lit = screenBlend(currentColor, MOON_GLOW_COLOR * sheen);
+    // Rim: a thin bright white outline — screen-blend is right here too (it's an edge, not a surface).
+    float rim = clamp(rimFactor * present * clamp(uMoonStrength / 0.3, 0.0, 2.0), 0.0, 1.0);
+    if (rim > 0.0) lit = screenBlend(lit, MOON_RIM_COLOR * rim);
+    return clamp(lit, 0.0, 1.0);
 }
 `;

@@ -247,7 +247,8 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    lit = applyMoonLight(trueColor, lit, n, edgeFactor);   // #weather §362
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;

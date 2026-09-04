@@ -195,6 +195,20 @@ export function moonPosition(cycleT, lunationPhase) {
     };
 }
 
+// §374 UAT r2 (#1191, Han: "ik wil de maangloed enkel als de maan schrijnt"). A 0..1 scalar for how
+// strongly the moon is actually lighting the world right now — used to gate §370's moonlight sheen /
+// rim, which until now was on EVERY night regardless of whether the moon was up or what phase it was.
+// 0 when the moon is below the horizon (near new moon it rides with the sun by day → dark night);
+// scales with the illuminated fraction; and fades in over the first `MOON_SHINE_ALT_FADE_DEG` of
+// altitude so a moon sitting on the horizon is weak. Only the STRENGTH tracks the real moon — §370's
+// glow keeps its fixed top-left `MOON_DIR` (Han's pick at UAT).
+export const MOON_SHINE_ALT_FADE_DEG = 12;
+export function moonShine(moon) {
+    if (moon.belowHorizon) return 0;
+    const altFade = Math.max(0, Math.min(1, moon.altDeg / MOON_SHINE_ALT_FADE_DEG));
+    return Math.max(0, Math.min(1, moon.illumFraction * altFade));
+}
+
 /**
  * Unit vector in SCREEN space pointing from the moon toward the sun — the direction of the moon's
  * bright limb. Computed from the two projected positions (not from a spherical position angle) so it

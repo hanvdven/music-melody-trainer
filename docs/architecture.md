@@ -25999,8 +25999,20 @@ weather clock — not a decorative twinkle layer.
   astronomy constants live there; `CelestialSky.jsx` owns none.
 - CLAUDE.md §3a (debug hit-box overlay) is **N/A** for this layer: `pointerEvents: 'none'`, zero
   handlers, nothing to visualise.
-- §374's moon DISC is a DIFFERENT thing from §370's moon-RIM directional light, which keeps its fixed
-  top-left `MOON_DIR`. Driving that rim from the real moon position is explicitly out of scope here.
+- §374's moon DISC is a DIFFERENT thing from §370's moon-RIM/sheen directional light, which keeps its
+  fixed top-left `MOON_DIR`. **UAT r2 (Han: "ik wil de maangloed enkel als de maan schrijnt"):** only
+  the STRENGTH of §370's glow is now driven by the real moon — its DIRECTION stays the fixed
+  `MOON_DIR` (Han's pick). `celestialModel.moonShine(moon)` is a 0..1 scalar = `0` when the moon is
+  below the horizon or new, else `illumFraction × smoothstep-in over the first
+  MOON_SHINE_ALT_FADE_DEG (12°) of altitude`. `RpgLevelPanel` quantises it to 0.05
+  (`quantMoonShine`), publishes it as `foliageParams.moonShine`, and adds that quantised value to the
+  per-tick weather change-detection (allowed there precisely BECAUSE it is quantised and coarse —
+  unlike `cycleT`). Every `uMoonStrength` upload site premultiplies by `p.moonShine ?? 1`
+  (`ForegroundFoliageLayer` non-instanced + instanced, `LdtkLitGround`); the parallax-bg rim
+  (`bgRimOpacity`) multiplies by it too. So a moonless / new-moon night has NO moon glow anywhere,
+  and a low moon's glow ramps up as it climbs. `?? 1` keeps the dev harness and any non-world caller
+  unchanged. (The night-floor lift to 0.12 also nudged `bgRimOpacity`'s `moonPresence` lower bound
+  0.08 → 0.13 so deep night still reads as full presence.)
 
 **Files:** `src/components/character/celestialModel.js` (new, pure),
 `src/components/character/CelestialSky.jsx` (new, rasterisation only),
@@ -26010,13 +26022,16 @@ weather clock — not a decorative twinkle layer.
 `src/components/character/weatherCycleStore.js` (header note),
 `src/components/character/RpgLevelPanel.jsx` (mount between `<SkyGradientBackdrop>` and the parallax
 layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `LevelPicker` +
-`seekLunation` wiring), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js` (`lunationOverride`,
-`seekLunation`, night `illum` 0.05 → 0.12), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel`
-italic labels), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the first cut added is
-removed — labels now use the existing `BestiaryPixel` family). Tests:
-`src/components/character/__tests__/celestialModel.test.js` (new, 24 cases — including the
-first-quarter-transits-at-DUSK test that pins the elongation sign) and the `§374 cycle clock` +
-`§374 seekLunation` describes in `src/components/character/__tests__/weatherCycle.test.js`.
+`seekLunation` wiring; UAT r2: `quantMoonShine` + `moonShine` in `pushWeatherToFoliage`/the tick gate,
+`bgRimOpacity` × `moonShine`), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js`
+(`lunationOverride`, `seekLunation`, night `illum` 0.05 → 0.12), `celestialModel.js` (`moonShine` +
+`MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels),
+`ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx` (premultiply `uMoonStrength` by `p.moonShine ?? 1`;
+`DEFAULT_FOLIAGE_PARAMS.moonShine`), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the
+first cut added is removed — labels now use the existing `BestiaryPixel` family). Tests:
+`src/components/character/__tests__/celestialModel.test.js` (27 cases — incl. the
+first-quarter-transits-at-DUSK elongation-sign test and the `moonShine` gate) and the `§374 cycle
+clock` + `§374 seekLunation` describes in `src/components/character/__tests__/weatherCycle.test.js`.
 
 **Cross-references.** §360 (the auto weather cycle) owns the clock this layer reads; §372
 (`SkyGradientBackdrop`) is the gradient it draws in front of; §141 owns `HORIZON_PX`, the horizon this

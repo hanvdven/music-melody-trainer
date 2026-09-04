@@ -66,6 +66,7 @@ import SkyGradientBackdrop from './SkyGradientBackdrop';
 // moon, all driven by the SAME weather clock. Mounted just in front of the gradient, behind every
 // parallax layer, so the scenery occludes the low sun/moon for free.
 import CelestialSky from './CelestialSky';
+import { moonPosition, moonShine as celestialMoonShine } from './celestialModel';
 
 // #691/#693 (Han 2026-08-04, "maak een extra tab: 'rpg level'" + round-2 movement/pet/NPC follow-up +
 // round-7 world/camera/parallax rework): a dev/preview scene — like the Bestiary tab, NOT wired into
@@ -130,6 +131,13 @@ const HERO_LIGHT_COLOR01 = [1.0, 0.85, 0.25];
 const CAMPFIRE_LIGHT_COLOR01 = [1.0, 0.55, 0.15];
 const mixRgb = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const rgbCss = ([r, g, b], a = 1) => `rgba(${r},${g},${b},${a})`;
+
+// §374 UAT r2 (#1191): the real moon's lighting strength (celestialModel.moonShine) for a weather
+// state, quantised to 0.05. Quantising is what keeps it a COARSE re-render trigger — it steps a
+// handful of times as the moon rises/sets across a night, not every frame like `cycleT` (which the
+// §374 invariant bans from the weather change-detection lists).
+const quantMoonShine = (out) =>
+    Math.round(celestialMoonShine(moonPosition(out.cycleT, out.lunationPhase)) * 20) / 20;
 const FLOOR_SHEET = { w: 288, h: 576 };
 const FLOOR_CELLS = [2, 3, 4, 5, 8, 9, 10, 11].map((col) => ({ row: 1, col }));
 // #693 round 7 (Han: "Generate a level of 200 16x16 tiles"): the whole walkable floor is now a FIXED
@@ -1147,6 +1155,11 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             stretchAmount: out.windValue,
             globalIllumination: out.globalIllumination,
             timeOfDay: out.timeOfDay,
+            // §374 UAT r2 (#1191): how strongly the REAL moon lights the world (0 when it is below the
+            // horizon or new, scaling with the lit fraction). Gates §370's moonlight sheen/rim — which
+            // was previously on every night regardless of the moon. Quantised to 0.05 so it is a rare,
+            // coarse re-render trigger (see the tick loop) rather than a per-frame one like `cycleT`.
+            moonShine: quantMoonShine(out),
         }));
     }, []);
 
@@ -1183,11 +1196,14 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // §374 (#1191) INVARIANT: `cycleT` / `lunationPhase` must NEVER be added to this list (nor to
         // the `setWeather` list below). They move every single tick, so either list would turn a
         // steady phase from 0 re-renders into ~12/s and undo #1162 Fase 8. <CelestialSky> reads them
-        // off `weatherRef` inside its own draw callback, which is exactly why it can.
+        // off `weatherRef` inside its own draw callback, which is exactly why it can. The QUANTISED
+        // `quantMoonShine` (§374 UAT r2) is allowed here — it is a 0.05-step value that changes a
+        // handful of times per night as the moon rises/sets, not every tick.
         if (
             Math.abs(a.globalIllumination - b.globalIllumination) >= 0.004
             || Math.abs(a.windValue - b.windValue) >= 0.02
             || a.timeOfDay !== b.timeOfDay
+            || quantMoonShine(a) !== quantMoonShine(b)
         ) {
             pushWeatherToFoliage(next);
         }
@@ -2041,8 +2057,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // dawn"): the RIM (moon) is gated on the same night-only curve the shader uses (moonPresence) — 0 at
     // dusk/dawn (illum 0.33), 1 only deep in night — NOT the general 1-illum darken. Quantised to match.
     const gi = foliageParams.globalIllumination;
-    const moonPresence = gi >= 0.20 ? 0 : gi <= 0.08 ? 1 : (0.20 - gi) / 0.12;
-    const bgRimOpacity = Math.round(moonPresence * 20) / 20;
+    // §374 UAT r2: lower bound lifted 0.08 → 0.13 so the new 0.12 deep-night floor still reads as full
+    // presence (this curve was tuned for the old 0.05 floor).
+    const moonPresence = gi >= 0.20 ? 0 : gi <= 0.13 ? 1 : (0.20 - gi) / 0.07;
+    // §374 UAT r2 (Han: "maangloed enkel als de maan schrijnt"): gate the parallax-bg moon rim on the
+    // REAL moon too — `foliageParams.moonShine` (0 when the moon is down / new) — exactly as the WebGL
+    // layers now premultiply `uMoonStrength`. No rim on a moonless night.
+    const bgRimOpacity = Math.round(moonPresence * (foliageParams.moonShine ?? 1) * 20) / 20;
 
     const floorTileIdx = useMemo(
         () => Array.from({ length: LEVEL_TILES }, () => Math.floor(Math.random() * FLOOR_CELLS.length)),
