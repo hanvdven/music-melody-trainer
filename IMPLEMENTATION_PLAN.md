@@ -36,12 +36,14 @@ Han: "als het 'wereld' beeld lager is dan 320 GPX, wil ik een knopje rechtsboven
 hoogte te geven. Als content 1 en 2 niet meer passen, render die dan niet..." — "content 1 en 2" is
 niet gespecificeerd genoeg om te bouwen. Interview volgt in chat.
 
-### ⏳ Nieuw backlog-item — labels bij planeten/noordster/hemellichamen
-Han: "toon ook labels bij planeten, de noordster, en andere interessante hemellichamen." Noordster
-(Polaris) zit al in de catalogus (dec ~89.26°) maar heeft geen individueel label (enkel sterrenbeeld-
-centroids krijgen namen nu). Planeten zitten HELEMAAL NIET in het model — celestialModel simuleert
-alleen zon/maan (perpetueel equinox) + vaste-sterren-catalogus; planeetbanen zijn een aparte, niet-
-triviale toevoeging (geen ephemeris-model aanwezig). Apart backlog-item, interview nodig vóór design.
+### ⏳ Backlog-item #1194 — planeten (echte baanmechanica) + individuele ster-labels
+Han: "toon ook labels bij planeten, de noordster, en andere interessante hemellichamen." →
+"haal de planeetbanen op" (op de vraag placeholder vs. echt) = ECHTE orbitmechanica gewenst, geen
+nep-baan. celestialModel.js heeft nu geen ephemeris-model; de wereld draait op gecomprimeerde
+cyclus-tijd (geen wall-clock), dus geen live-API — een ingebouwd laag-precisie planeet-positiemodel
+(Kepleriaanse elementen, puur JS). Noordster zit al in de catalogus maar zonder individueel label.
+Ticket #1194 aangemaakt in `todo`, volledig interview nog te doen — te groot voor een quick pre-test
+fix, eigen design/plan/impl-cyclus.
 
 ## 2026-09-04 — ✅ #1192 UAT r1: helder blauwer · geen vlekken · bewolkte nacht donker · waterige zon wit
 
