@@ -8422,3 +8422,53 @@ as, elke visual is een lerp over één ramp. LIGHT = alle ramps 0 ⇒ bit-identi
 een bewolkte nacht), `OVERCAST_DARK_SCALE` (0.55), `CLEAR_SAT_GAIN` (0.45) /
 `CLEAR_HORIZON_SHARE` (0.45), `MOTTLE_CELL_GPX` (24) / `MOTTLE_PEAK_ALPHA` (0.35) /
 `MOTTLE_CONTRAST` (1.6), `SUN_WATERY_R_GAIN` (0.6).
+
+---
+
+## #1193 — ✅ Sun edge-glow: "felle zon door de bomen" / "zon vlak over daken" (Han 2026-09-04)
+
+Han: "geef de zon een glow (net zoals de maan), maar dan in de kleur van de zon (geel, of dusk/dawn
+naar roze toe) **enkel voor pixels aan de rand van sprites vlakbij de zon**". De tegenhanger van
+§370's maan-sheen/rim, maar getint met de zonkleur, **gemaskeerd tot een schijf rond de
+schermpositie van de zon**, en het felst als de zon LAAG staat. Design + plan goedgekeurd
+(plan_review: Q1 `SUN_SHEEN_SCALE = 0.35`, Q2 geen split — alle 13 stappen in één pass).
+
+- ✅ `celestialModel.js` — `SUN_GLOW_RGB` hierheen verhuisd (één zonkleur voor disc én glow),
+  `SUN_GLOW_RADIUS_GPX 40` / `SUN_GLOW_RISE_DEG 2` / `SUN_GLOW_ALT_FADE_DEG 25` /
+  `SUN_GLOW_ZENITH_FLOOR 0.25`, en de pure `sunGlowStrength(sun)` (0 onder de horizon, piek net
+  erboven, easet naar een lage floor bij zenit) — hergebruikt `easeInOut`, geen tweede smoothstep.
+- ✅ `CelestialSky.jsx` — `skyGeom(sizePx, zoom, horizonGamePx)` geëxtraheerd + geëxporteerd en
+  zelf geconsumeerd (§6d): er is nu structureel ÉÉN zonprojectie in de app.
+- ✅ `SkyGradientBackdrop.jsx` — `SUNSET_RGB` geëxporteerd + pure `sunGlowColor(illum)` =
+  geel → roze op §372's EIGEN `sunsetFactor`-curve. Geen tweede dusk/dawn-curve, geen nieuw roze.
+- ✅ `foliageLightingGLSL.js` — 4 gedeelde uniforms (`uSunGlowStrength/Color/uSunScreenPos/Radius`,
+  highp waar nodig), `SUN_SHEEN_SCALE 0.35`, en `applySunGlow(...)` naast `applyMoonLight`:
+  zelfde screen-blend sheen + rim, plus de scherm-afstandsmask. Contract: wie de uniforms niet
+  uploadt krijgt 0 ⇒ no-op, nooit een compile error.
+- ✅ Coördinatenbrug: elke fragment shader had de waarde al (`gl_FragCoord` + `uCanvasSize`);
+  BEIDE assen door de canvas-BREEDTE ⇒ isotroop, dpr-vrij, zoom-vrij, camera-onafhankelijk.
+  GLSL ES 1.00-val vermeden: `1.0 - smoothstep(0.0, max(R, 1e-5), d)`, nooit `smoothstep(R, 0, d)`.
+- ✅ 4 shader-consumenten identiek bijgewerkt: `ForegroundFoliageLayer.jsx` (non-instanced +
+  instanced), `LdtkLitGround.jsx`, `FoliageInstancingTest.jsx` (dev-harness pariteit) +
+  `DEFAULT_FOLIAGE_PARAMS` no-op defaults.
+- ✅ `RpgLevelPanel.jsx` — `quantSunGlow` (0.05, × dezelfde `(1-cloudCollapseT)` wolkgate als
+  `quantMoonShine`), `quantSunScreenPos` (1 game px ⇒ bit-identiek aan de getekende disc),
+  `sunPosMoved`, `skyGeomRef`, 4 nieuwe `foliageParams`-kanalen, 2 gequantiseerde termen in ALLEEN
+  de foliage change-detection lijst (rauw komt er nooit in), re-push bij resize/zoom.
+- ✅ `LdtkScenery.jsx` — parallax-bg zonrim: hergebruikt DEZELFDE gebakken `computeMoonRim`-canvas,
+  gemaskeerd + getint. **Afwijking van de letterlijke plantekst** (bewust, gedocumenteerd in §377):
+  de patch krijgt zijn EIGEN 80×80 canvas i.p.v. in de grote laag-canvas gebakken te worden — de
+  zonpositie verschuift canvas-lokaal elke pan-frame, dus de plan-variant zou een 3200×H canvas per
+  pan-frame herbakken. Nu 6 400 px werk i.p.v. ~640 000. Positie-quantum 4 gpx (`BG_SUN_POS_QUANT_GPX`).
+- ✅ Tests: `sunGlowStrength` describe in `celestialModel.test.js` (0 onder de horizon, piek net
+  erboven, monotone daling naar de floor, echte-zonboog-integratie) + `sunGlowColor` describe in
+  `skyGradientBackdrop.test.js`. Gates: **1473 tests groen, build OK, lint 0 errors**.
+- ✅ Docs: `docs/architecture.md` §377. Geen nieuwe error code (§7a: de term zit in de bestaande
+  per-laag try/catch — E021/E023/E030/E031/E034).
+
+**UAT-tuneknoppen (allemaal benoemde constanten):** `SUN_GLOW_RADIUS_GPX` (40 — hoe ver de glow
+reikt), `SUN_GLOW_RISE_DEG` (2), `SUN_GLOW_ALT_FADE_DEG` (25), `SUN_GLOW_ZENITH_FLOOR` (0.25),
+`SUN_SHEEN_SCALE` (0.35 — op 0 zetten = strikt alleen randpixels), `BG_SUN_POS_QUANT_GPX` (4).
+
+**Valkuil genoteerd:** een backtick in een comment BINNEN een GLSL template literal beëindigt de
+literal — brak de eerste build van dit ticket. Gebruik daar enkele quotes.

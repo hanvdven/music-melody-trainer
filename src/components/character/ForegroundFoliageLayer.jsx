@@ -2,6 +2,9 @@ import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+// §377: the sun's own yellow — imported, never retyped (CLAUDE.md §6c). Used as the no-op default and
+// as the upload fallback for any caller that does not drive the sun-glow channels.
+import { SUN_GLOW_RGB } from './celestialModel';
 
 // #141 (Han 2026-08-05, Factorio-style tree/grass wind-shimmer, stage 1): the app's FIRST WebGL surface —
 // everything else in RpgLevelPanel is plain DOM/CSS. This exists because stage 1 needs a genuine per-pixel
@@ -501,6 +504,12 @@ void main() {
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
     float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV);   // #weather §370
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
+    // §377: the sun edge-glow, masked to a screen-space disc around the sun. Reuses the SAME
+    // gl_FragCoord → top-down canvas-px flip localYPx already does above (uCanvasSize.y - gl_FragCoord.y),
+    // normalised by the canvas WIDTH on BOTH axes so the mask is isotropic and dpr-free. Reuses the
+    // moonRim value too — one rim definition, zero extra texture fetches.
+    vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -765,6 +774,11 @@ void main() {
     vec3 lit = applyPointLights(baseColor, darkened, n, worldX, groundDist, edgeFactor);
     float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
+    // §377: the sun edge-glow — LIGHTING, so it belongs in this block (immediately after the moon),
+    // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
+    // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
+    vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, sunFragUnit);   // §377
 
     // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
@@ -921,6 +935,14 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     // fraction). Premultiplied into `uMoonStrength` at every upload site. Default 1 = "always shining"
     // so the dev harness / any caller that doesn't drive it is unchanged.
     moonShine: 1,
+    // §377 (#1193): the sun edge-glow channels. These defaults make the WHOLE term a NO-OP for any
+    // caller that does not drive it (the FoliageInstancingTest harness, tests) — strength 0
+    // short-circuits applySunGlow before it touches a texture, and radius 0 would zero the mask
+    // anyway. RpgLevelPanel overwrites all four on every weather push.
+    sunGlow: 0,                   // 0..1, quantised to 0.05 like moonShine
+    sunGlowColor: SUN_GLOW_RGB,   // 0..255 ints (the app-wide RGB convention); /255 at the upload site
+    sunScreenPos: [0, 0],         // canvas-width-normalised [x, y], top-down origin
+    sunGlowRadius: 0,             // canvas-width-normalised reach; 0 ⇒ the mask is 0 everywhere
     // #141 round 26 drove skew/stretch off a 3-level low/med/high "weather" picker (1/2/3 px). #weather
     // (Han 2026-09-01): the auto cycle now sets both to the same eased 0..3 wind value every ~3 s; the
     // shader uniforms `uSkewAmount`/`uStretchAmount` read them unchanged.
@@ -1104,6 +1126,12 @@ function ForegroundFoliageLayer({
         const uWhiteCapThreshold = gl.getUniformLocation(program, 'uWhiteCapThreshold');
         const uWhiteCapStrength = gl.getUniformLocation(program, 'uWhiteCapStrength');
         const uMoonStrength = gl.getUniformLocation(program, 'uMoonStrength');   // #weather §362
+        // §377 (#1193) — the sun edge-glow. A null location here is harmless by design (see the
+        // uniform block's own contract comment in foliageLightingGLSL.js).
+        const uSunGlowStrength = gl.getUniformLocation(program, 'uSunGlowStrength');
+        const uSunGlowColor = gl.getUniformLocation(program, 'uSunGlowColor');
+        const uSunScreenPos = gl.getUniformLocation(program, 'uSunScreenPos');
+        const uSunGlowRadius = gl.getUniformLocation(program, 'uSunGlowRadius');
 
         // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): the instanced program is compiled
         // ADDITIONALLY, alongside the original per-instance `program` above — both stay live for the whole
@@ -1139,6 +1167,8 @@ function ForegroundFoliageLayer({
                 'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
                 'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
                 'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
+                // §377 (#1193) — the sun edge-glow, same four as the per-instance program above.
+                'uSunGlowStrength', 'uSunGlowColor', 'uSunScreenPos', 'uSunGlowRadius',
             ].forEach((name) => { instUniforms[name] = gl.getUniformLocation(instProgram, name); });
             instLocs = { aPos: instAPos, aInstance: instAInstanceLocs, uniforms: instUniforms };
         }
@@ -1260,6 +1290,16 @@ function ForegroundFoliageLayer({
             // REAL moon's shine (0 when it is below the horizon or new) so §370's sheen/rim only show
             // when the moon is actually up and lit. `?? 1` keeps non-world callers unchanged.
             gl.uniform1f(uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374
+            // §377 (#1193): the sun edge-glow. `sunGlowColor` arrives as 0..255 ints (the app-wide RGB
+            // convention — AMBIENT_DARK_RGB, SUNSET_RGB, SUN_GLOW_RGB, mixRgb/lerpRgb all use it) while
+            // the shader wants 0..1, exactly like the WISP/HERO/CAMPFIRE light colours. The `??`
+            // fallbacks make this a strict no-op for any caller that does not drive the channels.
+            const sunPos = p.sunScreenPos ?? [0, 0];
+            const sunCol = p.sunGlowColor ?? SUN_GLOW_RGB;
+            gl.uniform1f(uSunGlowStrength, p.sunGlow ?? 0);
+            gl.uniform3f(uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
+            gl.uniform2f(uSunScreenPos, sunPos[0], sunPos[1]);
+            gl.uniform1f(uSunGlowRadius, p.sunGlowRadius ?? 0);
             // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
             // per-instance-only (water exclusive), see the draw loop below.
 
@@ -1402,6 +1442,11 @@ function ForegroundFoliageLayer({
                 gl.uniform1f(iu.uNormalStrength, p.normalStrength);
                 gl.uniform1f(iu.uFlatIllumination, p.flatIllumination);
                 gl.uniform1f(iu.uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374 (see non-instanced path)
+                // §377 (#1193) — identical four uploads as the per-instance path above.
+                gl.uniform1f(iu.uSunGlowStrength, p.sunGlow ?? 0);
+                gl.uniform3f(iu.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
+                gl.uniform2f(iu.uSunScreenPos, sunPos[0], sunPos[1]);
+                gl.uniform1f(iu.uSunGlowRadius, p.sunGlowRadius ?? 0);
 
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);

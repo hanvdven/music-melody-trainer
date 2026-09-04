@@ -45,6 +45,21 @@ uniform float uFlatIllumination;
 // directional "moonlight" reveal — the shader itself scales this by (1 - uGlobalIllumination) so it
 // only appears as the auto weather cycle darkens the world. Driven by foliageParams.moonStrength.
 uniform float uMoonStrength;
+// §377 (#1193, Han 2026-09-04, "geef de zon een glow (net zoals de maan), maar dan in de kleur van de
+// zon ... enkel voor pixels aan de rand van sprites vlakbij de zon ... felle zon door de bomen /
+// zon vlak over daken"): the SUN counterpart of §370's moon sheen/rim, additionally MASKED to a
+// screen-space disc around the sun's own on-screen position.
+// CONTRACT (identical to §362's uMoonStrength): a consumer that never uploads these gets GL's default
+// 0 ⇒ uSunGlowStrength == 0 ⇒ applySunGlow returns immediately. Never a compile/link error; the GLSL
+// linker may strip them entirely in that case and gl.uniform*(null, …) silently no-ops.
+uniform float uSunGlowStrength;     // 0..1, already gated on sun altitude AND cloud cover JS-side
+uniform vec3  uSunGlowColor;        // yellow → warm pink, pre-mixed JS-side on §372's sunsetFactor
+// highp, matching the existing highp uScreenPos/uSizePx/uCanvasSize fragment uniforms (#141 round 23):
+// these are canvas-WIDTH-normalised values, and mediump's ~1/1024 relative precision would be ~1.6
+// device px of position error on a 1600 px canvas. Fragment-stage-only in every consumer, so round
+// 23's cross-stage precision-mismatch trap does not apply.
+uniform highp vec2 uSunScreenPos;   // sun screen pos, normalised BY CANVAS WIDTH, top-down origin
+uniform highp float uSunGlowRadius; // glow reach, in those SAME canvas-width-normalised units
 `;
 
 // #141 round 10/14 (Han: edge-only lighting for crates/fences, later "buitenste pixels licht op, de
@@ -214,6 +229,11 @@ const float MOON_FACING_HI = 0.95;   // at/above -> full directional term
 const float MOON_LUM_LO = 0.35;      // texel luminance: below -> masked out (dark recess = no sheen)
 const float MOON_LUM_HI = 0.75;      // at/above -> full luminance term (a painted highlight)
 const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*hi rarely both hit 1
+// §377: the sun's interior sheen is deliberately WEAKER than its rim — Han asked for "enkel pixels aan
+// de rand van sprites", so the RIM carries the effect and this is only the soft supporting term.
+// Han's plan_review answer Q1: keep it at 0.35 (a light interior sheen), mirroring applyMoonLight's
+// two-term shape. Set to 0.0 for strictly-edges-only; a one-constant retune, no restructuring.
+const float SUN_SHEEN_SCALE = 0.35;
 
 // §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
 // gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
@@ -265,6 +285,41 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
     // Rim: a thin bright white outline — screen-blend is right here too (it's an edge, not a surface).
     float rim = clamp(rimFactor * present * clamp(uMoonStrength / 0.3, 0.0, 2.0), 0.0, 1.0);
     if (rim > 0.0) lit = screenBlend(lit, MOON_RIM_COLOR * rim);
+    return clamp(lit, 0.0, 1.0);
+}
+
+// §377 (#1193). The SUN edge-glow. Same two-term structure as applyMoonLight above (a luminance-masked
+// screen-blend sheen + a screen-blended rim), with THREE deliberate differences:
+//   • no directional dot(normal, DIR) term: the sun has no fixed world direction here — its LOCALITY
+//     is the screen-space distance mask below, which is the whole point of the feature;
+//   • the colour is a UNIFORM (the day→dusk lerp, §372's curve) instead of a fixed near-white const;
+//   • everything is multiplied by that distance mask around the sun's own on-screen position, so only
+//     sprites "vlakbij de zon" light up ("felle zon door de bomen", "zon vlak over daken").
+// NOTE for future editors: no backticks in comments inside this template literal — they terminate it.
+// 'rimFactor' is the SAME moonRimFactor value the call site already computed for §370 — reusing it
+// costs zero extra texture fetches (moonRimFactor is up to 6 texture2D reads) and keeps ONE rim
+// definition in the codebase. Its fixed up/left/right bias is fine here: the sun is above the horizon
+// whenever this term is non-zero at all.
+// 'fragUnit' is this fragment's TOP-DOWN screen position divided by the canvas WIDTH — the same
+// scalar for both axes, so the metric stays isotropic (a circle is a circle at any aspect ratio) and
+// devicePixelRatio cancels exactly ((cssPx·dpr)/(cssW·dpr) == cssPx/cssW). Each consumer computes it
+// from the gl_FragCoord/uCanvasSize flip it ALREADY has; no new varying anywhere.
+vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, vec2 fragUnit) {
+    if (uSunGlowStrength <= 0.0) return currentColor;   // night / overcast / consumer never uploads it
+    // GLSL ES 1.00 leaves smoothstep UNDEFINED when edge0 >= edge1, so the "inverted" form
+    // smoothstep(uSunGlowRadius, 0.0, d) must NOT be written. Same curve, defined behaviour.
+    float d = distance(fragUnit, uSunScreenPos);
+    float near = 1.0 - smoothstep(0.0, max(uSunGlowRadius, 1e-5), d);
+    if (near <= 0.0) return currentColor;
+    // Luminance mask, same reasoning as §370 r9: the sun rides the art's OWN painted highlights, so a
+    // dark eave recess next to a bright roof tile does not glow. Reuses §370's already-tuned
+    // thresholds rather than inventing a second pair (CLAUDE.md §6c).
+    float lum = dot(baseColor, vec3(0.299, 0.587, 0.114));
+    float hi = smoothstep(MOON_LUM_LO, MOON_LUM_HI, lum);
+    float sheen = clamp(edgeFactor * hi * uSunGlowStrength * near * SUN_SHEEN_SCALE, 0.0, 1.0);
+    vec3 lit = screenBlend(currentColor, uSunGlowColor * sheen);
+    float rim = clamp(rimFactor * uSunGlowStrength * near, 0.0, 1.0);
+    if (rim > 0.0) lit = screenBlend(lit, uSunGlowColor * rim);
     return clamp(lit, 0.0, 1.0);
 }
 `;

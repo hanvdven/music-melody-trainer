@@ -2,6 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+// §377: the sun's own yellow — the upload fallback for a caller that does not drive the sun-glow
+// channels. Imported, never retyped (CLAUDE.md §6c).
+import { SUN_GLOW_RGB } from './celestialModel';
 
 // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en reageren
 // op licht"): a SECOND, lightweight WebGL layer (own canvas/context, same ~8-16-context budget reasoning
@@ -119,6 +122,10 @@ void main() {
     // composited canvas). texelSize/uv are the same ones edgeLightFactor above already uses.
     float moonRim = moonRimFactor(uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0));
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
+    // §377 (#1193): the sun edge-glow on roof ridges / decor outlines ("zon vlak over daken"). Reuses
+    // the 'screenPx' local computed at the top of main() — the SAME top-down canvas-px value the sun
+    // mask needs — divided by the canvas WIDTH on both axes (isotropic, dpr-free). No recomputation.
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, screenPx / uCanvasSize.x);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -243,6 +250,12 @@ function LdtkLitGround({
             uNormalStrength: gl.getUniformLocation(program, 'uNormalStrength'),
             uFlatIllumination: gl.getUniformLocation(program, 'uFlatIllumination'),
             uMoonStrength: gl.getUniformLocation(program, 'uMoonStrength'),   // #weather §362
+            // §377 (#1193) — the sun edge-glow. The `nullUniforms` link-time warning below covers
+            // these automatically too.
+            uSunGlowStrength: gl.getUniformLocation(program, 'uSunGlowStrength'),
+            uSunGlowColor: gl.getUniformLocation(program, 'uSunGlowColor'),
+            uSunScreenPos: gl.getUniformLocation(program, 'uSunScreenPos'),
+            uSunGlowRadius: gl.getUniformLocation(program, 'uSunGlowRadius'),
             uEdgeLitOnly: gl.getUniformLocation(program, 'uEdgeLitOnly'),
             uDebugChannel: gl.getUniformLocation(program, 'uDebugChannel'),
         };
@@ -320,6 +333,15 @@ function LdtkLitGround({
             // §370's moonlight only shows when the moon is actually up and lit. `?? 1` = unchanged
             // for callers that don't supply it.
             gl.uniform1f(u.uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));   // #weather §362 / §374
+            // §377 (#1193): the sun edge-glow. Colour arrives 0..255 (app-wide RGB convention) and the
+            // shader wants 0..1; the `??` fallbacks keep this a strict no-op for a caller that never
+            // drives the channels (see the uniform block's own contract in foliageLightingGLSL.js).
+            const sunPos = p.sunScreenPos ?? [0, 0];
+            const sunCol = p.sunGlowColor ?? SUN_GLOW_RGB;
+            gl.uniform1f(u.uSunGlowStrength, p.sunGlow ?? 0);
+            gl.uniform3f(u.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
+            gl.uniform2f(u.uSunScreenPos, sunPos[0], sunPos[1]);
+            gl.uniform1f(u.uSunGlowRadius, p.sunGlowRadius ?? 0);
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, ids.diffuse);

@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png';
 import logger from '../../utils/logger';
 import { CLOUD_COVER, cloudClearness, cloudCollapseT, cloudDarkT } from './weatherCycle';
+// §377: the sun's own yellow. `celestialModel` is a PURE module (no React, no DOM) so importing it
+// from this .jsx is safe in both directions — the reverse (putting `sunGlowColor` in celestialModel and
+// importing SUNSET_RGB from here) is NOT: scripts/generate-star-catalog.mjs imports celestialModel
+// under plain node, which cannot parse JSX.
+import { SUN_GLOW_RGB } from './celestialModel';
 
 // §372 (Han 2026-09-04): the backmost sky used to be TWO stacked static elements in RpgLevelPanel — a
 // hard-coded CSS `linear-gradient` div and the painted `Background layers_layer 5.png` image, both
@@ -41,8 +46,10 @@ const SAMPLE_FRACS = Array.from({ length: STOP_COUNT }, (_, i) => i / (STOP_COUN
 const FALLBACK_TOP = [143, 208, 217];
 const FALLBACK_HORIZON = [223, 243, 245];
 
-// Warm sunset rose the horizon lerps toward at dusk/dawn.
-const SUNSET_RGB = [255, 150, 130];
+// Warm sunset rose the horizon lerps toward at dusk/dawn. Exported since §377 so the sun EDGE-GLOW
+// tint can lerp toward the EXACT same rose on the EXACT same curve — no second pink, no second
+// dusk/dawn curve anywhere in the app.
+export const SUNSET_RGB = [255, 150, 130];
 // Per-stop weight of that glow as a function of height fraction `f` (0 = top of sky, 1 = horizon):
 // nothing above ~55 % height, ramping to 0.8 at the horizon. Exported for unit tests.
 export function sunsetWeightAt(f) {
@@ -170,6 +177,23 @@ export function mixNight(stop, illum) {
 // Exported for unit tests.
 export function sunsetFactor(illum) {
     return smoothstep(0.05, 0.33, illum) * (1 - smoothstep(0.33, 0.75, illum));
+}
+
+/**
+ * §377 (#1193, Han: "in de kleur van de zon (geel, of dusk/dawn naar roze toe)"): the sun EDGE-GLOW
+ * tint — the sun's OWN yellow lerped toward the horizon's warm rose on the SAME `sunsetFactor` curve
+ * the sky gradient above already uses. One dusk/dawn curve for the whole app (cr2).
+ *
+ * Lives here (not in celestialModel, not inline in RpgLevelPanel) because this file OWNS `SUNSET_RGB`
+ * and `sunsetFactor`, and its pure helpers are exported precisely so the colour maths stays testable
+ * in jsdom without a canvas.
+ *
+ * `lerpRgb` ROUNDS to integers, so the result is inherently quantised to 1/255 steps — which is why
+ * this needs no term of its own in RpgLevelPanel's per-tick change-detection list: it is a pure
+ * function of `globalIllumination`, which is already in that list at 0.004 granularity (cr3).
+ */
+export function sunGlowColor(illum) {
+    return lerpRgb(SUN_GLOW_RGB, SUNSET_RGB, sunsetFactor(illum));
 }
 
 function sampleLayer5(url) {

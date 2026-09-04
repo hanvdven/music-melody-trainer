@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+import { SUN_GLOW_RGB } from './celestialModel';   // §377 — the sun-glow colour fallback
 
 // #1162 Fase 10b (Han 2026-08-27, docs/architecture.md §339): an ISOLATED, debug-only test surface for the
 // new WebGL-instanced foliage draw path — the plan's own explicit step ("verify in isolation before wiring
@@ -249,6 +250,12 @@ void main() {
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
     float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370
+    // §377 (#1193): kept line-for-line identical to ForegroundFoliageLayer's instanced shader — this
+    // harness is a copy of it, and letting the two drift is how §368 r3's atlas-UV bug survived
+    // unnoticed. The harness has no sun, so with DEFAULT_FOLIAGE_PARAMS it uploads strength 0 and this
+    // is a proven no-op — which is precisely the "omit ⇒ 0, never a compile error" contract in action.
+    vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -349,6 +356,7 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
             'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
             'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
             'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
+            'uSunGlowStrength', 'uSunGlowColor', 'uSunScreenPos', 'uSunGlowRadius',   // §377
         ].forEach((name) => { uniforms[name] = gl.getUniformLocation(program, name); });
 
         stateRef.current = { gl, ext, program, instanceBuf, uniforms, diffuseTex, normalTex, startTime: performance.now() };
@@ -422,6 +430,14 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
         gl.uniform1f(uniforms.uNormalStrength, foliageParams?.normalStrength ?? 1);
         gl.uniform1f(uniforms.uFlatIllumination, foliageParams?.flatIllumination ?? 0);
         gl.uniform1f(uniforms.uMoonStrength, foliageParams?.moonStrength ?? 0.5);   // #weather §362
+        // §377 (#1193): the harness has no sky/sun of its own, so strength defaults to 0 and the whole
+        // sun-glow term short-circuits — parity with the real layer without inventing a fake sun.
+        const sunPos = foliageParams?.sunScreenPos ?? [0, 0];
+        const sunCol = foliageParams?.sunGlowColor ?? SUN_GLOW_RGB;
+        gl.uniform1f(uniforms.uSunGlowStrength, foliageParams?.sunGlow ?? 0);
+        gl.uniform3f(uniforms.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
+        gl.uniform2f(uniforms.uSunScreenPos, sunPos[0], sunPos[1]);
+        gl.uniform1f(uniforms.uSunGlowRadius, foliageParams?.sunGlowRadius ?? 0);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, s.diffuseTex);

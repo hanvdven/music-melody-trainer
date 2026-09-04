@@ -5,6 +5,7 @@ import {
     solarHourAngleDeg, localSiderealDeg, altAz, degPerPx, projectToScreen,
     sunPosition, moonPosition, illuminatedFraction, brightLimbUnitVector,
     moonShine, MOON_SHINE_ALT_FADE_DEG,
+    sunGlowStrength, SUN_GLOW_RISE_DEG, SUN_GLOW_ALT_FADE_DEG, SUN_GLOW_ZENITH_FLOOR, SUN_GLOW_RGB,
     starOpacity, starSizeGpx, starColor, everVisibleFromSouth,
 } from '../celestialModel';
 import { BRIGHT_STARS } from '../data/brightStars';
@@ -265,6 +266,81 @@ describe('star size / colour buckets', () => {
         expect(starColor(0.99)).toBe(STAR_PALETTE[3].color);
         expect(starColor(1.00)).toBe(STAR_PALETTE[4].color);
         expect(starColor(1.85)).toBe(STAR_PALETTE[4].color);   // Betelgeuse
+    });
+});
+
+// §377 (#1193) — the sun edge-glow's altitude curve. The shader/canvas rendering itself is NOT unit
+// testable (jsdom has no WebGL and no real 2D canvas), same precedent as §370/§374/§375; this pins the
+// pure model the whole feature is gated on.
+describe('sunGlowStrength', () => {
+    it('is exactly 0 at and below the horizon', () => {
+        expect(sunGlowStrength({ altDeg: 0 })).toBe(0);
+        expect(sunGlowStrength({ altDeg: -0.1 })).toBe(0);
+        expect(sunGlowStrength({ altDeg: -10 })).toBe(0);
+        expect(sunGlowStrength({ altDeg: -45 })).toBe(0);
+    });
+
+    it('peaks just above the horizon ("zon vlak over daken")', () => {
+        const peak = sunGlowStrength({ altDeg: SUN_GLOW_RISE_DEG });
+        // The rise band is fully open there, and the fall term has barely started — near, but not
+        // exactly, 1: the two bands overlap by design, so nothing pops at the horizon line.
+        expect(peak).toBeGreaterThan(0.98);
+        expect(peak).toBeLessThanOrEqual(1);
+        for (const alt of [10, 25, 45, 90]) {
+            expect(peak).toBeGreaterThan(sunGlowStrength({ altDeg: alt }));
+        }
+    });
+
+    it('rises quickly over the first SUN_GLOW_RISE_DEG and never quite reaches 0 while the sun is up', () => {
+        let prev = 0;
+        for (let a = 0.05; a <= SUN_GLOW_RISE_DEG; a += 0.05) {
+            const v = sunGlowStrength({ altDeg: a });
+            expect(v).toBeGreaterThan(0);            // up ⇒ never exactly 0
+            expect(v).toBeGreaterThanOrEqual(prev);  // non-decreasing across the rise band
+            prev = v;
+        }
+    });
+
+    it('eases monotonically down to a low floor by SUN_GLOW_ALT_FADE_DEG and stays there', () => {
+        let prev = sunGlowStrength({ altDeg: SUN_GLOW_RISE_DEG });
+        for (let a = SUN_GLOW_RISE_DEG; a <= 90; a += 1) {
+            const v = sunGlowStrength({ altDeg: a });
+            expect(v).toBeLessThanOrEqual(prev + 1e-12);   // non-increasing
+            prev = v;
+        }
+        expect(sunGlowStrength({ altDeg: SUN_GLOW_ALT_FADE_DEG })).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
+        expect(sunGlowStrength({ altDeg: 90 })).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
+        expect(sunGlowStrength({ altDeg: 90 })).toBeGreaterThan(0);
+    });
+
+    it('stays inside [0, 1] across the whole altitude range', () => {
+        for (let a = -90; a <= 90; a += 0.5) {
+            const v = sunGlowStrength({ altDeg: a });
+            expect(v).toBeGreaterThanOrEqual(0);
+            expect(v).toBeLessThanOrEqual(1);
+        }
+    });
+
+    it('against the REAL sun arc: off at the dusk/dawn anchors, high just before dusk, at the floor at midday', () => {
+        // The two anchors are where the model pins altitude to 0 (§374). The asin/atan2 round-trip
+        // lands a hair either side of it (~1e-15°), so the strength there is 0 or an utterly
+        // negligible positive — what matters is that the glow is visually absent at the anchor and
+        // strictly 0 the moment the sun is actually below it (the exact-0 assertions above).
+        expect(sunGlowStrength(sunPosition(DUSK_ANCHOR_T, 0))).toBeLessThan(1e-9);
+        expect(sunGlowStrength(sunPosition(DAWN_ANCHOR_T, 0))).toBeLessThan(1e-9);
+        // Deep night: well below the horizon.
+        expect(sunGlowStrength(sunPosition(MID_NIGHT_T, 0))).toBe(0);
+        // Just BEFORE dusk the sun is barely above the horizon — the "zon vlak over daken" moment.
+        const lowSun = sunPosition(DUSK_ANCHOR_T - 0.02, 0);
+        expect(lowSun.altDeg).toBeGreaterThan(0);
+        expect(lowSun.altDeg).toBeLessThan(10);
+        expect(sunGlowStrength(lowSun)).toBeGreaterThan(0.9);
+        // Midday: the sun transits at 90 − φ ≈ 39°, past SUN_GLOW_ALT_FADE_DEG ⇒ the floor.
+        expect(sunGlowStrength(sunPosition(MID_DAY_T, 0))).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
+    });
+
+    it('SUN_GLOW_RGB is the warm yellow every sun surface shares', () => {
+        expect(SUN_GLOW_RGB).toEqual([255, 233, 160]);
     });
 });
 

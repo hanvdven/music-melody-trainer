@@ -26265,3 +26265,270 @@ four `§375 cloud cover` describes in `src/components/character/__tests__/weathe
 sun/moon/stars this hides and the `moonShine` knob this gates; §141 owns `HORIZON_PX`.
 
 **Note.** §374 was the last section header, so this is §375.
+
+---
+
+### §376. Hero/pet position taken off the React-render path (#1192-jank, Han 2026-09-04, "de hero die rent hakkelt, soms zie ik hem dubbel")
+
+**Symptom.** Han reported the RPG world feeling stuttery/jerky (variable-framerate feel) with occasional
+visible sprite "doubling" of the hero while running — plus a related complaint that the star field
+(§374) moves in visible steps rather than smoothly, and that the music LEVEL flow (SheetRpgLayer) shows
+similar jank for slimes/critters. This entry covers the first fix: the hero/pet.
+
+**Root cause.** `useRpgLevelState.js`'s movement `useFrameLoop` callback called `setPlayerX(...)`
+**unconditionally every rAF frame** while moving (its sibling flags — `moving`/`running`/`petMoving` —
+all had a diff-check before calling their setter; `playerX` did not). That forced a full React commit of
+`RpgLevelPanel`'s entity subtree (hero, pet, NPCs, critters — all routed through the memoized
+`EntityLayer`, since `playerX`/`petX` were props it depended on) at up to 60/sec. Camera panning had
+already been migrated to imperative `ref.style.transform` writes inside its own `useFrameLoop` callback
+(§321-§325, #1162) specifically to avoid this; the hero/pet position never got the same treatment. Worse,
+the camera's DOM offset SNAPS to whole device pixels every frame (`Math.round(-next*z*dpr)/dpr`, §321),
+while the hero/pet's own `left` (`worldToScreenXLocal(playerX)`) did not — a per-frame React-commit-
+latency gap plus a sub-pixel/whole-pixel mismatch between the hero and the ground it stands on, which is
+the most likely mechanism behind the reported "double sprite" during fast movement or direction changes.
+
+Han's own hypothesis — that a metronome/BPM-bound sprite framerate was the cause — was only half right:
+the **walk-cycle** animation frame (`walkFrame`, `RpgLevelPanel.jsx`) is already wall-clock-based
+(`frameMs = running ? 60 : 120`), not BPM-locked. The **idle** frame (`petFrame`, shared by hero/pet/
+Wisp/Slime/workers, §6c one shared cadence) IS BPM-locked (`frameMsForBpm`) by design — unchanged here,
+out of scope (idle cadence tracking the world's own tempo is intentional, not a bug).
+
+**Fix.**
+- `useRpgLevelState.js`: `playerXRef`/`petXRef` are now returned directly from the hook (the SAME refs
+  the physics loop already wrote every frame internally) instead of only being consumed inside the hook.
+  They are no longer resynced from `playerX`/`petX` state on every render (that resync would otherwise
+  periodically clobber the live physics value with a stale one once state updates are throttled — see
+  next point). `setPlayerX`/`setPetX` are now throttled to `POSITION_STATE_THROTTLE_MS = 60` (~16Hz)
+  while moving, with an immediate flush on the moving→stopped transition (so the resting position is
+  never stale for consumers of the state value). The physics refs themselves are still written every
+  frame, unthrottled — only the React-visible *state* snapshot is throttled.
+- `RpgLevelPanel.jsx`: reads `playerXRef`/`petXRef` straight from the hook (removed a local copy that used
+  to resync `.current = playerX` on every render — now redundant and would have reintroduced the same
+  staleness bug). New `heroWrapperRef`/`petWrapperRef` DOM refs are attached to the hero/pet wrapper
+  `<div>`s (JSX still sets an initial `left`/`bottom` from state, for first paint only). The existing
+  camera `useFrameLoop` callback — already running every critical frame — now ALSO writes the hero/pet
+  `style.left`/`style.bottom` directly from `playerXRef.current`/`petXRef.current`, snapped to the SAME
+  device-pixel grid (`Math.round(x*dpr)/dpr`) the camera offset already snaps to.
+- **Deliberately out of scope this round:** the water-reflection copies (`EntityReflection`) still read
+  the throttled `playerX`/`petX` state props, not the refs — they're decorative (opacity 0.35, only
+  rendered near a pond) and a ≤60ms lag there is not perceptible; converting them too would have meant
+  threading refs through a conditionally-`null`-returning component for no visible benefit. Pet-facing-
+  vs-hero comparisons (`petX <= playerX`) and the hero point-light position (§weather) also still read the
+  throttled state — both tolerate ~16Hz update rate fine (facing flips are not sub-frame-critical; the
+  light already only rebuilds on `petFrame`, ~10/s, per its own comment).
+
+**Invariant.** Any RPG-world entity whose position must track a physics ref at full frame rate writes its
+DOM position **imperatively inside a `'critical'`-priority `useFrameLoop` callback**, snapped to the same
+device-pixel grid as the camera offset it's composited against — never through React state consumed by
+JSX `style` props (CLAUDE.md §6's opacity rule, generalized to position). React state for such a value is
+a throttled, best-effort snapshot for secondary consumers only, never the thing driving what's on screen.
+
+**Files:** `src/hooks/useRpgLevelState.js` (refs returned, throttled+flushed state setters),
+`src/components/character/RpgLevelPanel.jsx` (`heroWrapperRef`/`petWrapperRef`, imperative position write
+in the camera `useFrameLoop` callback, `EntityLayer` prop plumbing). No test file changes — this is a
+rendering-path change with no new pure-function surface; verified via `npm run test:run` (131 files /
+1473 tests passed, 1 pre-existing skip unaffected), `npm run build`, `npm run lint` (0 new warnings).
+
+**Still open (tracked in BACKLOG.md under "Performance: hakkelige rendering", not yet implemented):**
+CelestialSky's star-position update is throttled to ~12Hz while its canvas redraws at 60Hz (visible
+stepping); SheetRpgLayer's slime/critter/projectile entity updates are throttled to ~30Hz while the
+scroll itself is unthrottled at 60Hz (a similar background/entity desync, one layer over).
+
+**Cross-references.** §321-§325, §328-§331 (#1162, the camera/foliage imperative-transform precedent this
+fix follows); §374 (`CelestialSky`, the still-open star-stepping issue); the music-LEVEL flow's own
+`SheetRpgLayer.jsx` entity throttle (still-open, no prior architecture.md section — see BACKLOG.md).
+
+---
+
+### §377. Sun edge-glow — "felle zon door de bomen" / "zon vlak over daken" (#1193, Han 2026-09-04)
+
+**Purpose.** §370 gave the world a moon: a directional sheen plus a bright white RIM on every sprite's
+top-left contour, on at night. Han asked for the SUN's counterpart, and was precise about what makes
+it different (2026-09-04):
+
+> "geef de zon een glow (net zoals de maan), maar dan in de kleur van de zon (geel, of dusk/dawn naar
+> roze toe) enkel voor pixels aan de rand van sprites **vlakbij de zon** (zeg, 20 gpx vanaf oorsprong
+> vd zon), zo krijg je een felle zon door de bomen-effect, of zon vlak over daken."
+
+So: the same rim/sheen machinery as the moon, but (a) tinted with the sun's own colour, (b) **masked to
+a disc around the sun's actual on-screen position**, and (c) strongest when the sun is LOW. The moon
+rims the whole world uniformly (it is a distant, diffuse light); the sun is a small bright disc you can
+look straight at, and what you see when it is low is a *local* flare on whatever silhouette happens to
+sit in front of it.
+
+**The altitude curve (`celestialModel.sunGlowStrength`, pure).**
+
+```
+altDeg <= 0                       ->  0                           (nothing at or below the horizon)
+rise = min(1, altDeg / 2 deg)                                     (SUN_GLOW_RISE_DEG)
+t    = min(1, altDeg / 25 deg)                                    (SUN_GLOW_ALT_FADE_DEG)
+fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (SUN_GLOW_ZENITH_FLOOR = 0.25)
+strength = rise * fall
+```
+
+Two overlapping bands. The `rise` band exists ONLY so the term cannot pop 1 -> 0 at the horizon line
+while half of the glow's 40 gpx disc still covers on-screen rooftops — 2° is ~7 gpx of sky, i.e. still
+"vlak over daken". The `fall` band eases the glow down to a low floor (0.25) by 25° of altitude and
+holds it there: a high midday sun still rims faintly (the light is real) but no longer rakes across the
+silhouettes. It reuses `weatherCycle.easeInOut` — the app has exactly one smoothstep.
+
+The peak therefore sits just above the horizon (~0.99 at 2°), which is exactly Han's "zon vlak over
+daken". Below the horizon it is *exactly* 0, so there is no sun glow at night (ac3).
+
+**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB,
+sunsetFactor(illum))` — the sun's OWN yellow `[255, 233, 160]` lerped to the sky's OWN warm rose
+`[255, 150, 130]` on the SAME `sunsetFactor` hump §372 already uses for the horizon glow. There is no
+second dusk/dawn curve and no new pink constant anywhere. `SUN_GLOW_RGB` moved out of `CelestialSky.jsx`
+into `celestialModel.js` for this: the glow's tint and the drawn disc's own glow are now provably the
+same colour (CLAUDE.md §6d). `lerpRgb` rounds to integers, so the result is inherently quantised to
+1/255 steps — which is why the colour needs no term of its own in the change-detection list (below):
+it is a pure function of `globalIllumination`, already in that list at 0.004 granularity.
+
+**The cloud gate.** `quantSunGlow` multiplies the altitude curve by `(1 - cloudCollapseT(cloudCoverT))`
+— the SAME factor `quantMoonShine` uses, so "sun hidden behind cloud" and "no sun glow in the world"
+can never disagree. Deliberately `cloudCollapseT`, not `cloudDarkT`: at BEWOLKT §375 still draws the
+sun disc "waterig" but the sharp glow is gone, which is the physically right reading of a diffused sun
+(ac5). It is not a second darkness knob — it is the existing sun knob, gated.
+
+**THE COORDINATE BRIDGE (the whole risk of this feature, and why it is not one).**
+
+The glow must be centred on the sun *as the player sees it*, in four shaders that know nothing about
+the sky. Resolved without a single new varying, uniform-side camera term, or dpr calculation:
+
+- **Every fragment already has the value.** All four consumers already derive a TOP-DOWN canvas pixel
+  from `gl_FragCoord` + `uCanvasSize` (ForegroundFoliageLayer's two shaders and the dev harness do it
+  for `localYPx`; LdtkLitGround literally computes `vec2 screenPx = vec2(gl_FragCoord.x,
+  uCanvasSize.y - gl_FragCoord.y)`). The sun term reuses that exact expression.
+- **Normalise BOTH axes by the canvas WIDTH.** Dividing x and y by the same scalar keeps the metric
+  isotropic (a circle stays a circle at any aspect ratio) and cancels devicePixelRatio exactly:
+  `(cssPx*dpr)/(cssW*dpr) == cssPx/cssW`. JS never reasons about dpr.
+- **Zoom cancels** (numerator and denominator are both game px). **Camera pan is free**: the sky layer
+  does not parallax and never reads `cameraX`, so the sun's viewport position is camera-independent BY
+  CONSTRUCTION, and `gl_FragCoord` is viewport-absolute. The glow stays welded to the visible disc
+  while sprites slide underneath it (ac6) with zero camera plumbing.
+- **Sun outside the azimuth window**: `projectToScreen` returns a far-off x and the distance mask goes
+  to 0 by itself — no extra visibility gate.
+- **ONE projection, structurally.** `CelestialSky.jsx` now EXPORTS `skyGeom(sizePx, zoom,
+  horizonGamePx)` — the three lines (`Wpx`, `Hpx`, `horizonY`) it used to compute inline — and consumes
+  its own extraction. `RpgLevelPanel` calls the same function, then `sunPosition` + `projectToScreen`,
+  then rounds to a whole game pixel. Because that quantum is exactly 1, the result is BIT-IDENTICAL to
+  `CelestialSky`'s own `sunXY = {x: round(sunP.x), y: round(sunP.y)}`: the glow centre and the drawn
+  disc cannot drift apart.
+
+**The shared GLSL (`foliageLightingGLSL.js`).** `LIGHTING_PARAM_UNIFORMS_GLSL` gains four uniforms —
+`uSunGlowStrength` (float), `uSunGlowColor` (vec3, 0..1), `uSunScreenPos` (highp vec2,
+canvas-width-normalised, top-down) and `uSunGlowRadius` (highp float, same units). `highp` matches the
+existing `highp uScreenPos/uSizePx/uCanvasSize` fragment uniforms (#141 round 23), so no NEW
+fragment-highp requirement is introduced, and they are fragment-stage-only in all four consumers, so
+round 23's cross-stage precision-mismatch trap does not apply.
+
+`applySunGlow(currentColor, baseColor, edgeFactor, rimFactor, fragUnit)` mirrors `applyMoonLight`'s
+shape — a luminance-masked screen-blend sheen plus a screen-blended rim — with three differences:
+
+1. **no directional `dot(normal, DIR)` term** — the sun has no fixed world direction here; its
+   LOCALITY is the distance mask, which is the whole point of the feature;
+2. the colour is a **uniform** (the day->dusk lerp) instead of a fixed near-white const;
+3. **everything is multiplied by the screen-space distance mask** around the sun's own position.
+
+It reuses the `rimFactor` the call site already computed for §370 (`moonRimFactor`, up to 6
+`texture2D` reads) — one rim definition in the codebase, zero extra texture fetches — and §370's own
+tuned `MOON_LUM_LO/HI` luminance thresholds, so the sun rides the art's painted highlights exactly as
+the moon does (a dark eave recess next to a bright roof tile still does not glow). `SUN_SHEEN_SCALE =
+0.35` (Han's plan_review answer Q1) keeps a light interior sheen alongside the rim; the RIM carries the
+effect, per "enkel pixels aan de rand van sprites". Setting it to 0 gives strictly-edges-only.
+
+**GLSL ES 1.00 trap, avoided deliberately.** `smoothstep(edge0, edge1, x)` is **undefined** when
+`edge0 >= edge1`, so the natural-looking `smoothstep(uSunGlowRadius, 0.0, d)` must NOT be written. The
+falloff is `1.0 - smoothstep(0.0, max(uSunGlowRadius, 1e-5), d)` — same curve, defined behaviour. Most
+drivers tolerate the reversed form; the spec does not. (Related trap in the same files: a **backtick**
+in a comment inside one of these GLSL template literals terminates the literal — this bit the first
+build of this ticket. Use single quotes there.)
+
+**INVARIANT — the omit-means-zero contract (§362's, extended).** A consumer that never uploads these
+four uniforms gets GL's default 0 => `uSunGlowStrength == 0` => `applySunGlow` returns on its first
+line. Never a compile or link error; the linker may strip the uniforms entirely and
+`gl.uniform*(null, ...)` silently no-ops. `DEFAULT_FOLIAGE_PARAMS` mirrors that with `sunGlow: 0` /
+`sunGlowRadius: 0`, so the dev harness and any future caller are a proven no-op. This is also why the
+term costs nothing at night (ac7): one float compare, no texture fetches, no maths.
+
+**The `foliageParams` channels and their quanta (the §374/§375 invariant, restated for the sun).**
+
+| channel | meaning | quantum |
+|---|---|---|
+| `sunGlow` | altitude curve × cloud gate | 0.05, like `moonShine` |
+| `sunGlowColor` | `[r,g,b]` 0..255 ints | 1/255, inherent (`lerpRgb` rounds) |
+| `sunScreenPos` | `[x, y]` ÷ sky canvas width, top-down | 1 game px, before normalising |
+| `sunGlowRadius` | `SUN_GLOW_RADIUS_GPX ÷ Wpx` | constant per canvas size |
+
+**INVARIANT: no RAW `cycleT`-derived value may enter `RpgLevelPanel`'s change-detection lists.** The
+sun terms obey it exactly as `cycleT`/`lunationPhase`/`cloudCoverT` do. Only `quantSunGlow` (0.05) and
+`sunPosMoved` (whole game px) appear, and only in the FOLIAGE list — no sun term drives a React-only
+(`setWeather`) render. The `quantSunGlow(b) > 0 &&` short-circuit means a whole night and an overcast
+spell cost ZERO extra re-renders; while the sun IS up it fires ~2×/s (the sun crosses ~2 gpx/s on a
+~426 gpx-wide sky), well inside the existing budget — `globalIllumination` already pushes ~12×/s during
+a 10 s ease. When the sun is down the position is FROZEN at `[0, 0]` rather than tracked.
+
+A resize or `worldScale` change moves `skyGeom.Wpx` WITHOUT the weather clock moving, so a small effect
+re-pushes on exactly those two scalars; otherwise the glow would sit at a stale position/size until the
+next quantised weather change.
+
+**The parallax-background rim (`LdtkScenery.jsx`).** The DOM parallax layers have no shader, so §370
+bakes their moon rim ONCE per composite (`computeMoonRim` -> `rimRef`, a white RGBA canvas) and draws
+it into the shown canvas at `rimOpacity`. The sun glow reuses **that same baked rim** — not a second
+rim renderer — masked and tinted: copy the rim under the sun -> `destination-in` a radial gradient
+(whose stops are DERIVED from the same `1 - smoothstep(0, R, d)` curve the shader uses, not a
+hand-tuned table) -> `source-in` the sun's colour at the glow's opacity.
+
+**DELIBERATE STRUCTURAL DIFFERENCE from the moon rim, and from #1193's plan wording.** The moon rim is
+a whole-canvas, camera-independent overlay, so baking it into the shown canvas is free. The sun glow is
+a small patch that must stay welded to the SUN's screen position while the art parallaxes underneath —
+i.e. its canvas-LOCAL position changes on every panning frame. Baking THAT into the shown canvas would
+re-bake a 3200 × `LEVEL_PX_HEIGHT` canvas every pan frame for a 40 gpx effect. So the patch gets its
+own 2R × 2R (80 × 80) canvas, CSS-positioned at the sun with the same `left`/`bottom` convention
+`layerStyle` uses, and re-baked from `rimRef` — 6 400 px of work instead of ~640 000. It is a sibling
+immediately after the layer canvas, so it z-orders exactly where a baked-in version would have: above
+THIS layer's art, below the next, nearer parallax layer. It is a plain transparent canvas drawn
+`source-over` — NOT the isolated blending wrapper that turned every layer's sky region into a solid
+blue veil in §370 r3. Its POSITION uses a coarser quantum than the shaders' (`BG_SUN_POS_QUANT_GPX = 4`
+game px, ~0.5 re-bakes/s instead of ~2/s) because each change here costs a canvas bake, whereas a
+shader just reads a new uniform. Everything threaded through `SceneryBack` -> `LdtkScenery` ->
+`BgLayer` is a scalar or a css string — never a fresh array — so those `React.memo` boundaries hold.
+
+**CLAUDE.md §3a (debug hit boxes) is N/A.** Nothing added here is interactive: four shader uniforms, a
+`pointerEvents: 'none'` canvas, and pure functions. The existing `CelestialSky` debugMode sun marker
+already draws the sun's exact screen position, and is the ready-made ruler for "is the glow centred on
+the disc".
+
+**§7a: no new error code.** The shader term sits inside the existing per-layer try/catch and codes
+(E021/E023 foliage, E030/E031 lit ground, E034 the shared ticker); the `BgLayer` patch runs in a plain
+effect and introduces no system boundary (no I/O, no decode, no external API). Adding one would violate
+§7 "no error handling for impossible states".
+
+**Not unit-testable, stated explicitly (same precedent as §370/§374/§375):** the GLSL itself and the
+`BgLayer` canvas patch — jsdom has no WebGL and no real 2D canvas. What IS tested: the pure altitude
+curve and the pure colour lerp.
+
+**Files:** `src/components/character/celestialModel.js` (`SUN_GLOW_RGB` moved in, `SUN_GLOW_RADIUS_GPX`
+/`SUN_GLOW_RISE_DEG`/`SUN_GLOW_ALT_FADE_DEG`/`SUN_GLOW_ZENITH_FLOOR`, `sunGlowStrength`),
+`src/components/character/CelestialSky.jsx` (`skyGeom` extracted + exported and consumed here;
+`SUN_GLOW_RGB` now imported), `src/components/character/SkyGradientBackdrop.jsx` (`SUNSET_RGB`
+exported, `sunGlowColor`), `src/components/character/foliageLightingGLSL.js` (4 uniforms,
+`SUN_SHEEN_SCALE`, `applySunGlow`), `src/components/character/ForegroundFoliageLayer.jsx` (both shader
+paths + 4 locations + 4 uploads × 2, and the four `DEFAULT_FOLIAGE_PARAMS` no-op defaults),
+`src/components/character/LdtkLitGround.jsx` (shader + locations + uploads),
+`src/components/character/FoliageInstancingTest.jsx` (dev-harness parity),
+`src/components/character/RpgLevelPanel.jsx` (`quantSunGlow`/`quantSunScreenPos`/`sunPosMoved`,
+`BG_SUN_POS_QUANT_GPX`, `skyGeomRef`, the four `foliageParams` channels, the two change-detection
+terms, the resize re-push, the four `bgSun*` props),
+`src/components/character/LdtkScenery.jsx` (`SUN_PATCH_PX`/`SUN_MASK_STOPS`/`drawSunRimPatch`, the
+`BgLayer` patch canvas + its effect, the four props threaded through). Tests: the `sunGlowStrength`
+describe in `src/components/character/__tests__/celestialModel.test.js` and the `sunGlowColor` describe
+in `src/components/character/__tests__/skyGradientBackdrop.test.js`.
+
+**Cross-references.** §370 (the moon sheen/rim this mirrors, and the `moonRimFactor`/`computeMoonRim`
+it reuses); §362 (the shared uniform block and its omit-means-zero contract); §372 (`SUNSET_RGB` /
+`sunsetFactor`, the one dusk/dawn curve); §374 (`celestialModel`, `projectToScreen`, `CelestialSky`,
+the quantised-`moonShine` precedent); §375 (`cloudCollapseT`, the cloud gate); §141 (`HORIZON_PX`, and
+round 23's fragment-precision rule); §334 (`worldScale`, the integer zoom).
+
+**Note.** A parallel in-flight ticket (#1192-jank) claimed §376 in the working tree while this was being written, so this is §377.

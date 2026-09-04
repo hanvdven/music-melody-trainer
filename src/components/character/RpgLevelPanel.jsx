@@ -62,12 +62,19 @@ import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background 
 import bgLayer4Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 4.png';
 // §372: the backmost static sky (a hard-coded CSS gradient + `Background layers_layer 5.png`) is now a
 // single rendered gradient — colours sampled once from layer-5, night + dusk/dawn baked in.
-import SkyGradientBackdrop from './SkyGradientBackdrop';
+// §377: `sunGlowColor` (the sun edge-glow tint) is a pure helper of this same module — it reuses the
+// file's own SUNSET_RGB + sunsetFactor dusk/dawn curve, so there is exactly ONE such curve.
+import SkyGradientBackdrop, { sunGlowColor } from './SkyGradientBackdrop';
 // §374 (#1191): the real south-facing sky — stars + constellations + an arcing sun and a 28-cycle
 // moon, all driven by the SAME weather clock. Mounted just in front of the gradient, behind every
 // parallax layer, so the scenery occludes the low sun/moon for free.
-import CelestialSky from './CelestialSky';
-import { moonPosition, moonShine as celestialMoonShine } from './celestialModel';
+// §377: `skyGeom` is the SHARED sky-canvas geometry <CelestialSky> itself consumes — importing it here
+// is what makes the sun edge-glow's centre and the drawn sun disc structurally the same projection.
+import CelestialSky, { skyGeom } from './CelestialSky';
+import {
+    moonPosition, moonShine as celestialMoonShine,
+    sunPosition, projectToScreen, sunGlowStrength, SUN_GLOW_RADIUS_GPX, SUN_GLOW_RGB,   // §377
+} from './celestialModel';
 
 // #691/#693 (Han 2026-08-04, "maak een extra tab: 'rpg level'" + round-2 movement/pet/NPC follow-up +
 // round-7 world/camera/parallax rework): a dev/preview scene — like the Bestiary tab, NOT wired into
@@ -119,6 +126,10 @@ const GROUND_ANCHOR = GROUND_ANCHOR_PX * ZOOM;
 // saturated blue, vec3(0.03,0.06,0.17)*255 ≈ [8,15,43]. Used for the DOM day/night tint AND the
 // background-layer multiply overlay (LdtkScenery `bgDarkenColor`).
 const AMBIENT_DARK_RGB = [8, 15, 43];
+// §377 (#1193): position quantum, in GAME px, for the PARALLAX-BG sun rim only. Coarser than the
+// shaders' 1 gpx because a BgLayer must RE-BAKE its canvas whenever the sun's masked patch moves,
+// whereas a shader just reads a new uniform. See `bgSunLeftPx`'s own comment further down.
+const BG_SUN_POS_QUANT_GPX = 4;
 // #141 round 13 (Han: "ik ga hooguit 10 lichtbronnen in beeld hebben"): 0..1 colors, the first two entries
 // of the `lights` array below (wisp, hero).
 // #141 round 17 (Han: "maak het licht van de blauwe wisp rgb (100,100,256) dus heel blauw").
@@ -151,6 +162,31 @@ const quantMoonShine = (out) =>
 // `quantMoonShine`. Coarse on purpose: ≤20 steps across a 10 s cloud ease, and 0 while settled. The
 // RAW `cloudCoverT` must never appear in a change-detection list (see the tick loop's invariant note).
 const quantCloudCover = (out) => Math.round(out.cloudCoverT * 20) / 20;
+// §377 (#1193): how strongly the sun edge-glows right now. The altitude curve (celestialModel) × the
+// SAME `(1 - cloudCollapseT)` cloud gate `quantMoonShine` uses, so "sun hidden behind cloud" and "no
+// sun glow in the world" can never disagree — one source of truth, not a second darkness knob.
+// Quantised to 0.05, exactly like `quantMoonShine`: a coarse, occasional re-render trigger rather than
+// a per-frame one (the §374/§375 invariant — no RAW cycleT-derived value in a change-detection list).
+const quantSunGlow = (out) => Math.round(
+    sunGlowStrength(sunPosition(out.cycleT, out.lunationPhase))
+    * (1 - cloudCollapseT(out.cloudCoverT)) * 20,
+) / 20;
+// §377: the sun's screen position in GAME px, quantised to ONE GAME PIXEL — the natural quantum of a
+// pixel-art world (sub-game-pixel motion is invisible) and, because that quantum is exactly 1, the
+// result is BIT-IDENTICAL to <CelestialSky>'s own `sunXY = {x: round(sunP.x), y: round(sunP.y)}`. The
+// glow's centre and the drawn disc therefore cannot drift apart (ac6). The RAW p.x/p.y never leave here.
+const quantSunScreenPos = (out, geom) => {
+    const s = sunPosition(out.cycleT, out.lunationPhase);
+    const p = projectToScreen(s.altDeg, s.azSouthDeg, geom);
+    return [Math.round(p.x), Math.round(p.y)];
+};
+// §377: componentwise compare of two weather states' quantised sun positions — the change-detection
+// term. Kept beside the quantisers it is built from rather than inlined in the tick loop.
+const sunPosMoved = (a, b, geom) => {
+    const pa = quantSunScreenPos(a, geom);
+    const pb = quantSunScreenPos(b, geom);
+    return pa[0] !== pb[0] || pa[1] !== pb[1];
+};
 const FLOOR_SHEET = { w: 288, h: 576 };
 const FLOOR_CELLS = [2, 3, 4, 5, 8, 9, 10, 11].map((col) => ({ row: 1, col }));
 // #693 round 7 (Han: "Generate a level of 200 16x16 tiles"): the whole walkable floor is now a FIXED
@@ -811,7 +847,7 @@ const EntityLayer = React.memo(function EntityLayer({
     EntityReflection, sceneryMode, clickSlime, clickWorkerNpc, workerNpcs, timeSignature, context, workerNpcAudio,
     playerXRef, critterWanderers, critterOpacity, critterLightPosRef, foliageParams, birdPositionsRef, birdSlots, birdSlotClaimsRef,
     char, noPetChar, moving, running, walkAnim, runAnim, idleAnim, walkFrame, facing, playerX,
-    petUrl, petVariant, petX, petMoving,
+    petUrl, petVariant, petX, petMoving, heroWrapperRef, petWrapperRef,
 }) {
     return (
         <div ref={entityScrollRef} style={{ position: 'absolute', inset: 0 }}>
@@ -912,7 +948,11 @@ const EntityLayer = React.memo(function EntityLayer({
                 stripped here to avoid double-drawing it glued to the character's hip. */}
             {char && (
                 <>
-                    <div style={{
+                    <div ref={heroWrapperRef} style={{
+                        // Perf (#1192-jank): `left`/`bottom` here are only the FIRST-PAINT fallback (still
+                        // correct — `playerX` state starts in sync with the physics ref) — every frame after
+                        // that, the camera useFrameLoop callback overwrites them directly on this ref at full
+                        // frame rate, bypassing React so movement no longer forces a re-render of this subtree.
                         position: 'absolute', left: worldToScreenXLocal(playerX), bottom: standAnchorFor(playerX),
                         transform: `translateX(-50%) scaleX(${facing})`,
                     }}>
@@ -938,7 +978,7 @@ const EntityLayer = React.memo(function EntityLayer({
                 match. Renders nothing if no pet is equipped. */}
             {petUrl && (
                 <>
-                    <div style={{ position: 'absolute', left: worldToScreenXLocal(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
+                    <div ref={petWrapperRef} style={{ position: 'absolute', left: worldToScreenXLocal(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
                         {petVariant
                             ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
                             : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
@@ -968,6 +1008,9 @@ const EntityLayer = React.memo(function EntityLayer({
 const SceneryBack = React.memo(function SceneryBack({
     sceneryMode, groundAndFoliageBack, world, leftPxForFactor, sceneryScrollBackRef, groundLeftPxLocal,
     zoom, litGroundTexturesBack, size, ldtkLights, foliageParams, bgDarkenColor, bgRimOpacity, foliageDebugChannel, overlayScrollBackRef,
+    // §377 (#1193): the sun edge-glow's parallax-bg twin — all four are scalars/strings so this memo
+    // boundary (and LdtkScenery's own) still holds.
+    bgSunRimOpacity, bgSunLeftPx, bgSunBottomPx, bgSunRimColor,
     culledAnimatedTilesBack, localWorldToScreenXLocal, reflectableTiles, waterPonds, worldToScreenXLocal,
     waterInstancesBack, localFoliageInstancesBack, cameraOffsetRef,
     // Perf (#1162, Fase 10c): the shared atlas + this pass's culled/positioned atlas instance list — see
@@ -982,6 +1025,8 @@ const SceneryBack = React.memo(function SceneryBack({
                     gridSize={world.gridSize} leftPxForFactor={leftPxForFactor}
                     groundScrollRef={sceneryScrollBackRef} groundLeftPx={groundLeftPxLocal}
                     zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
+                    bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
+                    bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor}
                 />
             )}
             {sceneryMode === 'LDtk' && litGroundTexturesBack && (
@@ -1160,8 +1205,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const weatherLoopLastMsRef = useRef(0);
     const wOut = weatherOutputs(weather);
 
+    // §377 (#1193): the sky canvas geometry (`skyGeom`, shared with <CelestialSky>), mirrored into a
+    // ref every render — the SAME sizeRef/illumRef/zoomRef convention this file already uses. It has to
+    // be a ref, not a dep: `pushWeatherToFoliage` below is a `useCallback` with `[]` deps (every caller
+    // — the tick loop, commitWeather, the pre-paint layout effect — depends on its identity being
+    // stable), and giving it size/zoom deps would rebuild it on every resize/zoom change.
+    // Assigned further down, right after `zoom` is computed.
+    const skyGeomRef = useRef({ Wpx: 0, Hpx: 0, horizonY: 0 });
+
     const pushWeatherToFoliage = useCallback((s) => {
         const out = weatherOutputs(s);
+        // §377: the sun edge-glow channels. When the sun is DOWN (or it is genuinely overcast) the
+        // strength is 0, and the position is deliberately FROZEN at [0,0] rather than tracked — so a
+        // whole night, or an overcast spell, costs exactly ZERO extra re-renders (ac7).
+        const geom = skyGeomRef.current;
+        const sunGlow = quantSunGlow(out);
+        const [sunGpxX, sunGpxY] = sunGlow > 0 ? quantSunScreenPos(out, geom) : [0, 0];
         setFoliageParams((fp) => ({
             ...fp,
             skewAmount: out.windValue,
@@ -1173,6 +1232,14 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             // was previously on every night regardless of the moon. Quantised to 0.05 so it is a rare,
             // coarse re-render trigger (see the tick loop) rather than a per-frame one like `cycleT`.
             moonShine: quantMoonShine(out),
+            // §377 (#1193, Han: "felle zon door de bomen / zon vlak over daken"). Four channels feeding
+            // `applySunGlow` in the shared lighting GLSL. Positions/radius are normalised BY THE SKY
+            // CANVAS WIDTH — the same normalisation the shaders apply to gl_FragCoord, which is what
+            // makes the mask dpr-free, zoom-free and camera-independent (the sky layer never parallaxes).
+            sunGlow,
+            sunGlowColor: sunGlowColor(out.globalIllumination),
+            sunScreenPos: geom.Wpx > 0 ? [sunGpxX / geom.Wpx, sunGpxY / geom.Wpx] : [0, 0],
+            sunGlowRadius: geom.Wpx > 0 ? SUN_GLOW_RADIUS_GPX / geom.Wpx : 0,
         }));
     }, []);
 
@@ -1213,6 +1280,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // callback, which is exactly why it can. The QUANTISED `quantMoonShine` (§374 UAT r2) and
         // `quantCloudCover` (§375) are allowed — 0.05-step values that change a handful of times per
         // night / per transition, not every tick.
+        // §377 (#1193) restates that invariant for the SUN: no raw cycleT-derived sun value (altitude,
+        // `sunPosition(...)`, an unrounded projected x/y) may enter either list either. Only the
+        // QUANTISED `quantSunGlow` (0.05) and `sunPosMoved` (whole game px) below are allowed, and only
+        // in the FOLIAGE list — no sun term drives a React-only (`setWeather`) render.
         // §375: NO cloud term is needed in THIS (foliage) list — during a cloud ease
         // `globalIllumination` itself moves (illumMultiplier is folded into it), so the 0.004 term
         // below already re-pushes at exactly the right moments, and `quantMoonShine` now carries the
@@ -1222,6 +1293,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             || Math.abs(a.windValue - b.windValue) >= 0.02
             || a.timeOfDay !== b.timeOfDay
             || quantMoonShine(a) !== quantMoonShine(b)
+            // §377 (#1193): the sun edge-glow. BOTH terms are quantised (0.05 strength / 1 game px of
+            // position) — the raw continuous sun altitude/position must NEVER appear here, same
+            // invariant as `cycleT`/`cloudCoverT` above. The `quantSunGlow(b) > 0 &&` short-circuit is
+            // what makes a whole night and an overcast spell completely free: no sun ⇒ no position
+            // tracking at all. While the sun IS up this fires ~2×/s (the sun crosses ~2 gpx/s on a
+            // ~426 gpx-wide sky), which is well inside the existing budget — `globalIllumination`
+            // already pushes ~12×/s during a 10 s ease.
+            || quantSunGlow(a) !== quantSunGlow(b)
+            || (quantSunGlow(b) > 0 && sunPosMoved(a, b, skyGeomRef.current))
         ) {
             pushWeatherToFoliage(next);
         }
@@ -1273,6 +1353,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const zoom = worldScale != null
         ? worldScale
         : (sceneryMode === 'LDtk' ? dynamicZoom : ZOOM);
+    // §377 (#1193): mirror the sky geometry into its ref (declared above `pushWeatherToFoliage`, which
+    // reads it inside its `[]`-deps callback). The IDENTICAL call <CelestialSky> makes below, so the
+    // sun-glow centre and the drawn sun disc are the same projection by construction (cr4).
+    const skyGeomNow = skyGeom(size, zoom, HORIZON_PX);
+    skyGeomRef.current = skyGeomNow;
+    const skyGeomWpx = skyGeomNow.Wpx;
+    const skyGeomHorizonY = skyGeomNow.horizonY;
+    // §377: `sunScreenPos`/`sunGlowRadius` are normalised by `skyGeom.Wpx`, which changes on a resize
+    // or a worldScale change WITHOUT the weather clock moving — so re-push then, or the glow would sit
+    // at a stale position/size until the next quantised weather change. Fires only on resize/zoom.
+    useEffect(() => {
+        pushWeatherToFoliage(weatherRef.current);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the geometry scalars ARE the trigger;
+        // the push itself reads the live clock off weatherRef (a ref, deliberately not a dep).
+    }, [skyGeomWpx, skyGeomHorizonY, pushWeatherToFoliage]);
     // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten"): debug-
     // only click track, off by default even when debugMode is on (Han still has to explicitly enable it) —
     // see useDebugMetronome.js for the rAF/AudioContext-clock design. #924 round 4 ("die kan nooit in sync
@@ -1500,7 +1595,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     }, [context], { priority: 'critical' });
 
     const { char } = characterEditor;
-    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, clickWorkerNpc, registerWorldInteractables, setHeldDirection } = rpgLevel;
+    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, clickWorkerNpc, registerWorldInteractables, setHeldDirection, playerXRef, petXRef } = rpgLevel;
     // #925 follow-up (Han 2026-08-16, bug found via LdtkLitGround diagnostic logging): NPC_X/playerX are
     // ABSOLUTE LDtk world coordinates (from useRpgLevelState, clamped to LEVEL_MIN_X..LEVEL_MAX_X), but
     // every LDtk tile-derived "worldX" this shimmer/lit-ground pipeline uses (tile.worldX post
@@ -1612,7 +1707,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
     // middle third, then re-centers them back to that 1/3 line; clamped so the viewport never shows past
     // the generated level's own edges.
-    const playerXRef = useRef(playerX); playerXRef.current = playerX;
+    // Perf (#1192-jank, Han 2026-09-04): `playerXRef`/`petXRef` now come straight from useRpgLevelState —
+    // the SAME ref the physics loop writes every frame — instead of a local copy resynced from (now
+    // throttled) `playerX`/`petX` state on every render. See that hook's own comment for why a per-render
+    // resync would otherwise periodically clobber the live value with a stale throttled one.
     // #RAM-level BUG FIX (Han 2026-08-11, "ik zie app fps 37, px 0; dat vind ik raar"): this effect used
     // to depend on `[size.w]`, so it tore down and restarted every time the ResizeObserver-driven `size`
     // changed — which, per an existing documented pattern elsewhere in this file, "can genuinely fire more
@@ -1638,6 +1736,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // Perf (#1162, Fase 2a): the entity layer (Wisp/Slime/workers/critters/hero/pet) shares this SAME
     // imperative-transform treatment — see `worldToScreenXLocal`'s own comment for the full rationale.
     const entityScrollRef = useRef(null);
+    // Perf (#1192-jank, Han 2026-09-04, "ik zie het ventje dubbel"): the hero/pet wrapper divs' `left`/
+    // `bottom` are written directly in the SAME camera useFrameLoop callback below, from `playerXRef`/
+    // `petXRef` (full frame rate), instead of via JSX driven by throttled React state. This was the
+    // strongest suspect for the reported hero stutter/"double sprite": `setPlayerX` used to fire every rAF
+    // frame (forcing a full React re-render of the whole entity subtree 60x/sec), and the hero's own
+    // position was NOT snapped to the same device-pixel grid the camera pan already snaps to (line below,
+    // `offsetPx`) — a per-frame React-commit-latency + sub-pixel mismatch between hero and background.
+    const heroWrapperRef = useRef(null);
+    const petWrapperRef = useRef(null);
     // Perf (#1162, Fase 2b): the WebGL-instance-layer counterpart to the 5 CSS-transform refs above —
     // `ForegroundFoliageLayer`'s own draw loop reads this directly (see its own `cameraOffsetRef` prop
     // comment) instead of a wrapper `<div>` transform, since its instances are positioned via a per-draw-
@@ -1691,6 +1798,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 if (entityScrollRef.current) entityScrollRef.current.style.transform = transform;
                 // Perf (#1162, Fase 2b): SAME offset, read by ForegroundFoliageLayer's own draw loop.
                 cameraOffsetRef.current = offsetPx;
+                // Perf (#1192-jank): hero/pet screen position, written imperatively every frame from the
+                // live physics refs — same rationale as the scroll-layer transforms just above, and SNAPPED
+                // to the same device-pixel grid `offsetPx` uses so the hero never sub-pixel-drifts relative
+                // to the camera/background it's standing on (the mismatch that made it look like a "double"
+                // sprite during fast movement/direction changes).
+                if (heroWrapperRef.current) {
+                    const hx = Math.round(worldToScreenXLocal(playerXRef.current) * dpr) / dpr;
+                    heroWrapperRef.current.style.left = `${hx}px`;
+                    heroWrapperRef.current.style.bottom = `${standAnchorFor(playerXRef.current)}px`;
+                }
+                if (petWrapperRef.current) {
+                    const px = Math.round(worldToScreenXLocal(petXRef.current) * dpr) / dpr;
+                    petWrapperRef.current.style.left = `${px}px`;
+                    petWrapperRef.current.style.bottom = `${standAnchorFor(petXRef.current)}px`;
+                }
                 return next;
             });
     }, [], { priority: 'critical' });
@@ -2087,6 +2209,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // REAL moon too — `foliageParams.moonShine` (0 when the moon is down / new) — exactly as the WebGL
     // layers now premultiply `uMoonStrength`. No rim on a moonless night.
     const bgRimOpacity = Math.round(moonPresence * (foliageParams.moonShine ?? 1) * 20) / 20;
+    // §377 (#1193): the parallax-background twin of the shader sun glow — the same baked rim canvas
+    // LdtkScenery already uses for the moon, masked to a disc around the sun and tinted with the sun's
+    // colour. Everything handed to <SceneryBack>/<LdtkScenery>/<BgLayer> is a SCALAR or a STRING, never
+    // a fresh array/object: `bgDarkenColor` is deliberately a css string so those React.memo boundaries
+    // hold, and an array prop would break the memo on EVERY render.
+    // Opacity is the SAME quantised `sunGlow` the shaders read, so night/overcast switch it off for
+    // free. The POSITION gets its own, COARSER quantum: unlike a shader (which just reads a uniform), a
+    // BgLayer has to RE-BAKE its canvas whenever this changes — 4 gpx ⇒ ~0.5 re-bakes/s while the sun
+    // is up, instead of the shaders' ~2/s.
+    const bgSunRimOpacity = foliageParams.sunGlow ?? 0;
+    const sunGpxX = (foliageParams.sunScreenPos?.[0] ?? 0) * skyGeomWpx;
+    const sunGpxY = (foliageParams.sunScreenPos?.[1] ?? 0) * skyGeomWpx;
+    const bgSunLeftPx = Math.round(sunGpxX / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
+    const bgSunBottomPx = size.h - Math.round(sunGpxY / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
+    const bgSunRimColor = rgbCss(foliageParams.sunGlowColor ?? SUN_GLOW_RGB);
 
     const floorTileIdx = useMemo(
         () => Array.from({ length: LEVEL_TILES }, () => Math.floor(Math.random() * FLOOR_CELLS.length)),
@@ -2322,6 +2459,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 leftPxForFactor={leftPxForFactor} sceneryScrollBackRef={sceneryScrollBackRef}
                 groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesBack={litGroundTexturesBack}
                 size={size} ldtkLights={ldtkLights} foliageParams={foliageParams} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
+                bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx} bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor}
                 foliageDebugChannel={foliageDebugChannel} overlayScrollBackRef={overlayScrollBackRef}
                 culledAnimatedTilesBack={culledAnimatedTilesBack} localWorldToScreenXLocal={localWorldToScreenXLocal}
                 reflectableTiles={reflectableTiles} waterPonds={waterPonds} worldToScreenXLocal={worldToScreenXLocal}
@@ -2450,7 +2588,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 char={char} noPetChar={noPetChar} moving={moving} running={running}
                 walkAnim={walkAnim} runAnim={runAnim} idleAnim={idleAnim} walkFrame={walkFrame}
                 facing={facing} playerX={playerX} petUrl={petUrl} petVariant={petVariant}
-                petX={petX} petMoving={petMoving}
+                petX={petX} petMoving={petMoving} heroWrapperRef={heroWrapperRef} petWrapperRef={petWrapperRef}
             />
 
             {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE

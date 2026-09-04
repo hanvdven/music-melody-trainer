@@ -3,7 +3,7 @@ import useFrameLoop from '../../hooks/useFrameLoop';
 import logger from '../../utils/logger';
 import { weatherOutputs, cloudCollapseT, cloudDarkT } from './weatherCycle';
 import {
-    SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG,
+    SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG, SUN_GLOW_RGB,
     localSiderealDeg, altAz, projectToScreen, degPerPx,
     sunPosition, moonPosition, brightLimbUnitVector,
     starOpacity, starSizeGpx, starColor,
@@ -59,7 +59,10 @@ const CONSTELLATION_LABEL_FONT = `italic ${CONSTELLATION_LABEL_PX}px BestiaryPix
 
 // Every visual constant lives here so a UAT round is a one-line retune.
 const SUN_CORE = '#fff6d8';
-const SUN_GLOW_RGB = [255, 233, 160];   // warm yellow — the crisp (dry) sun's glow
+// §377 (#1193): `SUN_GLOW_RGB` (the warm yellow of the crisp/dry sun's glow) used to be declared HERE.
+// It moved to `celestialModel.js` — imported above — because the sun EDGE-GLOW on the world's sprites
+// must be tinted with the exact same yellow as the disc the player sees, and two copies of one colour
+// guarantee drift (CLAUDE.md §6d). Same literal, zero behaviour change for this file.
 // §375 UAT r1 (Han: "Waterige zon: wit, niet geel"): the watery sun's glow/body lerps from the warm
 // yellow above toward pure white as `wet` rises, so a fully overcast sun is white.
 const SUN_WET_GLOW_RGB = [255, 255, 255];
@@ -195,6 +198,25 @@ function drawDottedLine(ctx, x0, y0, x1, y1) {
     }
 }
 
+/**
+ * §377 (#1193): the sky canvas's own geometry, in GAME px — the native-resolution canvas size derived
+ * from the CSS viewport size and `zoom`, plus the canvas row where altitude 0 (the horizon) lands.
+ *
+ * EXTRACTED (CLAUDE.md §6d "extract it, and have BOTH sites consume the extraction") rather than
+ * copied: `RpgLevelPanel` needs the IDENTICAL frame to project the sun's screen position for the sun
+ * edge-glow (§377), and a second, independently-written copy of these three lines is exactly how the
+ * glow and the drawn disc would silently drift apart. This component below consumes it too, so there
+ * is structurally ONE sun projection in the app.
+ *
+ * Returns `{Wpx: 0, Hpx: 0, horizonY: <horizonGamePx-relative>}` before the ResizeObserver has
+ * measured (size 0 / zoom 0) — every caller already guards on `Wpx <= 0`.
+ */
+export function skyGeom(sizePx, zoom, horizonGamePx) {
+    const Wpx = sizePx.w > 0 && zoom > 0 ? Math.round(sizePx.w / zoom) : 0;
+    const Hpx = sizePx.h > 0 && zoom > 0 ? Math.round(sizePx.h / zoom) : 0;
+    return { Wpx, Hpx, horizonY: Hpx - horizonGamePx };
+}
+
 export default function CelestialSky({
     weatherRef,
     globalIllumination = 1,
@@ -230,11 +252,11 @@ export default function CelestialSky({
     const lastCloudCoverRef = useRef(null);
     const fontReadyRef = useRef(false);
 
-    const Wpx = sizePx.w > 0 && zoom > 0 ? Math.round(sizePx.w / zoom) : 0;
-    const Hpx = sizePx.h > 0 && zoom > 0 ? Math.round(sizePx.h / zoom) : 0;
     // Altitude 0 lands `horizonGamePx` above the canvas bottom — the §141 background-alignment
     // constant passed in by RpgLevelPanel, never re-derived or re-measured here.
-    const horizonY = Hpx - horizonGamePx;
+    // §377: computed by the shared `skyGeom` above, which RpgLevelPanel also calls so the sun
+    // edge-glow's centre and the sun disc drawn here can never disagree.
+    const { Wpx, Hpx, horizonY } = skyGeom(sizePx, zoom, horizonGamePx);
 
     // GOTCHA: `'BestiaryPixel'` IS used elsewhere in the DOM (ScalesPanel, WorldPiano), so its normal
     // face is usually already loaded — but the ITALIC face (SandyForest) may not be, and setting
