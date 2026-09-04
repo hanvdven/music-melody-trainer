@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, pickWind, easeInOut,
     TIME_PHASES, WIND_BAG, WIND_INTERVAL_S, WIND_FADE_S, TIME_FADE_S, CRITTER_FADE_S, WIND_GUST3_HOLD_S,
+    CYCLE_TOTAL_S, PHASE_START_S, CYCLES_PER_LUNATION,
 } from '../weatherCycle';
 import { loadWeatherState, saveWeatherState } from '../weatherCycleStore';
 
@@ -93,7 +94,7 @@ describe('time-of-day cycle', () => {
             prev = cur;
         }
         s = advance(s, 1);                                  // just past the fade
-        expect(weatherOutputs(s).globalIllumination).toBe(0.1);   // §362→§364 night floor (0.12→0.10)
+        expect(weatherOutputs(s).globalIllumination).toBe(0.05);   // §370 night floor
     });
 });
 
@@ -127,7 +128,7 @@ describe('seek controls', () => {
         expect(weatherOutputs(s).globalIllumination).toBeCloseTo(1, 6);   // not yet faded
 
         s = advance(s, TIME_FADE_S + 1);
-        expect(weatherOutputs(s).globalIllumination).toBe(0.1);   // §362→§364 night floor (0.12→0.10)
+        expect(weatherOutputs(s).globalIllumination).toBe(0.05);   // §370 night floor
     });
 
     it('seekWind eases toward the picked speed over WIND_FADE_S and restarts the 30 s timer', () => {
@@ -220,5 +221,86 @@ describe('weatherCycleStore', () => {
         saveWeatherState(s);
         expect(loadWeatherState()).toBe(s);
         saveWeatherState(null);                            // don't leak into other suites
+    });
+
+    it('carries cyclesElapsed across a freeze/resume (§374 — the moon must not reset)', () => {
+        const s = { ...createWeatherState(), cyclesElapsed: 9 };
+        saveWeatherState(s);
+        expect(loadWeatherState().cyclesElapsed).toBe(9);
+        saveWeatherState(null);
+    });
+});
+
+// §374 "sterrenhemel" (#1191): the continuous cycle clock the celestial layer reads. Everything here
+// is a PURE derivation of the phase clock above — no new timers, which is why freezing the cycle
+// during a music LEVEL still works untouched.
+describe('§374 cycle clock — cycleT / cyclesElapsed / lunationPhase', () => {
+    it('derives its constants from TIME_PHASES rather than hardcoding them', () => {
+        expect(CYCLE_TOTAL_S).toBe(TIME_PHASES.reduce((a, p) => a + p.dur, 0));
+        expect(PHASE_START_S).toEqual([0, 240, 300, 420]);
+        expect(CYCLES_PER_LUNATION).toBe(28);
+    });
+
+    it('starts at cycleT 0 with no cycles elapsed', () => {
+        const s = createWeatherState();
+        expect(s.cyclesElapsed).toBe(0);
+        expect(weatherOutputs(s).cycleT).toBe(0);
+        expect(weatherOutputs(s).lunationPhase).toBe(0);
+    });
+
+    it('puts the phase edges at 0.5 (dusk), 0.625 (night) and 0.875 (dawn)', () => {
+        let s = advance(createWeatherState(), 240);
+        expect(weatherOutputs(s).cycleT).toBeCloseTo(0.5, 4);
+        s = advance(s, 60);
+        expect(weatherOutputs(s).cycleT).toBeCloseTo(0.625, 4);
+        s = advance(s, 120);
+        expect(weatherOutputs(s).cycleT).toBeCloseTo(0.875, 4);
+    });
+
+    it('advances cycleT monotonically across one loop, wrapping exactly once', () => {
+        let s = createWeatherState();
+        let prev = weatherOutputs(s).cycleT;
+        let wraps = 0;
+        for (let i = 0; i < CYCLE_TOTAL_S; i++) {
+            s = advance(s, 1);
+            const cur = weatherOutputs(s).cycleT;
+            if (cur < prev) wraps += 1;
+            else expect(cur).toBeGreaterThan(prev);
+            prev = cur;
+        }
+        expect(wraps).toBe(1);
+    });
+
+    it('increments cyclesElapsed exactly once per full cycle', () => {
+        let s = createWeatherState();
+        s = advance(s, CYCLE_TOTAL_S);
+        expect(s.cyclesElapsed).toBe(1);
+        // +1 s of slack: `advance` integrates in 1/12 s steps and its float error accumulates over
+        // 1440 s, so landing EXACTLY on the third wrap is not something to assert on.
+        s = advance(s, 2 * CYCLE_TOTAL_S + 1);
+        expect(s.cyclesElapsed).toBe(3);
+    });
+
+    it('advances lunationPhase by exactly 1/28 per cycle and wraps at 28', () => {
+        // Tested on the PURE derivation: integrating 28 × 480 s at 1/12 s steps would be 161k ticks
+        // for the same answer.
+        const fresh = createWeatherState();
+        expect(weatherOutputs({ ...fresh, cyclesElapsed: 1 }).lunationPhase).toBeCloseTo(1 / 28, 12);
+        expect(weatherOutputs({ ...fresh, cyclesElapsed: 14 }).lunationPhase).toBeCloseTo(0.5, 12);
+        expect(weatherOutputs({ ...fresh, cyclesElapsed: 28 }).lunationPhase).toBeCloseTo(0, 12);
+        expect(weatherOutputs({ ...fresh, cyclesElapsed: 29 }).lunationPhase).toBeCloseTo(1 / 28, 12);
+    });
+
+    it('is continuous within a cycle — no jerk at the cycle boundary', () => {
+        const fresh = createWeatherState();
+        const justBefore = weatherOutputs({ ...fresh, cyclesElapsed: 3, phaseIndex: 3, phaseElapsed: 59.9 }).lunationPhase;
+        const justAfter = weatherOutputs({ ...fresh, cyclesElapsed: 4, phaseIndex: 0, phaseElapsed: 0 }).lunationPhase;
+        expect(justAfter - justBefore).toBeCloseTo((0.1 / CYCLE_TOTAL_S) / CYCLES_PER_LUNATION, 9);
+    });
+
+    it('seekPhase moves cycleT but never counts a day (the moon must not jump when Han pokes the picker)', () => {
+        const s = seekPhase(advance(createWeatherState(), 100), 'night');
+        expect(weatherOutputs(s).cycleT).toBeCloseTo(0.625, 9);
+        expect(s.cyclesElapsed).toBe(0);
     });
 });

@@ -455,6 +455,17 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   #1168 UAT "4 metronomen/cello's op net andere tempo's" pile-up) — but a level whose audio has
   started should never re-enter that effect at all, so a single drop is a real anomaly worth a
   grep-able trace. Logged once per effect run. See docs/architecture.md §369
+- **E036-SKY-SAMPLE** — `SkyGradientBackdrop.jsx` (§372) failed to load / read `Background layers_layer
+  5.png` for its one-time 5-stop colour sample; the component keeps its `FALLBACK_STOPS` (an
+  `#8fd0d9 → #dff3f5` blue→white sky) instead of blanking the RPG world's backdrop
+- **E037-CELESTIAL-SKY-DRAW-FRAME** — an unexpected error during one `CelestialSky.jsx` (§374) draw
+  frame (stars / constellations / sun / moon / debug orbit paths); caught so the shared `useFrameLoop`
+  ticker always reschedules and the OTHER subscribers keep running — same pattern as
+  E023-FOLIAGE-DRAW-FRAME / E028 / E031, with the per-layer attribution E034 alone cannot give
+- **E038-CELESTIAL-FONT-LOAD** — `document.fonts.load()` for `PixelNewspaperIII` (the constellation-name
+  label face) rejected; the debug-only names pass is skipped rather than rendering the labels in a
+  wrong fallback font (`CelestialSky.jsx`). An `@font-face` no DOM node uses is never fetched and
+  `ctx.font` does not trigger a load, hence the explicit request
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

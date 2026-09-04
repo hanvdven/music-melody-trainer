@@ -59,7 +59,13 @@ import bgLayer1Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background 
 import bgLayer2Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 2.png';
 import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 3.png';
 import bgLayer4Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 4.png';
-import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png';
+// §372: the backmost static sky (a hard-coded CSS gradient + `Background layers_layer 5.png`) is now a
+// single rendered gradient — colours sampled once from layer-5, night + dusk/dawn baked in.
+import SkyGradientBackdrop from './SkyGradientBackdrop';
+// §374 (#1191): the real south-facing sky — stars + constellations + an arcing sun and a 28-cycle
+// moon, all driven by the SAME weather clock. Mounted just in front of the gradient, behind every
+// parallax layer, so the scenery occludes the low sun/moon for free.
+import CelestialSky from './CelestialSky';
 
 // #691/#693 (Han 2026-08-04, "maak een extra tab: 'rpg level'" + round-2 movement/pet/NPC follow-up +
 // round-7 world/camera/parallax rework): a dev/preview scene — like the Bestiary tab, NOT wired into
@@ -107,15 +113,18 @@ const GROUND_ANCHOR = GROUND_ANCHOR_PX * ZOOM;
 // — the literal same formula as the shader's `screenBlend()`. No per-pixel normal-map interaction here
 // (these elements have no normal maps) — a flat approximation, matching the "can be simple" precedent
 // already set for non-focal props.
-// #weather §362 (Han 2026-09-01, "blauwwitte donkere kleur, maanlicht"): must stay in sync with the
-// shader's AMBIENT_DARK_COLOR — vec3(0.11,0.15,0.25)*255 ≈ [28,38,64]. Used for the DOM day/night tint
-// AND the new background-layer multiply overlay (LdtkScenery `bgDarkenColor`).
-const AMBIENT_DARK_RGB = [28, 38, 64];
+// Must stay in sync with the shader's AMBIENT_DARK_COLOR. §370 (Han: "echt donkerblauw") — deep
+// saturated blue, vec3(0.03,0.06,0.17)*255 ≈ [8,15,43]. Used for the DOM day/night tint AND the
+// background-layer multiply overlay (LdtkScenery `bgDarkenColor`).
+const AMBIENT_DARK_RGB = [8, 15, 43];
 // #141 round 13 (Han: "ik ga hooguit 10 lichtbronnen in beeld hebben"): 0..1 colors, the first two entries
 // of the `lights` array below (wisp, hero).
-// #141 round 17 (Han: "maak het licht van de blauwe wisp rgb (100,100,256) dus heel blauw" — 256 clamped
-// to the valid 0..255 byte range, i.e. 255): 100/255, 100/255, 255/255.
-const WISP_LIGHT_COLOR01 = [100 / 255, 100 / 255, 1.0];
+// #141 round 17 (Han: "maak het licht van de blauwe wisp rgb (100,100,256) dus heel blauw").
+// #weather §368 (Han UAT: "wisp licht is niet blauw of wordt overschaduwd door het licht van het vuur"):
+// deepened/saturated — R,G pulled well below B so it reads unambiguously blue even next to the warm,
+// bright campfire light. (Per-light strength isn't a thing yet — `uLightStrength` is global — so this
+// is colour only; can revisit if it still loses the fight near the fire.)
+const WISP_LIGHT_COLOR01 = [0.2, 0.4, 1.0];
 const HERO_LIGHT_COLOR01 = [1.0, 0.85, 0.25];
 // #1032 round 8 (Han: "het kampvuur heeft nog geen lichtbron"): warm orange/amber, matching a real fire.
 const CAMPFIRE_LIGHT_COLOR01 = [1.0, 0.55, 0.15];
@@ -177,9 +186,10 @@ const NPC_X = ENTITY_WORLD_X.Wisp ?? -140;
 // portrait resolves (`wispUrl` there). Kept as a literal string on both sides (the bestiary manifest
 // resolves this exact `public/` path to a variant `url`).
 const WISP_URL = '/ASSORTED/characters/animals/pets/Pet companion/Wisp.png';
-// #UI-overhaul (Han 2026-08-27, "clickzone moet 16x16 zijn"): the wisp/slime interaction hit box, in
-// game px.
-const HIT_ZONE_GPX = 16;
+// #UI-overhaul (Han 2026-08-27, "clickzone moet 16x16 zijn") — #weather (Han 2026-09-04, worker NPCs
+// added to this same hit zone: "De hitbox is veel te klein, maak die maar 48x48"): the wisp / slime /
+// worker-NPC interaction hit box, in RPG sprite px (game px).
+const HIT_ZONE_GPX = 48;
 const TREE_X = -220;
 const TENT_X = 220;
 // #141 round 10 (Han, NL: "om te testen, zet een paar kisten (linker boven cell (32x32) van decor.png) op
@@ -339,14 +349,25 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 // every RpgLevelPanel re-render. `EntityReflection` (which has no state of its own) is passed in as a
 // prop specifically so this can still use the parent's ponds-aware reflection logic without needing to
 // live inside the parent's closure itself.
-function WorkerNpcSlot({ variant, hitConfig, petFrame, timeSignature, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX }) {
+function WorkerNpcSlot({ variant, hitConfig, petFrame, timeSignature, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX, onClick, debugMode }) {
     const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, timeSignature, context, triggerBell, worldX, getListenerX);
     if (!variant || !anim) return null;
+    const screenX = worldToScreenX(worldX);
+    const standAnchor = standAnchorFor(worldX);
     return (
         <>
-            <div style={{ position: 'absolute', left: worldToScreenX(worldX), bottom: standAnchorFor(worldX), transform: 'translateX(-50%)' }}>
+            <div style={{ position: 'absolute', left: screenX, bottom: standAnchor, transform: 'translateX(-50%)' }}>
                 <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
             </div>
+            {/* #weather (Han 2026-09-04): the walk-then-talk click target — same fixed hit zone + debug
+                overlay (CLAUDE.md §3a) as the Wisp/Slime; stopPropagation so it doesn't ALSO walk-to-tap
+                on top of walk-to-NPC. */}
+            {onClick && (
+                <EntityHitZone
+                    screenX={screenX} standAnchor={standAnchor} zoom={zoom} flying={false} debugMode={debugMode}
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                />
+            )}
             <EntityReflection worldX={worldX}>
                 <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
             </EntityReflection>
@@ -766,7 +787,7 @@ function EntityHitZone({ screenX, standAnchor, zoom, flying, onClick, debugMode 
 
 const EntityLayer = React.memo(function EntityLayer({
     entityScrollRef, wispVariant, wispFlying, debugMode, clickNpc, worldToScreenXLocal, standAnchorFor, petFrame, zoom,
-    EntityReflection, sceneryMode, clickSlime, workerNpcs, timeSignature, context, workerNpcAudio,
+    EntityReflection, sceneryMode, clickSlime, clickWorkerNpc, workerNpcs, timeSignature, context, workerNpcAudio,
     playerXRef, critterWanderers, critterOpacity, critterLightPosRef, foliageParams, birdPositionsRef, birdSlots, birdSlotClaimsRef,
     char, noPetChar, moving, running, walkAnim, runAnim, idleAnim, walkFrame, facing, playerX,
     petUrl, petVariant, petX, petMoving,
@@ -820,10 +841,11 @@ const EntityLayer = React.memo(function EntityLayer({
 
             {/* #1093 (Han 2026-08-20, open-world worker NPCs): 6 stationary workers standing at Level_1's
                 own "NPC" LDtk markers (workerNpcs above) — same stand-anchor/reflection treatment as
-                Wisp/Slime, no click handler (decorative only, no dialogue). Each gets its OWN
-                WorkerNpcSlot instance (one useWorkerHitState hook call per NPC, React's normal
-                one-component-per-list-item pattern — see that component's header for why the state
-                machine must NOT live inside the twice-rendered WorkerNpc itself). */}
+                Wisp/Slime. #weather (Han 2026-09-04): now ALSO clickable — walk-then-talk (a random line
+                from npcDialogue.js, keyed by `w.name`), same `EntityHitZone` + stopPropagation pattern as
+                the Wisp/Slime. Each gets its OWN WorkerNpcSlot instance (one useWorkerHitState hook call
+                per NPC, React's normal one-component-per-list-item pattern — see that component's header
+                for why the state machine must NOT live inside the twice-rendered WorkerNpc itself). */}
             {sceneryMode === 'LDtk' && workerNpcs.map((w) => (
                 <WorkerNpcSlot
                     key={w.name}
@@ -832,6 +854,8 @@ const EntityLayer = React.memo(function EntityLayer({
                     worldX={w.x} worldToScreenX={worldToScreenXLocal} standAnchorFor={standAnchorFor}
                     EntityReflection={EntityReflection}
                     getListenerX={() => playerXRef.current}
+                    debugMode={debugMode}
+                    onClick={() => clickWorkerNpc(w.name, w.x)}
                 />
             ))}
 
@@ -922,7 +946,7 @@ const EntityLayer = React.memo(function EntityLayer({
 // every perf round this ticket has kept.
 const SceneryBack = React.memo(function SceneryBack({
     sceneryMode, groundAndFoliageBack, world, leftPxForFactor, sceneryScrollBackRef, groundLeftPxLocal,
-    zoom, litGroundTexturesBack, size, ldtkLights, foliageParams, bgDarkenColor, foliageDebugChannel, overlayScrollBackRef,
+    zoom, litGroundTexturesBack, size, ldtkLights, foliageParams, bgDarkenColor, bgRimOpacity, foliageDebugChannel, overlayScrollBackRef,
     culledAnimatedTilesBack, localWorldToScreenXLocal, reflectableTiles, waterPonds, worldToScreenXLocal,
     waterInstancesBack, localFoliageInstancesBack, cameraOffsetRef,
     // Perf (#1162, Fase 10c): the shared atlas + this pass's culled/positioned atlas instance list — see
@@ -936,7 +960,7 @@ const SceneryBack = React.memo(function SceneryBack({
                     groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
                     gridSize={world.gridSize} leftPxForFactor={leftPxForFactor}
                     groundScrollRef={sceneryScrollBackRef} groundLeftPx={groundLeftPxLocal}
-                    zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor}
+                    zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
                 />
             )}
             {sceneryMode === 'LDtk' && litGroundTexturesBack && (
@@ -1156,6 +1180,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const a = weatherOutputs(prev);
         const b = weatherOutputs(next);
         // …but only re-render (and repaint the shader/tint) when something visible moved.
+        // §374 (#1191) INVARIANT: `cycleT` / `lunationPhase` must NEVER be added to this list (nor to
+        // the `setWeather` list below). They move every single tick, so either list would turn a
+        // steady phase from 0 re-renders into ~12/s and undo #1162 Fase 8. <CelestialSky> reads them
+        // off `weatherRef` inside its own draw callback, which is exactly why it can.
         if (
             Math.abs(a.globalIllumination - b.globalIllumination) >= 0.004
             || Math.abs(a.windValue - b.windValue) >= 0.02
@@ -1213,6 +1241,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // bpm/timeSignature — defaults to WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the SAME fixed tempo
     // every open-world audio system now shares.
     const [metronomeOn, setMetronomeOn] = useState(false);
+    // §374 (#1191, Han: "vind het nog wel cute als er een stippellijn de sterrenbeelden toont
+    // (toggelbaar) en de namen in serif pixel font (toggelbaar)") — both default OFF and both live in
+    // the debug-only FoliageParamsPanel. Deliberately NOT in `foliageParams`: that bag is the SHADER
+    // uniform set (noiseScale, lightRadius, blend modes…), and these two are debug-view flags nothing
+    // else reads — keeping them out preserves that object's single responsibility.
+    const [showConstellationLines, setShowConstellationLines] = useState(false);
+    const [showConstellationNames, setShowConstellationNames] = useState(false);
     const { beat: metronomeBeat, pulseTick: metronomePulse } = useDebugMetronome({
         enabled: debugMode && metronomeOn, context, instruments, setVolume,
     });
@@ -1426,7 +1461,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     }, [context], { priority: 'critical' });
 
     const { char } = characterEditor;
-    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, setHeldDirection } = rpgLevel;
+    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, clickWorkerNpc, registerWorldInteractables, setHeldDirection } = rpgLevel;
     // #925 follow-up (Han 2026-08-16, bug found via LdtkLitGround diagnostic logging): NPC_X/playerX are
     // ABSOLUTE LDtk world coordinates (from useRpgLevelState, clamped to LEVEL_MIN_X..LEVEL_MAX_X), but
     // every LDtk tile-derived "worldX" this shimmer/lit-ground pipeline uses (tile.worldX post
@@ -1646,6 +1681,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         })).filter((w) => w.variant && w.x != null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    // #weather (Han 2026-09-04, "'f' of 'spatie' werken niet om gesprek te starten"): register the
+    // worker NPCs' world positions + click actions with useRpgLevelState so its F/Space/Enter keyboard
+    // handler can start a conversation with the nearest one (their X lives in the LDtk markers here, not
+    // in the hook). Cleared on unmount / when leaving LDtk scenery.
+    useEffect(() => {
+        registerWorldInteractables(
+            sceneryMode === 'LDtk'
+                ? workerNpcs.map((w) => ({ x: w.x, run: () => clickWorkerNpc(w.name, w.x) }))
+                : [],
+        );
+        return () => registerWorldInteractables([]);
+    }, [workerNpcs, clickWorkerNpc, registerWorldInteractables, sceneryMode]);
     // #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"): a purely visual
     // Slime, standing at the `.ldtk` file's own Slime entity marker — same treatment as the Wisp NPC
     // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
@@ -1712,12 +1759,16 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const nightFactor = 1 - foliageParams.globalIllumination;
         if (nightFactor < 0.35) return baseLights;   // daytime-ish — no firefly glow at all
         const col = fireflyLightColor.map((c) => c * nightFactor);
+        // #weather §368 (Han UAT: "lichtbron van vuurvlieg staat niet gecentreerd op de sprite, maar op
+        // het 'bottom' anker"): `p.y` is the sprite's BOTTOM edge (top-down world Y, same as campfire
+        // tiles) — add half the firefly frame height so the glow sits at the sprite's centre.
+        const halfFireflyH = (fireflyVariant?.frame?.h ?? 16) / 2;
         const flies = critterWanderers
             .map((w, i) => (w.isFirefly ? critterLightPosRef.current.get(`critter-${i}`) : null))
             .filter(Boolean)
             .sort((a, b) => Math.abs(a.x - playerX) - Math.abs(b.x - playerX))
             .slice(0, 4)
-            .map((p) => ({ worldX: p.x - LEVEL_MIN_X, worldHeight: LEVEL_PX_HEIGHT - p.y, color: col }));
+            .map((p) => ({ worldX: p.x - LEVEL_MIN_X, worldHeight: LEVEL_PX_HEIGHT - p.y + halfFireflyH, color: col }));
         return flies.length ? [...baseLights, ...flies] : baseLights;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [baseLights, critterWanderers, fireflyLightColor, foliageParams.globalIllumination, playerX, petFrame]);
@@ -1975,17 +2026,23 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const domDarkenOverlayStyle = { position: 'absolute', inset: 0, ...domDarkenPaint };
 
     // #weather §362 (Han 2026-09-01, "de dag/nacht-cyclus werkt niet op de achtergrondlaag, wordt niet
-    // donker"): the LDtk-mode parallax background canvases + the hard-coded sky gradient + bgLayer5 have
-    // NO lit pipeline (unlike ground/foliage, which the WebGL shaders darken). This is a multiply toward
+    // donker"): the LDtk-mode parallax background canvases have NO lit pipeline (unlike ground/foliage,
+    // which the WebGL shaders darken). (§372: the static theme backdrop — old CSS gradient + bgLayer5 —
+    // is gone, replaced by <SkyGradientBackdrop> which darkens itself.) This is a multiply toward
     // the SAME night colour, faded on `globalIllumination` — same formula as the shader's own
-    // `mix(AMBIENT_DARK_COLOR, 1.0, globalIllumination)`. Rendered INSIDE `LdtkScenery`, between its
-    // background canvases and its ground layer, so it only ever touches the backgrounds. `null` (skip
-    // the overlay entirely) at full daylight so day frames pay nothing. Re-introduces the small
-    // `mix-blend-mode` composite cost #1162 Fase 5 removed — accepted (Han's explicit choice), and only
-    // while it's actually dark (dusk→night→dawn).
-    const bgDarkenColor = foliageParams.globalIllumination < 1
-        ? rgbCss(AMBIENT_DARK_RGB, 1 - foliageParams.globalIllumination)
-        : null;
+    // `mix(AMBIENT_DARK_COLOR, 1.0, globalIllumination)`. `null` (skip entirely) at full daylight so
+    // day frames pay nothing.
+    // #weather §370 r3: the bg darken/rim are BAKED into each bg canvas now (see LdtkScenery `BgLayer`),
+    // so a fresh value every weather tick would re-bake the canvas 12×/sec during a crossfade. Quantise
+    // to 0.05 steps → ~13 re-bakes over a 10 s fade, 0 at steady day/night.
+    const bgNight = Math.round(Math.max(0, 1 - foliageParams.globalIllumination) * 20) / 20;
+    const bgDarkenColor = bgNight > 0 ? rgbCss(AMBIENT_DARK_RGB, bgNight) : null;
+    // #weather §370 r4 (Han: moon "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor
+    // dawn"): the RIM (moon) is gated on the same night-only curve the shader uses (moonPresence) — 0 at
+    // dusk/dawn (illum 0.33), 1 only deep in night — NOT the general 1-illum darken. Quantised to match.
+    const gi = foliageParams.globalIllumination;
+    const moonPresence = gi >= 0.20 ? 0 : gi <= 0.08 ? 1 : (0.20 - gi) / 0.12;
+    const bgRimOpacity = Math.round(moonPresence * 20) / 20;
 
     const floorTileIdx = useMemo(
         () => Array.from({ length: LEVEL_TILES }, () => Math.floor(Math.random() * FLOOR_CELLS.length)),
@@ -2115,8 +2172,26 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 foreground details). Each parallax layer's own background-position shifts by
                 `-cameraX * factor` — the SAME camera that drives every world object below, just scaled
                 down per layer so farther layers crawl and nearer ones sweep almost as fast as the level. */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, #8fd0d9, #dff3f5)' }} />
-            <img src={bgLayer5Url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
+            {/* §372 (Han: "vervang de achtergrond (verste parallax) door een gerenderde gradient"): the
+                static theme backdrop — a hard-coded CSS `linear-gradient` div + `Background layers_layer
+                5.png` — is now this one component: 5 stops sampled once from layer-5, night mix + dusk/
+                dawn horizon glow baked in from the auto weather cycle's `globalIllumination`. */}
+            <SkyGradientBackdrop globalIllumination={foliageParams.globalIllumination} />
+            {/* §374 (#1191, Han 2026-09-04): the celestial layer sits between the rendered sky gradient
+                and EVERY parallax layer below, so a setting sun/moon simply sinks behind the scenery
+                with no clipping code. It reads the cycle clock off `weatherRef` (not state) — see its
+                own header comment for why that is required, not an optimisation — and its star opacity
+                is a pure function of the same `globalIllumination` the shaders read. */}
+            <CelestialSky
+                weatherRef={weatherRef}
+                globalIllumination={foliageParams.globalIllumination}
+                sizePx={size}
+                zoom={zoom}
+                horizonGamePx={HORIZON_PX}
+                debugMode={debugMode}
+                showConstellationLines={showConstellationLines}
+                showConstellationNames={showConstellationNames}
+            />
             {/* #141 (Han 2026-08-05, "make all backgrounds the same scale as the rest of the level. There
                 should be 1 global scaling factor, that's it" — CORRECTS §693 round 12's deliberate
                 "backgrounds render at native res, not ZOOM" choice): every parallax layer now renders at
@@ -2195,7 +2270,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 sceneryMode={sceneryMode} groundAndFoliageBack={groundAndFoliageBack} world={world}
                 leftPxForFactor={leftPxForFactor} sceneryScrollBackRef={sceneryScrollBackRef}
                 groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesBack={litGroundTexturesBack}
-                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams} bgDarkenColor={bgDarkenColor}
+                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
                 foliageDebugChannel={foliageDebugChannel} overlayScrollBackRef={overlayScrollBackRef}
                 culledAnimatedTilesBack={culledAnimatedTilesBack} localWorldToScreenXLocal={localWorldToScreenXLocal}
                 reflectableTiles={reflectableTiles} waterPonds={waterPonds} worldToScreenXLocal={worldToScreenXLocal}
@@ -2317,7 +2392,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 entityScrollRef={entityScrollRef} wispVariant={wispVariant} wispFlying={wispFlying} debugMode={debugMode} clickNpc={clickNpc}
                 worldToScreenXLocal={worldToScreenXLocal} standAnchorFor={standAnchorFor} petFrame={petFrame}
                 zoom={zoom} EntityReflection={EntityReflection} sceneryMode={sceneryMode}
-                clickSlime={clickSlime} workerNpcs={workerNpcs} timeSignature={WORLD_TIME_SIGNATURE}
+                clickSlime={clickSlime} clickWorkerNpc={clickWorkerNpc} workerNpcs={workerNpcs} timeSignature={WORLD_TIME_SIGNATURE}
                 context={context} workerNpcAudio={workerNpcAudio} playerXRef={playerXRef}
                 critterWanderers={critterWanderers} critterOpacity={wOut.critterOpacity} critterLightPosRef={critterLightPosRef} foliageParams={foliageParams}
                 birdPositionsRef={birdPositionsRef} birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
@@ -2494,6 +2569,9 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     params={foliageParams}
                     onChange={setFoliageParam}
                     onReset={() => { setFoliageParams(DEFAULT_FOLIAGE_PARAMS); commitWeather(createWeatherState()); }}
+                    showConstellationLines={showConstellationLines}
+                    showConstellationNames={showConstellationNames}
+                    onToggleConstellation={(which, on) => (which === 'lines' ? setShowConstellationLines(on) : setShowConstellationNames(on))}
                 />
             )}
 
@@ -2674,7 +2752,7 @@ function LevelPicker({ label, levels, value, onChange }) {
 // Time-of-day picker (TIME_OF_DAY_ILLUM night/dusk-dawn/day → 0.1/0.33/1). #weather (Han 2026-09-01)
 // replaced both with seek-controls into the auto weather cycle — the phase list + illumination values
 // now live in weatherCycle.js `TIME_PHASES`, and wind is a plain 0-3 range.
-function FoliageParamsPanel({ params, onChange, onReset }) {
+function FoliageParamsPanel({ params, onChange, onReset, showConstellationLines, showConstellationNames, onToggleConstellation }) {
     // #141 round 26 (Han, NL: "ik wil in debug het settings menu kunnen in- en uitklappen") — local, not
     // lifted to RpgLevelPanel state: purely a debug-UI display preference, nothing else reads it.
     // #RAM-level (Han 2026-08-11, "zet foliage params uit by default"): starts collapsed now.
@@ -2743,6 +2821,21 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
             {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
                 settings"): Wind and Time-of-day moved to the World debug panel (top-left) — see that
                 panel's own LevelPicker calls, driven by the SAME `foliageParams`/`setFoliageParam`. */}
+            <hr style={{ opacity: 0.3, margin: '8px 0' }} />
+            {/* §374 (#1191): the two sterrenhemel overlays. Reuse the existing `LevelPicker` Off/On row
+                (same pattern as the Metronome picker in the World panel) rather than hand-rolling a
+                checkbox (§6d). This whole panel is already gated on `debugMode`, so "debug-only,
+                default off" is satisfied structurally. */}
+            <LevelPicker
+                label="Constellation lines" levels={{ Off: 0, On: 0 }}
+                value={showConstellationLines ? 'On' : 'Off'}
+                onChange={(v) => onToggleConstellation('lines', v === 'On')}
+            />
+            <LevelPicker
+                label="Constellation names" levels={{ Off: 0, On: 0 }}
+                value={showConstellationNames ? 'On' : 'Off'}
+                onChange={(v) => onToggleConstellation('names', v === 'On')}
+            />
             </>)}
         </div>
     );

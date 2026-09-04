@@ -25,12 +25,27 @@
 export const TIME_PHASES = [
     { name: 'day', dur: 240, illum: 1 },
     { name: 'dusk', dur: 60, illum: 0.33 },
-    // #weather §362 lifted the night floor 0.1 → 0.12; UAT round 2 (Han: "maak het nog een tikkeltje
-    // donkerder") nudged it back to 0.10. Still reads as blue moonlight (not black) thanks to the
-    // lighter AMBIENT_DARK_COLOR + the directional moon.
-    { name: 'night', dur: 120, illum: 0.10 },
+    // #weather §362 → §370: night floor 0.12 → 0.10 → 0.05 (Han: "maak de global ilum nog wat donkerder:
+    // 50% - echt donkerblauw"). Halved again; the deep-blue AMBIENT_DARK_COLOR + the moon rim carry the
+    // readability now.
+    { name: 'night', dur: 120, illum: 0.05 },
     { name: 'dawn', dur: 60, illum: 0.33 },
 ];
+
+// §374 "sterrenhemel" (#1191, Han 2026-09-04) — the celestial layer needs a CONTINUOUS clock over the
+// whole day→dusk→night→dawn loop, not just "which phase are we in". Both constants are DERIVED from
+// TIME_PHASES (CLAUDE.md §6c: never a typed 480 / [0,240,300,420]) so retuning a phase duration moves
+// the sun, the moon and the star sphere with it, automatically.
+export const CYCLE_TOTAL_S = TIME_PHASES.reduce((a, p) => a + p.dur, 0);              // 480 s
+export const PHASE_START_S = TIME_PHASES.reduce(                                      // [0,240,300,420]
+    (acc, p) => [...acc, acc[acc.length - 1] + p.dur],
+    [0],
+).slice(0, TIME_PHASES.length);
+
+// §374: ONE knob for the whole sky. 28 day/night cycles = one new→full→new lunation (Han: "28 cycles =
+// een maancyclus"). The same 28 also compresses the "year" (the sun's RA drift), which is what gives
+// the star sphere its 1 + 1/28 sidereal excess per cycle — see celestialModel.js `localSiderealDeg`.
+export const CYCLES_PER_LUNATION = 28;
 
 // Weighted-toward-1 bag, sampled uniformly WITH replacement (Han: "gewogen richting 1, herhaling mag,
 // dus uniform met terugleggen"). Draw distribution: 0 → 1/7, 1 → 3/7, 2 → 2/7, 3 → 1/7.
@@ -73,6 +88,10 @@ export function createWeatherState() {
     return {
         phaseIndex: 0,
         phaseElapsed: 0,
+        // §374: how many WHOLE day/night cycles have elapsed. Only ever incremented on the dawn→day
+        // wrap in tickWeather; combined with the in-cycle fraction it gives the moon its lunation
+        // phase and the star sphere its sidereal drift. Integer, unbounded (it is taken mod 28).
+        cyclesElapsed: 0,
         // illumination fade
         illum: 1,
         illumFrom: 1,
@@ -144,6 +163,10 @@ export function tickWeather(state, dtSeconds, rand = Math.random) {
     while (s.phaseElapsed >= TIME_PHASES[s.phaseIndex].dur) {
         s.phaseElapsed -= TIME_PHASES[s.phaseIndex].dur;
         s.phaseIndex = (s.phaseIndex + 1) % TIME_PHASES.length;
+        // §374: the dawn(last) → day(0) wrap IS one whole day passing. No new timer and no wall-clock
+        // — it rides the phase clock that already exists, which is why freezing the cycle during a
+        // music LEVEL (weatherCycleStore) keeps working untouched.
+        if (s.phaseIndex === 0) s.cyclesElapsed += 1;
         const phase = TIME_PHASES[s.phaseIndex];
         s.illumFrom = s.illum;
         s.illumTo = phase.illum;
@@ -182,6 +205,8 @@ export function tickWeather(state, dtSeconds, rand = Math.random) {
 export function seekPhase(state, phaseName) {
     const idx = TIME_PHASES.findIndex((p) => p.name === phaseName);
     if (idx < 0) return state;
+    // §374: `cyclesElapsed` is deliberately left UNCHANGED. A debug seek is a jump within the current
+    // day, not a day passing — bumping it would slew the moon phase every time Han pokes the picker.
     const s = { ...state, phaseIndex: idx, phaseElapsed: 0 };
     s.illumFrom = s.illum;
     s.illumTo = TIME_PHASES[idx].illum;
@@ -214,9 +239,18 @@ export function weatherOutputs(state) {
             critterOpacity = easeInOut((e - CRITTER_FADE_S) / CRITTER_FADE_S);
         }
     }
+    // §374 (#1191): the continuous cycle clock and the moon's lunation phase — PURE derivations of the
+    // phase clock above, no timers of their own. `lunationPhase` is continuous rather than stepped
+    // once per cycle; a stepped value would jerk the whole star sphere at every cycle boundary.
+    const cycleT = (PHASE_START_S[state.phaseIndex] + state.phaseElapsed) / CYCLE_TOTAL_S;
+    const lunationPhase = ((state.cyclesElapsed + cycleT) % CYCLES_PER_LUNATION) / CYCLES_PER_LUNATION;
     return {
         globalIllumination: state.illum,
         windValue: state.wind,
+        // 0..1 over the whole 480 s loop (day 0 · dusk 0.5 · night 0.625 · dawn 0.875).
+        cycleT,
+        // 0..1 over CYCLES_PER_LUNATION cycles: 0 = new moon, 0.5 = full.
+        lunationPhase,
         // string the existing lighting-tint / critter-tag consumers expect: dusk & dawn both map to
         // the legacy 'dusk-dawn' bucket.
         timeOfDay: phase.name === 'day' ? 'day' : phase.name === 'night' ? 'night' : 'dusk-dawn',

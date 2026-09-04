@@ -249,7 +249,15 @@ Walks the ranked array and assigns notes to active slots:
 - **Beat rest insertion:** when `InstrumentSettings.insertBeatRests` is `true`, `insertRestsAtBeats` turns every beat-aligned null slot into an explicit rest `'r'` (so the sheet renderer never shows a beat-length empty gap). This is gated on the `insertBeatRests` settings field — **not** on `instrumentType === 'percussion'` — so the pipeline stays identical for all instrument types per §6b of `CLAUDE.md`; only `defaultPercussionInstrumentSettings()` enables the field. Any instrument whose settings set `insertBeatRests = true` gets the same behaviour.
 - **Note-length cap (§314, always active):** `capNoteLengthAtGroupBoundaries` runs unconditionally (not gated by `insertBeatRests`) right after the step above — a hard invariant, not a per-instrument setting. It stops any active note's duration extension at the first point it would cross a SECOND rhythmic-group boundary or a second measure boundary, whichever is stricter. See §314 for the full rule and worked example.
 - **`Melody.fromFlattenedNotes`:** converts the flat slot array into `(notes, durations, offsets)` triplets. Consecutive null slots after an active note extend that note's duration (`timeScale × count`). The `timeScale` is derived from `notes.length` and `numMeasures`, so it matches the actual slot resolution.
+- **Display-note spelling (mode-aware):** `generateMelody()` passes a scale context `{ notes: Scale.notes, displayNotes: Scale.displayNotes, tonic: Scale.tonic }` into `fromFlattenedNotes`. `Scale.notes` is the **audio** spelling from `allNotesArray.js` (pitch-class 6 is *always* `F♯`, never `G♭`); `Scale.displayNotes` is the **mode-aware** spelling from `generateDisplayScale` (delta-from-major: `F♯` for C Lydian's raised 4th, `G♭` for C Locrian's lowered 5th). `fromFlattenedNotes` re-spells each generated note by index-matching `notes → displayNotes`, falling back to `getRelativeNoteName` for out-of-scale chromatics. **Invariant:** `MelodyGenerator` must copy `Scale.displayNotes` into `this.displayNotes` in its constructor, or the re-spelling silently no-ops (the step is gated on all three of notes/displayNotes/tonic being present) and `melody.displayNotes` falls back to the raw audio spelling. See §-bug below.
 - **Metadata attachment:** `melody.rhythmicGrouping = rhythmicGrouping`, `melody.rhythmicDNA = dnaMeasureForDebug` — used by the renderer for beaming and debug display.
+
+##### Bug — Level 8 "Modulated" → C Locrian rendered G♭ as F♯ (Han 2026-09-03)
+
+**Symptom:** Level 8 with mode variant `g` ("Modulated") resolves to C Locrian; the treble melody's 5th degree (G♭) showed as `F♯` on the staff. Pitch was correct — spelling only.
+**Root cause:** `MelodyGenerator`'s constructor captured `Scale.notes`/`Scale.tonic`/`Scale.numAccidentals` but **never `Scale.displayNotes`**. So `generateMelody()` passed `displayNotes: undefined` into `Melody.fromFlattenedNotes`, whose scale-context re-spelling is gated on `scaleNotes && scaleDisplayNotes && scaleTonic` — the melody's `displayNotes` fell back to `notes`, i.e. the `allNotesArray.js` audio spelling where pitch-class 6 is always `F♯`. Every flat mode containing pc-6 (C Locrian, F Phrygian, G♭/C♭ major, …) was affected; sharp modes (C Lydian) were coincidentally fine because their audio and display spellings of pc-6 agree.
+**Fix:** `this.displayNotes = Array.isArray(Scale?.displayNotes) ? Scale.displayNotes : this.scale;` in the constructor. Mode-aware — defers to `Scale.displayNotes`, so C Lydian keeps `F♯` and C Locrian gets `G♭`; no enharmonic flip.
+**Files:** `src/generation/melodyGenerator.js`, test `src/generation/__tests__/melodyGeneratorDisplayNotes.test.js`.
 
 #### 4g — Tuplet post-processing (`melodyGenerator.js`)
 After `fromFlattenedNotes`, when `rhythmVariability > 0`, each active note has independent probabilistic chances of becoming a tuplet group (triplet, quintuplet, etc.). See §22 for the full tuplet specification.
@@ -24278,6 +24286,9 @@ assertion); existing `useWorldAmbientMusic` / `useDebugMetronome` behaviour unch
 **Purpose.** The walkable RPG world varies its own "weather" instead of Han poking the debug pickers.
 Two independent tracks, both with *gradual* transitions so nothing jump-cuts:
 
+> **See also §374** — the celestial sky (stars / sun / 28-cycle moon) is driven entirely by THIS clock:
+> `weatherOutputs()` also derives `cycleT` and `lunationPhase` from the phase state below.
+
 - **Wind** — every 30 s a new random speed **0–3**, drawn from the weighted bag `[0,1,1,1,2,2,3]`
   (uniform *with replacement* — repeats allowed; distribution 0→1/7, 1→3/7, 2→2/7, 3→1/7), then
   eased toward over **3 s**. 0 = windstil (skew/stretch 0 px). Feeds `foliageParams.skewAmount` /
@@ -25268,6 +25279,71 @@ Wizard park), `src/hooks/__tests__/useLevelGatedRubatoAudio.test.js` (+4: byte-i
 tempo, a halved tempo, no loop restart), `src/hooks/__tests__/adaptiveMode.integration.test.js` (+7,
 including the MANDATORY "THE HARD INVARIANT: the ladder NEVER sets `loopForever`" regression).
 
+### §368. Night look — UAT round 3: firefly light centred, wisp bluer, foliage shimmer tracks day/night (Han 2026-09-03)
+
+Three more artefacts on top of §364.
+
+**1 — the firefly glow sat at the sprite's bottom, not its centre.** §364 placed the moving light at
+`LEVEL_PX_HEIGHT - p.y`, where `p.y` (from `WorldWanderer`) is the sprite's BOTTOM edge (top-down world
+Y, same convention as campfire tiles). Now `+ (fireflyVariant.frame.h ?? 16) / 2` → the sprite's centre.
+(Wisp/hero were already centred in §364 item 3 — `groundHeightAt + halfCropH`.)
+
+**2 — the wisp point light didn't read as blue next to the campfire.** `WISP_LIGHT_COLOR01` was
+`[0.39, 0.39, 1.0]` — a pale blue that the bright warm campfire light (`[1.0, 0.55, 0.15]`,
+`uLightStrength` 1.5) washed out where the two overlap. Deepened to `[0.2, 0.4, 1.0]` (R/G well below B).
+Colour only — there is still no per-light strength (`uLightStrength` is one global value); revisit with a
+per-light strength array if it still loses the fight near the fire.
+
+**3 — the foliage shimmer looked wrong at night ("veel horizontale strepen").** The wave highlight bakes
+a near-white `HIGHLIGHT_COLOR` (`vec3(1.0, 1.0, 0.95)`) into `trueColor` BEFORE the ambient darken; at
+night `applyMoonLight` then reveals that white band back out over the very dark foliage → harsh bright
+quantised stripes. Fix (Han's own colours): the **instanced** shader path (LDtk foliage — trees) now
+uses `mix(vec3(49,78,158)/255, vec3(112,255,153)/255, uGlobalIllumination)` — day mint, night blue — so
+the wave bands read as a gentle hue shimmer instead of white stripes. The **non-instanced** path (water +
+legacy foliage) is untouched — water keeps the white `HIGHLIGHT_COLOR` (Han: "laat water onveranderd").
+No new uniform — `uGlobalIllumination` is already in the shared `LIGHTING_PARAM_UNIFORMS_GLSL`.
+
+**Files.** `src/components/character/RpgLevelPanel.jsx` (`WISP_LIGHT_COLOR01`, firefly light
+`worldHeight`), `src/components/character/ForegroundFoliageLayer.jsx` (instanced `FRAGMENT_SRC_INSTANCED`
+shimmer colour). `npm run test:run` 1367 pass / 1 skip · `build` clean · `lint` 0 errors.
+
+**Round 2 (Han: "De illum moet als allerlaatste worden toegepast! Dus ná pixel switch en shimmer. De
+pixels in de boom steken nog steeds hard af, ik zie soms fel-groene pixels ... echt horizontale
+strepen").** The §368 colour change wasn't enough — the *effect order* was the real bug.
+
+- **Effect order (instanced / foliage shader only).** OLD: shimmer baked into `trueColor`, then
+  darkened, then `applyPointLights`/`applyMoonLight` *revealed* `trueColor` (= the shimmered colour)
+  back out at full brightness. The "Color" wave-blend recolours bright foliage pixels to the shimmer
+  hue, and the moon then re-lit those into fel-groene pixels and hard bands. NEW: the lights/moon
+  reveal the **plain diffuse** only; the shimmer (`blendHighlightDual` + white-cap) is applied **last**,
+  on top of the fully lit+darkened colour — so at night it can only ever be a faint scene-matched
+  sheen. The non-instanced path (water) keeps its original order — "water onveranderd".
+- **Horizontal stripes.** `applyMoonLight` (shared GLSL) followed the full per-texel normal map, so the
+  per-tile normal-map seams between the stacked 16-px foliage tiles carved visible horizontal stripes
+  once moonlit. The moon now uses `normalize(mix(FLAT_NORMAL, normal, 0.4))` — a broad soft wash that
+  follows the overall shape, not per-tile relief detail.
+- Files r2: `src/components/character/ForegroundFoliageLayer.jsx` (instanced `main()` reorder),
+  `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` normal flatten — shared, so
+  `LdtkLitGround`'s moon softens too). `test:run` 1367 pass · `build` clean · `lint` 0 errors.
+
+**Round 3 — the stripes were a wrong-UV normal-atlas sample (Han: "een probleem met het lijmen van de
+normal-maps? ... die is opgebouwd in stroken").** The instanced foliage shader binds `uNormal` to the
+shared **atlas** `normalCanvas`, but its `normalUV` was tile-local `[0,1]` — code inherited verbatim
+from the NON-instanced path, where `uNormal` is a genuine per-tile texture and `[0,1]` is right. So
+every foliage instance sampled the SAME `[0,1]` slice of the packed atlas — a full vertical scan across
+every packed row = the atlas's strip layout smeared onto every tile → the horizontal stripes (worst at
+night, when the moon lit that garbage relief). **Fix:** map `normalUV` through `vDiffuseUV` (the
+per-instance atlas rect), identical to `duv` — the diffuse and normal atlases share one packing layout
+(`useLdtkFoliageAtlas`). Also fixes the striped debug-channel-1 (raw normal) view. With correct normals,
+`applyMoonLight`'s flatten was relaxed `0.4 → 0.75` (keep most of the real relief, a touch of soften
+for §364's "subtieler"). The X camera-pixel-snap (§364) is unrelated — that's the horizontal camera
+SCROLL (no vertical scroll exists); the WebGL tile Y positions were already edge-snapped in §364 r2.
+- Files r3: `src/components/character/ForegroundFoliageLayer.jsx` (`FRAGMENT_SRC_INSTANCED` `normalUV`),
+  `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` flatten 0.4 → 0.75). `test:run`
+  1369 pass · `build` clean · `lint` 0 errors.
+
+**Note.** §366 / §367 were taken by a concurrent session (adaptive difficulty), so this is §368.
+
 ---
 
 ### §369. Level audio is NEVER scheduled into the past — the "4 metronomen/cello's" pile-up (#1168 UAT round 2, Han 2026-09-03)
@@ -25374,3 +25450,549 @@ gating the ladder read and `evaluate` + E035), `src/hooks/__tests__/adaptiveMode
 (a restartable Sakura + `i` harness: "drops every past-due schedule instead of letting playMelodies
 clamp it to now" — verified to FAIL without the guard, with the lead-in re-issued 120 s in the past —
 and "a level that is NEVER restarted is completely unaffected"), `CLAUDE.md` (§7a: E035).
+
+### §370. Night look — deeper blue + a bright white top-left moon RIM (Han 2026-09-03)
+
+Two asks on top of §368.
+
+**1 — night darker + "echt donkerblauw".** `TIME_PHASES` night `illum` 0.10 → **0.05** (halved again).
+`AMBIENT_DARK_COLOR` 0.11/0.15/0.25 → **`vec3(0.03, 0.06, 0.17)`** — deep, saturated, low R/G. CSS twin
+`AMBIENT_DARK_RGB` → `[8, 15, 43]`. The moon rim + point lights carry readability now.
+
+**2 — a bright white moonlight RIM on the top-left 2-3 px outline, foreground AND backgrounds.**
+
+*Foreground (shader).* New shared `topLeftRimFactor(tex, duv, texelSize, uvRect)` — like `edgeLightFactor`
+but DIRECTIONAL (only a transparent neighbour toward screen-UP or screen-LEFT counts) and two-tier
+(`RIM_PX_FULL` 2 → 1.0, `RIM_PX_HALF` 3 → 0.5). Neighbour samples are clamped to the tile's own `uvRect`
+so the gap-free foliage atlas never bleeds an adjacent tile's alpha in. `applyMoonLight` signature
+changed to `(currentColor, normal, edgeFactor, rimFactor)` (the unused `trueColor` param dropped) and now
+returns `screenBlend(currentColor, MOON_COLOR * intensity)` where `intensity = max(wash, rim)`:
+`wash` = the old half-Lambert surface term at **half** strength (`MOON_WASH_SCALE` 0.5 — Han: "rim +
+zwakke wash"); `rim` = `rimFactor * (1-illum) * uMoonStrength * 3` — bright, still gated by the debug
+slider and the night factor. Wired at all four call sites (both `ForegroundFoliageLayer` shaders,
+`LdtkLitGround` with `uvRect` = whole canvas, `FoliageInstancingTest`).
+
+*Backgrounds (DOM).* The parallax bg canvases have no shader, so `LdtkScenery.drawTopLeftRim(srcCanvas)`
+bakes a white rim ONCE per composite — pure canvas compositing (`source-in` white-mask, then
+`destination-out` the shape shifted +2/+3 px so only the top-left fringe survives; 2 px full + 3rd px at
+0.5). It's blitted into a **separately-mounted** `<canvas>` per bg layer that `LdtkScenery` renders
+AFTER the §362 `multiply` darken div (a white rim UNDER a multiply would just go dark) and before the
+ground. Its `opacity` = `bgRimOpacity` = `1 - globalIllumination` (threaded from `RpgLevelPanel` through
+`SceneryBack`). Rim canvases only mount while `bgRimOpacity > 0`.
+
+**Files.** `foliageLightingGLSL.js`, `ForegroundFoliageLayer.jsx`, `LdtkLitGround.jsx`,
+`FoliageInstancingTest.jsx`, `LdtkScenery.jsx`, `RpgLevelPanel.jsx`, `weatherCycle.js`.
+
+**Round 2 (Han: "een beetje te fel ... de illum houdt geen rekening met de lagen — de lijn van de
+achtergrond bergen wordt over de bomen daarvoor gerenderd ... 70%").** Three things:
+
+- **Layer order.** The old design mounted ALL bg rim canvases after ONE full-viewport darken div, so a
+  farther layer's rim painted over a nearer layer's base. Now each background parallax layer is its OWN
+  `<BgLayer>` = an **`isolation: isolate`** wrapper holding [base canvas → per-layer `multiply` darken
+  div → baked rim canvas]. The isolation confines each layer's darken to its own tiles; the wrappers
+  stack in DOM order, so a nearer layer correctly occludes a farther layer's rim, and the rim (after
+  the darken, inside the isolated context) stays bright. The single `bgDarkenColor` div is gone. (A
+  known side effect: at deep night the stack of isolated `rgba(8,15,43,~0.95)` veils over the open-sky
+  regions drives the sky solid dark blue — which is the "echt donkerblauw" Han asked for anyway.)
+- **The rim algorithm is now Han's exact spec** — shared `moonRimFactor` (shader, was `topLeftRimFactor`)
+  and `computeMoonRim` (DOM, a `getImageData` + per-pixel pass): for an opaque pixel, an EMPTY pixel
+  toward UP → adjacent `.70` / next `.50` / next `.20`; LEFT → adjacent `.70` / next `.30`; RIGHT →
+  adjacent `.50`; clash → the highest opacity wins. Max is 0.70 by construction (Han's "70%"). The
+  shader rim is `rimFactor * (1-illum) * clamp(uMoonStrength/0.3, 0, 2)`; the DOM rim's `<canvas>`
+  `opacity` is `bgRimOpacity` = `1 - globalIllumination`. On the foliage path `duv` already carries the
+  wind pixel-switch, so the rim shifts with the leaves for free (Han: "bereken 1x en pixel switch
+  gewoon mee").
+- `computeMoonRim` runs once per composite, deferred via `requestIdleCallback` so the full-canvas
+  getImageData never blocks a frame; the rim `<canvas>` is always mounted (opacity-gated), so there's
+  no dusk-time bake hitch.
+
+Files r2: `foliageLightingGLSL.js` (`moonRimFactor`, `applyMoonLight` rim math),
+`ForegroundFoliageLayer.jsx` / `LdtkLitGround.jsx` / `FoliageInstancingTest.jsx` (renamed call),
+`LdtkScenery.jsx` (`computeMoonRim`, `BgLayer` isolated wrapper, `GroundCanvas`, single darken div
+removed).
+
+**Round 3 (Han: "de achtergrond is helemaal onzichtbaar ... elke parallax laag verder extra hard blauw
+gekleurd tot ze verdwijnen").** The r2 isolated-wrapper design put a `mixBlendMode: multiply` div in
+each of ~5 `<BgLayer>` wrappers; over each wrapper's TRANSPARENT (sky) region that div renders as a
+near-opaque `rgba(8,15,43,~0.95)` rectangle, and ~5 of them stacked drove the whole viewport solid dark
+blue. Han's actual intent was just "one moon glow per parallax layer" (so the multi-sublayer parallax-0
+doesn't get 5+ stacked glows) — not per-layer darkening.
+**Fix.** No overlay divs on the bg layers. `<BgLayer>` composites its tiles ONCE into an offscreen
+`src` canvas (+ its `computeMoonRim`, once, `requestIdleCallback`), then **bakes** the shown canvas =
+`drawImage(src)` → `globalCompositeOperation:'multiply'` fill `darkenColor` → `'destination-in'`
+`drawImage(src)` (re-clip to the tile silhouette, so the sky stays transparent) → rim `drawImage` at
+`rimOpacity`. That second bake runs only when the **quantised** `darkenColor` (0.05 alpha steps, ~13
+per fade) or `rimOpacity` changes — never per frame. The bg canvases stack in plain DOM order → layer
+order respected, and their transparent sky lets the real sky-gradient show. The sky-gradient /
+`bgLayer5` are darkened by ONE `multiply` div rendered FIRST in `LdtkScenery` (behind the bg layers).
+`RpgLevelPanel` quantises `bgNight = round((1-illum)*20)/20` and derives `bgDarkenColor` / `bgRimOpacity`
+from it.
+**Also (Han: "geef ook nog wat globale witte illum (normal map) van linksboven 's nachts").** The moon
+surface `wash` in `applyMoonLight` is now a real normal-map term: half-Lambert toward `MOON_DIR` with a
+small non-directional floor (`0.15 + 0.85·wrap²`), normal flatten relaxed `0.75 → 0.85`, `MOON_WASH_SCALE`
+`0.5 → 1.0` — so surfaces facing top-left catch a soft white light and the whole scene lifts a touch at
+night.
+Files r3: `LdtkScenery.jsx` (`BgLayer` bake-into-canvas, one sky darken div), `RpgLevelPanel.jsx`
+(quantised `bgNight`), `foliageLightingGLSL.js` (`applyMoonLight` wash).
+
+**Round 4.**
+- **Moon is NIGHT-ONLY.** Was gated on `1 - uGlobalIllumination` (0.67 at dusk AND dawn — far too
+  present). Now `moonPresence() = 1 - smoothstep(0.08, 0.20, uGlobalIllumination)`: 0 by day and at
+  dusk/dawn (illum 0.33), 1 only deep in the night (illum ≤ 0.08), fading in as dusk crosses into night
+  and back out before dawn's brightness ramps. Both the shader (wash + rim) and the DOM `bgRimOpacity`
+  (`RpgLevelPanel`, a JS copy of the same curve) use it.
+- **Wash stronger** — `MOON_WASH_SCALE` `1.0 → 1.7`; the wash colour split off from the rim as a
+  blue-white `MOON_WASH_COLOR = vec3(0.80,0.88,1.0)` (pure white washed grey over the dark-blue base);
+  the rim stays pure white (`MOON_RIM_COLOR`).
+- **Point lights restore colour, not grey** (Han: "kan de illum glow ... de donkerblauw global illum
+  lokaal vervangen? dat je terug de oorspronkelijke kleur met een beetje geel/blauw/groen terugkrijgt
+  ipv flets grijs?"). `applyPointLight`'s `revealed` was `blendLightDual(trueColor, lightColor, …)` —
+  colour-dodge washed bright pixels toward white, so "ambient-blue then light-white" read as grey. Now
+  `revealed = mix(trueColor, clamp(trueColor * lcLumNorm, 0, 1), clamp(uHuePull*2, 0, 1))` where
+  `lcLumNorm = lightColor / luminance(lightColor)` — the pixel's OWN colour, luminance-preserved, hue
+  nudged toward the light. Near the wisp/hero/firefly you get the real colour back with a cool/warm/
+  green cast instead of flat grey.
+Files r4: `foliageLightingGLSL.js` (`moonPresence`, `applyMoonLight`, `applyPointLight`),
+`RpgLevelPanel.jsx` (`bgRimOpacity` night curve).
+
+**Round 5 (Han: r4 was "juist supergrijs").** Two greying operations were still there:
+- **The moon wash** did `screenBlend(currentColor, MOON_WASH_COLOR * amt)` — a screen-blend toward a
+  light colour desaturates dark pixels to grey, and r4's `MOON_WASH_SCALE 1.7` + a `0.15` non-directional
+  floor applied it everywhere. Now the wash is a **proportional brighten** of the pixel's own colour
+  (`currentColor * (1 + lift)`, keeps hue & saturation) on the top-left half-Lambert term only (no
+  floor), plus a tiny additive cool cast (`lift * 0.06 * MOON_WASH_TINT`). `MOON_WASH_SCALE` `1.7 → 0.9`.
+  The RIM keeps its `screenBlend` toward white (a thin edge, not a surface).
+- **The point-light `revealed`** still ran through a `mix(trueColor, …, huePull)` toward a clamped
+  `trueColor * lcLumNorm`. Now it's simply `revealed = clamp(trueColor * lc, 0, 1)` with
+  `lc = mix(vec3(1), lightColor/luminance(lightColor), 0.7)` — the pixel's colour with a gentle,
+  channel-safe hue cast; the light's `intensity` falloff already controls how much.
+Files r5: `foliageLightingGLSL.js` (`applyMoonLight` wash, `applyPointLight` revealed, `MOON_WASH_*`).
+`test:run` 1381 pass · `build` clean · `lint` 0 errors.
+
+**Round 6 — moon −15 pp.** `moonRimFactor` (shader) + `computeMoonRim` (DOM) opacity tiers all dropped
+0.15: up `.55/.35/.05`, left `.55/.15`, right `.35`. `MOON_WASH_SCALE` `0.9 → 0.75`.
+
+**Round 7 — the normal-map glow (Han: "kan de witte gloed ook op de normal map (extra laag)? die is nu
+niet of niet goed zichtbaar ... dak, huis, blaadjes ook een subtiele witte gloed in de richting van de
+maan").** The moon surface term is now an **additive near-white glow** driven by the FULL
+(`uNormalStrength`-adjusted) normal — a roof slope / wall / leaf clump that faces `MOON_DIR` catches a
+sheen. Half-Lambert CUBED (`mw³`) for a soft-but-directional response;
+`glowAmt = edgeFactor · strength · mw³ · MOON_GLOW_SCALE(1.5)`;
+`lit = currentColor·(1 + glowAmt·0.35) + glowAmt · MOON_GLOW_COLOR(0.90,0.94,1.0)`. Runs on
+`ForegroundFoliageLayer` (leaves) and `LdtkLitGround` (roofs/houses/decor). Consts renamed
+`MOON_WASH_* → MOON_GLOW_*`. Files r6/r7: `foliageLightingGLSL.js`, `LdtkScenery.jsx` (r6 tiers).
+`build` clean · `lint` 0.
+
+**Round 8 — the surface glow is now BINARY (Han: "Nu wordt alles grijze brij. Ik dacht aan subtiel wit
+(30% opacity) maken van de pixels die naar linksboven mappen ... dus 30% of 0%, geen tussenvorm").** The
+r7 continuous `mw³` glow lifted nearly every texel a little, so the whole canopy read as grey mush. r8
+replaces it with a step: `facing = step(MOON_FACING_THRESHOLD, dot(normalize(normal), MOON_DIR))` and
+`lit = mix(currentColor, vec3(1.0), edgeFactor · present · moonScale · facing · MOON_GLOW_OPACITY)`. A
+moon-facing texel gets a flat 30% lerp toward pure white; every other texel is untouched — no in-between.
+`MOON_FACING_THRESHOLD 0.75` sits above the ~0.66 a flat `(0,0,1)` normal scores against `MOON_DIR`, so
+only real up-left-facing relief lights up. `present` (night gate) and `moonScale` (`uMoonStrength/0.3`
+debug dial) still fade/scale it. Consts: `MOON_GLOW_SCALE` removed; `MOON_GLOW_COLOR` → `vec3(1.0)`;
+added `MOON_GLOW_OPACITY 0.30`, `MOON_FACING_THRESHOLD 0.75`. Files r8: `foliageLightingGLSL.js`.
+`build` clean · `lint` 0.
+
+**Round 9 — luminance-masked directional sheen (Han, screenshot: "manenschijn is te heftig ... Mijn
+binaire 30% opacity is te simplistisch. Slimmer gebruik van de normal map en de bestaande kleuren:
+dakpannen-highlights moeten maanlicht vangen, de donkere rand onder het dak juist NIET").** r8's binary
+step lit every up-left-facing texel by the same 30 %, ignoring the tone the artist painted, so the whole
+roof/facade glowed flat. r9 makes the moon **ride the art's existing highlights**:
+
+- **Soft directional term**, no hard step: `d = smoothstep(MOON_FACING_LO 0.45, MOON_FACING_HI 0.95,
+  dot(normalize(normal), MOON_DIR))`.
+- **Luminance mask from the texel's OWN painted colour** (the raw `diffuse.rgb`, passed in as a new
+  `baseColor` param — before ambient darkening / point lights): `hi = smoothstep(MOON_LUM_LO 0.35,
+  MOON_LUM_HI 0.75, dot(baseColor, luma))`. A dark eave recess (low luminance) → `hi ≈ 0` → no sheen
+  there, exactly Han's ask.
+- **Additive via `screenBlend`**: `sheen = edgeFactor · present · moonScale · d · hi · MOON_SHEEN_SCALE
+  (0.5)`; `lit = screenBlend(currentColor, MOON_GLOW_COLOR · sheen)`. Self-limiting — never blows a light
+  pixel to white, does nothing to black. Applies to structures (`LdtkLitGround`) AND foliage (both
+  `ForegroundFoliageLayer` paths, `FoliageInstancingTest`) — leaf highlights facing the moon glint too.
+- Consts: `MOON_GLOW_OPACITY` / `MOON_FACING_THRESHOLD` removed; added `MOON_FACING_LO/HI`,
+  `MOON_LUM_LO/HI`, `MOON_SHEEN_SCALE`; `MOON_GLOW_COLOR` → `vec3(0.92, 0.96, 1.0)` (barely-cool
+  near-white). `applyMoonLight` signature gains `baseColor` (2nd param) — updated at all 4 call sites.
+  Files r9: `foliageLightingGLSL.js`, `ForegroundFoliageLayer.jsx`, `LdtkLitGround.jsx`,
+  `FoliageInstancingTest.jsx`. `build` clean · `lint` 0 · `test:run` 1389 pass.
+
+**Note.** §369 was taken by a concurrent session (level-audio guard), so this is §370.
+
+### §371. "Yellow wizard" — blind perfect-timing trainer: Level 16 + mode-variant `j` (Han 2026-09-03)
+
+**Purpose.** A drill for playing on the beat *from memory*. The level generates and renders like a
+completely normal side-scroll level — but each notehead is "conjured away" by a static **yellow**
+wizard `wizardSpawnLeadMeasures` measures before its beat and replaced by the black wizard's blue
+projectile (the combat target), with the wizard playing a **silent** cast. So you read every note,
+then play it on time with no notehead and no reference tone.
+
+**Built as its own mechanic — NOT grafted onto the black wizard (§121/§135).** Han's explicit
+correction: "bouw opnieuw de logica op zonder het te hard te enten op de logica van de zwarte
+tovenaar. genereer level als normaal. toon noten als normaal. máár: verberg ze 1 maat voordat ze
+gespeeld moeten worden." So `enemyType: 'YellowWizard'` is a distinct type, deliberately **not**
+`'Wizard'`:
+
+- **Generation / block plan (levelBlockPlan.js): untouched.** `'YellowWizard'` is not `'Wizard'`, so
+  `blockMeasuresFor` falls through to `lvl.numMeasures` and `blockTypeForBlock` returns `'Slime'` — a
+  normal block, no `shape: 'call-response'`, no odd/even rest collapse. `useLevelContentStream`'s
+  `isWizardBlock` is false, so there is **no cast-preview audio** scheduled at all (nothing to gate —
+  the schedule simply never runs) and `mayCast` is false (it never waits on `wizardInstrument`). Every
+  measure carries its real generated notes.
+- **Notation: the normal `noteStaffContent` layer** (the `isWizard || isMixed` guards that build the
+  `noteStaffContentRest` / `noteStaffContentReal` call-response split are left as-is — `YellowWizard`
+  is neither, so it renders the single normal layer). That layer's `{noteStaffContent}` is wrapped in
+  `<g mask="url(#rpgYellowCastGate)">` when `isYellowWizard && !debugMode`; chord labels and lyrics in
+  the same scrolling group stay unmasked. `debugMode` bypasses the mask (every notehead visible, for
+  alignment inspection).
+- **`rpgYellowCastGate`** — a static `userSpaceOnUse` linear-gradient mask: opaque (white) for
+  screen-x ≥ `castGateX`, a ~100 ms (`castFadePx`) ramp to transparent, black to the left. `castGateX`
+  is the linear `noteX` glide evaluated at the projectile's own visibility-gate time
+  `(beatsOnScreen − spawnLeadBeats) · beatMs` — i.e. `wizardSpawnLeadMeasures` measures before the
+  beat — so a notehead is cut at the exact screen position where its projectile appears (Han: "harde
+  cut op de flash, dan snelle 100 ms fade"). The gate is stationary and notes scroll past it, so the
+  mask needs no per-frame work; §6-safe (the rAF loop only pushes `transform` onto the scrolling
+  groups, never opacity/mask).
+- **Combat = projectile**, exactly the black wizard's path: `projectileCombat = isWizard ||
+  isYellowWizard` folds `YellowWizard` into `DEATH_FRAMES`, the spawn-glow effect + render, the
+  `itemIsWizard` per-note branch (note → `<Projectile>`, projectile death, projectile hit) and the
+  static-wizard render. The projectile becomes visible at the same `(beatsOnScreen − spawnLeadBeats)`
+  gate the notehead-mask uses, so notehead-out and projectile-in are frame-locked.
+- **Yellow sprite + cast anims from the bestiary.** `findCreatureVariantByName('Wizard (Portrait)',
+  'Yellow')` gives both the sprite sheet URL (`wizardSheetUrl`, from the variant's own animation
+  `url` — the manifest, not a hand-copied kebab file) and the `song_attack_single/double/triple`
+  cells + `flashIndices` (`wizardVariant` → `wizardSongAttack`). `computeWizardCast`'s guard and the
+  static `<Wizard>` render both add `isYellowWizard`. The cast plays **no audio** (nothing in
+  `SheetRpgLayer` ever did — the black wizard's tone comes from `useLevelContentStream`, which a
+  YellowWizard level never triggers).
+
+**Two entry points ("allebei").**
+- **Level 16** (`levels.json`): `enemyType: 'YellowWizard'`, `wizardSpawnLeadMeasures: 1`, otherwise
+  Level 13's neutral musical params (bpm 80, C4–G4, `numMeasures` 2, `notesPerMeasure` 2,
+  `smallestNoteDenom` 4, `totalMeasures` 8) — but generated normally, not as call-response.
+- **Mode-variant `j`** ("Gele wizard", icon `Status_effect1_1_32.png`): `LEVEL_MODE_VARIANTS.j`
+  `{ yellowWizard: true }`; `applyLevelVariant`'s `yellowWizardOverrides` forces
+  `enemyType: 'YellowWizard'` onto any level and defaults `wizardSpawnLeadMeasures` to 1 if the level
+  didn't author its own. Immediately selectable (added to `VARIANT_LETTERS`). Carries no
+  colorScheme/colorScope (a mechanic variant, like `g`/`h`/`i` — the colour-preset tests exempt
+  `yellowWizard`). **Not** excluded on gatedScroll levels (the rubato exclusion guards cast *audio*
+  desync while the gate freezes visuals; the yellow cast is silent).
+
+**Invariants.** `wizardSilent` from the first (reverted) attempt no longer exists — `enemyType:
+'YellowWizard'` alone carries the meaning. Generation and block-type logic must never branch on
+`isYellowWizard` (they don't — `'YellowWizard' !== 'Wizard'` keeps it on the plain path). The
+notehead-mask gate `castGateX` and the projectile visibility gate must stay derived from the SAME
+`(beatsOnScreen − spawnLeadBeats) · beatMs` quantity, or the notehead cut and projectile spawn drift
+apart.
+
+**End-of-level portrait.** The post-combat `DialogueBox` speaker (`App.jsx` `levelResultSpeaker` /
+`wizardColorName` / `wizardDedicatedPortrait`) now recognises `enemyType: 'YellowWizard'` as a
+`kind: 'wizard'` speaker and resolves `wizardColorName` to `'Yellow'`, so `findCreatureByName('Wizard
+(Portrait)', 'Yellow')` supplies the yellow wizard's dedicated 64×64 portrait (and the wizard —
+not slime — victory lines). Same two-line pattern the black/green wizard cases already use.
+
+**Runtime fixes (v2 UAT, Han 2026-09-04).** (1) `wizardSheetUrl` must read `wizardVariant.url` — the
+bestiary sheet URL lives on the VARIANT object, not per-animation (`findAnim(v,'idle').url` is
+`undefined` for the wizard, so it fell back to the black `WIZARD_URL`). (2) The `rpgYellowCastGate`
+mask MUST sit on a NON-translated wrapper: `maskUnits="userSpaceOnUse"` resolves in the referencing
+element's user space, so nesting it inside the per-frame `translate(-scrollPx)` group made the gate
+scroll away with the notes and hid everything. The noteheads get their own scroll group
+(`noteScrollRef`, still driven by the rAF loop) INSIDE the static masked wrapper; chords/lyrics move
+to `chordLyricScrollRef`.
+
+**Files:** `src/levels/levels.js` (`LEVEL_MODE_VARIANTS.j`, `yellowWizardOverrides`,
+`availableVariantLetters` note, `enemyType` field doc), `src/levels/levels.json` (Level 16),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`isYellowWizard`/`projectileCombat`, `wizardVariant`/
+`wizardSheetUrl` from the bestiary Yellow variant, `castGateX`/`castFadePx` + `rpgYellowCastGate`
+mask on a static wrapper around the notes' own `noteScrollRef` group, `chordLyricScrollRef`,
+`isYellowWizard` folded into the projectile/spawn-glow/cast/static-wizard branches), `src/App.jsx`
+(`enemyType` pass-through; `levelResultSpeaker`/`wizardColorName` recognise `'YellowWizard'`),
+`src/components/levels/LevelStartSplash.jsx` (icon `Status_effect1_1_32.png` + `'j'` in
+`VARIANT_LETTERS`). Tests: `src/levels/__tests__/levelVariants.test.js` (`variant j` → `YellowWizard`,
+no call-response, colour exemptions), `src/hooks/__tests__/useLevelContentStream.test.js`
+(`yellow wizard (enemyType: YellowWizard)`: normal cadence + `blockTypeForBlock` Slime, zero casts,
+real notes in every measure, streams without a cast instrument),
+`src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx` (one normal notehead layer, the
+non-translated mask wrapper with an inner translate group, the yellow sprite href).
+
+**Superseded first attempt (same day).** The first build grafted onto `enemyType: 'Wizard'` +
+`wizardSilent` (kept the call-response block shape, added `WIZARD_YELLOW_URL` kebab file). Han
+rejected all three premises (wrong sprite source, notes barely visible, unwanted rest/notes measure
+split). Fully reverted; this section describes the rebuilt mechanic.
+
+### §372. The backmost sky is a rendered gradient — `SkyGradientBackdrop` (Han 2026-09-04)
+
+**Purpose.** The RPG world's furthest backdrop used to be TWO stacked static full-viewport elements in
+`RpgLevelPanel.jsx`: a hard-coded CSS `linear-gradient(to bottom, #8fd0d9, #dff3f5)` div and the painted
+`assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png` `<img>` on top of it. Han: "vervang
+de achtergrond (verste parallax) door een gerenderde gradient. Meet de kleuren uit de huidige
+achtergrondlaag eenmalig. Blauwig naar wit. Ik wil dan bij dusk en dawn zo wat roze/rood aan de horizon.
+De huidige nachtkleuring vind ik eigenlijk perfect: dezelfde gradient als overdag, met donkerblauw
+ingemengd." Both elements are replaced by one component, `src/components/character/SkyGradientBackdrop.jsx`.
+
+> **See also §374** — `<CelestialSky>` (stars / sun / moon) mounts immediately IN FRONT of this
+> gradient and behind every parallax layer, and fades its stars off the same `globalIllumination`.
+
+**How it works.**
+
+- **17 day stops, sampled once.** On mount, `SkyGradientBackdrop` loads `Background layers_layer 5.png`
+  into an offscreen canvas and reads a row at each of `STOP_COUNT = 17` evenly spaced height fractions,
+  averaging RGB across every 4th column (transparent margins skipped). Those `[r,g,b]` values become the
+  gradient stops. Until the sample resolves (or if it fails — `logger.error` code **E036-SKY-SAMPLE**, a
+  system-boundary catch per CLAUDE.md §7a) it shows `FALLBACK_STOPS` (the old `#8fd0d9 → #dff3f5`
+  interpolated across the 17). *(UAT, Han: "waar komt deze streep nu nog vandaan in hoge levels?" — the
+  first cut used 5 stops = 4 straight sRGB segments over the whole sky; the joints, especially at 25 %,
+  showed as a Mach band / hard line, worse the taller the viewport. 17 stops make each segment's slope
+  change imperceptible AND trace the painted layer-5 curve directly so a subtle horizon-haze band in the
+  source can't be aliased into a kink. `SAMPLE_FRACS` is generated; the per-stop dusk/dawn warm weight is
+  now `sunsetWeightAt(f) = smoothstep(0.55, 1, f) · 0.8`, a function of the stop's height fraction.)*
+- **Night mix, baked per-stop.** `mixNight(stop, illum)` reproduces the OLD look exactly: it is the
+  algebra of an `rgba(AMBIENT_DARK_RGB, 1 − illum)` fill painted `mix-blend-mode: multiply` over the day
+  stop → `stop · (1 − n + n · dark/255)` per channel, `n = 1 − illum`. `AMBIENT_DARK_RGB = [8, 15, 43]`
+  is the local twin of `RpgLevelPanel`'s constant and the shader's `AMBIENT_DARK_COLOR` (§370), so the
+  sky darkens onto the exact same colour as the parallax `BgLayer` canvases and the WebGL ground/foliage.
+  `illum` is `foliageParams.globalIllumination` passed straight through — NOT quantised (unlike the
+  canvases' `bgNight`), because this component only rebuilds a short CSS string, so it follows the 10 s
+  illum crossfade smoothly.
+- **Dusk/dawn horizon glow.** `sunsetFactor(illum) = smoothstep(0.05, 0.33, illum) · (1 −
+  smoothstep(0.33, 0.75, illum))` — a hump that peaks at the illum ≈ 0.33 plateau that BOTH dusk and
+  dawn sit on, and is 0 at deep night (≤ 0.05) and well into day (≥ 0.75). One value therefore covers
+  dusk and dawn and tails smoothly into the neighbouring day/night (Han's "ramp, and also bleed into
+  day/night edges" with no phase plumbing). It lerps the lower stops toward `SUNSET_RGB = [255, 150,
+  130]` by `SUNSET_STOP_WEIGHT = [0, 0, 0.15, 0.45, 0.8]` × `sunsetFactor` — only the bottom band warms,
+  strongest at the horizon.
+
+**Invariants / interactions.**
+
+- `LdtkScenery.jsx`'s standalone sky-darken `<div>` (`bgDarkenColor && backgroundLayers.length > 0`,
+  `mix-blend-mode: multiply`, added in §362 r3) is **removed**. Its only job was darkening the two static
+  sky elements that §372 replaced; leaving it would stack a second multiply on the now self-darkening
+  gradient — the message-26 "achtergrond verdwijnt / elke parallax laag wordt extra hard blauw" bug.
+  `bgDarkenColor` is still passed and still consumed: each parallax `BgLayer` bakes it into its own
+  canvas (clipped to the tile silhouette), unchanged.
+- `bgLayer5Url` moved out of `RpgLevelPanel.jsx` (its only use was the deleted `<img>`) into
+  `SkyGradientBackdrop.jsx`.
+- Legacy-mode caveat: `sceneryMode === 'Legacy'`'s `domDarkenOverlayStyle` multiply (a deprecated
+  side-by-side comparison path) still sits over `SkyGradientBackdrop`, so in that debug mode only the sky
+  is darkened twice. Accepted — LDtk is the default and Legacy is comparison-only.
+
+**Files:** `src/components/character/SkyGradientBackdrop.jsx` (new), `src/components/character/
+RpgLevelPanel.jsx` (import swap; the CSS gradient div + `bgLayer5` `<img>` → `<SkyGradientBackdrop
+globalIllumination={foliageParams.globalIllumination} />`), `src/components/character/LdtkScenery.jsx`
+(sky-darken div removed). Tests: `src/components/character/__tests__/skyGradientBackdrop.test.js`
+(`mixNight` no-op at day / pulls to AMBIENT_DARK / hits `stop·dark/255` at illum 0; `sunsetFactor` ~0 in
+day and deep night, peaks at 0.33, bleeds into the edges). New error code **E036-SKY-SAMPLE** (E035 was
+already taken by a concurrent session's level-audio guard).
+
+**Note.** §371 was the last section header, so this is §372.
+
+### §373. Worker-NPC names + dialogue, and a dialogue-box name plate (Han 2026-09-04)
+
+**Purpose.** The 6 stationary worker NPCs in the RPG world (`RpgLevelPanel`'s `workerNpcs`, x-ordered
+from Level_1's LDtk "NPC" markers, #1093) had only a bell sound — no name, no dialogue. Han: "geef alle
+NPC's in de RPG-wereld wat tekst als je interactie hebt (engels), en een naam ... ik verwacht dat je op
+een NPC kan klikken en dat je dan de naam ziet (linksboven tekstvak), portret/avatar, en een tekstje."
+Plus names for the other named entities (Wisp → **Lamentia**, decorative Slime → **Blob**, wizards:
+black **Antophon**, yellow **Prosperus**, green **Modulatus**).
+
+**How it works.**
+
+- **`src/model/npcDialogue.js`** (new) — `NPC_DIALOGUE`, keyed by the bestiary base name (the SAME key
+  `workerNpcs[i].name`, `WORKER_SOUND_CONFIG`, and `ENTITY_AUDIO_PROFILE` use, so all four line up 1:1):
+  `{ displayName, lines: string[] }`, ~11 English lines per worker in each one's established voice —
+  Tambo (slow smith, optimistic), Sonia (fast smith, "the world is always in motion"), Campano (town
+  crier, Melody Hill news), Piccolo (lumberjack seeking the perfect flute), Dominica (potion lady, scale
+  puns), Wavie (steampunker, riddles). `randomNpcLine(name)` → one random line. `ENTITY_DISPLAY_NAME` +
+  `entityDisplayName(entity)` also carry the Wisp/Slime/wizard names, keyed by the `entity` string each
+  existing dialogue path already passes.
+- **Click → walk-then-talk.** `useRpgLevelState.js` gains `clickWorkerNpc(name, worldX)` → `randomNpcLine`
+  → `openEntityDialogue(worldX, name, [line])` — the exact same shared walk-to-then-open path as the Wisp
+  and decorative Slime (§922). `RpgLevelPanel`'s `WorkerNpcSlot` renders an `EntityHitZone` (the shared
+  fixed hit target + debug overlay, §3a) per worker, `stopPropagation` so it doesn't also walk-to-tap.
+- **F / Space / Enter key.** The keyboard interact handler in `useRpgLevelState` used to only know the
+  wisp and slime X. It now picks the NEAREST of {wisp, slime, ...worker NPCs} within
+  `NPC_INTERACT_RANGE`. The worker roster reaches the hook via `registerWorldInteractables([{ x, run }])`
+  — `RpgLevelPanel` calls it in an effect from `workerNpcs` (their X lives in the LDtk markers, which the
+  hook has no access to); cleared to `[]` on unmount / leaving LDtk scenery. (UAT: Han — "'f' of 'spatie'
+  werken niet om gesprek te starten".)
+- **Hit zone size.** `HIT_ZONE_GPX` `16 → 48` (game px) — the shared wisp/slime/worker click target. UAT:
+  Han, "De hitbox is veel te klein, maak die maar 48x48."
+- **Audio.** `conversationEntities.js` `ENTITY_AUDIO_PROFILE` gains one instrument per worker (vibraphone
+  / glockenspiel / trumpet / piccolo / orchestral_harp / accordion), shared default tone pool — resolved
+  through the existing `getEntityAudioProfile` / `useConversationInstruments` path, no new wiring.
+- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a left-aligned pixel-art tab
+  sitting ON the box's top edge (bottom border dropped so it reads as attached), Bitfantasy font (a text
+  font, never Maestro — CLAUDE.md §1a), same `var(--text-primary)`/`var(--panel-bg)` chrome as the box.
+  It is a flow sibling *above* the box, NOT absolutely positioned, so the bottom panel's `overflow:
+  hidden` in compact/world mode can never clip it. `RpgLevelBottomPanel` resolves a worker's portrait via
+  `findCreatureByName(entity)` (its own classified sprite, fed to the canonical `CreatureSprite`
+  renderer, §6d) and passes `speakerName={entityDisplayName(entity)}`. `App.jsx`'s level-complete
+  `DialogueBox` passes `speakerName` for the wizard/slime post-combat speakers (`wizardColorName` →
+  Antophon/Prosperus/Modulatus).
+
+**Invariants.** `NPC_DIALOGUE` keys must equal `RpgLevelPanel`'s `workerNpcs` name list
+(`['Blacksmith', 'Lumberjack', 'Town crier', 'Blacksmith Woman', 'Lady Potions', 'Steampunker']`) — a
+worker with no entry just gets no dialogue/plate (its `EntityHitZone` isn't rendered, `onClick` unset).
+Callers that pass no `speakerName` (LevelSplash) render exactly as before.
+
+**Files:** `src/model/npcDialogue.js` (new), `src/audio/conversationEntities.js`,
+`src/hooks/useRpgLevelState.js`, `src/components/character/RpgLevelPanel.jsx` (`clickWorkerNpc` threaded
+to `EntityLayer` → `WorkerNpcSlot` + its `EntityHitZone`), `src/components/character/DialogueBox.jsx`
+(`speakerName` plate), `src/components/character/RpgLevelBottomPanel.jsx` (worker portrait + name),
+`src/App.jsx` (level-result `speakerName`). Tests: `src/model/__tests__/npcDialogue.test.js`.
+
+**Note.** §372 was the last section header, so this is §373.
+
+---
+
+### §374. De sterrenhemel — a real south-facing sky: stars, constellations, sun and a 28-cycle moon (#1191, Han 2026-09-04)
+
+**Purpose.** The night world had a dark blue gradient and nothing in it. Han: *"kun je op een of andere
+manier 's nachts de sterren tonen, en subtiel zichtbaar in dusk/dawn? … toon grote sterren als een
+'cirkel van 3 gpx' … gebruik de kleur van de ster … vind het nog wel cute als er een stippellijn de
+sterrenbeelden toont (toggelbaar) en de namen in serif pixel font (toggelbaar) … ik wil graag ook de zon
+en de maan zien … dat die in de day/night cycle **écht** draaien … Neem aan dat we in Brussel zijn en
+naar het zuiden kijken, en dat het rond de equinox is. 28 cycles = een maancyclus. Simuleer ook volle
+halfvolle nieuwe maan, volgens de regels van fysica. In debug mode: toon de baan van de zon en de maan.
+draai de sterrennacht ook met de dag-nacht-cyclus."* So: an actual sky, driven by the world's own
+weather clock — not a decorative twinkle layer.
+
+**How it works.**
+
+- **The clock (`weatherCycle.js`).** Two derived constants, both computed with `reduce()` over
+  `TIME_PHASES` and never typed as literals (§6c): `CYCLE_TOTAL_S` (480 s) and `PHASE_START_S`
+  (`[0, 240, 300, 420]`). State gains one integer field, `cyclesElapsed`, incremented on the
+  dawn→day wrap inside the EXISTING phase loop — no new timer, no wall-clock. `weatherOutputs()` gains
+  two PURE derivations: `cycleT` (0..1 over the whole loop: day 0 · dusk 0.5 · night 0.625 · dawn 0.875)
+  and `lunationPhase` (`((cyclesElapsed + cycleT) % 28) / 28`, continuous — a stepped
+  once-per-cycle value would jerk the whole star sphere at every cycle boundary). `seekPhase` leaves
+  `cyclesElapsed` alone: a debug seek is a jump within the day, not a day passing.
+- **The sun's arc (`celestialModel.solarHourAngleDeg`).** At the equinox `dec = 0`, so
+  `sin(alt) = cos(φ)·cos(H)` and altitude is EXACTLY 0 at `H = ±90`. The curve therefore needs only two
+  anchors — the midpoints of dusk and dawn, both derived from `TIME_PHASES` — with two uniform segments
+  between them. Mid-day (`H = 0`, alt `90 − φ = 39.15°`) and mid-night (`H = 180`, alt `−39.15°`) fall
+  out for free at the segment midpoints. Because `TIME_PHASES` is unchanged, daytime is 62.5 % of the
+  cycle rather than the real equinox 50 % — the sun simply sweeps its 180 daytime degrees more slowly
+  than its 180 night degrees. The `dH/dcycleT` kink where the segments join sits exactly at altitude 0,
+  i.e. on the horizon line where the disc is already behind the scenery: invisible by construction, and
+  deliberately not smoothed.
+- **One clock for sun, moon AND stars.** `H = LST − RA`. The "year" is compressed to one lunation, so
+  `RA_sun = 360·lunationPhase` and `LST = H_sun + RA_sun`. Over one cycle LST therefore advances
+  `360 + 360/28` degrees — the sidereal excess that makes a constellation rise ~1/28 turn earlier each
+  successive night. **There is no separate star clock and no `SIDEREAL_RATIO` constant**: the single
+  `CYCLES_PER_LUNATION = 28` knob governs the moon's elongation, the sun's RA drift and the star drift
+  together. `dec = 0` for both sun and moon (perpetual equinox) — they ride the celestial equator, not
+  the ecliptic, so both share one arc shape, offset only in hour angle.
+- **The moon, and the ELONGATION SIGN.** The moon moves EASTWARD (increasing RA) as the lunation waxes,
+  and `H = LST − RA`, so `H_moon = H_sun − 360·lunationPhase` — a MINUS. The design note originally had
+  a plus; that is retrograde and mirrors every quarter moon onto the wrong side of the sky (first
+  quarter would transit at dawn instead of dusk). Han confirmed the correction at plan review. With the
+  minus: new moon rides with the sun and is below the horizon all night; first quarter transits due
+  south at dusk; full moon rises at dusk, transits at midnight, sets at dawn; last quarter rises around
+  midnight. `RA_moon = 720·lunationPhase` degrees — two sidereal circuits per lunation, which is exactly
+  right when the "year" is itself one lunation long. Illuminated fraction `k = (1 − cos elongation)/2`.
+  `belowHorizon` ⇒ the moon is simply not drawn, which is what makes it ABSENT from the night sky near
+  new moon.
+- **The projection (`projectToScreen`).** Cylindrical (plate-carrée), linear in azimuth and in altitude,
+  with the SAME `DEG_PER_PX = 2·HALF_FOV_AZ_DEG / Wpx` on BOTH axes — isotropic, so stick figures keep
+  their real shape at any viewport aspect (a fixed VERTICAL fov would stretch them ~35 % on a 16:9
+  world). `HALF_FOV_AZ_DEG = 60` (120° of sky across the canvas) is the one tunable. Altitude 0 lands at
+  `horizonY = Hpx − horizonGamePx`, where `horizonGamePx` is RpgLevelPanel's own §141 `HORIZON_PX`
+  passed in as a PROP — the horizon is never re-measured or re-invented here. Altitudes near the zenith
+  legitimately map above the canvas top; nothing is clamped, off-canvas is simply culled.
+- **Rasterisation (`CelestialSky.jsx`).** Native game-pixel canvas (`viewport / zoom`), CSS-scaled with
+  `imageRendering: 'pixelated'` — the same convention LdtkScenery's parallax `CanvasLayer`s use.
+  Everything is integer-coordinate `fillRect`; `ctx.arc()` is never called. Stars: magnitude buckets
+  `< 1.5 → 3 gpx` (a 3×3 block MINUS its corners — the canonical pixel-art "circle of 3"; a solid square
+  reads as a blob), `< 3.0 → 2 gpx` (2×2), else 1 gpx; colour quantised from B−V into five deliberately
+  bright hexes (blue-white → orange-red). Sun: a per-row filled disc (R = 7 gpx) plus two QUANTISED
+  alpha glow rings at R+3 / R+6 (not a smooth gradient — same pixel-art spirit as the foliage shader's
+  `waveSteps`/dither). Moon: a per-pixel TERMINATOR test (R = 6 gpx) — for each pixel, `u` along the
+  screen-space sun direction, `v` across it, `w = √(R²−v²)`, lit ⇔ `u ≥ w·(1−2k)`. That is the
+  two-circle crescent construction done directly in pixels: exact at ANY limb angle, pixel-perfect, no
+  arc. The unlit part stays faintly visible at `MOON_EARTHSHINE_ALPHA = 0.18`. The sun's SCREEN position
+  is computed even while the sun is below the horizon — that is what keeps the crescent pointing the
+  right way after dark.
+- **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
+  `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Night (illum
+  0.05) → 1.00, dusk/dawn (0.33) → 0.23, day (1.0) → 0. There is NO separate "show stars" state: the
+  layer reads the same `foliageParams.globalIllumination` the shaders and `SkyGradientBackdrop.mixNight`
+  read.
+- **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
+  names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
+  (one 1-gpx dot every 3 steps), names are centroid labels drawn with an explicit
+  `ctx.font = '6px PixelNewspaperIII'`. Separately, with world `debugMode` on, the sun's and the moon's
+  full paths draw as dotted arcs (warm `#ffcc66` / cool `#88bbff`) with 5-px cross markers at the live
+  positions.
+- **The font gotcha.** `PixelNewspaperIII.ttf` is registered as an `@font-face` in `App.css`, but
+  nothing in the DOM uses that family — the labels are CANVAS text — and setting `ctx.font` does not
+  trigger a load. Without an explicit `document.fonts.load()` the labels would silently render in the
+  browser's default serif. `CelestialSky` requests it on mount and skips the names pass until it
+  resolves; a rejection logs `E038-CELESTIAL-FONT-LOAD`. This repo had no prior `ctx.font` call site at
+  all, so this was genuinely new ground. Canvas text antialiasing cannot be disabled — a pixel font at
+  its exact native px size on integer coordinates is the standard mitigation.
+- **The data pipeline.** `scripts/generate-star-catalog.mjs` reads the Yale Bright Star Catalogue
+  (Hoffleit D. & Warren W.H. Jr. 1991, *Bright Star Catalogue, 5th Revised Ed.*, ADC/CDS V/50 —
+  a publicly-funded astronomical catalogue, freely redistributable, no copyleft) and emits two
+  committed, DO-NOT-EDIT modules: `data/brightStars.js` (611 stars: everything to magnitude 4.5 that
+  ever clears the horizon within ±60° of due south from latitude 50.85 °N, plus every star a figure
+  references) and `data/constellationLines.js` (33 figures / 213 segments). The raw catalogue is not
+  committed; the generated files carry the source URL, the citation and the exact regeneration command.
+  ~45 KB raw, ~12 KB gzipped in the world bundle. The generator IMPORTS `celestialModel.js` for its
+  visibility test, so the data and the runtime can never disagree about what "visible from Brussels"
+  means. The constellation stick figures are **hand-authored in the generator's own source**, as Bayer
+  designations resolved against the catalogue's own name column: the ready-made figure files are all
+  encumbered for a non-copyleft app (Stellarium's `constellationship.fab` is GPL-2.0+/CC BY-SA 4.0,
+  whose share-alike would attach to our generated data file; the Sky & Telescope figures are
+  copyrighted), whereas a short factual list of which bright stars a figure joins, written
+  independently, carries none of that. An unresolvable designation or a never-visible figure is a hard
+  non-zero exit, never a silent drop — a silently dropped star is a broken stick figure that only shows
+  up visually at 3 a.m. in-game.
+
+**Invariants.**
+
+- `weatherCycle.js` stays PURE and timer-free. `cycleT` and `lunationPhase` are DERIVATIONS of the
+  existing phase clock, never their own timers — which is why freeze/resume across a music LEVEL
+  (`weatherCycleStore`) is completely unaffected. That store saves the whole object by reference, so
+  `cyclesElapsed` rides along with no migration and no defensive default.
+- **`cycleT` / `lunationPhase` must NEVER enter RpgLevelPanel's `setWeather`/`pushWeatherToFoliage`
+  change-detection lists.** They move every tick; adding them would turn a steady phase from 0
+  re-renders into ~12/s and undo #1162 Fase 8. `CelestialSky` reads them off `weatherRef` inside its own
+  draw callback — that is a requirement, not an optimisation.
+- ONE knob, `CYCLES_PER_LUNATION = 28`, governs the moon elongation, the sun's RA drift AND the sidereal
+  excess. No second star clock, no `SIDEREAL_RATIO` constant to keep in sync.
+- Star/constellation opacity is a pure function of `globalIllumination`. No second day/night state.
+- `CelestialSky` does NOT react to `cameraX`: celestial objects are at infinity, parallax factor 0. The
+  canvas never redraws on a pan, only on a `cycleT`/illumination change (and it early-outs until
+  something has moved a whole game pixel, or the illumination has stepped by the same 0.004 epsilon the
+  weather loop uses).
+- No bare `requestAnimationFrame`: it is a THROTTLED subscriber (100 ms) on the shared `useFrameLoop`
+  ticker, and the whole draw body is wrapped so one bad frame logs `E037-CELESTIAL-SKY-DRAW-FRAME` and
+  the ticker keeps running for every other subscriber.
+- Everything is drawn with integer-coordinate `fillRect`; `ctx.arc()` is never used, and star sizes are
+  GAME pixels (sprite px), not CSS px.
+- `celestialModel.js` is pure: no DOM, no `Date`/`performance.now`, no module-level mutable state. All
+  astronomy constants live there; `CelestialSky.jsx` owns none.
+- CLAUDE.md §3a (debug hit-box overlay) is **N/A** for this layer: `pointerEvents: 'none'`, zero
+  handlers, nothing to visualise.
+- §374's moon DISC is a DIFFERENT thing from §370's moon-RIM directional light, which keeps its fixed
+  top-left `MOON_DIR`. Driving that rim from the real moon position is explicitly out of scope here.
+
+**Files:** `src/components/character/celestialModel.js` (new, pure),
+`src/components/character/CelestialSky.jsx` (new, rasterisation only),
+`src/components/character/data/brightStars.js` + `data/constellationLines.js` (new, generated),
+`scripts/generate-star-catalog.mjs` (new), `src/components/character/weatherCycle.js`
+(`CYCLE_TOTAL_S`/`PHASE_START_S`/`CYCLES_PER_LUNATION`, `cyclesElapsed`, `cycleT`, `lunationPhase`),
+`src/components/character/weatherCycleStore.js` (header note),
+`src/components/character/RpgLevelPanel.jsx` (mount between `<SkyGradientBackdrop>` and the parallax
+layers, two toggle states, `FoliageParamsPanel` rows), `src/styles/App.css` (`PixelNewspaperIII`
+`@font-face`), `CLAUDE.md` (E037/E038). Tests:
+`src/components/character/__tests__/celestialModel.test.js` (new, 24 cases — including the
+first-quarter-transits-at-DUSK test that pins the elongation sign) and the new `§374 cycle clock`
+describe in `src/components/character/__tests__/weatherCycle.test.js`.
+
+**Cross-references.** §360 (the auto weather cycle) owns the clock this layer reads; §372
+(`SkyGradientBackdrop`) is the gradient it draws in front of; §141 owns `HORIZON_PX`, the horizon this
+layer projects onto; §370 owns the separate moon-RIM light.
+
+**Note.** §373 was the last section header, so this is §374.
