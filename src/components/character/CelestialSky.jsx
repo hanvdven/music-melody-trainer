@@ -45,10 +45,15 @@ import { CONSTELLATIONS } from './data/constellationLines';
 // handlers at all, so there is no hit region to visualise.
 
 // Serif pixel font for the debug-only constellation labels (Han: "de namen in serif pixel font").
-// Registered as an @font-face in App.css; see the `document.fonts.load` note below for why that
-// registration alone is not enough for canvas text.
-const CONSTELLATION_LABEL_PX = 6;
-const CONSTELLATION_LABEL_FONT = `${CONSTELLATION_LABEL_PX}px PixelNewspaperIII`;
+// §374 UAT r2 (Han 2026-09-04, "er is een serif pixel font ... ik wil dat je de derde gebruikt"):
+// the app already has the curated `'BestiaryPixel'` family (App.css / §334 / §351) — one @font-face
+// split by style: normal = CelticTime, ITALIC = SandyForest, bold = Bitfantasy. Han's "third
+// (italic)" is SandyForest, reached via `font-style: italic`. Both faces are unitsPerEm 1024 with
+// 64 units per design-pixel, so their native size is 16 px (1 design-pixel = 1 screen-pixel there);
+// anything smaller sub-samples the grid and blurs. 16 px game-pixels is chunky but this is a
+// debug-only overlay, and it is the smallest size that stays pixel-perfect with this font.
+const CONSTELLATION_LABEL_PX = 16;
+const CONSTELLATION_LABEL_FONT = `italic ${CONSTELLATION_LABEL_PX}px BestiaryPixel, monospace`;
 
 // Every visual constant lives here so a UAT round is a one-line retune.
 const SUN_CORE = '#fff6d8';
@@ -172,10 +177,11 @@ export default function CelestialSky({
     // constant passed in by RpgLevelPanel, never re-derived or re-measured here.
     const horizonY = Hpx - horizonGamePx;
 
-    // GOTCHA (no prior art in this repo — there is not a single other ctx.font call site): an
-    // @font-face that no DOM node uses is NEVER fetched, and setting `ctx.font` on a canvas does not
-    // trigger a load either — the labels would silently render in the browser's default serif. So
-    // ask for it explicitly, and skip the names pass until it has actually arrived.
+    // GOTCHA: `'BestiaryPixel'` IS used elsewhere in the DOM (ScalesPanel, WorldPiano), so its normal
+    // face is usually already loaded — but the ITALIC face (SandyForest) may not be, and setting
+    // `ctx.font` on a canvas never triggers a font load. Without this the labels would silently fall
+    // back to the browser's default italic. So ask for this exact face explicitly and skip the names
+    // pass until it has actually arrived.
     useEffect(() => {
         document.fonts.load(CONSTELLATION_LABEL_FONT)
             .then(() => { fontReadyRef.current = true; lastCycleTRef.current = null; })
@@ -263,9 +269,10 @@ export default function CelestialSky({
                 if (showConstellationNames && fontReadyRef.current) {
                     ctx.globalAlpha = alpha * CONSTELLATION_NAME_ALPHA;
                     ctx.fillStyle = CONSTELLATION_NAME_COLOR;
-                    // Explicit font — never inherited, never Maestro (CLAUDE.md §1a / cr5). Canvas
-                    // text antialiasing cannot be turned off; a pixel font at its exact native px
-                    // size on integer coordinates is the standard mitigation.
+                    // Explicit font — never inherited, never Maestro (CLAUDE.md §1a / cr5). This is
+                    // `BestiaryPixel` italic (= SandyForest) at its 16 px native size on integer
+                    // coordinates, the standard mitigation for canvas text antialiasing (which cannot
+                    // be turned off).
                     ctx.font = CONSTELLATION_LABEL_FONT;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';

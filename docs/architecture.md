@@ -25926,7 +25926,7 @@ weather clock — not a decorative twinkle layer.
 - **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
   names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
   (one 1-gpx dot every 3 steps), names are centroid labels drawn with an explicit
-  `ctx.font = '6px PixelNewspaperIII'`. The World debug panel (top-left) also gains a **`Moon phase`**
+  `ctx.font = 'italic 16px BestiaryPixel'`. The World debug panel (top-left) also gains a **`Moon phase`**
   `LevelPicker` (§374 UAT r2, #1191): `Auto / New / First ¼ / Full / Last ¼` → `weatherCycle.js`
   `seekLunation(state, null | 0 | 0.25 | 0.5 | 0.75)`, which pins `weatherOutputs().lunationPhase`. That
   drives the moon, the sun's RA drift AND the star sphere together — a jump in lunation TIME, so Han can
@@ -25934,13 +25934,19 @@ weather clock — not a decorative twinkle layer.
   under the pin; `Auto` snaps back to the real clock. Separately, with world `debugMode` on, the sun's
   and the moon's full paths draw as dotted arcs (warm `#ffcc66` / cool `#88bbff`) with 5-px cross
   markers at the live positions.
-- **The font gotcha.** `PixelNewspaperIII.ttf` is registered as an `@font-face` in `App.css`, but
-  nothing in the DOM uses that family — the labels are CANVAS text — and setting `ctx.font` does not
-  trigger a load. Without an explicit `document.fonts.load()` the labels would silently render in the
-  browser's default serif. `CelestialSky` requests it on mount and skips the names pass until it
-  resolves; a rejection logs `E038-CELESTIAL-FONT-LOAD`. This repo had no prior `ctx.font` call site at
-  all, so this was genuinely new ground. Canvas text antialiasing cannot be disabled — a pixel font at
-  its exact native px size on integer coordinates is the standard mitigation.
+- **The font, and the load gotcha.** §374 UAT r2 (Han: *"er is een serif pixel font ... ik wil dat je
+  de derde gebruikt"*): the labels use the app's existing curated **`'BestiaryPixel'`** family
+  (`App.css` / §334 / §351) — one `@font-face` split by style: normal = CelticTime, **italic =
+  SandyForest**, bold = Bitfantasy. Han's "third (italic)" is SandyForest, reached with
+  `ctx.font = 'italic 16px BestiaryPixel'`. Both faces are `unitsPerEm 1024` with 64 units per
+  design-pixel, so **16 px is their native size** (1 design-pixel = 1 screen-pixel); smaller sub-samples
+  the grid and blurs, so 16 px game-pixels is the floor — chunky, but this is a debug-only overlay.
+  The `PixelNewspaperIII` `@font-face` the first cut added is removed. The load gotcha stands: the
+  normal `BestiaryPixel` face is already loaded (ScalesPanel / WorldPiano use it in the DOM) but the
+  ITALIC face may not be, and `ctx.font` never triggers a font load — so `CelestialSky` still
+  `document.fonts.load('italic 16px BestiaryPixel')` on mount and skips the names pass until it
+  resolves; a rejection logs `E038-CELESTIAL-FONT-LOAD`. Canvas text antialiasing cannot be disabled —
+  a pixel font at its exact native px size on integer coordinates is the standard mitigation.
 - **The data pipeline.** `scripts/generate-star-catalog.mjs` reads the Yale Bright Star Catalogue
   (Hoffleit D. & Warren W.H. Jr. 1991, *Bright Star Catalogue, 5th Revised Ed.*, ADC/CDS V/50 —
   a publicly-funded astronomical catalogue, freely redistributable, no copyleft) and emits two
@@ -26003,11 +26009,14 @@ weather clock — not a decorative twinkle layer.
 (`CYCLE_TOTAL_S`/`PHASE_START_S`/`CYCLES_PER_LUNATION`, `cyclesElapsed`, `cycleT`, `lunationPhase`),
 `src/components/character/weatherCycleStore.js` (header note),
 `src/components/character/RpgLevelPanel.jsx` (mount between `<SkyGradientBackdrop>` and the parallax
-layers, two toggle states, `FoliageParamsPanel` rows), `src/styles/App.css` (`PixelNewspaperIII`
-`@font-face`), `CLAUDE.md` (E037/E038). Tests:
+layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `LevelPicker` +
+`seekLunation` wiring), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js` (`lunationOverride`,
+`seekLunation`, night `illum` 0.05 → 0.12), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel`
+italic labels), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the first cut added is
+removed — labels now use the existing `BestiaryPixel` family). Tests:
 `src/components/character/__tests__/celestialModel.test.js` (new, 24 cases — including the
-first-quarter-transits-at-DUSK test that pins the elongation sign) and the new `§374 cycle clock`
-describe in `src/components/character/__tests__/weatherCycle.test.js`.
+first-quarter-transits-at-DUSK test that pins the elongation sign) and the `§374 cycle clock` +
+`§374 seekLunation` describes in `src/components/character/__tests__/weatherCycle.test.js`.
 
 **Cross-references.** §360 (the auto weather cycle) owns the clock this layer reads; §372
 (`SkyGradientBackdrop`) is the gradient it draws in front of; §141 owns `HORIZON_PX`, the horizon this

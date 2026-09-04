@@ -386,15 +386,6 @@ body {
   src: url('/src/assets/fonts/pixel_fonts/Bitfantasy.ttf') format('truetype');
 }
 
-/* PixelNewspaperIII — the serif pixel face for §374's debug-only constellation labels (Han, #1191:
-   "de namen in serif pixel font"). NOTE: nothing in the DOM uses this family — the labels are drawn
-   as CANVAS text — so this registration alone never triggers a fetch. CelestialSky.jsx calls
-   `document.fonts.load()` explicitly on mount and skips the label pass until it resolves. */
-@font-face {
-  font-family: 'PixelNewspaperIII';
-  src: url('/src/assets/fonts/pixel_fonts/PixelNewspaperIII.ttf') format('truetype');
-}
-
 /* Academico (Steinberg, SIL OFL) — the TEXT/NUMBER companion for the Maestro notation font
    (#494, Han 2026-07-19). Maestro stays for music glyphs ONLY (noteheads, clefs, repeat sign,
    time signatures); Academico renders numbers + text that must sit beside the notation and align

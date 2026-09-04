@@ -38,12 +38,15 @@ gequantiseerde `foliageParams.moonShine` (change-detect epsilon) → nieuwe
 `uMoonShine` uniform, vermenigvuldigd in `applyMoonLight`'s `present`; en
 `bgRimOpacity` × `moonShine`. Richting blijft de vaste linksboven `MOON_DIR`.
 
-### ❓ (4) Font-atlas 3e (italic) font — WACHT OP HAN
-Geen font-atlas-systeem in de codebase (alleen `@font-face` in DialogueBox). Aanwezig:
-`Bitfantasy.ttf`, `CelticTime.ttf` + 40 andere pixel-`.ttf`s. Han's "3e italic serif"
-naam onbekend — gevraagd. CelestialSky gebruikt nu `PixelNewspaperIII` via `ctx.font`
-(antialiast, niet echt pixel-perfect). Zodra Han de naam geeft: of `@font-face`-swap,
-of — als hij echt een bitmap-atlas heeft — een glyph-blit-renderer.
+### ✅ (4) Constellatie-namen → BestiaryPixel italic (SandyForest)
+Han: "kijk beter ... hoe worden fonts in de bestiary gerenderd?" → `App.css` heeft de
+`'BestiaryPixel'`-familie (§334/§351), gesplitst per stijl: normal=CelticTime,
+**italic=SandyForest**, bold=Bitfantasy. De "3e (italic)" = SandyForest.
+`CONSTELLATION_LABEL_FONT` = `italic 16px BestiaryPixel, monospace` (16px = native:
+`unitsPerEm 1024` / 64 units-per-design-px → 1 dp = 1 screenpx; kleiner blurt).
+`PixelNewspaperIII` `@font-face` weer verwijderd uit `App.css`. `document.fonts.load`
+blijft (italic-face is niet gegarandeerd al geladen). Doc §374 font-bullet + files
+herschreven. `CelestialSky.jsx` + `App.css` — schone files.
 
 ## 2026-09-04 — ✅ #1191 UAT-fix: sterrenhemel schokkerig → 60 fps
 
