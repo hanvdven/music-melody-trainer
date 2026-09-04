@@ -25820,15 +25820,20 @@ black **Antophon**, yellow **Prosperus**, green **Modulatus**).
 - **Audio.** `conversationEntities.js` `ENTITY_AUDIO_PROFILE` gains one instrument per worker (vibraphone
   / glockenspiel / trumpet / piccolo / orchestral_harp / accordion), shared default tone pool — resolved
   through the existing `getEntityAudioProfile` / `useConversationInstruments` path, no new wiring.
-- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a left-aligned pixel-art tab
-  sitting ON the box's top edge (bottom border dropped so it reads as attached), Bitfantasy font (a text
-  font, never Maestro — CLAUDE.md §1a), same `var(--text-primary)`/`var(--panel-bg)` chrome as the box.
-  It is a flow sibling *above* the box, NOT absolutely positioned, so the bottom panel's `overflow:
-  hidden` in compact/world mode can never clip it. `RpgLevelBottomPanel` resolves a worker's portrait via
-  `findCreatureByName(entity)` (its own classified sprite, fed to the canonical `CreatureSprite`
-  renderer, §6d) and passes `speakerName={entityDisplayName(entity)}`. `App.jsx`'s level-complete
-  `DialogueBox` passes `speakerName` for the wizard/slime post-combat speakers (`wizardColorName` →
-  Antophon/Prosperus/Modulatus).
+- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a pixel-art tab **exactly the
+  portrait column's width (64 game px)**, centred over the portrait, sitting ON the box's top edge
+  (bottom border dropped so it reads as attached), Bitfantasy font (a text font, never Maestro — CLAUDE.md
+  §1a), same `var(--text-primary)`/`var(--panel-bg)` chrome as the box. A flow sibling *above* the box,
+  NOT absolutely positioned, so the bottom panel's `overflow: hidden` in compact/world mode can never
+  clip it. Font size is `fontSizeFor(scale) · 0.75` — the `0.75` is deliberate: it keeps the cap height
+  an integer multiple of the native pixel grid (`8·scale·0.75 = 6·scale`) so the plate stays
+  pixel-perfect like the dialogue text (an earlier `0.82` fell off the grid — Han, "waarom zijn de
+  letters kleiner / zijn ze pixel perfect?"). The first letter is force-capitalised at render time
+  (`charAt(0).toUpperCase()`) regardless of the stored `displayName`. `RpgLevelBottomPanel` resolves a
+  worker's portrait via `findCreatureByName(entity)` (its own classified sprite, fed to the canonical
+  `CreatureSprite` renderer, §6d) and passes `speakerName={entityDisplayName(entity)}`. `App.jsx`'s
+  level-complete `DialogueBox` passes `speakerName` for the wizard/slime post-combat speakers
+  (`wizardColorName` → Antophon/Prosperus/Modulatus).
 
 **Invariants.** `NPC_DIALOGUE` keys must equal `RpgLevelPanel`'s `workerNpcs` name list
 (`['Blacksmith', 'Lumberjack', 'Town crier', 'Blacksmith Woman', 'Lady Potions', 'Steampunker']`) — a
@@ -25908,11 +25913,16 @@ weather clock — not a decorative twinkle layer.
   bright hexes (blue-white → orange-red). Sun: a per-row filled disc (R = 7 gpx) plus two QUANTISED
   alpha glow rings at R+3 / R+6 (not a smooth gradient — same pixel-art spirit as the foliage shader's
   `waveSteps`/dither). Moon: a per-pixel TERMINATOR test (R = 6 gpx) — for each pixel, `u` along the
-  screen-space sun direction, `v` across it, `w = √(R²−v²)`, lit ⇔ `u ≥ w·(1−2k)`. That is the
-  two-circle crescent construction done directly in pixels: exact at ANY limb angle, pixel-perfect, no
-  arc. The unlit part stays faintly visible at `MOON_EARTHSHINE_ALPHA = 0.18`. The sun's SCREEN position
-  is computed even while the sun is below the horizon — that is what keeps the crescent pointing the
-  right way after dark.
+  screen-space sun direction, `v` across it, `w = √(R²−v²)`, signed distance from the terminator
+  `su = u − w·(1−2k)`. That is the two-circle crescent construction done directly in pixels: exact at
+  ANY limb angle, pixel-perfect, no arc. **UAT r3 (Han: "de maanfasen zijn té gepixelleerd. voeg ook
+  pixels aan 70 en 30 procent toe"):** instead of a hard `su ≥ 0` binary, `su` buckets into 4 shades —
+  earthshine (`< −1`), 30 % (`[−1,0)`), 70 % (`[0,1)`), full (`≥ +1`), each a pre-mixed rgb + alpha in
+  `MOON_SHADE[]` — so the crescent edge softens by one game pixel each side. Still integer-coord
+  `fillRect`; this is a quantised 4-level dither of the boundary, not sub-pixel AA. The unlit part
+  stays faintly visible at `MOON_EARTHSHINE_ALPHA = 0.18` (= `MOON_SHADE[0].alpha`). The sun's SCREEN
+  position is computed even while the sun is below the horizon — that is what keeps the crescent
+  pointing the right way after dark.
 - **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
   `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Deep night
   (illum 0.12 since §374 UAT r2 — see below) → ~0.94, dusk/dawn (0.33) → 0.23, day (1.0) → 0. The 0.05

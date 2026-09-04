@@ -7,6 +7,24 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — #1191 UAT r3: maansikkel minder gepixelleerd + ⏳ weertypen (nieuw ticket)
+
+### ✅ Maansikkel 4-level terminator
+Han: "de maanfasen zijn té gepixelleerd. voeg ook pixels aan 70 en 30 procent toe
+op de maan, voor iets gladdere randen." → `drawMoonDisc` (CelestialSky.jsx): harde
+`su ≥ 0` binary → 4 buckets op de signed terminator-afstand `su = u − w·(1−2k)`:
+earthshine (`< −1`) · 30% (`[−1,0)`) · 70% (`[0,1)`) · vol (`≥ +1`). `MOON_SHADE[]`
+= voorgemengde rgb+alpha. Nog steeds integer `fillRect` (gequantiseerde dither, geen
+sub-pixel AA). Doc §374 rasterisatie-bullet.
+
+### ⏳ Weertypen — NIEUW TICKET (niet in #1191)
+Han's spec: donker bewolkt (grijze vlekkerige lucht, illum omlaag, geen zon/maan) ·
+bewolkt (witte vlekkerige achtergrond, "waterige" zon achter wolken, geen maan/
+sterren) · licht bewolkt (as is) · helder (witte fade minder wit, blauw blauwer).
+Wolkensprites per parallaxlaag levert Han later aan — niet op wachten. → eigen
+kanban-ticket, korte interview eerst (§4b). Raakt weatherCycle (4e track?),
+SkyGradientBackdrop, CelestialSky (zon/maan/sterren verbergen), debug-picker.
+
 ## 2026-09-04 — #1191 UAT r2: 4 change-requests (2 ✅ · 1 ⛔blocked · 1 ❓await Han)
 
 Han (UAT r2): (1) maangloed enkel als de maan echt schijnt; (2) debug-knop naar de
@@ -291,6 +309,12 @@ F/Space/Enter startte geen worker-gesprek → keyboard-handler in `useRpgLevelSt
 kiest nu de dichtstbijzijnde van {wisp, slime, ...workers}; workers geregistreerd
 via nieuwe `registerWorldInteractables([{x,run}])` die `RpgLevelPanel` in een effect
 vult uit `workerNpcs`. `build`/`lint`/`test:run` groen.
+
+**UAT-fix 2 (2026-09-04):** naam-plaat — was `fontSize*0.82` (niet pixel-perfect,
+kleiner dan de tekstvak-letters). Nu `*0.75` (= `6·scale`, heel getal op 't
+pixelraster → pixel-perfect). Plaat is nu `width: portraitSize` (64gpx), gecentreerd
+bóven het portret, `text-align:center`. Eerste letter geforceerd kapitaal op
+render-tijd (`charAt(0).toUpperCase()`). `build`/`lint`/`test:run` (1436) groen.
 
 --- (oude notities hieronder) ---
 ### ⏳ NPC-namen + dialoog — NOG TE DOEN (VERVANGEN — zie §373 hierboven)

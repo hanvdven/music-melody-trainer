@@ -61,11 +61,22 @@ const SUN_GLOW = '255, 233, 160';
 // Two QUANTISED alpha rings rather than a smooth radial gradient — same pixel-art spirit as the
 // foliage shader's waveSteps/dither. A real gradient reads as a blurry blob at this scale.
 const SUN_GLOW_RINGS = [{ pad: 6, alpha: 0.10 }, { pad: 3, alpha: 0.22 }];
-const MOON_LIT = '#e6e9f0';
-const MOON_EARTHSHINE = '#3a4152';
+const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0
+const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152
 // The unlit part of the disc stays FAINTLY visible ("a grey moon disc shows a crescent"). One of the
 // two genuine visual judgement calls in §374 — expect Han to retune this at UAT.
 const MOON_EARTHSHINE_ALPHA = 0.18;
+// §374 UAT r3 (Han: "de maanfasen zijn té gepixelleerd. voeg ook pixels aan 70 en 30 procent toe ...
+// voor iets gladdere randen"): the terminator is a 4-LEVEL step instead of a hard binary edge — a
+// pixel within ±1 gpx of the true terminator line gets a 30 %- or 70 %-lit shade. Still all
+// integer-coord `fillRect` (cr6): this is a quantised pixel-art dither of the boundary, NOT sub-pixel
+// antialiasing. `MOON_SHADE[0..3]` = earthshine · 30 % · 70 % · full, each a pre-mixed rgb + alpha.
+const rgbStr = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
+const mixRgbInt = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => ({
+    fill: rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)),
+    alpha: MOON_EARTHSHINE_ALPHA + (1 - MOON_EARTHSHINE_ALPHA) * t,
+}));
 const CONSTELLATION_LINE_COLOR = '#9fd8ff';
 const CONSTELLATION_LINE_ALPHA = 0.45;
 const CONSTELLATION_NAME_COLOR = '#cfe4ff';
@@ -103,9 +114,13 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  *   u = dx·sx + dy·sy   — position ALONG the sun direction
  *   v = −dx·sy + dy·sx  — position ACROSS it
  *   w = √(R² − v²)      — the disc's half-width on this terminator row
- *   lit ⇔ u ≥ w·(1 − 2k)
+ * Signed distance from the terminator along the sun axis: su = u − w·(1 − 2k). su ≥ 0 ⇒ lit side.
  * k = 0 ⇒ threshold +w ⇒ nothing lit (new); k = 1 ⇒ −w ⇒ all lit (full); k = 0.5 ⇒ 0 ⇒ a straight
- * terminator through the centre (quarter). 169 tests per redraw at R = 6 — negligible.
+ * terminator through the centre (quarter).
+ *
+ * §374 UAT r3: instead of a hard `su ≥ 0` binary, bucket `su` into 4 shades — earthshine below −1,
+ * 30 % in [−1,0), 70 % in [0,1), full at/above +1 — so the crescent edge softens by one game pixel
+ * each side. 169 tests per redraw at R = 6 — negligible.
  */
 function drawMoonDisc(ctx, cx, cy, r, k, sx, sy) {
     for (let dy = -r; dy <= r; dy++) {
@@ -114,9 +129,10 @@ function drawMoonDisc(ctx, cx, cy, r, k, sx, sy) {
             const u = dx * sx + dy * sy;
             const v = -dx * sy + dy * sx;
             const w = Math.sqrt(Math.max(0, r * r - v * v));
-            const lit = u >= w * (1 - 2 * k);
-            ctx.globalAlpha = lit ? 1 : MOON_EARTHSHINE_ALPHA;
-            ctx.fillStyle = lit ? MOON_LIT : MOON_EARTHSHINE;
+            const su = u - w * (1 - 2 * k);
+            const shade = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
+            ctx.globalAlpha = shade.alpha;
+            ctx.fillStyle = shade.fill;
             ctx.fillRect(cx + dx, cy + dy, 1, 1);
         }
     }
