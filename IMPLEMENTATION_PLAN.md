@@ -7,6 +7,42 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — ✅ #1191 pre-test r5: maan verdwijnt bij zon-nabijheid · opacity 0.1 · lijnen off-screen
+
+Han (voor het testen, 3 concrete + 1 nieuwe feature + 1 vervolgvraag):
+1. "if moon within the glow radius of the sun, make it invisible"
+2. "geef de unlit part van de maan opacity 0.1, en de half lit part accordingly"
+3. "sterrenstelsels ... alle stippellijnen altijd getekend, ook naar sterren buiten beeld"
+4. wereld-hoogte-knopje bij <320 gpx (interview nodig — zie hieronder)
+5. labels bij planeten/noordster/andere hemellichamen (nieuw, apart backlog-item — zie hieronder)
+
+Alles in `CelestialSky.jsx` (schoon bestand):
+- **Maan verdwijnt bij zon:** `nearSun = hypot(moonXY−sunXY) < SUN_GLOW_RADIUS_GPX` — hergebruikt
+  §377's eigen sun-glow-straal-constante (`celestialModel.js`) i.p.v. een 2e getal. Fysisch ook
+  correct: bij nieuwe maan staan zon en maan dicht bij elkaar aan de hemel.
+- **Opacity 0.1:** `MOON_SHADE[]` weer `{fill, alpha}` (r3's vorm), `alpha = lerp(MOON_UNLIT_ALPHA
+  0.1, 1, t)`. Bekend risico (r4's "donkere ring" kan in theorie terugkeren tegen een heldere
+  daghemel) expliciet gevlagd in code + hier — Han's keuze, met dat risico in gedachten. `drawMoonDisc`'s
+  laatste param is nu een ADDITIONAL cloud-fade multiplier, niet de eigen alpha van de schijf meer.
+- **Lijnen off-screen:** `starXY.set(s.hr,[x,y])` gebeurt nu voor ELKE astronomisch zichtbare ster
+  (`p.visible`), on- of off-canvas; alleen de ster-PIXEL zelf slaat over als off-canvas. Canvas-tekenen
+  buiten de grenzen is gratis (tekent gewoon niets).
+
+`lint` 0 · `build` clean · `test:run` 1473 pass / 1 skip (ongewijzigd — canvas-only code, niet
+unit-getest). Doc §374 r5-aantekeningen toegevoegd.
+
+### ⏳ Item 4 — wereld-hoogte-knopje: interview nodig
+Han: "als het 'wereld' beeld lager is dan 320 GPX, wil ik een knopje rechtsbovenin om het volle
+hoogte te geven. Als content 1 en 2 niet meer passen, render die dan niet..." — "content 1 en 2" is
+niet gespecificeerd genoeg om te bouwen. Interview volgt in chat.
+
+### ⏳ Nieuw backlog-item — labels bij planeten/noordster/hemellichamen
+Han: "toon ook labels bij planeten, de noordster, en andere interessante hemellichamen." Noordster
+(Polaris) zit al in de catalogus (dec ~89.26°) maar heeft geen individueel label (enkel sterrenbeeld-
+centroids krijgen namen nu). Planeten zitten HELEMAAL NIET in het model — celestialModel simuleert
+alleen zon/maan (perpetueel equinox) + vaste-sterren-catalogus; planeetbanen zijn een aparte, niet-
+triviale toevoeging (geen ephemeris-model aanwezig). Apart backlog-item, interview nodig vóór design.
+
 ## 2026-09-04 — ✅ #1192 UAT r1: helder blauwer · geen vlekken · bewolkte nacht donker · waterige zon wit
 
 Han: (1) "zeer heldere dag, echt mooi helder blauw, nog niet gezien" (2) "bewolkte

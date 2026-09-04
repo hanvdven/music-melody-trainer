@@ -3,7 +3,7 @@ import useFrameLoop from '../../hooks/useFrameLoop';
 import logger from '../../utils/logger';
 import { weatherOutputs, cloudCollapseT, cloudDarkT } from './weatherCycle';
 import {
-    SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG, SUN_GLOW_RGB,
+    SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG, SUN_GLOW_RGB, SUN_GLOW_RADIUS_GPX,
     localSiderealDeg, altAz, projectToScreen, degPerPx,
     sunPosition, moonPosition, brightLimbUnitVector,
     starOpacity, starSizeGpx, starColor,
@@ -84,17 +84,24 @@ const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the grey of the unli
 // §374 UAT r4 (Han, screenshot of the day moon: "de gradient in het midden is donkerder dan het
 // onbelichte stuk, zou niet moeten"). The r3 version varied ALPHA per shade (0.18 → 1). Over a BRIGHT
 // day sky a low-alpha dark-grey earthshine reads light, but a mid-alpha mid-grey reads dark — so the
-// terminator band punched a dark ring between two lighter areas. Fix: ONE uniform alpha for the whole
-// disc, and let ONLY the fill colour ramp earthshine-grey → white. Lightness is then monotone over
-// ANY background. The disc is now effectively opaque ("a grey moon disc shows a crescent" — it always
-// was meant to be a disc, not a translucent ghost).
-const MOON_DISC_ALPHA = 0.9;
+// terminator band punched a dark ring between two lighter areas. r4's fix was ONE uniform alpha
+// (0.9) for the whole disc, colour-only ramp.
+// §374 UAT r5 (Han, pre-test 2026-09-04: "geef de unlit part opacity 0.1, en de half lit part
+// accordingly"): back to a PER-SHADE alpha, explicitly lower than r3's 0.18 at the unlit end — Han's
+// call, made knowing it can in principle reopen r4's dark-ring risk against a very bright day sky
+// (a low-alpha dark shade can read lighter there than a higher-alpha mid shade). Flagged here; revisit
+// at UAT if the ring reappears. `MOON_SHADE[i]` is now `{ fill, alpha }`; `alpha` ramps
+// MOON_UNLIT_ALPHA → 1 alongside the colour ramp, so "how lit" drives both together.
+const MOON_UNLIT_ALPHA = 0.1;
 // §374 UAT r3: a 4-LEVEL terminator (earthshine · 30 % · 70 % · full) instead of a hard binary edge,
 // so the crescent edge softens by one game pixel each side. Quantised pixel-art dither, not sub-pixel
-// AA (cr6). Just the four fill colours now — alpha is the constant above.
+// AA (cr6).
 const rgbStr = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
 const mixRgbInt = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)));
+const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => ({
+    fill: rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)),
+    alpha: lerpNum(MOON_UNLIT_ALPHA, 1, t),
+}));
 
 // §374 UAT r4 (Han: "de zon en maancirkels ... uiteinden boven, onder, links, rechts één game-pixel
 // ... Maak die randen ten minste 3 gpx breed"). A raw `floor(√(r²−dy²))` disc tapers to a single
@@ -152,15 +159,13 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  *
  * §374 UAT r3: instead of a hard `su ≥ 0` binary, bucket `su` into 4 shades — earthshine below −1,
  * 30 % in [−1,0), 70 % in [0,1), full at/above +1 — so the crescent edge softens by one game pixel
- * each side. UAT r4: one uniform `MOON_DISC_ALPHA` for every shade (only the colour ramps), and the
- * disc outline comes from `discHalfWidth` (≥3 px poles), not a `dx²+dy² ≤ r²` circle test. 169 tests
- * per redraw at R = 6 — negligible.
+ * each side. The disc outline comes from `discHalfWidth` (≥3 px poles), not a `dx²+dy² ≤ r²` circle
+ * test. 169 tests per redraw at R = 6 — negligible.
  *
- * §375: `alpha` is passed in rather than being the `MOON_DISC_ALPHA` constant, so cloud cover can fade
- * the whole disc out through the SAME single multiply everything else uses.
+ * §374 UAT r5: each shade carries its OWN alpha (`MOON_SHADE[i].alpha`, ramping `MOON_UNLIT_ALPHA` →
+ * 1) — `alphaMul` is an ADDITIONAL multiply on top (cloud-cover fade, §375), not the disc's own alpha.
  */
-function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alpha) {
-    ctx.globalAlpha = alpha;
+function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul) {
     for (let dy = -r; dy <= r; dy++) {
         const halfW = discHalfWidth(r, dy);
         if (halfW < 0) continue;
@@ -169,7 +174,9 @@ function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alpha) {
             const v = -dx * sy + dy * sx;
             const wt = Math.sqrt(Math.max(0, r * r - v * v));   // terminator half-width on this row
             const su = u - wt * (1 - 2 * k);
-            ctx.fillStyle = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
+            const shade = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
+            ctx.globalAlpha = shade.alpha * alphaMul;
+            ctx.fillStyle = shade.fill;
             ctx.fillRect(cx + dx, cy + dy, 1, 1);
         }
     }
@@ -250,6 +257,11 @@ export default function CelestialSky({
     const lastCycleTRef = useRef(null);
     const lastIllumRef = useRef(null);
     const lastCloudCoverRef = useRef(null);
+    // Perf (#1192-jank, Han 2026-09-04): reused across frames (`.clear()`'d, never reallocated) — this
+    // draw callback now runs every rAF frame (see the RpgLevelPanel weather-tick fix, §376), so a `new
+    // Map()` here would otherwise allocate 60x/sec purely to hand star screen coords to the
+    // constellation-line pass a few lines down.
+    const starXYRef = useRef(new Map());
     const fontReadyRef = useRef(false);
 
     // Altitude 0 lands `horizonGamePx` above the canvas bottom — the §141 background-alignment
@@ -340,7 +352,8 @@ export default function CelestialSky({
 
             // ---- stars -------------------------------------------------------------------------
             // Screen positions are cached per HR because the constellation pass needs them again.
-            const starXY = new Map();
+            const starXY = starXYRef.current;
+            starXY.clear();
             if (alpha >= STAR_ALPHA_FLOOR) {
                 ctx.globalAlpha = alpha;
                 for (const s of BRIGHT_STARS) {
@@ -349,8 +362,13 @@ export default function CelestialSky({
                     if (!p.visible) continue;
                     const x = Math.round(p.x);
                     const y = Math.round(p.y);
-                    if (!onCanvas(x, y)) continue;
+                    // §374 UAT (Han, pre-test 2026-09-04: "sterrenstelsels ... alle stippellijnen altijd
+                    // getekend worden, ook naar sterren die buiten beeld zijn"): record the position for
+                    // EVERY astronomically-visible star, on-canvas or not, so a constellation line can
+                    // reach off-screen — canvas drawing calls outside the bounds simply don't paint
+                    // anything, so this is free. Only the STAR PIXEL itself is skipped when off-canvas.
                     starXY.set(s.hr, [x, y]);
+                    if (!onCanvas(x, y)) continue;
                     ctx.fillStyle = starColor(s.bv);
                     const size = starSizeGpx(s.mag);
                     if (size === 3) {
@@ -437,10 +455,15 @@ export default function CelestialSky({
             // §375: the same `bodyAlphaMul` that hides the stars fades the moon out — and once it is
             // below the shared STAR_ALPHA_FLOOR the 169-pixel terminator loop is skipped entirely.
             const inAzWindow = (pos) => Math.abs(pos.azSouthDeg) <= HALF_FOV_AZ_DEG + 10;
-            const moonAlpha = MOON_DISC_ALPHA * bodyAlphaMul;
-            if (!moon.belowHorizon && inAzWindow(moon) && moonAlpha >= STAR_ALPHA_FLOOR) {
+            // §377 UAT (Han, pre-test 2026-09-04: "if moon within the glow radius of the sun, make it
+            // invisible"): reuses celestialModel's OWN `SUN_GLOW_RADIUS_GPX` — the same 40 gpx the sun
+            // edge-glow masks against (cr4-style single source of truth) — as a screen-space "too close
+            // to the sun to see" cutoff. Physically apt too: near conjunction (new moon) sun and moon
+            // sit close together in the sky.
+            const nearSun = Math.hypot(moonXY.x - sunXY.x, moonXY.y - sunXY.y) < SUN_GLOW_RADIUS_GPX;
+            if (!moon.belowHorizon && inAzWindow(moon) && bodyAlphaMul >= STAR_ALPHA_FLOOR && !nearSun) {
                 const { sx, sy } = brightLimbUnitVector(moonXY, sunXY);
-                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy, moonAlpha);
+                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy, bodyAlphaMul);
             }
 
             // ---- sun ---------------------------------------------------------------------------

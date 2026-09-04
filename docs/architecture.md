@@ -25955,9 +25955,20 @@ weather clock — not a decorative twinkle layer.
   shade (0.18 → 1), which over a bright DAY sky made the mid-band read darker than the low-alpha
   earthshine — a dark ring. Fixed: ONE uniform `MOON_DISC_ALPHA = 0.9` for the whole disc, only the
   fill COLOUR ramps (`MOON_SHADE[]` = 4 pre-mixed greys), so lightness is monotone over any
-  background; the disc is effectively opaque ("a grey moon disc shows a crescent"). Still integer-coord
-  `fillRect` — a quantised 4-level dither, not sub-pixel AA. The sun's SCREEN position is computed even
-  while the sun is below the horizon — that is what keeps the crescent pointing the right way after dark.
+  background; the disc is effectively opaque. **UAT r5 (Han, pre-test 2026-09-04: "geef de unlit part
+  opacity 0.1, en de half lit part accordingly"):** back to a PER-SHADE alpha (r3's shape), each
+  `MOON_SHADE[i]` now `{ fill, alpha }` with `alpha = lerp(MOON_UNLIT_ALPHA (0.1), 1, t)` alongside the
+  colour ramp — Han's explicit call, made with the r4 dark-ring risk known (a low-alpha dark shade can
+  in principle still read lighter than a mid-alpha mid shade over a very bright sky); flagged for UAT,
+  not re-litigated here. `drawMoonDisc`'s `alphaMul` parameter is now an ADDITIONAL multiply on top
+  (the §375 cloud-cover fade), not the disc's own alpha. Still integer-coord `fillRect` — a quantised
+  4-level dither, not sub-pixel AA. The sun's SCREEN position is computed even while the sun is below
+  the horizon — that is what keeps the crescent pointing the right way after dark. **Also UAT r5 (Han:
+  "if moon within the glow radius of the sun, make it invisible"):** the moon draw gains a
+  `nearSun = hypot(moonXY − sunXY) < SUN_GLOW_RADIUS_GPX` screen-space cutoff, reusing the SAME
+  `SUN_GLOW_RADIUS_GPX` constant (`celestialModel.js`) §377's sun edge-glow already defines — one
+  source of truth for "how close is too close" — physically apt too, since near conjunction (new moon)
+  the sun and moon sit close together in the sky.
 - **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
   `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Deep night
   (illum 0.12 since §374 UAT r2 — see below) → ~0.94, dusk/dawn (0.33) → 0.23, day (1.0) → 0. The 0.05
@@ -25970,7 +25981,13 @@ weather clock — not a decorative twinkle layer.
   barely dim (see above). `weatherCycle.test.js` night-floor asserts updated to 0.12.
 - **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
   names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
-  (one 1-gpx dot every 3 steps) on the game-px sky canvas. **Names (UAT r4 — Han: they "zien er blurry
+  (one 1-gpx dot every 3 steps) on the game-px sky canvas. **UAT r5 (Han, pre-test 2026-09-04:
+  "sterrenstelsels ... alle stippellijnen altijd getekend worden, ook naar sterren die buiten beeld
+  zijn"):** `starXY` now records a position for EVERY astronomically-visible star (`p.visible`), on-
+  canvas or not — only the star PIXEL itself is skipped when off-canvas, never its entry in the map — so
+  a constellation line can run off the edge of the viewport toward a star outside the current frame.
+  Free: a canvas drawing call outside its bounds simply paints nothing. **Names (UAT r4 — Han: they
+  "zien er blurry
   uit ... een of ander schalingseffect?"):** they used to be drawn at 16 px on the game-px canvas,
   which is then CSS-upscaled ×`zoom` with `image-rendering: pixelated` — magnifying already-rasterised
   canvas text turns its AA edge into chunky halos. Now the names get their OWN full-CSS-resolution
@@ -26078,8 +26095,10 @@ layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `
 `bgRimOpacity` × `moonShine`), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js`
 (`lunationOverride`, `seekLunation`, night `illum` 0.05 → 0.12), `celestialModel.js` (`moonShine` +
 `MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels; UAT
-r3 4-level moon terminator; UAT r4 `discHalfWidth` ≥3-px poles, uniform `MOON_DISC_ALPHA`, full-res
-`labelCanvasRef` overlay for the names), `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx`
+r3 4-level moon terminator; UAT r4 `discHalfWidth` ≥3-px poles; UAT r5 per-shade `MOON_SHADE[].alpha`
+(`MOON_UNLIT_ALPHA` 0.1) replacing the r4 uniform `MOON_DISC_ALPHA`, the `nearSun` sun-proximity
+cutoff, and off-canvas `starXY` entries for constellation lines; full-res `labelCanvasRef` overlay for
+the names), `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx`
 (premultiply `uMoonStrength` by `p.moonShine ?? 1`;
 `DEFAULT_FOLIAGE_PARAMS.moonShine`), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the
 first cut added is removed — labels now use the existing `BestiaryPixel` family). Tests:
@@ -26532,3 +26551,58 @@ the quantised-`moonShine` precedent); §375 (`cloudCollapseT`, the cloud gate); 
 round 23's fragment-precision rule); §334 (`worldScale`, the integer zoom).
 
 **Note.** A parallel in-flight ticket (#1192-jank) claimed §376 in the working tree while this was being written, so this is §377.
+
+---
+
+### §378. Star field stepping fixed at the root — the weather clock, not the star draw (#1192-jank, Han 2026-09-04, "de sterren bewegen hakkelig")
+
+**Symptom.** Continuing §376's jank investigation: stars in `<CelestialSky>` visibly moved in discrete
+steps rather than gliding, even though the draw callback runs every rAF frame (60 fps) and — per its own
+comment at the time — was explicitly written to redraw "each star then advances at most one game pixel
+per frame, which at 60 fps is the smoothest a pixel-perfect sky can move."
+
+**Root cause.** That comment's assumption was false in practice: `cycleT` (the sky's phase clock, read
+off `weatherRef.current` inside the draw callback — `weatherOutputs(weatherRef.current)`, §374/§375) is a
+pure derivation of `state.phaseElapsed`, which only advances when `tickWeather` is called. That call only
+happened inside RpgLevelPanel's OWN weather `useFrameLoop` subscription, which was throttled to
+`throttleMs: 80` (~12 fps) — chosen because the visible EASES that same subscriber drives
+(`globalIllumination`, wind) only need ~12/s of sampling. But `weatherRef.current = next` (and therefore
+`cycleT`) was written at that SAME throttled rate, unconditionally, regardless of the eases. So although
+`<CelestialSky>` redrew 60x/sec, it was reading an unchanged `cycleT` for ~5 consecutive frames at a
+time, then jumping ~5 game-px-worth of motion in one frame — the exact "hakkelig" stepping reported. Not
+a bug in `CelestialSky.jsx` at all; the star-draw code had already been written correctly for a 60 Hz
+clock that didn't exist yet.
+
+**Fix.**
+- `RpgLevelPanel.jsx`: the weather `useFrameLoop` subscription (§374/§375/§377's home for
+  `tickWeather`/`weatherOutputs`) changed from `{ priority: 'throttled', throttleMs: 80 }` to
+  `{ priority: 'critical' }` — runs every rAF frame now. `tickWeather`/`weatherOutputs` are both pure,
+  allocation-light arithmetic (object spread + lerps + scalar math, no trig, no per-star loop) — safe at
+  60 Hz. The `if` blocks that gate `setWeather(next)`/`pushWeatherToFoliage(next)` are UNCHANGED — they
+  already compared `prev`/`next` on their own thresholds independent of call rate, so #1162 Fase 8's
+  re-render reduction is untouched; only the invisible `weatherRef.current` ref write happens more often.
+- `CelestialSky.jsx`: separately, `starXY` — a `Map()` used to hand cached star screen coordinates from
+  the star-draw pass to the constellation-line pass a few lines later — was reallocated every single
+  draw call. Now a `useRef(new Map())`, `.clear()`'d each frame instead: pure GC-pressure cleanup, no
+  behavioural change, worth doing once this callback is confirmed to run at full frame rate every frame.
+
+**Invariant, generalized from §376.** A value that drives PER-FRAME visual motion (a screen position, a
+celestial angle) must be recomputed on the SAME per-frame cadence as whatever reads it for drawing, even
+if it is stored on a ref/shared object that looks like a slow-changing "settings" value. Throttling is
+only safe for the derived REACT-VISIBLE consequences of a clock (a re-render, a repaint trigger) — never
+for the clock's own advancement, once anything draws from it every frame.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (weather `useFrameLoop` priority),
+`src/components/character/CelestialSky.jsx` (`starXYRef`). No test changes — pure timing/allocation
+change, no new branchable logic. Verified: `npm run test:run` (131 files / 1473 tests, 1 pre-existing
+skip, unaffected), `npm run build`, `npm run lint` (0 new warnings).
+
+**Still open (BACKLOG.md "Performance: hakkelige rendering"):** SheetRpgLayer's slime/critter/projectile
+entity updates (music LEVEL flow) are throttled to ~30 Hz while the scroll itself runs unthrottled at
+60 Hz — a background/entity desync one layer over from this fix, not yet addressed.
+
+**Cross-references.** §376 (the hero/pet fix this continues, same investigation); §374 (`CelestialSky`,
+`weatherOutputs`, the star-draw callback whose own comment predicted exactly this fix would be needed);
+§375 (the same weather `useFrameLoop` subscription, `cloudCoverT`); §377 (`#1193`, which also edits this
+same subscription's body — see its own §376/§377 numbering note above; the two changes are additive and
+do not conflict, confirmed by re-reading the live file before editing).
