@@ -19,7 +19,7 @@ import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.
 import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
 import {
-    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, TIME_PHASES,
+    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, TIME_PHASES,
 } from './weatherCycle';
 import { loadWeatherState, saveWeatherState } from './weatherCycleStore';
 import WaterReflectionLayer from './WaterReflectionLayer';
@@ -2616,6 +2616,16 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         value={String(Math.round(wOut.windValue))}
                         onChange={(n) => commitWeather(seekWind(weatherRef.current, Number(n)))}
                     />
+                    {/* §374 UAT r2 (#1191, Han 2026-09-04, "kun je in debug een knop zetten die naar de
+                        4 maanfasen springt voor debugging?"): pins the lunation phase so the crescent +
+                        moon/sun/star positions can be eyeballed without waiting out the ~3.7 h real-time
+                        lunation. 'Auto' clears the override (weatherCycle.js `seekLunation`). */}
+                    <LevelPicker
+                        label="Moon phase"
+                        levels={Object.fromEntries(Object.keys(MOON_PHASE_PICKS).map((k) => [k, 0]))}
+                        value={moonPhasePickLabel(wOut.lunationOverride)}
+                        onChange={(k) => commitWeather(seekLunation(weatherRef.current, MOON_PHASE_PICKS[k]))}
+                    />
                     {/* #RAM-level (Han 2026-08-11, "voeg twee knoppen toe: treble melody en bass melody...
                         genereert random melodieën, volgens de ingestelde settings... vergeet niet altijd
                         progression mee te genereren"): each button regenerates ONLY that one voice
@@ -2725,6 +2735,14 @@ function ParamSelect({ label, value, onChange }) {
 // picker — used for Wind (skew/stretch px) and round 27's Time-of-day (global illumination). Picking a
 // level sets EVERY param key in `levels[level]` together, so a picker's displayed selection can never drift
 // out of sync with the underlying param(s) it controls.
+// §374 UAT r2 (#1191): the four quarter values a debug moon-phase pick maps to, plus 'Auto' = null
+// (resume the automatic 28-cycle progression). ¼ glyphs are display-only labels, never notation.
+const MOON_PHASE_PICKS = { Auto: null, New: 0, 'First ¼': 0.25, Full: 0.5, 'Last ¼': 0.75 };
+function moonPhasePickLabel(override) {
+    if (override == null) return 'Auto';
+    return Object.keys(MOON_PHASE_PICKS).find((k) => MOON_PHASE_PICKS[k] === override) ?? 'Auto';
+}
+
 function LevelPicker({ label, levels, value, onChange }) {
     return (
         <label style={{ display: 'block', marginBottom: 6, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 11, color: '#fff' }}>

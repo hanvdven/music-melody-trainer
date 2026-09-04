@@ -28,7 +28,10 @@ export const TIME_PHASES = [
     // #weather §362 → §370: night floor 0.12 → 0.10 → 0.05 (Han: "maak de global ilum nog wat donkerder:
     // 50% - echt donkerblauw"). Halved again; the deep-blue AMBIENT_DARK_COLOR + the moon rim carry the
     // readability now.
-    { name: 'night', dur: 120, illum: 0.05 },
+    // §374 UAT r2 (#1191, Han 2026-09-04): "midden in de nacht de wereld te donker" — lifted back to
+    // 0.12 (the §362 value). `starOpacity` (celestialModel) eases in shallowly from 0.05, so this only
+    // takes the stars from 1.0 to ~0.94 — still full night.
+    { name: 'night', dur: 120, illum: 0.12 },
     { name: 'dawn', dur: 60, illum: 0.33 },
 ];
 
@@ -92,6 +95,10 @@ export function createWeatherState() {
         // wrap in tickWeather; combined with the in-cycle fraction it gives the moon its lunation
         // phase and the star sphere its sidereal drift. Integer, unbounded (it is taken mod 28).
         cyclesElapsed: 0,
+        // §374 UAT r2 (#1191): debug-only. `null` ⇒ the moon phase runs automatically off
+        // `cyclesElapsed`; a number in {0, 0.25, 0.5, 0.75} pins it to new / first-quarter / full /
+        // last-quarter for eyeballing. Set via `seekLunation`, carried untouched through `tickWeather`.
+        lunationOverride: null,
         // illumination fade
         illum: 1,
         illumFrom: 1,
@@ -227,6 +234,17 @@ export function seekWind(state, n) {
     };
 }
 
+// §374 UAT r2 (#1191, Han 2026-09-04) — debug-only. Pin the lunation phase to one of the four quarter
+// values (`0` new · `0.25` first quarter · `0.5` full · `0.75` last quarter), or pass `null` to
+// resume the automatic 28-cycle progression. The value feeds straight into
+// `weatherOutputs().lunationPhase`, which drives the moon, the sun's RA drift AND the star sphere
+// together — this is a jump in lunation TIME, not a moon-only cheat. Clearing it (`null`) snaps back
+// to wherever the real clock now is; that is acceptable for a debug affordance (`cyclesElapsed` has
+// been counting underneath the override the whole time).
+export function seekLunation(state, value) {
+    return { ...state, lunationOverride: value };
+}
+
 // Derived, render-facing view of a state. Everything here is a pure function of `state`.
 export function weatherOutputs(state) {
     const phase = TIME_PHASES[state.phaseIndex];
@@ -243,7 +261,10 @@ export function weatherOutputs(state) {
     // phase clock above, no timers of their own. `lunationPhase` is continuous rather than stepped
     // once per cycle; a stepped value would jerk the whole star sphere at every cycle boundary.
     const cycleT = (PHASE_START_S[state.phaseIndex] + state.phaseElapsed) / CYCLE_TOTAL_S;
-    const lunationPhase = ((state.cyclesElapsed + cycleT) % CYCLES_PER_LUNATION) / CYCLES_PER_LUNATION;
+    // §374 UAT r2: a debug `lunationOverride` (0/0.25/0.5/0.75) pins the phase; `null`/absent ⇒ auto.
+    const lunationPhase = state.lunationOverride != null
+        ? state.lunationOverride
+        : ((state.cyclesElapsed + cycleT) % CYCLES_PER_LUNATION) / CYCLES_PER_LUNATION;
     return {
         globalIllumination: state.illum,
         windValue: state.wind,
@@ -251,6 +272,8 @@ export function weatherOutputs(state) {
         cycleT,
         // 0..1 over CYCLES_PER_LUNATION cycles: 0 = new moon, 0.5 = full.
         lunationPhase,
+        // §374 UAT r2: null ⇒ automatic; else the pinned quarter value — for the debug picker's selection.
+        lunationOverride: state.lunationOverride ?? null,
         // string the existing lighting-tint / critter-tag consumers expect: dusk & dawn both map to
         // the legacy 'dusk-dawn' bucket.
         timeOfDay: phase.name === 'day' ? 'day' : phase.name === 'night' ? 'night' : 'dusk-dawn',

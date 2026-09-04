@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, pickWind, easeInOut,
+    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, pickWind, easeInOut,
     TIME_PHASES, WIND_BAG, WIND_INTERVAL_S, WIND_FADE_S, TIME_FADE_S, CRITTER_FADE_S, WIND_GUST3_HOLD_S,
     CYCLE_TOTAL_S, PHASE_START_S, CYCLES_PER_LUNATION,
 } from '../weatherCycle';
@@ -94,7 +94,7 @@ describe('time-of-day cycle', () => {
             prev = cur;
         }
         s = advance(s, 1);                                  // just past the fade
-        expect(weatherOutputs(s).globalIllumination).toBe(0.05);   // §370 night floor
+        expect(weatherOutputs(s).globalIllumination).toBe(0.12);   // §374 UAT r2 night floor (was 0.05)
     });
 });
 
@@ -128,7 +128,7 @@ describe('seek controls', () => {
         expect(weatherOutputs(s).globalIllumination).toBeCloseTo(1, 6);   // not yet faded
 
         s = advance(s, TIME_FADE_S + 1);
-        expect(weatherOutputs(s).globalIllumination).toBe(0.05);   // §370 night floor
+        expect(weatherOutputs(s).globalIllumination).toBe(0.12);   // §374 UAT r2 night floor (was 0.05)
     });
 
     it('seekWind eases toward the picked speed over WIND_FADE_S and restarts the 30 s timer', () => {
@@ -302,5 +302,45 @@ describe('§374 cycle clock — cycleT / cyclesElapsed / lunationPhase', () => {
         const s = seekPhase(advance(createWeatherState(), 100), 'night');
         expect(weatherOutputs(s).cycleT).toBeCloseTo(0.625, 9);
         expect(s.cyclesElapsed).toBe(0);
+    });
+});
+
+// §374 UAT r2 (#1191): the debug moon-phase pin.
+describe('§374 seekLunation — debug moon-phase override', () => {
+    it('a fresh state has no override (lunationOverride null, phase runs off cyclesElapsed)', () => {
+        expect(createWeatherState().lunationOverride).toBe(null);
+        expect(weatherOutputs(createWeatherState()).lunationOverride).toBe(null);
+    });
+
+    it('pins lunationPhase to the picked quarter regardless of cyclesElapsed / cycleT', () => {
+        const base = { ...createWeatherState(), cyclesElapsed: 7, phaseIndex: 2, phaseElapsed: 30 };
+        for (const v of [0, 0.25, 0.5, 0.75]) {
+            const s = seekLunation(base, v);
+            expect(weatherOutputs(s).lunationPhase).toBe(v);
+            expect(weatherOutputs(s).lunationOverride).toBe(v);
+        }
+    });
+
+    it('null clears the override — lunationPhase resumes the automatic derivation', () => {
+        const pinned = seekLunation({ ...createWeatherState(), cyclesElapsed: 14 }, 0.25);
+        expect(weatherOutputs(pinned).lunationPhase).toBe(0.25);
+        const cleared = seekLunation(pinned, null);
+        expect(weatherOutputs(cleared).lunationOverride).toBe(null);
+        expect(weatherOutputs(cleared).lunationPhase).toBeCloseTo(0.5, 9);   // 14/28, back on the real clock
+    });
+
+    it('tickWeather carries the override through untouched (cyclesElapsed keeps counting underneath)', () => {
+        let s = seekLunation(createWeatherState(), 0.5);
+        s = advance(s, CYCLE_TOTAL_S + 10);              // more than a whole cycle
+        expect(s.lunationOverride).toBe(0.5);
+        expect(weatherOutputs(s).lunationPhase).toBe(0.5);
+        expect(s.cyclesElapsed).toBeGreaterThanOrEqual(1);   // the real clock advanced regardless
+    });
+
+    it('an absent override field (legacy persisted state) is treated as auto', () => {
+        const legacy = { ...createWeatherState(), cyclesElapsed: 7 };
+        delete legacy.lunationOverride;
+        expect(weatherOutputs(legacy).lunationPhase).toBeCloseTo(7 / 28, 9);
+        expect(weatherOutputs(legacy).lunationOverride).toBe(null);
     });
 });

@@ -7,6 +7,44 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — #1191 UAT r2: 4 change-requests (2 ✅ · 1 ⛔blocked · 1 ❓await Han)
+
+Han (UAT r2): (1) maangloed enkel als de maan echt schijnt; (2) debug-knop naar de
+4 maanfasen; (3) midden in de nacht te donker; (4) gebruik de 3e (italic serif)
+pixel-font uit z'n font-atlas voor de sterrenbeeld-namen.
+
+### ✅ (3) Nacht-floor 0.05 → 0.12
+`TIME_PHASES` night `illum` 0.05→0.12 (terug naar §362-waarde; §370's halvering ging
+te ver voor de beloopbare wereld). Vlak, elke nacht (Han's keuze boven
+maanfase-afhankelijk). `starOpacity` easet ondiep vanaf 0.05 → sterren 1.0→~0.94.
+`weatherCycle.test.js` night-floor asserts 0.05→0.12. Doc §374 UAT-r2 bullet.
+
+### ✅ (2) Debug moon-phase picker
+`weatherCycle.js`: `lunationOverride` (null|0|0.25|0.5|0.75) in state +
+`seekLunation(state, value)` picker-action; `weatherOutputs.lunationPhase` respecteert
+de override, `lunationOverride` mee in outputs. `tickWeather` draagt 'm ongemoeid
+door (`{...state}`), `cyclesElapsed` telt eronder door. Legacy persisted state zonder
+'t veld → `!= null` false → auto. `RpgLevelPanel`: "Moon phase" `LevelPicker`
+(Auto/New/First ¼/Full/Last ¼) in het World-debugpaneel, na "Wind". Een pin
+verschuift maan + zon-RA + sterrenbol samen (sprong in lunatie-tijd). +5 tests.
+
+### ⛔ (1) Maangloed enkel als de maan schijnt — GEBLOKKEERD
+Raakt `foliageLightingGLSL.js` + `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx` +
+`LdtkScenery.jsx` (`applyMoonLight` / shader-mains / `computeMoonRim`), en die files
+hebben NU niet-gecommitte parallelle §370-r9-wijzigingen in de tree. Niet
+interleaven. Plan zodra r9 geland is: `celestialModel` levert `moonShine` 0..1 =
+(maan boven horizon) · `illumFraction` · `smoothstep(0,~15°, altitude)`; via een
+gequantiseerde `foliageParams.moonShine` (change-detect epsilon) → nieuwe
+`uMoonShine` uniform, vermenigvuldigd in `applyMoonLight`'s `present`; en
+`bgRimOpacity` × `moonShine`. Richting blijft de vaste linksboven `MOON_DIR`.
+
+### ❓ (4) Font-atlas 3e (italic) font — WACHT OP HAN
+Geen font-atlas-systeem in de codebase (alleen `@font-face` in DialogueBox). Aanwezig:
+`Bitfantasy.ttf`, `CelticTime.ttf` + 40 andere pixel-`.ttf`s. Han's "3e italic serif"
+naam onbekend — gevraagd. CelestialSky gebruikt nu `PixelNewspaperIII` via `ctx.font`
+(antialiast, niet echt pixel-perfect). Zodra Han de naam geeft: of `@font-face`-swap,
+of — als hij echt een bitmap-atlas heeft — een glyph-blit-renderer.
+
 ## 2026-09-04 — ✅ #1191 UAT-fix: sterrenhemel schokkerig → 60 fps
 
 Han (UAT): "de beweging van de sterren is schokkerig ... sommige sterren

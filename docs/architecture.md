@@ -25914,16 +25914,26 @@ weather clock — not a decorative twinkle layer.
   is computed even while the sun is below the horizon — that is what keeps the crescent pointing the
   right way after dark.
 - **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
-  `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Night (illum
-  0.05) → 1.00, dusk/dawn (0.33) → 0.23, day (1.0) → 0. There is NO separate "show stars" state: the
-  layer reads the same `foliageParams.globalIllumination` the shaders and `SkyGradientBackdrop.mixNight`
-  read.
+  `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Deep night
+  (illum 0.12 since §374 UAT r2 — see below) → ~0.94, dusk/dawn (0.33) → 0.23, day (1.0) → 0. The 0.05
+  in the formula is the curve's low anchor, not the night floor. There is NO separate "show stars"
+  state: the layer reads the same `foliageParams.globalIllumination` the shaders and
+  `SkyGradientBackdrop.mixNight` read.
+- **UAT r2 (Han 2026-09-04) — "midden in de nacht de wereld te donker".** `TIME_PHASES` night `illum`
+  lifted `0.05 → 0.12` (`weatherCycle.js`) — back to the §362 value; §370's halving to 0.05 went too
+  far for the walkable world. Flat, every night (Han's pick over a moon-phase-linked brightness). Stars
+  barely dim (see above). `weatherCycle.test.js` night-floor asserts updated to 0.12.
 - **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
   names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
   (one 1-gpx dot every 3 steps), names are centroid labels drawn with an explicit
-  `ctx.font = '6px PixelNewspaperIII'`. Separately, with world `debugMode` on, the sun's and the moon's
-  full paths draw as dotted arcs (warm `#ffcc66` / cool `#88bbff`) with 5-px cross markers at the live
-  positions.
+  `ctx.font = '6px PixelNewspaperIII'`. The World debug panel (top-left) also gains a **`Moon phase`**
+  `LevelPicker` (§374 UAT r2, #1191): `Auto / New / First ¼ / Full / Last ¼` → `weatherCycle.js`
+  `seekLunation(state, null | 0 | 0.25 | 0.5 | 0.75)`, which pins `weatherOutputs().lunationPhase`. That
+  drives the moon, the sun's RA drift AND the star sphere together — a jump in lunation TIME, so Han can
+  eyeball any phase without waiting out the ~3.7 h real-time lunation. `cyclesElapsed` keeps counting
+  under the pin; `Auto` snaps back to the real clock. Separately, with world `debugMode` on, the sun's
+  and the moon's full paths draw as dotted arcs (warm `#ffcc66` / cool `#88bbff`) with 5-px cross
+  markers at the live positions.
 - **The font gotcha.** `PixelNewspaperIII.ttf` is registered as an `@font-face` in `App.css`, but
   nothing in the DOM uses that family — the labels are CANVAS text — and setting `ctx.font` does not
   trigger a load. Without an explicit `document.fonts.load()` the labels would silently render in the
@@ -25954,7 +25964,8 @@ weather clock — not a decorative twinkle layer.
 - `weatherCycle.js` stays PURE and timer-free. `cycleT` and `lunationPhase` are DERIVATIONS of the
   existing phase clock, never their own timers — which is why freeze/resume across a music LEVEL
   (`weatherCycleStore`) is completely unaffected. That store saves the whole object by reference, so
-  `cyclesElapsed` rides along with no migration and no defensive default.
+  `cyclesElapsed` (and the §374 UAT r2 `lunationOverride`) ride along with no migration; `weatherOutputs`
+  treats an absent `lunationOverride` as `null` (auto), so a legacy persisted state is safe.
 - **`cycleT` / `lunationPhase` must NEVER enter RpgLevelPanel's `setWeather`/`pushWeatherToFoliage`
   change-detection lists.** They move every tick; adding them would turn a steady phase from 0
   re-renders into ~12/s and undo #1162 Fase 8. `CelestialSky` reads them off `weatherRef` inside its own
