@@ -3,6 +3,9 @@ import {
     createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, pickWind, easeInOut,
     TIME_PHASES, WIND_BAG, WIND_INTERVAL_S, WIND_FADE_S, TIME_FADE_S, CRITTER_FADE_S, WIND_GUST3_HOLD_S,
     CYCLE_TOTAL_S, PHASE_START_S, CYCLES_PER_LUNATION,
+    seekCloud, pickCloud, cloudClearness, cloudCollapseT, cloudDarkT, cloudIllumMultiplier,
+    CLOUD_TYPES, CLOUD_BAG, CLOUD_COVER, CLOUD_FADE_S, CLOUD_INTERVAL_MIN_S, CLOUD_INTERVAL_MAX_S,
+    CLOUD_ILLUM_DROP_STEP, DEFAULT_CLOUD_TYPE,
 } from '../weatherCycle';
 import { loadWeatherState, saveWeatherState } from '../weatherCycleStore';
 
@@ -342,5 +345,194 @@ describe('§374 seekLunation — debug moon-phase override', () => {
         delete legacy.lunationOverride;
         expect(weatherOutputs(legacy).lunationPhase).toBeCloseTo(7 / 28, 9);
         expect(weatherOutputs(legacy).lunationOverride).toBe(null);
+    });
+});
+
+// §375 "weertypen" (#1192, Han 2026-09-04): the third auto-cycling track — cloud cover. One eased
+// scalar (`cloudCoverT`) and three derived ramps; the four types are four positions on that one axis.
+describe('§375 cloud cover — the axis, the bag and the ramps', () => {
+    it('derives CLOUD_BAG from WIND_BAG and is weighted toward LIGHT', () => {
+        expect(CLOUD_TYPES).toEqual(['CLEAR', 'LIGHT', 'OVERCAST', 'DARK_OVERCAST']);
+        expect(CLOUD_BAG).toEqual(WIND_BAG.map((n) => CLOUD_TYPES[n]));
+
+        const counts = { CLEAR: 0, LIGHT: 0, OVERCAST: 0, DARK_OVERCAST: 0 };
+        for (let i = 0; i < 7000; i++) counts[pickCloud(() => i / 7000)] += 1;
+        expect(counts.LIGHT).toBeGreaterThan(counts.OVERCAST);
+        expect(counts.OVERCAST).toBeGreaterThan(counts.CLEAR);
+        expect(counts.LIGHT / counts.CLEAR).toBeGreaterThan(2.5);            // ~3:1
+        expect(Math.abs(counts.CLEAR - counts.DARK_OVERCAST)).toBeLessThan(200);   // equally rare
+    });
+
+    it('derives OVERCAST as the midpoint of LIGHT..DARK_OVERCAST (no hardcoded 4-entry table)', () => {
+        expect(CLOUD_COVER.CLEAR).toBe(0);
+        expect(CLOUD_COVER.DARK_OVERCAST).toBe(1);
+        expect(CLOUD_COVER.OVERCAST).toBeCloseTo((CLOUD_COVER.LIGHT + CLOUD_COVER.DARK_OVERCAST) / 2, 12);
+        expect(CLOUD_INTERVAL_MAX_S).toBe(2 * CLOUD_INTERVAL_MIN_S);
+        expect(CLOUD_FADE_S).toBe(TIME_FADE_S);   // the SAME 10 s ease as the illum crossfade
+    });
+
+    it('the three ramps partition the axis — 0 everywhere at LIGHT (so LIGHT is "as is")', () => {
+        const at = (ty) => [
+            cloudClearness(CLOUD_COVER[ty]), cloudCollapseT(CLOUD_COVER[ty]), cloudDarkT(CLOUD_COVER[ty]),
+        ];
+        expect(at('CLEAR')).toEqual([1, 0, 0]);
+        expect(at('LIGHT')).toEqual([0, 0, 0]);
+        expect(at('OVERCAST')).toEqual([0, 1, 0]);
+        expect(at('DARK_OVERCAST')).toEqual([0, 1, 1]);
+    });
+
+    it('a fresh state is LIGHT and already settled', () => {
+        const s = createWeatherState();
+        expect(s.cloudType).toBe(DEFAULT_CLOUD_TYPE);
+        expect(s.cloudFadeElapsed).toBe(CLOUD_FADE_S);
+        const out = weatherOutputs(s);
+        expect(out.cloudType).toBe('LIGHT');
+        expect(out.cloudCoverT).toBe(CLOUD_COVER.LIGHT);
+        expect(out.illumMultiplier).toBe(1);
+        expect(s.cloudNextDrawS).toBeGreaterThanOrEqual(CLOUD_INTERVAL_MIN_S);
+        expect(s.cloudNextDrawS).toBeLessThanOrEqual(CLOUD_INTERVAL_MAX_S);
+    });
+});
+
+describe('§375 cloud cover — auto-cycling and easing', () => {
+    // A tiny deterministic LCG: the auto-cycle assertions must never be flaky, and a fixed
+    // `() => 0.5` would draw the same type forever.
+    function lcg(seed) {
+        let x = seed >>> 0;
+        return () => {
+            x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+            return x / 4294967296;
+        };
+    }
+
+    it('draws a new type after its own 60..120 s interval and settles exactly on that level', () => {
+        const rand = () => 0.95;   // interval 117 s, bag[6] = DARK_OVERCAST
+        let s = createWeatherState(rand);
+        s = advance(s, CLOUD_INTERVAL_MAX_S + CLOUD_FADE_S, { rand });
+        expect(weatherOutputs(s).cloudType).toBe('DARK_OVERCAST');
+        expect(weatherOutputs(s).cloudCoverT).toBe(CLOUD_COVER.DARK_OVERCAST);
+    });
+
+    it('cycles on its own — several distinct types over many intervals', () => {
+        const rand = lcg(20260904);
+        let s = createWeatherState(rand);
+        const seen = new Set([s.cloudType]);
+        for (let i = 0; i < 20; i++) {
+            s = advance(s, CLOUD_INTERVAL_MAX_S, { rand });
+            seen.add(s.cloudType);
+        }
+        expect(seen.size).toBeGreaterThanOrEqual(3);
+    });
+
+    it('eases monotonically over CLOUD_FADE_S with no jump at the start (ac2)', () => {
+        let s = seekCloud(createWeatherState(), 'DARK_OVERCAST');
+        expect(weatherOutputs(s).cloudCoverT).toBe(CLOUD_COVER.LIGHT);   // ease(0) === 0, no jump-cut
+
+        let prev = weatherOutputs(s).cloudCoverT;
+        for (let i = 0; i < CLOUD_FADE_S; i++) {
+            s = advance(s, 1);
+            const cur = weatherOutputs(s).cloudCoverT;
+            expect(cur).toBeGreaterThan(prev);
+            prev = cur;
+        }
+        s = advance(s, 1);                                               // just past the fade
+        expect(weatherOutputs(s).cloudCoverT).toBe(CLOUD_COVER.DARK_OVERCAST);
+    });
+
+    it('seekCloud restarts the draw timer and is a no-op for an unknown type', () => {
+        let s = seekCloud(advance(createWeatherState(), 40), 'OVERCAST');
+        expect(s.cloudTimer).toBe(0);
+        expect(s.cloudType).toBe('OVERCAST');
+
+        s = advance(s, CLOUD_INTERVAL_MIN_S - 1);                        // still inside the interval
+        expect(s.cloudType).toBe('OVERCAST');                            // no new draw yet
+        expect(weatherOutputs(s).cloudCoverT).toBe(CLOUD_COVER.OVERCAST);
+
+        const fresh = createWeatherState();
+        expect(seekCloud(fresh, 'HAIL')).toBe(fresh);
+    });
+});
+
+describe('§375 cloud cover — illumination (the cr3 single-multiply contract)', () => {
+    const settledAt = (ty) => advance(seekCloud(createWeatherState(), ty), CLOUD_FADE_S + 1);
+
+    it('illumMultiplier is 1.0 / 1.0 / 0.9 / 0.8 from one formula, not a table', () => {
+        expect(CLOUD_ILLUM_DROP_STEP).toBe(0.1);
+        const expected = { CLEAR: 1, LIGHT: 1, OVERCAST: 0.9, DARK_OVERCAST: 0.8 };
+        for (const ty of CLOUD_TYPES) {
+            const t = CLOUD_COVER[ty];
+            expect(cloudIllumMultiplier(t)).toBeCloseTo(expected[ty], 12);
+            expect(cloudIllumMultiplier(t))
+                .toBeCloseTo(1 - CLOUD_ILLUM_DROP_STEP * (cloudCollapseT(t) + cloudDarkT(t)), 12);
+            expect(weatherOutputs(settledAt(ty)).illumMultiplier).toBeCloseTo(expected[ty], 12);
+        }
+    });
+
+    it('globalIllumination === state.illum × illumMultiplier for every type × phase', () => {
+        for (const ty of CLOUD_TYPES) {
+            for (const phase of TIME_PHASES) {
+                // Settle the cloud track first, THEN pin the phase illumination directly — integrating
+                // both eases would just re-test the fade code.
+                const s = { ...settledAt(ty), illum: phase.illum, illumTo: phase.illum };
+                const out = weatherOutputs(s);
+                expect(out.globalIllumination).toBeCloseTo(phase.illum * out.illumMultiplier, 12);
+            }
+        }
+    });
+
+    it('still darkens further at night — night+DARK < night+LIGHT < day+DARK', () => {
+        const gi = (ty, illum) => {
+            const s = { ...settledAt(ty), illum, illumTo: illum };
+            return weatherOutputs(s).globalIllumination;
+        };
+        expect(gi('DARK_OVERCAST', 0.12)).toBeLessThan(gi('LIGHT', 0.12));
+        expect(gi('LIGHT', 0.12)).toBeLessThan(gi('DARK_OVERCAST', 1));
+    });
+});
+
+describe('§375 cloud cover — legacy state and freeze/resume (ac8)', () => {
+    it('a state with no cloud fields reads as LIGHT with every ramp 0 and an unchanged illumination', () => {
+        const legacy = createWeatherState();
+        for (const k of ['cloudType', 'cloudCover', 'cloudFrom', 'cloudTo', 'cloudFadeElapsed', 'cloudTimer', 'cloudNextDrawS', 'cloudSeed']) {
+            delete legacy[k];
+        }
+        const out = weatherOutputs(legacy);
+        expect(out.cloudType).toBe('LIGHT');
+        expect(out.cloudCoverT).toBe(CLOUD_COVER.LIGHT);
+        expect(out.illumMultiplier).toBe(1);
+        expect(out.globalIllumination).toBe(legacy.illum);   // bit-for-bit the pre-§375 value
+        expect(cloudClearness(out.cloudCoverT)).toBe(0);
+        expect(cloudCollapseT(out.cloudCoverT)).toBe(0);
+        expect(cloudDarkT(out.cloudCoverT)).toBe(0);
+    });
+
+    it('ticking a legacy state produces no NaN and rolls a fresh mottle seed', () => {
+        const legacy = createWeatherState();
+        for (const k of ['cloudType', 'cloudCover', 'cloudFrom', 'cloudTo', 'cloudFadeElapsed', 'cloudTimer', 'cloudNextDrawS', 'cloudSeed']) {
+            delete legacy[k];
+        }
+        const s = advance(legacy, 5);
+        expect(Number.isFinite(s.cloudCover)).toBe(true);
+        expect(Number.isFinite(s.cloudTimer)).toBe(true);
+        expect(Number.isInteger(s.cloudSeed)).toBe(true);
+        expect(Number.isFinite(weatherOutputs(s).globalIllumination)).toBe(true);
+    });
+
+    it('the mottle seed is stable across ticks (the blob pattern must not change mid-session)', () => {
+        const s0 = createWeatherState();
+        const s1 = advance(s0, CLOUD_INTERVAL_MAX_S + CLOUD_FADE_S);
+        expect(s1.cloudSeed).toBe(s0.cloudSeed);
+        expect(weatherOutputs(s1).cloudSeed).toBe(s0.cloudSeed);
+    });
+
+    it('save/load carries cloudType, cloudSeed and the draw accumulator across a music LEVEL', () => {
+        const s = advance(seekCloud(createWeatherState(), 'OVERCAST'), 42);
+        saveWeatherState(s);
+        const back = loadWeatherState();
+        expect(back.cloudType).toBe('OVERCAST');
+        expect(back.cloudSeed).toBe(s.cloudSeed);
+        expect(back.cloudTimer).toBeCloseTo(s.cloudTimer, 9);
+        expect(back.cloudNextDrawS).toBe(s.cloudNextDrawS);
+        saveWeatherState(null);                            // don't leak into other suites
     });
 });

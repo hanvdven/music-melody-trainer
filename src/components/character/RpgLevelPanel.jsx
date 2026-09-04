@@ -19,7 +19,8 @@ import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.
 import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
 import {
-    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, TIME_PHASES,
+    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, seekCloud,
+    TIME_PHASES, CLOUD_TYPES, cloudCollapseT,
 } from './weatherCycle';
 import { loadWeatherState, saveWeatherState } from './weatherCycleStore';
 import WaterReflectionLayer from './WaterReflectionLayer';
@@ -136,8 +137,20 @@ const rgbCss = ([r, g, b], a = 1) => `rgba(${r},${g},${b},${a})`;
 // state, quantised to 0.05. Quantising is what keeps it a COARSE re-render trigger — it steps a
 // handful of times as the moon rises/sets across a night, not every frame like `cycleT` (which the
 // §374 invariant bans from the weather change-detection lists).
+// §375 (#1192, Han plan_review Q1 = ja): gated by the SAME `(1 - cloudCollapseT)` factor CelestialSky
+// uses for the moon disc, so "moon hidden behind cloud" and "no moonlight in the world" can never
+// disagree — one source of truth. Without it an overcast night would still light the world (and draw
+// the parallax moon RIM) from a moon that is not drawn. This is NOT a second darkness knob (cr3): it
+// is the EXISTING moon knob, gated.
 const quantMoonShine = (out) =>
-    Math.round(celestialMoonShine(moonPosition(out.cycleT, out.lunationPhase)) * 20) / 20;
+    Math.round(
+        celestialMoonShine(moonPosition(out.cycleT, out.lunationPhase))
+        * (1 - cloudCollapseT(out.cloudCoverT)) * 20,
+    ) / 20;
+// §375: the cloud-cover scalar, quantised to 0.05 — the SAME quantisation convention as `bgNight` and
+// `quantMoonShine`. Coarse on purpose: ≤20 steps across a 10 s cloud ease, and 0 while settled. The
+// RAW `cloudCoverT` must never appear in a change-detection list (see the tick loop's invariant note).
+const quantCloudCover = (out) => Math.round(out.cloudCoverT * 20) / 20;
 const FLOOR_SHEET = { w: 288, h: 576 };
 const FLOOR_CELLS = [2, 3, 4, 5, 8, 9, 10, 11].map((col) => ({ row: 1, col }));
 // #693 round 7 (Han: "Generate a level of 200 16x16 tiles"): the whole walkable floor is now a FIXED
@@ -1193,12 +1206,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const a = weatherOutputs(prev);
         const b = weatherOutputs(next);
         // …but only re-render (and repaint the shader/tint) when something visible moved.
-        // §374 (#1191) INVARIANT: `cycleT` / `lunationPhase` must NEVER be added to this list (nor to
-        // the `setWeather` list below). They move every single tick, so either list would turn a
-        // steady phase from 0 re-renders into ~12/s and undo #1162 Fase 8. <CelestialSky> reads them
-        // off `weatherRef` inside its own draw callback, which is exactly why it can. The QUANTISED
-        // `quantMoonShine` (§374 UAT r2) is allowed here — it is a 0.05-step value that changes a
-        // handful of times per night as the moon rises/sets, not every tick.
+        // §374 (#1191) INVARIANT, extended by §375 (#1192): `cycleT` / `lunationPhase` / `cloudCoverT`
+        // must NEVER be added to this list (nor to the `setWeather` list below) in their RAW form.
+        // They move every single tick, so either list would turn a steady phase from 0 re-renders into
+        // ~12/s and undo #1162 Fase 8. <CelestialSky> reads them off `weatherRef` inside its own draw
+        // callback, which is exactly why it can. The QUANTISED `quantMoonShine` (§374 UAT r2) and
+        // `quantCloudCover` (§375) are allowed — 0.05-step values that change a handful of times per
+        // night / per transition, not every tick.
+        // §375: NO cloud term is needed in THIS (foliage) list — during a cloud ease
+        // `globalIllumination` itself moves (illumMultiplier is folded into it), so the 0.004 term
+        // below already re-pushes at exactly the right moments, and `quantMoonShine` now carries the
+        // cloud gate too.
         if (
             Math.abs(a.globalIllumination - b.globalIllumination) >= 0.004
             || Math.abs(a.windValue - b.windValue) >= 0.02
@@ -1208,12 +1226,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             pushWeatherToFoliage(next);
         }
         // `weather` state drives the render-only bits: the critter layer's opacity/pool, the debug
-        // picker selections, and the always-visible 💨 count (one puff per whole wind step).
+        // picker selections, the always-visible 💨 count (one puff per whole wind step), and — since
+        // §375 — the sky's cloud blend. Both cloud terms are DISCRETE: `cloudType` is a string that
+        // changes at most once per 60-120 s (it drives the Weather picker's selection), and
+        // `quantCloudCover` steps ≤20 times across a 10 s transition and 0 while settled.
         if (
             a.critterKind !== b.critterKind
             || Math.abs(a.critterOpacity - b.critterOpacity) >= 0.01
             || a.phaseName !== b.phaseName
             || Math.round(a.windValue) !== Math.round(b.windValue)
+            || a.cloudType !== b.cloudType
+            || quantCloudCover(a) !== quantCloudCover(b)
         ) {
             setWeather(next);
         }
@@ -2197,7 +2220,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 static theme backdrop — a hard-coded CSS `linear-gradient` div + `Background layers_layer
                 5.png` — is now this one component: 5 stops sampled once from layer-5, night mix + dusk/
                 dawn horizon glow baked in from the auto weather cycle's `globalIllumination`. */}
-            <SkyGradientBackdrop globalIllumination={foliageParams.globalIllumination} />
+            {/* §375 (#1192): the cloud-cover blend + the procedural mottle canvas. `cloudCoverT` is
+                handed over QUANTISED to 0.05 (the raw continuous value never drives a React render —
+                see the tick loop's invariant note); `cloudSeed` keys the cached noise field so the
+                blob shapes are stable for the session; `sizePx`/`zoom` are the SAME values
+                <CelestialSky> below already receives, so the mottle is native game px. */}
+            <SkyGradientBackdrop
+                globalIllumination={foliageParams.globalIllumination}
+                cloudCoverT={quantCloudCover(wOut)}
+                cloudSeed={wOut.cloudSeed}
+                sizePx={size}
+                zoom={zoom}
+            />
             {/* §374 (#1191, Han 2026-09-04): the celestial layer sits between the rendered sky gradient
                 and EVERY parallax layer below, so a setting sun/moon simply sinks behind the scenery
                 with no clipping code. It reads the cycle clock off `weatherRef` (not state) — see its
@@ -2637,6 +2671,19 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         value={String(Math.round(wOut.windValue))}
                         onChange={(n) => commitWeather(seekWind(weatherRef.current, Number(n)))}
                     />
+                    {/* §375 (#1192, Han 2026-09-04): seeks the cloud-cover track. Same pattern as the
+                        Time-of-day / Wind pickers above — picking a type starts the same 10 s eased
+                        transition the auto-cycle uses, restarts that track's draw timer, and the
+                        cycle carries on from there (weatherCycle.js `seekCloud`). */}
+                    <LevelPicker
+                        label="Weather"
+                        levels={Object.fromEntries(CLOUD_TYPES.map((ty) => [CLOUD_PICK_LABELS[ty], 0]))}
+                        value={CLOUD_PICK_LABELS[wOut.cloudType]}
+                        onChange={(lbl) => commitWeather(seekCloud(
+                            weatherRef.current,
+                            CLOUD_TYPES.find((ty) => CLOUD_PICK_LABELS[ty] === lbl),
+                        ))}
+                    />
                     {/* §374 UAT r2 (#1191, Han 2026-09-04, "kun je in debug een knop zetten die naar de
                         4 maanfasen springt voor debugging?"): pins the lunation phase so the crescent +
                         moon/sun/star positions can be eyeballed without waiting out the ~3.7 h real-time
@@ -2759,6 +2806,9 @@ function ParamSelect({ label, value, onChange }) {
 // §374 UAT r2 (#1191): the four quarter values a debug moon-phase pick maps to, plus 'Auto' = null
 // (resume the automatic 28-cycle progression). ¼ glyphs are display-only labels, never notation.
 const MOON_PHASE_PICKS = { Auto: null, New: 0, 'First ¼': 0.25, Full: 0.5, 'Last ¼': 0.75 };
+// §375 (#1192): display-only labels for the four cloud-cover types — short enough to fit four buttons
+// in the 160 px World panel ('Dark' rather than 'Dark overcast'). The TYPE keys stay canonical.
+const CLOUD_PICK_LABELS = { CLEAR: 'Clear', LIGHT: 'Light', OVERCAST: 'Overcast', DARK_OVERCAST: 'Dark' };
 function moonPhasePickLabel(override) {
     if (override == null) return 'Auto';
     return Object.keys(MOON_PHASE_PICKS).find((k) => MOON_PHASE_PICKS[k] === override) ?? 'Auto';

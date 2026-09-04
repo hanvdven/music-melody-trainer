@@ -26087,3 +26087,182 @@ clock` + `§374 seekLunation` describes in `src/components/character/__tests__/w
 layer projects onto; §370 owns the separate moon-RIM light.
 
 **Note.** §373 was the last section header, so this is §374.
+
+### §375. Weertypen — de cloud-cover as: helder / licht bewolkt / bewolkt / donker bewolkt (#1192, Han 2026-09-04)
+
+**Purpose.** The RPG world had two auto-cycling weather tracks (wind and time-of-day, §360). Han asked
+for a third — cloud cover — with four types, verbatim:
+
+- **DONKER BEWOLKT:** "lucht is grijs en vlekkerig, globalIllumination iets omlaag, zon EN maan niet
+  zichtbaar."
+- **BEWOLKT:** "achtergrond wit + vlekkerig, de zon is *waterig* (diffuus) achter de wolken; maan en
+  sterren niet zichtbaar."
+- **LICHT BEWOLKT:** "as is" — the current look, unchanged.
+- **HELDER:** "maak de witte fade (horizon) minder wit en het blauw blauwer."
+
+Cloud SPRITES per parallax layer are explicitly **out of scope** — Han supplies that art later and it
+becomes its own ticket.
+
+**How it works — one scalar, three ramps, zero per-type branches.**
+
+The whole feature rides on ONE continuous eased number, `cloudCoverT` (0..1), and three pure ramps
+derived from it. There is no `if (cloudType === …)` in any renderer: the four types are four positions
+on one axis and every visual is a lerp over one of the three ramps. A transition therefore eases
+*through* the intermediate looks automatically (Han's "no jump-cuts"), and **LIGHT is bit-identical to
+the pre-§375 world BY CONSTRUCTION** — at LIGHT all three ramps are exactly 0, so every new term
+multiplies out — rather than by a special case.
+
+```
+CLOUD_COVER = { CLEAR: 0, LIGHT: 0.25, OVERCAST: (0.25+1)/2, DARK_OVERCAST: 1 }
+```
+
+`OVERCAST` is **derived** as the midpoint of LIGHT..DARK_OVERCAST, so `CLOUD_LIGHT_COVER = 0.25` is the
+only free number on the axis (CLAUDE.md §6c — a 4-entry table would silently stop making sense the
+moment that value is retuned).
+
+| ramp | formula | 1 at | drives |
+|---|---|---|---|
+| `cloudClearness(t)` | `clamp01((LIGHT − t) / (LIGHT − CLEAR))` | CLEAR | sky saturation boost |
+| `cloudCollapseT(t)` | `clamp01((t − LIGHT) / (OVERCAST − LIGHT))` | OVERCAST + DARK | flat sheet, mottle alpha, hiding moon/stars, watery sun, moonlight gate |
+| `cloudDarkT(t)` | `clamp01((t − OVERCAST) / (DARK − OVERCAST))` | DARK | white→grey sheet, mottle tint, hiding the sun |
+
+- **The track itself** (`weatherCycle.js`) mirrors the wind track field-for-field:
+  `cloudType` / `cloudCover` / `cloudFrom` / `cloudTo` / `cloudFadeElapsed` / `cloudTimer`, eased with
+  the same `easeInOut` over `CLOUD_FADE_S = TIME_FADE_S` (10 s). The one difference is
+  `cloudNextDrawS`: the draw interval is a RANGE (`CLOUD_INTERVAL_MIN_S = 60` …
+  `CLOUD_INTERVAL_MAX_S = 2 × MIN`), re-rolled at every draw, so it has to live on the state.
+  `CLOUD_BAG = WIND_BAG.map((n) => CLOUD_TYPES[n])` — the SAME 1/7 · 3/7 · 2/7 · 1/7 weighting the wind
+  track already uses, mapped onto the four cover levels in increasing order, i.e. weighted toward LIGHT
+  with CLEAR and DARK_OVERCAST equally rare. One weighting shape in the file, two tracks reading it.
+  No new timer and no wall clock — it rides the same `dt` accumulator, which is exactly why
+  freeze/resume through `weatherCycleStore` keeps working with **no migration**.
+- **`seekCloud(state, type)`** is the picker action, shaped exactly like `seekWind`: it eases from
+  wherever the cover currently is, restarts the draw timer, and lets the auto-cycle carry on from
+  there. An unknown type is a no-op returning the same object (mirrors `seekPhase`).
+- **Illumination — ONE line.** `cloudIllumMultiplier(t) = 1 − CLOUD_ILLUM_DROP_STEP × (collapseT +
+  darkT)` with `CLOUD_ILLUM_DROP_STEP = 0.1` yields exactly **1.0 / 1.0 / 0.9 / 0.8** across the four
+  types — Han's locked design values, from one formula and one constant, not a table. It folds in at
+  exactly one place, `weatherOutputs`' `globalIllumination: state.illum * illumMultiplier`. Every
+  downstream consumer (`ForegroundFoliageLayer`'s `uMix`, `LdtkLitGround`, `FoliageInstancingTest`,
+  `WaterReflectionLayer`'s CSS `brightness()`, `SkyGradientBackdrop`'s `mixNight`/`sunsetFactor`,
+  `CelestialSky`'s `starOpacity`, `RpgLevelPanel`'s `domAmbientTint`/`bgNight`/`moonPresence`) keeps
+  reading that single scalar and knows nothing about clouds. `illumMultiplier` is also emitted, but
+  **diagnostic/test only — nothing may ever multiply it in again.**
+- **`SkyGradientBackdrop` colour (§372's pipeline, bookended).** The per-stop pipeline is now four
+  ordered ops in the exported, unit-testable `cloudSkyStop(dayStop, f, illum, cloudCoverT, flatBase)`:
+  1. *(new)* **CLEAR saturation boost** — rotate the stop away from its OWN Rec.601 luma by
+     `CLEAR_SAT_GAIN (0.45) × clearWeightAt(f) × clearness`, where `clearWeightAt(f)` falls from 1.0 at
+     the top stop ("het blauw blauwer") to `CLEAR_HORIZON_SHARE (0.45)` at the horizon ("de witte fade
+     minder wit" — saturating a near-white stop is what pulls its residual cyan back out). Saturating
+     the *sampled art* rather than lerping toward an invented blue means it keeps working if Han ever
+     repaints layer-5 (§6c).
+  2. **`mixNight(c, illum)` — UNCHANGED.**
+  3. **The dusk/dawn `sunsetFactor` lerp — UNCHANGED**, except its weight is additionally scaled by
+     `(1 − collapseT)`: a pink horizon under a solid cloud sheet would be wrong.
+  4. *(new)* **Flat-sheet collapse** — `lerpRgb(c, sheet, collapseT)`, where the sheet is DERIVED from
+     the sampled art: `cloudFlatBase(dayStops)` = the whitest sampled stop, fully desaturated, scaled by
+     `lerp(1, OVERCAST_DARK_SCALE (0.55), darkT) × lerp(1, OVERCAST_NIGHT_DIM (0.45), 1 − illum)`.
+
+  **`mixNight` is never bypassed and there is no threshold anywhere in the component** — the sheet is
+  simply lerped over its result, and carries its own night dim. So an overcast sky is the same flat
+  grey day AND night, only dimmer at night (Han, plan_review Q2 = ja), and at LIGHT/CLEAR op 4 is a
+  mathematical no-op.
+- **"Vlekkerig" — the procedural mottle canvas.** A sibling `<canvas>` inside `SkyGradientBackdrop`
+  (the mottle IS the sky; it must never separate from the gradient), sized to `viewport / zoom` GAME
+  pixels, `imageRendering: 'pixelated'`, integer `fillRect` only — the CelestialSky convention. Split
+  into two passes:
+  - **FIELD pass** (keyed on size + seed): a two-octave value-noise field — an integer
+    xorshift-multiply `hash2`, bilinear interpolation through the file's existing `smoothstep`, octave
+    A at `MOTTLE_CELL_GPX = 24` game px and octave B at half that (derived), mixed by
+    `MOTTLE_OCTAVE_MIX = 0.35`, contrast-stretched by `MOTTLE_CONTRAST = 1.6`, then **quantised to
+    `MOTTLE_LEVELS = 4` alpha levels** (level 0 = absent). Quantising a smoothly interpolated field is
+    what makes it read as hard-edged pixel-art blotches with ZERO blur — the same discipline as
+    `SUN_GLOW_RINGS` / `MOON_SHADE`. Never a CSS/radial gradient, never `ctx.arc`, never a filter.
+  - **PAINT pass** (keyed on the field + the quantised cover): `peakAlpha = MOTTLE_PEAK_ALPHA (0.35) ×
+    collapseT` — if 0, the canvas is simply left empty, so CLEAR and LIGHT pay literally nothing. Blob
+    colour lerps WHITE → `flatBase × MOTTLE_SHADOW_SCALE (0.62)` on `darkT` (white blobs at OVERCAST,
+    cool grey at DARK_OVERCAST), and each row is run-length encoded into one `fillRect` per run of
+    equal level.
+  - **The seed** is `weather.cloudSeed`, rolled ONCE in `createWeatherState()` and carried through
+    `weatherCycleStore` — stable for the whole session and across a music LEVEL, never `Math.random` at
+    mount. So the blob SHAPES never change; only tint and alpha ease (Han, plan_review Q3 = akkoord).
+    Regenerating the field on a *type* change would visibly swap the pattern at the START of an ease,
+    while the old pattern is still at full alpha — a pop.
+- **`CelestialSky` visibility.** No new prop: the draw callback already calls
+  `weatherOutputs(weatherRef.current)`, so it simply also destructures `cloudCoverT`. Four pass-groups,
+  each gated by ONE continuous multiply:
+  - **stars** `× (1 − collapseT)`. Because the constellation LINES and NAMES passes are nested inside
+    the existing `alpha >= STAR_ALPHA_FLOOR` guard and derive their own alpha from the star alpha, that
+    single multiplication hides all three, as a 10 s fade rather than a pop.
+  - **moon disc** `× (1 − collapseT)` (`drawMoonDisc` now takes its alpha as a parameter instead of the
+    `MOON_DISC_ALPHA` constant), and the visibility condition gains `moonAlpha >= STAR_ALPHA_FLOOR` so
+    the 169-pixel terminator loop is skipped entirely when invisible. `STAR_ALPHA_FLOOR` is REUSED as
+    the shared "too faint to bother" floor, never duplicated.
+  - **sun** `× (1 − darkT)` — gone entirely at DARK_OVERCAST.
+  - **the "waterige" sun**, `wet = collapseT`, built from the EXISTING `SUN_GLOW_RINGS` mechanism and
+    never a blur or shadow: the radius grows by `SUN_WATERY_R_GAIN (0.6)`, the two existing rings widen
+    with it and dim toward `SUN_WET_RING_ALPHA_SCALE (0.6)`, two EXTRA soft rings of the identical
+    `{pad, alpha}` shape (`SUN_WET_EXTRA_RINGS`) fade in, a `SUN_WET_BODY_ALPHA (0.5)` diffuse body is
+    added, and the hard `SUN_CORE` is faded out by `(1 − wet)`. The sink-behind-the-scenery condition is
+    recomputed with the watery radius so the bigger disc still sinks correctly. At `wet = 0` every new
+    term is multiplied by 0 and `sunR === SUN_R_GPX`, so CLEAR/LIGHT render bit-identically to §374.
+  - Debug **orbit paths and live position markers are deliberately NOT gated** — they are debug
+    affordances, and Han must still be able to see where the hidden sun/moon are.
+- **Moonlight consistency (Han, plan_review Q1 = ja).** `foliageParams.moonShine` (§374 UAT r2) drives
+  the parallax-bg moon RIM and the WebGL moonlight sheen from the moon's REAL position, which under
+  OVERCAST/DARK would light the world from a moon that is not drawn. `quantMoonShine` therefore
+  multiplies by the SAME `(1 − cloudCollapseT(cloudCoverT))` factor `CelestialSky` uses for the disc —
+  one source of truth, so "moon hidden" and "no moonlight" can never disagree. This is not a second
+  darkness knob: it is the EXISTING moon knob, gated.
+- **The debug picker.** A `LevelPicker` labelled **"Weather"** (Clear / Light / Overcast / Dark) in the
+  World debug panel, between "Wind" and "Moon phase" →
+  `commitWeather(seekCloud(weatherRef.current, type))`. `CLOUD_PICK_LABELS` holds display-only short
+  labels; the canonical `CLOUD_TYPES` keys are what reach `seekCloud`. The panel's existing reset
+  button (`commitWeather(createWeatherState())`) now also re-rolls the cloud track and its seed.
+
+**Invariants.**
+
+- **The raw continuous `cloudCoverT` must NEVER enter `RpgLevelPanel`'s per-tick change-detection
+  lists** — the §374 invariant, extended. It appears in exactly ONE place in the whole app:
+  `CelestialSky`'s draw callback, read off `weatherRef`. The tick loop's `setWeather` (render-only) list
+  gained only two DISCRETE terms — `cloudType` (a string, changes at most once per 60–120 s) and
+  `quantCloudCover` (0.05 steps ⇒ ≤20 renders over a 10 s transition, 0 while settled, the same
+  convention as `bgNight` / `quantMoonShine`). The `pushWeatherToFoliage` list gained **nothing**:
+  during a cloud ease `globalIllumination` itself moves, so its existing `>= 0.004` term already
+  re-pushes at the right moments.
+- **Nothing re-multiplies `illumMultiplier`.** It is folded into `globalIllumination` inside
+  `weatherOutputs` and nowhere else; the emitted `illumMultiplier` field is diagnostic only.
+- **LIGHT is bit-identical to pre-§375** — proven by a unit test, not eyeballed: `cloudSkyStop` at
+  `CLOUD_COVER.LIGHT` equals the old `mixNight` + sunset result exactly, for every illum and every stop
+  fraction.
+- A **legacy persisted state with no cloud fields defaults to LIGHT** (every ramp 0 ⇒ "unchanged") and
+  has a fresh mottle seed rolled on its first `tickWeather` — `weatherOutputs` stays a pure derivation
+  and never rolls anything.
+- `tickWeather` remains **pure** (spreads, never mutates) and adds **no new timer**.
+- CLAUDE.md §3a (debug hit boxes) is **N/A**: the mottle canvas has `pointerEvents: 'none'` and no
+  handlers; the "Weather" picker reuses the existing `LevelPicker` buttons, which are real DOM buttons
+  with their own hit region.
+- **Cloud SPRITES per parallax layer are a separate future phase** (Han supplies the art).
+
+**Files:** `src/components/character/weatherCycle.js` (the cloud track: constants, `CLOUD_BAG`, the
+three ramps, `cloudIllumMultiplier`, `pickCloud`, state fields incl. `cloudSeed`, the two `tickWeather`
+blocks, `seekCloud`, the `weatherOutputs` additions and the single `globalIllumination` line),
+`src/components/character/SkyGradientBackdrop.jsx` (`cloudSkyStop` / `cloudFlatBase` / `sunsetWeightAt`
+exports, the mottle field + paint passes and the sibling canvas, new `cloudCoverT` / `cloudSeed` /
+`sizePx` / `zoom` props), `src/components/character/CelestialSky.jsx` (cloud read off `weatherRef`, the
+four gated pass-groups, `drawMoonDisc` alpha parameter, the watery-sun constants, `CLOUD_EPSILON` in
+the identical-frame early-out), `src/components/character/RpgLevelPanel.jsx` (`quantCloudCover`,
+`quantMoonShine` × `(1 − collapseT)`, two discrete terms in the `setWeather` list, the
+`<SkyGradientBackdrop>` props, the "Weather" `LevelPicker` + `CLOUD_PICK_LABELS`), `CLAUDE.md`
+(E039-SKY-MOTTLE-PAINT). Tests: the four `§375 cloud cover` describes in
+`src/components/character/__tests__/weatherCycle.test.js` and the `§375 cloudSkyStop` describe in
+`src/components/character/__tests__/skyGradientBackdrop.test.js`. New error code
+**E039-SKY-MOTTLE-PAINT** — building or painting the mottle threw; the mottle is skipped and the
+rendered gradient underneath survives, the same boundary reasoning as E036-SKY-SAMPLE in the same file.
+
+**Cross-references.** §360 (the auto weather cycle) now has a THIRD track; §372
+(`SkyGradientBackdrop`) owns the gradient this recolours and the canvas this sits on; §374
+(`CelestialSky`) owns the sun/moon/stars this hides and the `moonShine` knob this gates; §141 owns
+`HORIZON_PX`; §334 owns `worldScale`, the `zoom` the mottle canvas is sized against.
+
+**Note.** §374 was the last section header, so this is §375.

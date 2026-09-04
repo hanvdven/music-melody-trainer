@@ -1,12 +1,15 @@
 // Auto weer-cyclus voor de RPG-wereld (Han 2026-09-01).
 //
 // Purpose: the walkable world varies its own "weather" instead of Han having to poke the debug
-// pickers. Two independent tracks, both with *gradual* transitions so nothing ever jump-cuts:
+// pickers. THREE independent tracks, all with *gradual* transitions so nothing ever jump-cuts:
 //
 //   • WIND   — every WIND_INTERVAL_S seconds a new random speed 0..3 (weighted toward 1, drawn WITH
 //              replacement so repeats are allowed), eased toward over WIND_FADE_S seconds.
 //   • TIME OF DAY — a fixed loop  day → dusk → night → dawn → (repeat)  with per-phase durations
 //              from TIME_PHASES, the global illumination eased over TIME_FADE_S at every phase edge.
+//   • CLOUD COVER (§375, #1192) — every CLOUD_INTERVAL_MIN_S..MAX_S seconds a new type from
+//              CLOUD_TYPES (weighted toward LIGHT, same bag shape as wind), eased over CLOUD_FADE_S.
+//              See the §375 block below for the one-scalar / three-ramp model.
 //
 // When the illumination phase turns to dusk (day→night) or dawn (night→day) the on-screen critter
 // set has to swap day↔night. Han's spec: fade the critter layer OUT over CRITTER_FADE_S, re-roll the
@@ -86,8 +89,88 @@ export function pickWind(rand = Math.random) {
     return WIND_BAG[Math.floor(rand() * WIND_BAG.length)];
 }
 
+// ---------------------------------------------------------------------------------------------
+// §375 "weertypen" (#1192, Han 2026-09-04) — the THIRD auto-cycling track: cloud cover.
+//
+// Han: "DONKER BEWOLKT: lucht is grijs en vlekkerig, globalIllumination iets omlaag, zon EN maan niet
+// zichtbaar. BEWOLKT: achtergrond wit + vlekkerig, de zon is waterig achter de wolken; maan en sterren
+// niet zichtbaar. LICHT BEWOLKT: as is. HELDER: maak de witte fade minder wit en het blauw blauwer."
+//
+// THE WHOLE FEATURE IS ONE SCALAR. The four types are four positions on ONE continuous axis
+// (`cloudCoverT`, 0..1), and every renderer expresses its look as a lerp over one of the three ramps
+// below — there is not a single `if (cloudType === ...)` anywhere downstream. That is what makes a
+// transition ease *through* the intermediate looks automatically ("no jump-cuts") and what makes
+// LIGHT byte-for-byte identical to the pre-§375 world BY CONSTRUCTION rather than by a special case:
+// at LIGHT all three ramps are exactly 0, so every new term multiplies out.
+export const CLOUD_TYPES = ['CLEAR', 'LIGHT', 'OVERCAST', 'DARK_OVERCAST'];   // increasing cover
+export const DEFAULT_CLOUD_TYPE = 'LIGHT';   // ac8: a persisted state with no cloud fields = "as is"
+
+// The ONLY free number on the axis. OVERCAST is DERIVED as the midpoint of LIGHT..DARK_OVERCAST so the
+// two upper segments are equal in width — a table of four hand-picked levels would silently stop
+// making sense the moment this one value is retuned (CLAUDE.md §6c).
+const CLOUD_LIGHT_COVER = 0.25;
+export const CLOUD_COVER = {
+    CLEAR: 0,
+    LIGHT: CLOUD_LIGHT_COVER,
+    OVERCAST: (CLOUD_LIGHT_COVER + 1) / 2,
+    DARK_OVERCAST: 1,
+};
+
+// DERIVED from the wind bag (§6c): the SAME 1/7 · 3/7 · 2/7 · 1/7 weighting, mapped onto the four
+// cover levels in increasing order ⇒ weighted toward LIGHT (3/7), with CLEAR and DARK_OVERCAST equally
+// rare (1/7 each). One weighting shape in this file, two tracks reading it.
+export const CLOUD_BAG = WIND_BAG.map((n) => CLOUD_TYPES[n]);
+
+// Han's "elke ~60-120 s een nieuw weertype". MAX is derived from MIN so there is one knob, not two.
+export const CLOUD_INTERVAL_MIN_S = 60;
+export const CLOUD_INTERVAL_MAX_S = 2 * CLOUD_INTERVAL_MIN_S;
+// The SAME 10 s ease the illumination crossfade uses — a cloud sheet rolling in should feel like the
+// light changing, not like a separate effect on its own clock.
+export const CLOUD_FADE_S = TIME_FADE_S;
+// One 0.1 illumination drop per cover STEP above LIGHT ⇒ 1.0 / 1.0 / 0.9 / 0.8 across the four types,
+// from one formula (see `cloudIllumMultiplier`) instead of a 4-entry table.
+export const CLOUD_ILLUM_DROP_STEP = 0.1;
+// Range of the mottle-noise seed (see §375 / SkyGradientBackdrop). 2^31, so it stays a safe int32 for
+// the `Math.imul` hash.
+const CLOUD_SEED_RANGE = 2147483648;
+// Deterministic stand-in for a state that predates the cloud track and has never been ticked. Real
+// states roll their own in `createWeatherState` / on the first `tickWeather` (see there).
+const DEFAULT_CLOUD_SEED = 0;
+
+// The THREE ramps. Between them they partition the axis, and every visual in §375 is a lerp over one
+// of { clearness, collapseT, darkT, 1-collapseT, 1-darkT } — nothing else.
+/** 1 at CLEAR → 0 at LIGHT and above. Drives "bluer sky, less white horizon". */
+export function cloudClearness(t) {
+    return clamp01((CLOUD_COVER.LIGHT - t) / (CLOUD_COVER.LIGHT - CLOUD_COVER.CLEAR));
+}
+/** 0 at LIGHT and below → 1 at OVERCAST and above. Drives the flat sheet, the mottle, hiding the moon/stars. */
+export function cloudCollapseT(t) {
+    return clamp01((t - CLOUD_COVER.LIGHT) / (CLOUD_COVER.OVERCAST - CLOUD_COVER.LIGHT));
+}
+/** 0 at OVERCAST and below → 1 at DARK_OVERCAST. Drives grey-vs-white and hiding the sun. */
+export function cloudDarkT(t) {
+    return clamp01((t - CLOUD_COVER.OVERCAST) / (CLOUD_COVER.DARK_OVERCAST - CLOUD_COVER.OVERCAST));
+}
+
+/** 1.0 CLEAR · 1.0 LIGHT · 0.9 OVERCAST · 0.8 DARK_OVERCAST — Han's locked values, as a formula. */
+export function cloudIllumMultiplier(t) {
+    return 1 - CLOUD_ILLUM_DROP_STEP * (cloudCollapseT(t) + cloudDarkT(t));
+}
+
+export function pickCloud(rand = Math.random) {
+    return CLOUD_BAG[Math.floor(rand() * CLOUD_BAG.length)];
+}
+
+// A fresh 60..120 s draw interval. Unlike wind (a fixed 30 s) the cloud draw interval is a RANGE, so
+// it is re-rolled at every draw and carried on the state.
+function pickCloudInterval(rand) {
+    return CLOUD_INTERVAL_MIN_S + rand() * (CLOUD_INTERVAL_MAX_S - CLOUD_INTERVAL_MIN_S);
+}
+
 // Fresh cycle: full daylight, calm-ish wind (1), no transition in flight, first wind draw in 30 s.
-export function createWeatherState() {
+// `rand` is a parameter (not a bare `Math.random`) purely so tests can pin the first cloud interval
+// and the mottle seed; every existing call site passes nothing and is unaffected.
+export function createWeatherState(rand = Math.random) {
     return {
         phaseIndex: 0,
         phaseElapsed: 0,
@@ -111,6 +194,22 @@ export function createWeatherState() {
         windFadeElapsed: WIND_FADE_S,    // >= WIND_FADE_S ⇒ settled
         windTimer: 0,                    // seconds since the last draw
         wind3HoldS: 0,                   // §365: seconds a settled wind-3 gust has been held (cap at WIND_GUST3_HOLD_S)
+        // §375 cloud-cover fade — field-for-field the twin of the wind block above, which is exactly
+        // why freezing/resuming the cycle through `weatherCycleStore` needs no migration at all.
+        cloudType: DEFAULT_CLOUD_TYPE,               // destination TYPE — what the debug picker shows
+        cloudCover: CLOUD_COVER[DEFAULT_CLOUD_TYPE], // eased CURRENT value          (twin of: wind)
+        cloudFrom: CLOUD_COVER[DEFAULT_CLOUD_TYPE],  //                              (twin of: windFrom)
+        cloudTo: CLOUD_COVER[DEFAULT_CLOUD_TYPE],    //                              (twin of: windTo)
+        cloudFadeElapsed: CLOUD_FADE_S,              // >= CLOUD_FADE_S ⇒ settled    (twin of: windFadeElapsed)
+        cloudTimer: 0,                               // seconds since the last draw  (twin of: windTimer)
+        // The one place the cloud track differs from wind: its draw interval is a RANGE (60..120 s),
+        // so the currently-rolled interval has to live on the state rather than being a constant.
+        cloudNextDrawS: pickCloudInterval(rand),
+        // §375: seed for the procedural mottle noise field (SkyGradientBackdrop). Rolled ONCE, here,
+        // and carried through `weatherCycleStore` — so the blob pattern is stable for the whole
+        // session and survives a music LEVEL. Han (plan_review Q3): the shapes must NOT change while
+        // a cloud type eases in, or the pattern visibly "pops" at full alpha; only tint and alpha fade.
+        cloudSeed: Math.floor(rand() * CLOUD_SEED_RANGE),
         // critter day↔night crossfade
         critterKind: 'day',
         critterSwapElapsed: -1,          // -1 ⇒ idle; else 0..(2*CRITTER_FADE_S)
@@ -147,6 +246,21 @@ export function tickWeather(state, dtSeconds, rand = Math.random) {
     } else {
         s.wind = s.windTo;
     }
+
+    // --- §375 cloud-cover fade ---
+    // Byte-for-byte parallel to the wind fade above. The `??` fallbacks are the ac8 legacy tolerance
+    // (a state persisted before §375 has none of these fields) — the same pattern §374 used for
+    // `lunationOverride`.
+    const cloudFade = s.cloudFadeElapsed ?? CLOUD_FADE_S;
+    if (cloudFade < CLOUD_FADE_S) {
+        s.cloudFadeElapsed = Math.min(cloudFade + dt, CLOUD_FADE_S);
+        s.cloudCover = lerp(s.cloudFrom, s.cloudTo, easeInOut(s.cloudFadeElapsed / CLOUD_FADE_S));
+    } else {
+        s.cloudCover = s.cloudTo ?? CLOUD_COVER[DEFAULT_CLOUD_TYPE];
+    }
+    // A legacy state has no mottle seed. Roll one ONCE here, where `rand` is available —
+    // `weatherOutputs` is a pure derivation and must never roll anything.
+    if (s.cloudSeed == null) s.cloudSeed = Math.floor(rand() * CLOUD_SEED_RANGE);
 
     // --- §365: cap a full-strength gust (wind 3) ---
     // Once a wind-3 gust has fully settled, hold WIND_GUST3_HOLD_S then ease it down to 2 and restart
@@ -203,6 +317,20 @@ export function tickWeather(state, dtSeconds, rand = Math.random) {
         s.windFadeElapsed = 0;
     }
 
+    // --- §375 cloud draw timer ---
+    // Same accumulator shape as the wind draw timer directly above — no new timer and no wall clock,
+    // which is what keeps freeze/resume through `weatherCycleStore` working untouched.
+    const nextDrawS = s.cloudNextDrawS ?? CLOUD_INTERVAL_MIN_S;
+    s.cloudTimer = (s.cloudTimer ?? 0) + dt;
+    if (s.cloudTimer >= nextDrawS) {
+        s.cloudTimer -= nextDrawS;
+        s.cloudNextDrawS = pickCloudInterval(rand);   // a NEW 60..120 s interval every draw
+        s.cloudType = pickCloud(rand);                // repeats allowed (with replacement, like wind)
+        s.cloudFrom = s.cloudCover;                   // ease FROM wherever we currently are
+        s.cloudTo = CLOUD_COVER[s.cloudType];
+        s.cloudFadeElapsed = 0;
+    }
+
     return s;
 }
 
@@ -231,6 +359,22 @@ export function seekWind(state, n) {
         windFadeElapsed: 0,
         windTimer: 0,
         wind3HoldS: 0,   // §365: a manually-picked 3 also gets the 10 s cap
+    };
+}
+
+// §375 picker action: ease toward cloud type `type` over CLOUD_FADE_S and restart the draw timer, so
+// the auto-cycle simply carries on from there (ac1). `cloudNextDrawS` is deliberately left as-is — it
+// is already a valid 60..120 s interval, and re-rolling it would need a `rand` the picker has no
+// business supplying. Exactly the shape of `seekWind`.
+export function seekCloud(state, type) {
+    if (!(type in CLOUD_COVER)) return state;   // unknown ⇒ no-op, mirrors seekPhase
+    return {
+        ...state,
+        cloudType: type,
+        cloudFrom: state.cloudCover ?? CLOUD_COVER[DEFAULT_CLOUD_TYPE],
+        cloudTo: CLOUD_COVER[type],
+        cloudFadeElapsed: 0,
+        cloudTimer: 0,
     };
 }
 
@@ -265,8 +409,18 @@ export function weatherOutputs(state) {
     const lunationPhase = state.lunationOverride != null
         ? state.lunationOverride
         : ((state.cyclesElapsed + cycleT) % CYCLES_PER_LUNATION) / CYCLES_PER_LUNATION;
+    // §375: the eased cloud-cover scalar and the ONE illumination multiplier derived from it. `??` is
+    // the ac8 legacy tolerance — a state from before §375 reads as LIGHT, whose multiplier is exactly
+    // 1.0, so `globalIllumination` below is then bit-for-bit the pre-§375 value.
+    const cloudCoverT = state.cloudCover ?? CLOUD_COVER[DEFAULT_CLOUD_TYPE];
+    const illumMultiplier = cloudIllumMultiplier(cloudCoverT);
     return {
-        globalIllumination: state.illum,
+        // §375 (cr3): the cloud darkening folds in HERE, in this one line, and nowhere else. Every
+        // downstream consumer (the WebGL shaders' uMix, LdtkLitGround, WaterReflectionLayer's CSS
+        // brightness, SkyGradientBackdrop's mixNight/sunsetFactor, CelestialSky's starOpacity,
+        // RpgLevelPanel's domAmbientTint/bgNight/moonPresence) keeps reading this single scalar and
+        // knows nothing about clouds. There is no second darkness knob.
+        globalIllumination: state.illum * illumMultiplier,
         windValue: state.wind,
         // 0..1 over the whole 480 s loop (day 0 · dusk 0.5 · night 0.625 · dawn 0.875).
         cycleT,
@@ -280,5 +434,13 @@ export function weatherOutputs(state) {
         phaseName: phase.name,       // 'day' | 'dusk' | 'night' | 'dawn' — for the debug picker's selection
         critterKind: state.critterKind,   // 'day' | 'night' — drives which critter pool is rolled
         critterOpacity,              // 0..1 — opacity of the whole critter layer during a swap
+        // §375 cloud cover.
+        cloudType: state.cloudType ?? DEFAULT_CLOUD_TYPE,   // string — for the debug picker + the docs
+        cloudCoverT,                 // 0..1 eased — THE canonical scalar every cloud visual derives from
+        // DIAGNOSTIC / TEST ONLY: already folded into `globalIllumination` above — NEVER multiply this
+        // in again (cr3).
+        illumMultiplier,
+        // §375: the mottle-noise seed, so the sky layer can key its cached noise field on it.
+        cloudSeed: state.cloudSeed ?? DEFAULT_CLOUD_SEED,
     };
 }

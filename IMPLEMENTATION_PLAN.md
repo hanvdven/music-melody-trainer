@@ -8350,3 +8350,40 @@ van het gele-wizard-werk. App-breed.
 **Status:** 🐞 backlog — losstaand van de gele-wizard-feature. Vereist eigen interview (§4b)
 vóór fix: welke pauze-paden (header-pauze / mid-level-overlay / tab-switch), en moet resume
 naadloos verder of met de bestaande 1-maat count-in.
+
+
+---
+
+## ✅ #1192 Weertypen — de cloud-cover as (helder / licht bewolkt / bewolkt / donker bewolkt)
+
+Han (2026-09-04): vierde weertype-as naast wind en time-of-day. DONKER BEWOLKT = grijs +
+vlekkerig, illum omlaag, zon EN maan weg. BEWOLKT = wit + vlekkerig, waterige zon, maan/sterren
+weg. LICHT BEWOLKT = as is. HELDER = minder witte horizon-fade, blauwer blauw.
+Wolkensprites per parallaxlaag: **buiten scope** (Han levert de art later).
+
+**Mechanisme (design + plan goedgekeurd, plan_review Q1-Q4 beantwoord):** ÉÉN eased scalar
+`cloudCoverT` (0..1) + DRIE afgeleide ramps (`cloudClearness` / `cloudCollapseT` / `cloudDarkT`).
+Geen enkele `if (cloudType === ...)` in een renderer — de vier types zijn vier posities op één
+as, elke visual is een lerp over één ramp. LIGHT = alle ramps 0 ⇒ bit-identiek aan vóór #1192.
+
+- ✅ `weatherCycle.js` — 4e auto-track (60-120 s draw, 10 s ease, `CLOUD_BAG` afgeleid van
+  `WIND_BAG`), `cloudSeed`, `seekCloud`, `cloudIllumMultiplier` = `1 - 0.1*(collapseT+darkT)`
+  ⇒ 1.0 / 1.0 / 0.9 / 0.8. `globalIllumination = illum × illumMultiplier` op ÉÉN regel (cr3).
+- ✅ `SkyGradientBackdrop.jsx` — 4-ops kleurpijplijn (`cloudSkyStop`); `mixNight` / `sunsetFactor`
+  onaangeroerd en NOOIT gebypasst. Nieuwe procedurele pixel-art "mottle" canvas: 2-octaaf value
+  noise, gequantiseerd naar 4 alpha-niveaus, field-pass (size+seed) en paint-pass (tint+alpha)
+  gesplitst zodat het vlekkenpatroon niet "springt" tijdens een overgang.
+- ✅ `CelestialSky.jsx` — sterren/sterrenbeelden/maan × (1-collapseT), zon × (1-darkT), waterige
+  zon via het bestaande `SUN_GLOW_RINGS`-mechanisme (2 extra ringen, harde core uitgefade).
+- ✅ `RpgLevelPanel.jsx` — "Weather" LevelPicker, `quantCloudCover` (0.05-stap), `quantMoonShine`
+  × (1-collapseT) zodat een bewolkte nacht niet belicht wordt door een onzichtbare maan (Q1=ja).
+  Rauwe `cloudCoverT` komt in GEEN change-detection lijst (§374-invariant, uitgebreid).
+- ✅ Tests: 4 nieuwe describes in `weatherCycle.test.js` + `§375 cloudSkyStop` in
+  `skyGradientBackdrop.test.js`. Gates: 1461 tests groen, build OK, lint 0 errors.
+- ✅ Docs: `docs/architecture.md` §375; `CLAUDE.md` §7a `E039-SKY-MOTTLE-PAINT`.
+- ⏳ Vervolgfase: wolkensprites per parallaxlaag zodra Han de art levert.
+
+**UAT-tuneknoppen (allemaal genoemde constanten):** `OVERCAST_NIGHT_DIM` (0.45 — hoe donker is
+een bewolkte nacht), `OVERCAST_DARK_SCALE` (0.55), `CLEAR_SAT_GAIN` (0.45) /
+`CLEAR_HORIZON_SHARE` (0.45), `MOTTLE_CELL_GPX` (24) / `MOTTLE_PEAK_ALPHA` (0.35) /
+`MOTTLE_CONTRAST` (1.6), `SUN_WATERY_R_GAIN` (0.6).

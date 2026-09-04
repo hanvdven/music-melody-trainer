@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import logger from '../../utils/logger';
-import { weatherOutputs } from './weatherCycle';
+import { weatherOutputs, cloudCollapseT, cloudDarkT } from './weatherCycle';
 import {
     SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG,
     localSiderealDeg, altAz, projectToScreen, degPerPx,
@@ -63,6 +63,16 @@ const SUN_GLOW = '255, 233, 160';
 // Two QUANTISED alpha rings rather than a smooth radial gradient — same pixel-art spirit as the
 // foliage shader's waveSteps/dither. A real gradient reads as a blurry blob at this scale.
 const SUN_GLOW_RINGS = [{ pad: 6, alpha: 0.10 }, { pad: 3, alpha: 0.22 }];
+// §375 (#1192) — the "waterige" (diffuse) sun under BEWOLKT. Built from the SAME quantised-ring
+// mechanism above, never a blur or a shadow (cr5): the disc grows, the existing rings widen and dim,
+// two EXTRA soft outer rings of the identical {pad, alpha} shape appear, a low-alpha diffuse body is
+// added, and the hard SUN_CORE is faded out entirely. Every term is multiplied by `wet`, so at
+// CLEAR/LIGHT (wet = 0) the sun renders bit-identically to pre-§375.
+const SUN_WATERY_R_GAIN = 0.6;          // r 7 (dry) → 11 (fully wet)
+const SUN_WET_RING_ALPHA_SCALE = 0.6;   // the two existing rings dim to 60 % when fully wet
+const SUN_WET_BODY_ALPHA = 0.5;         // the soft diffuse body that replaces the core
+const SUN_WET_EXTRA_RINGS = [{ pad: 9, alpha: 0.05 }, { pad: 5, alpha: 0.08 }];
+const lerpNum = (a, b, t) => a + (b - a) * t;
 const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0
 const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the grey of the unlit disc
 // §374 UAT r4 (Han, screenshot of the day moon: "de gradient in het midden is donkerder dan het
@@ -99,11 +109,14 @@ const DEBUG_SUN_PATH = '#ffcc66';  // warm
 const DEBUG_MOON_PATH = '#88bbff'; // cool
 const DEBUG_PATH_SAMPLES = 120;
 
-// Below this the star pass is skipped entirely (full daylight) — ac2 for free, and no wasted work in
-// the commonest case.
+// The shared "too faint to bother drawing" floor. Below this the star pass is skipped entirely (full
+// daylight) — and, since §375, so is the moon disc once cloud cover has faded it out.
 const STAR_ALPHA_FLOOR = 0.01;
 // The SAME illumination epsilon the weather loop already uses for its own change detection.
 const ILLUM_EPSILON = 0.004;
+// §375: the equivalent epsilon for the cloud-cover scalar. Belt-and-braces only — `cycleT` moves every
+// frame anyway — but it keeps the "skip only a byte-for-byte identical frame" contract honest.
+const CLOUD_EPSILON = 0.002;
 
 /**
  * A filled pixel-art disc: one integer `fillRect` span per row. Never `ctx.arc()` — that antialiases
@@ -136,9 +149,12 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  * each side. UAT r4: one uniform `MOON_DISC_ALPHA` for every shade (only the colour ramps), and the
  * disc outline comes from `discHalfWidth` (≥3 px poles), not a `dx²+dy² ≤ r²` circle test. 169 tests
  * per redraw at R = 6 — negligible.
+ *
+ * §375: `alpha` is passed in rather than being the `MOON_DISC_ALPHA` constant, so cloud cover can fade
+ * the whole disc out through the SAME single multiply everything else uses.
  */
-function drawMoonDisc(ctx, cx, cy, r, k, sx, sy) {
-    ctx.globalAlpha = MOON_DISC_ALPHA;
+function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alpha) {
+    ctx.globalAlpha = alpha;
     for (let dy = -r; dy <= r; dy++) {
         const halfW = discHalfWidth(r, dy);
         if (halfW < 0) continue;
@@ -208,6 +224,7 @@ export default function CelestialSky({
     // the next tick to redraw (used on mount and whenever a layout/toggle prop changes).
     const lastCycleTRef = useRef(null);
     const lastIllumRef = useRef(null);
+    const lastCloudCoverRef = useRef(null);
     const fontReadyRef = useRef(false);
 
     const Wpx = sizePx.w > 0 && zoom > 0 ? Math.round(sizePx.w / zoom) : 0;
@@ -243,9 +260,18 @@ export default function CelestialSky({
         const canvas = canvasRef.current;
         if (!canvas || Wpx <= 0 || Hpx <= 0) return;
         try {
-            const { cycleT, lunationPhase } = weatherOutputs(weatherRef.current);
+            // §375 (#1192): `cloudCoverT` is read HERE, off `weatherRef`, inside the draw callback —
+            // exactly like `cycleT`. It is a continuous per-frame value, so it must never reach React
+            // state, a prop, or RpgLevelPanel's weather change-detection lists. This is the ONLY place
+            // in the whole app that touches the raw (unquantised) scalar.
+            const { cycleT, lunationPhase, cloudCoverT } = weatherOutputs(weatherRef.current);
             const illum = illumRef.current;
             const dpp = degPerPx(Wpx);
+            // Four pass-groups, each gated by ONE continuous multiply — no `if (cloudType === ...)`
+            // anywhere. The four weather types are just four positions on this one axis.
+            const bodyAlphaMul = 1 - cloudCollapseT(cloudCoverT);   // stars, constellations, moon
+            const sunAlphaMul = 1 - cloudDarkT(cloudCoverT);        // sun
+            const wet = cloudCollapseT(cloudCoverT);                // 0 = crisp .. 1 = fully watery
 
             // Skip ONLY a byte-for-byte identical frame (frozen clock AND settled illumination). Any
             // motion at all redraws — each star then advances at most one game pixel per frame, which
@@ -255,12 +281,14 @@ export default function CelestialSky({
             if (
                 lastCycleTRef.current != null &&
                 cycleT === lastCycleTRef.current &&
-                Math.abs(illum - lastIllumRef.current) < ILLUM_EPSILON
+                Math.abs(illum - lastIllumRef.current) < ILLUM_EPSILON &&
+                Math.abs(cloudCoverT - lastCloudCoverRef.current) < CLOUD_EPSILON
             ) {
                 return;
             }
             lastCycleTRef.current = cycleT;
             lastIllumRef.current = illum;
+            lastCloudCoverRef.current = cloudCoverT;
 
             const ctx = canvas.getContext('2d');
             ctx.imageSmoothingEnabled = false;
@@ -279,7 +307,10 @@ export default function CelestialSky({
 
             const geom = { Wpx, horizonY };
             const lst = localSiderealDeg(cycleT, lunationPhase);
-            const alpha = starOpacity(illum);
+            // §375: ONE extra factor hides the stars AND — because both constellation passes are
+            // nested inside the `alpha >= STAR_ALPHA_FLOOR` guard and derive their own alpha from this
+            // one — the lines and the names too, at OVERCAST and DARK_OVERCAST. A 10 s fade, not a pop.
+            const alpha = starOpacity(illum) * bodyAlphaMul;
             const onCanvas = (x, y) => x >= 0 && y >= 0 && x < Wpx && y < Hpx;
 
             // ---- stars -------------------------------------------------------------------------
@@ -378,24 +409,43 @@ export default function CelestialSky({
             // Near new moon the moon is with the sun by day and simply absent at night (ac6).
             // The sun's SCREEN position is used even while the sun itself is below the horizon —
             // that is what keeps the crescent pointing the right way after dark.
+            // §375: the same `bodyAlphaMul` that hides the stars fades the moon out — and once it is
+            // below the shared STAR_ALPHA_FLOOR the 169-pixel terminator loop is skipped entirely.
             const inAzWindow = (pos) => Math.abs(pos.azSouthDeg) <= HALF_FOV_AZ_DEG + 10;
-            if (!moon.belowHorizon && inAzWindow(moon)) {
+            const moonAlpha = MOON_DISC_ALPHA * bodyAlphaMul;
+            if (!moon.belowHorizon && inAzWindow(moon) && moonAlpha >= STAR_ALPHA_FLOOR) {
                 const { sx, sy } = brightLimbUnitVector(moonXY, sunXY);
-                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy);
+                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy, moonAlpha);
             }
 
             // ---- sun ---------------------------------------------------------------------------
             // Drawn while its TOP edge is still above the horizon line (altitude ≥ −R·deg-per-px), so
             // it SINKS behind the parallax scenery — which is mounted in FRONT of this layer — rather
             // than popping out of existence. No clipping code needed; the scenery occludes it.
-            if (inAzWindow(sun) && sun.altDeg >= -(SUN_R_GPX * dpp)) {
+            // §375: under BEWOLKT the sun stays on its real arc but goes "waterig" — a bigger, softer,
+            // core-less diffuse blob (`wet`); under DONKER BEWOLKT `sunAlphaMul` reaches 0 and the whole
+            // pass is skipped. The sink-behind-the-scenery condition is recomputed with the WATERY
+            // radius so the bigger disc still sinks correctly.
+            const sunR = Math.round(SUN_R_GPX * (1 + SUN_WATERY_R_GAIN * wet));
+            if (sunAlphaMul > 0 && inAzWindow(sun) && sun.altDeg >= -(sunR * dpp)) {
                 for (const ring of SUN_GLOW_RINGS) {
-                    fillDisc(ctx, sunXY.x, sunXY.y, SUN_R_GPX + ring.pad, `rgba(${SUN_GLOW}, 1)`, ring.alpha);
+                    const pad = Math.round(ring.pad * (1 + SUN_WATERY_R_GAIN * wet));
+                    const a = ring.alpha * lerpNum(1, SUN_WET_RING_ALPHA_SCALE, wet) * sunAlphaMul;
+                    fillDisc(ctx, sunXY.x, sunXY.y, sunR + pad, `rgba(${SUN_GLOW}, 1)`, a);
                 }
-                fillDisc(ctx, sunXY.x, sunXY.y, SUN_R_GPX, SUN_CORE, 1);
+                if (wet > 0) {
+                    for (const ring of SUN_WET_EXTRA_RINGS) {
+                        fillDisc(ctx, sunXY.x, sunXY.y, sunR + ring.pad, `rgba(${SUN_GLOW}, 1)`, ring.alpha * wet * sunAlphaMul);
+                    }
+                    fillDisc(ctx, sunXY.x, sunXY.y, sunR, `rgba(${SUN_GLOW}, 1)`, SUN_WET_BODY_ALPHA * wet * sunAlphaMul);
+                }
+                fillDisc(ctx, sunXY.x, sunXY.y, sunR, SUN_CORE, (1 - wet) * sunAlphaMul);
             }
 
             // ---- debug live position markers ---------------------------------------------------
+            // §375: deliberately NOT gated on cloud cover (nor are the orbit paths above). They are
+            // debug affordances — Han must still be able to see WHERE the hidden sun/moon are while
+            // an overcast sheet covers them.
             if (debugMode) {
                 ctx.globalAlpha = 1;
                 for (const [xy, color, up] of [
