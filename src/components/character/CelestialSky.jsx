@@ -460,10 +460,10 @@ export default function CelestialSky({
             // below the shared STAR_ALPHA_FLOOR the 169-pixel terminator loop is skipped entirely.
             const inAzWindow = (pos) => Math.abs(pos.azSouthDeg) <= HALF_FOV_AZ_DEG + 10;
             // §377 UAT (Han, pre-test 2026-09-04: "if moon within the glow radius of the sun, make it
-            // invisible"): reuses celestialModel's OWN `SUN_GLOW_RADIUS_GPX` — the same 40 gpx the sun
-            // edge-glow masks against (cr4-style single source of truth) — as a screen-space "too close
-            // to the sun to see" cutoff. Physically apt too: near conjunction (new moon) sun and moon
-            // sit close together in the sky.
+            // invisible"): reuses celestialModel's OWN `SUN_GLOW_RADIUS_GPX` (the sun edge-glow's reach;
+            // 110 gpx since UAT r3) as a screen-space "too close to the sun to see" cutoff — one source
+            // of truth (cr4). Physically apt too: near conjunction (new moon) sun and moon sit close
+            // together in the sky.
             const nearSun = Math.hypot(moonXY.x - sunXY.x, moonXY.y - sunXY.y) < SUN_GLOW_RADIUS_GPX;
             if (!moon.belowHorizon && inAzWindow(moon) && bodyAlphaMul >= STAR_ALPHA_FLOOR && !nearSun) {
                 const { sx, sy } = brightLimbUnitVector(moonXY, sunXY);
