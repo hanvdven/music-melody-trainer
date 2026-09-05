@@ -461,6 +461,9 @@ void main() {
     // point light); this one applies everywhere, including the (currently direction-only) ambient term.
     vec3 sampledNormal = normalize(texture2D(uNormal, normalUV).rgb * 2.0 - 1.0);
     vec3 n = (uInstanceKind == 1) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
+    // Han (canopy speckle): point lights read foliage as a mostly-flat surface — the per-leaf relief
+    // was making a distant light sparkle on scattered normal-facing pixels. Moon/shimmer keep full n.
+    vec3 nPoint = (uInstanceKind == 1) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength * 0.25));
 
     // Channel 3 (Disabled) and instances with wave switched off both skip the highlight entirely —
     // trueColor is just the raw diffuse, unmodified — but global illumination + point lights (a separate
@@ -505,9 +508,14 @@ void main() {
     // REVEAL trueColor back out of the darkness (see applyPointLight) instead of adding brightness on top.
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
-    vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    vec3 lit = applyPointLights(trueColor, darkened, nPoint, worldX, groundDist, edgeFactor);
     // Legacy-mode foliage is one sprite per object — no internal tile seams, so internalEdges = 0.0 (#1221).
     float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV, 0.0);   // #weather §370
+    // Force a rim on the outermost column where the wind bent the sample past [0,W-1] (see the instanced
+    // shader's fuller comment) — one sprite, so no sister-tile check needed.
+    float windPushedOut = step(uWorldWidth - 0.5, nativeX + totalShiftPx) + step(nativeX + totalShiftPx, -0.5);
+    float atExtremeCol = step(uWorldWidth - 1.5, nativeX) + step(nativeX, 0.5);
+    moonRim = max(moonRim, min(windPushedOut, 1.0) * min(atExtremeCol, 1.0) * 0.55);
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow, masked to a screen-space disc around the sun. Reuses the SAME
     // gl_FragCoord → top-down canvas-px flip localYPx already does above (uCanvasSize.y - gl_FragCoord.y),
@@ -687,6 +695,7 @@ void main() {
     float pxPerNativeX = max(vSizePx.x / vWorldWidth, 0.0001);
     float nativeX = clamp(floor(localXPx / pxPerNativeX), 0.0, vWorldWidth - 1.0);
     float stableUVx = (nativeX + 0.5) / vWorldWidth;
+
     float worldX = vWorldCenterX + (stableUVx - 0.5) * vWorldWidth;
 
     float pxTopEdgeY = vScreenPos.y - vSizePx.y;
@@ -694,226 +703,122 @@ void main() {
     float pxPerNativeY = max(vSizePx.y / vWorldHeight, 0.0001);
     float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
     float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
+    vec2 texelSize = vec2((vDiffuseUV.z - vDiffuseUV.x) / vWorldWidth, (vDiffuseUV.w - vDiffuseUV.y) / vWorldHeight);
 
-    // PASS 1 of the render-to-texture wind (Han: "check de volgorde van acties"). This pass does ONLY
-    // the wind displacement, on the RAW diffuse — CRISP whole-pixel skew + stretch, deliberately letting
-    // an opaque source texel land where the rest sprite was transparent (that IS the bend). It outputs
-    // the wind-bent raw art to an offscreen texture. PASS 2 then lights that bent image in SCREEN space,
-    // so the rim / sheen / darkening follows the BENT silhouette and a blown-out edge pixel gets its
-    // proper glow — the thing that was broken while lighting ran before the shift.
+    bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
+    float wave01 = 0.0;
+    if (wantsWave) wave01 = computeWave01(worldX, groundDist, 0.0);
+
     float skewShiftPx = 0.0;
     float stretchShiftPx = 0.0;
-    bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
     if (vHasSkew > 0.5 && wantsWave) {
-        float wave01 = computeWave01(worldX, groundDist, 0.0);
         const float SKEW_CONTRAST = 5.0;
         float sway = clamp((wave01 - 0.5) * SKEW_CONTRAST, -1.0, 1.0);
         float heightRatio = clamp(groundDist / vWorldHeight, 0.0, 1.0);
         skewShiftPx = floor(sway * heightRatio * heightRatio * uSkewAmount + 0.5);
+
         float offsetFromCenterPx = (stableUVx - 0.5) * vWorldWidth;
         float halfWidthPx = max(vWorldWidth * 0.5, 1.0);
         stretchShiftPx = floor((-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount + 0.5);
     }
-    float shiftedNativeX = clamp(nativeX + skewShiftPx + stretchShiftPx, 0.0, vWorldWidth - 1.0);
+    float totalShiftPx = skewShiftPx + stretchShiftPx;
+
+    // The wind bend samples the SHIFTED source column — this deliberately lets an opaque source texel
+    // land where the rest sprite was transparent, so the canopy visually grows/leans into empty space
+    // (Han: het is juist de bedoeling dat pixels buiten de oorspronkelijke sprite terecht kunnen komen,
+    // dat geeft net het wind effect). Everything downstream (discard, colour, edge/rim/sheen, darken)
+    // reads this same duv so a wind-moved texel is lit exactly as itself — coherent, no half-lit
+    // ghosts. #1221's internalEdges still suppresses the per-tile atlas-cell seam. (r7's duv0 split
+    // was reverted — it froze the silhouette and killed the bend.)
+    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
     );
+    // #weather §368 r3 (Han: "allicht een probleem met het lijmen van de normal-maps? In debug zie ik dat
+    // die is opgebouwd in stroken; lijkt of die stroken strepen geven die prominent zichtbaar zijn in de
+    // nacht"). EXACTLY right: this is the instanced path, so uNormal is the shared ATLAS canvas — but
+    // normalUV was tile-local [0,1] (correct for the NON-instanced path's per-tile normal texture, wrong
+    // here). Every foliage instance was sampling the same [0,1] slice of the packed atlas = a vertical
+    // scan across ALL packed rows = the atlas's own strip layout projected onto every tile -> the
+    // horizontal stripes, worst at night when the moon lit that garbage relief. Map through vDiffuseUV
+    // (the per-instance atlas rect), identical to duv above — the diffuse and normal atlases share one
+    // packing layout (useLdtkFoliageAtlas).
+    vec2 normalUV = vec2(
+        mix(vDiffuseUV.x, vDiffuseUV.z, clamp((shiftedNativeX + 0.5) / vWorldWidth, 0.0, 1.0)),
+        mix(vDiffuseUV.y, vDiffuseUV.w, clamp((nativeY + 0.5) / vWorldHeight, 0.0, 1.0))
+    );
 
     vec4 diffuse = texture2D(uDiffuse, duv);
     if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
+
+    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, vEdgeLitOnly);
 
     if (uDebugChannel == 1) {
-        // Normal-map debug: sample the atlas normal at the SAME shifted UV so it lines up with pass 1's
-        // bent diffuse (pass 2 does the same for lighting).
-        vec2 normalUV = vec2(
-            mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
-            mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
-        );
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
-        return;
-    }
-    if (uDebugChannel == 2 && vHasWave > 0.5 && wantsWave) {
-        gl_FragColor = vec4(vec3(quantizeWave(computeWave01(worldX, groundDist, 0.0), worldX, groundDist)), 1.0);
-        return;
-    }
-
-    gl_FragColor = diffuse;   // raw wind-bent art; PASS 2 lights it in screen space
-}
-`;
-
-// PASS 2 of the render-to-texture wind (Han: "check de volgorde van acties"). Rendered with the SAME
-// VERTEX_SRC_INSTANCED over the SAME instance quads. PASS 1 already applied the wind bend to the RAW
-// diffuse; THIS pass lights that bent image in SCREEN SPACE — every edge test (edgeLightFactor,
-// moonRimFactor, sunInwardGlow) samples PASS 1's texture (uScene) at neighbouring SCREEN positions, so
-// the rim / sheen / darkening follows the BENT silhouette and a wind-blown edge pixel finally gets its
-// glow. Screen-space compositing also means adjacent tiles are just adjacent pixels — the whole #1221
-// `internalEdges` / per-tile-atlas-rect problem simply does not exist here (uvRect = the whole frame,
-// internalEdges = 0). `uNormal` is still re-sampled at the shifted UV so the relief matches the bend.
-const PASS2_FRAGMENT_SRC = `
-precision mediump float;
-varying vec2 vUV;
-varying highp vec2 vScreenPos;
-varying highp vec2 vSizePx;
-uniform highp vec2 uCanvasSize;
-uniform float uTime;
-uniform int uDebugChannel;
-varying vec4 vDiffuseUV;
-varying float vWorldCenterX;
-varying float vWorldWidth;
-varying float vWorldHeight;
-varying float vGroundDistOffset;
-varying float vInstanceKind;
-varying float vHasWave;
-varying float vHasSkew;
-varying float vEdgeLitOnly;
-uniform float uSkewAmount;
-uniform float uStretchAmount;
-${LIGHT_UNIFORMS_GLSL}
-uniform float uNoiseScale;
-uniform float uWaveSpeed;
-uniform float uNoiseScaleB;
-uniform float uWaveSpeedB;
-uniform float uWaveSteps;
-uniform float uDitherAmount;
-uniform float uHighlightStrength;
-uniform int uWaveBlendMode;
-uniform int uWaveBlendMode2;
-${LIGHTING_PARAM_UNIFORMS_GLSL}
-varying float vWhiteCapThreshold;
-varying float vWhiteCapStrength;
-uniform sampler2D uScene;
-uniform sampler2D uNormal;
-uniform sampler2D uDiffuse;
-
-const float GRAIN_CELL = 1.0;
-float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float valueNoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-}
-float blotchNoise(vec2 p) { return valueNoise(p) * 0.6 + valueNoise(p * 2.1 + 19.0) * 0.4; }
-float computeWave01(float worldX, float groundDist) {
-    float wrappedX = mod(worldX + 10000.0, 4000.0);
-    vec2 pA = vec2(wrappedX, groundDist) * uNoiseScale; pA.x -= uTime * uWaveSpeed;
-    vec2 pB = vec2(wrappedX, groundDist) * uNoiseScaleB + vec2(53.7, 91.3); pB.x += uTime * uWaveSpeedB;
-    return (blotchNoise(pA) + blotchNoise(pB)) * 0.5;
-}
-float quantizeWave(float wave01, float worldX, float groundDist) {
-    float wrappedX = mod(worldX + 10000.0, 4000.0);
-    vec2 grainCoord = floor(vec2(wrappedX, groundDist) / GRAIN_CELL);
-    float grain = hash21(grainCoord) - 0.5;
-    float waveDithered = clamp(wave01 + grain * uDitherAmount, 0.0, 1.0);
-    return floor(waveDithered * uWaveSteps) / max(uWaveSteps - 1.0, 1.0);
-}
-${LIGHTING_FUNCTIONS_GLSL}
-vec3 blendHighlight(vec3 base, vec3 tintColor, float waveQuant, float strengthScale, int mode) {
-    float strength = waveQuant * strengthScale;
-    if (mode == 0) return screenBlend(base, tintColor * strength);
-    if (mode == 2) return clamp(base + tintColor * strength, 0.0, 1.0);
-    if (mode == 3) return mix(base, tintColor, clamp(strength, 0.0, 1.0));
-    if (mode == 1) {
-        float swing = (waveQuant - 0.5) * 2.0 * strengthScale;
-        vec3 hsv = rgb2hsv(base);
-        hsv.z = clamp(hsv.z + swing, 0.0, 1.0);
-        return hsv2rgb(hsv);
-    }
-    return mix(base, compositeBlend(base, tintColor, mode), clamp(strength, 0.0, 1.0));
-}
-vec3 blendHighlightDual(vec3 base, vec3 tintColor, float waveQuant, float strengthScale, int modeA, int modeB) {
-    return mix(blendHighlight(base, tintColor, waveQuant, strengthScale, modeA),
-              blendHighlight(base, tintColor, waveQuant, strengthScale, modeB), 0.5);
-}
-
-void main() {
-    float localXPx = gl_FragCoord.x - (vScreenPos.x - vSizePx.x * 0.5);
-    float pxPerNativeX = max(vSizePx.x / vWorldWidth, 0.0001);
-    float nativeX = clamp(floor(localXPx / pxPerNativeX), 0.0, vWorldWidth - 1.0);
-    float stableUVx = (nativeX + 0.5) / vWorldWidth;
-    float worldX = vWorldCenterX + (stableUVx - 0.5) * vWorldWidth;
-    float pxTopEdgeY = vScreenPos.y - vSizePx.y;
-    float localYPx = (uCanvasSize.y - gl_FragCoord.y) - pxTopEdgeY;
-    float pxPerNativeY = max(vSizePx.y / vWorldHeight, 0.0001);
-    float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
-    float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
-
-    // Re-derive the SAME wind shift PASS 1 used (bit-identical math) — the shift picks THIS fragment's
-    // own atlas texel, exactly as the old single pass did.
-    bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
-    float wave01 = wantsWave ? computeWave01(worldX, groundDist) : 0.0;
-    float skewShiftPx = 0.0;
-    float stretchShiftPx = 0.0;
-    if (vHasSkew > 0.5 && wantsWave) {
-        const float SKEW_CONTRAST = 5.0;
-        float sway = clamp((wave01 - 0.5) * SKEW_CONTRAST, -1.0, 1.0);
-        float heightRatio = clamp(groundDist / vWorldHeight, 0.0, 1.0);
-        skewShiftPx = floor(sway * heightRatio * heightRatio * uSkewAmount + 0.5);
-        float offsetFromCenterPx = (stableUVx - 0.5) * vWorldWidth;
-        float halfWidthPx = max(vWorldWidth * 0.5, 1.0);
-        stretchShiftPx = floor((-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount + 0.5);
-    }
-    float shiftedNativeX = clamp(nativeX + skewShiftPx + stretchShiftPx, 0.0, vWorldWidth - 1.0);
-    vec2 duv = vec2(
-        mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
-        mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
-    );
-    vec2 normalUV = duv;
-
-    // COLOUR + DISCARD from THIS instance's OWN atlas, wind-shifted — so every screen pixel is lit
-    // exactly once, by the instance that owns it (never double-lit by an overlapping frond tile, which
-    // is what left some pixels un-darkened / un-sheened). PASS 1's texture (uScene) carries the bent
-    // COMPOSITE silhouette and is used ONLY for the screen-space edge geometry below.
-    vec4 diffuse = texture2D(uDiffuse, duv);
-    if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
-
-    vec2 screenUV = gl_FragCoord.xy / uCanvasSize;
-    // ONE game px in FBO-normalised coords — the step for the SCREEN-SPACE edge tests on uScene. Y is
-    // NEGATIVE: gl_FragCoord.y (hence screenUV.y) is BOTTOM-UP, but moonRimFactor assumes the atlas
-    // TOP-DOWN convention, so the flip makes its "up" bias point at the VISUAL top (the sun-facing edge)
-    // instead of the canopy underside.
-    vec2 screenTexel = vec2(pxPerNativeX, -pxPerNativeY) / uCanvasSize;
-    vec4 fullRect = vec4(0.0, 0.0, 1.0, 1.0);
-
-    float edgeFactor = edgeLightFactor(uScene, screenUV, screenTexel, vEdgeLitOnly);
-
-    if (uDebugChannel == 1) { gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0); return; }
-    if (uDebugChannel == 2) {
-        gl_FragColor = (vHasWave > 0.5 && wantsWave)
-            ? vec4(vec3(quantizeWave(wave01, worldX, groundDist)), 1.0)
-            : vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
     vec3 sampledNormal = normalize(texture2D(uNormal, normalUV).rgb * 2.0 - 1.0);
     vec3 n = (vInstanceKind > 0.5) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
+    // Han (canopy speckle 's nachts): the per-leaf normal-map relief makes applyPointLights' ndotl
+    // vary wildly per pixel, so a distant light (the hero's, reaching the tree-top via its height
+    // radius) reveals the leaf's raw green on scattered normal-facing pixels. Point lights read the
+    // canopy much better as a mostly-FLAT surface — a smooth near-light glow, no sparkle. The MOON
+    // directional term + the shimmer keep the full n. Foliage only; nothing about the hero light.
+    vec3 nPoint = (vInstanceKind > 0.5) ? FLAT_NORMAL : normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength * 0.25));
 
+    // #weather §368 r2 (Han: "De illum moet als allerlaatste worden toegepast! Dus na pixel switch en
+    // shimmer. De pixels in de boom steken nog steeds hard af, ik zie soms fel-groene pixels.").
+    // OLD ORDER: shimmer was baked INTO trueColor, THEN darkened, THEN the point lights / moon "revealed"
+    // trueColor (= the SHIMMERED colour) back out at full brightness — so a bright shimmer band (the
+    // Color blend mode literally recolours bright pixels to the shimmer hue) got re-lit by the moon into
+    // fel-groene pixels + hard horizontal bands.
+    // NEW ORDER: the lights/moon reveal the PLAIN diffuse only; the shimmer is applied LAST, on top of
+    // the fully-lit/darkened colour, so at night it can only ever be a faint scene-matched sheen.
     vec3 baseColor = diffuse.rgb;
     float waveQuant = 0.0;
     float shimmerStrength = 0.0;
     vec3 shimmerColor = vec3(1.0);
     if (vHasWave > 0.5 && wantsWave) {
         waveQuant = quantizeWave(wave01, worldX, groundDist);
+        if (uDebugChannel == 2) {
+            gl_FragColor = vec4(vec3(waveQuant), 1.0);
+            return;
+        }
         vec3 ambientLight = normalize(vec3(0.0, 0.5, 0.8));
         float ambientNdotl = max(dot(n, ambientLight), 0.0);
         float ambientWeight = (vInstanceKind > 0.5) ? (0.6 + 0.4 * ambientNdotl) : (0.4 + 0.6 * ambientNdotl);
         shimmerStrength = uHighlightStrength * ambientWeight;
+        // Foliage shimmer tracks day/night — day mint (112,255,153), night blue (49,78,158).
         shimmerColor = mix(vec3(49.0, 78.0, 158.0) / 255.0, vec3(112.0, 255.0, 153.0) / 255.0, clamp(uGlobalIllumination, 0.0, 1.0));
+    } else if (uDebugChannel == 2) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
     }
 
+    // --- illum / lighting: reveals PLAIN diffuse, never the shimmer ---
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
-    vec3 lit = applyPointLights(baseColor, darkened, n, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uScene, screenUV, screenTexel, fullRect, 0.0);   // SCREEN-SPACE — follows the bent edge
-    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);
+    vec3 lit = applyPointLights(baseColor, darkened, nPoint, worldX, groundDist, edgeFactor);
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
+    // Han ("pixels aan de rand van de boom krijgen geen glow"): where the WIND bend pushed this tile's
+    // sample past its own [0,W-1] range, the clamped edge column IS the new (bent) silhouette — but
+    // moonRimFactor clamps its neighbour taps to the tile rect and can't see the sky beyond, so it
+    // never rims there. Force a rim on that outermost column, unless a sister tile sits alongside (then
+    // it's an internal seam, not an outline). One texel wide (nativeX at the extreme).
+    float windPushedOut = step(vWorldWidth - 0.5, nativeX + totalShiftPx) + step(nativeX + totalShiftPx, -0.5);
+    float atExtremeCol = step(vWorldWidth - 1.5, nativeX) + step(nativeX, 0.5);
+    float horizSister = max(edgeIsInternal(vInternalEdges, 4.0) ? 1.0 : 0.0, edgeIsInternal(vInternalEdges, 8.0) ? 1.0 : 0.0);
+    moonRim = max(moonRim, min(windPushedOut, 1.0) * min(atExtremeCol, 1.0) * (1.0 - horizSister) * 0.55);
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
+    // §377: the sun edge-glow — LIGHTING, so it belongs in this block (immediately after the moon),
+    // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
+    // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uScene, screenUV, screenTexel, fullRect, 0.0, sunFragUnit);
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges, sunFragUnit);   // §377 / #1221
 
+    // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
         lit = blendHighlightDual(lit, shimmerColor, waveQuant, shimmerStrength, uWaveBlendMode, uWaveBlendMode2);
         if (waveQuant > vWhiteCapThreshold) {
@@ -1306,66 +1211,6 @@ function ForegroundFoliageLayer({
             instLocs = { aPos: instAPos, aInstance: instAInstanceLocs, uniforms: instUniforms };
         }
 
-        // Render-to-texture wind, PASS 2 (Han chose "c"). The instanced foliage renders at REST into
-        // `sceneTex` (an offscreen RGBA texture), then this program re-draws the same instance quads and
-        // samples `sceneTex` at a per-fragment skew/stretch offset. If it fails to compile the layer
-        // degrades to a still (un-bent) foliage render straight to the canvas — never a crash.
-        let pass2Program = null;
-        let pass2Locs = null;
-        let sceneTex = null;
-        let sceneFbo = null;
-        let sceneTexW = 0;
-        let sceneTexH = 0;
-        if (instProgram) {
-            try {
-                pass2Program = createProgram(gl, VERTEX_SRC_INSTANCED, PASS2_FRAGMENT_SRC);
-            } catch (err) {
-                logger.error('ForegroundFoliageLayer', 'E021-FOLIAGE-SHADER-COMPILE', err);
-                pass2Program = null;
-            }
-        }
-        if (pass2Program) {
-            pass2Locs = {
-                aPos: gl.getAttribLocation(pass2Program, 'aPos'),
-                aInstance: [0, 1, 2, 3, 4].map((i) => gl.getAttribLocation(pass2Program, `aInstance${i}`)),
-                uniforms: {},
-            };
-            ['uCanvasSize', 'uTime', 'uDebugChannel', 'uSkewAmount', 'uStretchAmount',
-                'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
-                'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2', 'uScene', 'uNormal', 'uDiffuse',
-                'uLightCount', 'uLightWorldX', 'uLightWorldHeight', 'uLightColor',
-                'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
-                'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
-                'uSunGlowStrength', 'uSunGlowColor', 'uSunScreenPos', 'uSunGlowRadius',
-            ].forEach((name) => { pass2Locs.uniforms[name] = gl.getUniformLocation(pass2Program, name); });
-            sceneTex = gl.createTexture();
-            sceneFbo = gl.createFramebuffer();
-        }
-        // Resize `sceneTex` to match the canvas backing store (called from drawFrame — always correct,
-        // no separate resize wiring needed). NEAREST + CLAMP so the pass-2 sample stays crisp.
-        const ensureSceneTex = () => {
-            if (!sceneTex || (sceneTexW === canvas.width && sceneTexH === canvas.height)) return;
-            gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            // NEAREST: pass 2 samples this at exact game-pixel positions (screenUV and its game-px
-            // neighbours) — the wind bend already happened in pass 1, crisp; pass 2 only lights it.
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo);
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
-            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-                // Driver refused the RGBA8 color FBO — drop RTT, fall back to a still (un-bent) foliage
-                // render straight to the canvas rather than crash.
-                logger.warn('ForegroundFoliageLayer', 'RTT framebuffer incomplete — wind falls back to static');
-                sceneFbo = null;
-            }
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            sceneTexW = canvas.width;
-            sceneTexH = canvas.height;
-        };
-
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -1648,89 +1493,11 @@ function ForegroundFoliageLayer({
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.normal);
                 gl.uniform1i(iu.uNormal, 1);
 
-                if (pass2Program && sceneTex) ensureSceneTex();   // may null sceneFbo if the driver refuses it
-                const useRtt = pass2Program && sceneFbo && sceneTex;
-                if (useRtt) {
-                    // PASS 1: the instanced foliage renders at REST (no wind shift) with full lighting +
-                    // shimmer into `sceneTex`. Blend OFF so alpha-cutout foliage writes cleanly over the
-                    // cleared (0,0,0,0) target and discarded fragments leave it transparent.
-                    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo);
-                    gl.viewport(0, 0, canvas.width, canvas.height);
-                    gl.disable(gl.BLEND);
-                    gl.clearColor(0, 0, 0, 0);
-                    gl.clear(gl.COLOR_BUFFER_BIT);
-                }
-
                 // ONE draw call for the whole visible atlas-backed set — this is the entire point of Fase
                 // 10c: replaces what would otherwise be `visibleAtlas.length` separate `gl.drawArrays` +
                 // ~17 `gl.uniform*` calls each (the exact per-instance WebGL-API overhead §328's real-
                 // hardware trace pointed at).
                 instExt.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, visibleAtlas.length);
-
-                if (useRtt) {
-                    // PASS 2: re-draw the same instance quads to the CANVAS and LIGHT pass 1's wind-bent
-                    // image in SCREEN SPACE — every edge test samples `sceneTex` at neighbouring screen
-                    // positions, so the rim / sheen follows the BENT silhouette (Han: "pixels aan de rand
-                    // krijgen geen glow ... check de volgorde van acties").
-                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                    gl.viewport(0, 0, canvas.width, canvas.height);
-                    gl.enable(gl.BLEND);
-                    gl.useProgram(pass2Program);
-                    const { aPos: p2APos, aInstance: p2AInst, uniforms: p2u } = pass2Locs;
-                    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-                    gl.enableVertexAttribArray(p2APos);
-                    gl.vertexAttribPointer(p2APos, 2, gl.FLOAT, false, 0, 0);
-                    gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
-                    p2AInst.forEach((loc, i) => {
-                        if (loc < 0) return;
-                        gl.enableVertexAttribArray(loc);
-                        gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, STRIDE, i * 16);
-                        instExt.vertexAttribDivisorANGLE(loc, 1);
-                    });
-                    gl.uniform2f(p2u.uCanvasSize, canvas.width, canvas.height);
-                    gl.uniform1f(p2u.uTime, time);
-                    gl.uniform1i(p2u.uDebugChannel, debugChannelRef.current);
-                    gl.uniform1f(p2u.uSkewAmount, p.skewAmount);
-                    gl.uniform1f(p2u.uStretchAmount, p.stretchAmount);
-                    gl.uniform1f(p2u.uNoiseScale, p.noiseScale);
-                    gl.uniform1f(p2u.uWaveSpeed, p.waveSpeed);
-                    gl.uniform1f(p2u.uNoiseScaleB, p.noiseScaleB);
-                    gl.uniform1f(p2u.uWaveSpeedB, p.waveSpeedB);
-                    gl.uniform1f(p2u.uWaveSteps, p.waveSteps);
-                    gl.uniform1f(p2u.uDitherAmount, p.ditherAmount);
-                    gl.uniform1f(p2u.uHighlightStrength, p.highlightStrength);
-                    gl.uniform1i(p2u.uWaveBlendMode, p.waveBlendMode);
-                    gl.uniform1i(p2u.uWaveBlendMode2, p.waveBlendMode2);
-                    gl.uniform1i(p2u.uLightCount, activeLights.length);
-                    gl.uniform1fv(p2u.uLightWorldX, lightWorldXBuf);
-                    gl.uniform1fv(p2u.uLightWorldHeight, lightWorldHeightBuf);
-                    gl.uniform3fv(p2u.uLightColor, lightColorBuf);
-                    gl.uniform1f(p2u.uLightRadius, p.lightRadius);
-                    gl.uniform1f(p2u.uLightHeightRadius, p.lightHeightRadius);
-                    gl.uniform1f(p2u.uLightStrength, p.lightStrength);
-                    gl.uniform1f(p2u.uHuePull, p.huePull);
-                    gl.uniform1i(p2u.uLightBlendMode, p.lightBlendMode);
-                    gl.uniform1i(p2u.uLightBlendMode2, p.lightBlendMode2);
-                    gl.uniform1f(p2u.uGlobalIllumination, p.globalIllumination);
-                    gl.uniform1f(p2u.uNormalStrength, p.normalStrength);
-                    gl.uniform1f(p2u.uFlatIllumination, p.flatIllumination);
-                    gl.uniform1f(p2u.uMoonStrength, (p.moonStrength ?? 0.5) * (p.moonShine ?? 1));
-                    gl.uniform1f(p2u.uSunGlowStrength, p.sunGlow ?? 0);
-                    gl.uniform3f(p2u.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
-                    gl.uniform2f(p2u.uSunScreenPos, sunPos[0], sunPos[1]);
-                    gl.uniform1f(p2u.uSunGlowRadius, p.sunGlowRadius ?? 0);
-                    gl.activeTexture(gl.TEXTURE0);
-                    gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-                    gl.uniform1i(p2u.uScene, 0);
-                    gl.activeTexture(gl.TEXTURE1);
-                    gl.bindTexture(gl.TEXTURE_2D, atlasTex.normal);
-                    gl.uniform1i(p2u.uNormal, 1);
-                    gl.activeTexture(gl.TEXTURE2);
-                    gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);
-                    gl.uniform1i(p2u.uDiffuse, 2);
-                    instExt.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, visibleAtlas.length);
-                    p2AInst.forEach((loc) => { if (loc >= 0) { instExt.vertexAttribDivisorANGLE(loc, 0); gl.disableVertexAttribArray(loc); } });
-                }
 
                 // Restore the per-instance program's `aPos` binding for the NEXT frame's per-instance loop
                 // (which reuses `quadBuf`/`aPos` from the original program — switching `gl.useProgram` back
