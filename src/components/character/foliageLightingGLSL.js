@@ -138,12 +138,17 @@ vec3 blendLightDual(vec3 base, vec3 lightColor, float intensity, int modeA, int 
 // #141 round 10/14 (Han: edge-only lighting): samples the diffuse alpha some native px out in each
 // cardinal direction; three tiers — inside EDGE_LIGHT_PIXELS = full light, inside EDGE_LIGHT_PIXELS*2 =
 // 50%, beyond = fully dark (ambient/wave-lit only, no point-light contribution).
-bool anyNeighborTransparent(sampler2D tex, vec2 duv, vec2 off) {
-    if (texture2D(tex, duv + vec2(off.x, 0.0)).a < 0.5) return true;
-    if (texture2D(tex, duv - vec2(off.x, 0.0)).a < 0.5) return true;
-    if (texture2D(tex, duv + vec2(0.0, off.y)).a < 0.5) return true;
-    if (texture2D(tex, duv - vec2(0.0, off.y)).a < 0.5) return true;
+bool anyNeighborBelowAlpha(sampler2D tex, vec2 duv, vec2 off, float thr) {
+    if (texture2D(tex, duv + vec2(off.x, 0.0)).a < thr) return true;
+    if (texture2D(tex, duv - vec2(off.x, 0.0)).a < thr) return true;
+    if (texture2D(tex, duv + vec2(0.0, off.y)).a < thr) return true;
+    if (texture2D(tex, duv - vec2(0.0, off.y)).a < thr) return true;
     return false;
+}
+// #141's edge-lit crates/fences keep the original 0.5 cutout threshold (an "edge" there means next to a
+// fully-transparent texel, matching the discard). §377 UAT r4's sun glow passes RIM_EMPTY_ALPHA instead.
+bool anyNeighborTransparent(sampler2D tex, vec2 duv, vec2 off) {
+    return anyNeighborBelowAlpha(tex, duv, off, 0.5);
 }
 // edgeLitOnly: was a bare global uniform read (uEdgeLitOnly == 0, always an int); now an explicit float
 // parameter (see this file's own comment above LIGHTING_PARAM_UNIFORMS_GLSL for why) — callers with an
@@ -229,10 +234,17 @@ const float MOON_FACING_HI = 0.95;   // at/above -> full directional term
 const float MOON_LUM_LO = 0.35;      // texel luminance: below -> masked out (dark recess = no sheen)
 const float MOON_LUM_HI = 0.75;      // at/above -> full luminance term (a painted highlight)
 const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*hi rarely both hit 1
-// §377 UAT r2 (Han: "hetzelfde effect [als de maan] hergebruiken"): was 0.35, now MATCHES the moon's
-// MOON_SHEEN_SCALE (0.5) — Han wants the sun's near-object glow to read exactly as strong as the
-// moon's, not as a weaker supporting term. Set to 0.0 for strictly-edges-only.
-const float SUN_SHEEN_SCALE = 0.5;
+// §377 UAT r2 (Han: "hetzelfde effect [als de maan] hergebruiken"): 0.35 → 0.5 (moon parity).
+// UAT r4 (Han: "interieur sheen mag sterker"): 0.5 → 0.8 — the sun's near-object glow now reads
+// STRONGER than the moon's supporting sheen, per Han's explicit ask. Set to 0.0 for strictly-edges-only.
+const float SUN_SHEEN_SCALE = 0.8;
+// §377 UAT r4 (Han: bij foliage nog een donkere rand-fringe). A silhouette's own anti-aliased edge
+// texels have alpha ~0.5..0.9 — above the 0.5 cutout-discard so they render (a dark leaf-outline
+// colour), but a plain "is my neighbour transparent" test at < 0.5 does not see them as an edge, so
+// the rim / inward glow stops one texel short and leaves that dark fringe unlit. Anything below this
+// counts as "empty" for rim purposes, so the glow reaches the true visual edge. moonRimFactor uses it
+// too (shared) — the moon's thin outline now hugs the real silhouette instead of the opaque core.
+const float RIM_EMPTY_ALPHA = 0.7;
 
 // §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
 // gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
@@ -255,13 +267,15 @@ float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect) {
     float uL = min(uvRect.x, uvRect.z);
     float uR = max(uvRect.x, uvRect.z);
     // §370 r6 (Han: "maak het allemaal 15 procentpunten minder fel — dus opacity 70→55 etc").
+    // §377 UAT r4: the "is this neighbour empty" test moved from a bare < 0.5 to < RIM_EMPTY_ALPHA (0.7)
+    // so a soft AA edge texel counts as the edge and the rim hugs the real silhouette (no dark fringe).
     float r = 0.0;
-    if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < 0.5)        r = max(r, 0.55);
-    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < 0.5) r = max(r, 0.35);
-    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 3.0, vUp))).a < 0.5) r = max(r, 0.05);
-    if      (texture2D(tex, vec2(max(duv.x - texelSize.x, uL), duv.y)).a < 0.5)        r = max(r, 0.55);
-    else if (texture2D(tex, vec2(max(duv.x - texelSize.x * 2.0, uL), duv.y)).a < 0.5) r = max(r, 0.15);
-    if      (texture2D(tex, vec2(min(duv.x + texelSize.x, uR), duv.y)).a < 0.5)        r = max(r, 0.35);
+    if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
+    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
+    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 3.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.05);
+    if      (texture2D(tex, vec2(max(duv.x - texelSize.x, uL), duv.y)).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
+    else if (texture2D(tex, vec2(max(duv.x - texelSize.x * 2.0, uL), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.15);
+    if      (texture2D(tex, vec2(min(duv.x + texelSize.x, uR), duv.y)).a < RIM_EMPTY_ALPHA)        r = max(r, 0.35);
     return r;
 }
 
@@ -287,6 +301,20 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
     return clamp(lit, 0.0, 1.0);
 }
 
+// §377 UAT r4 (Han: "dicht bij de zon tot 3px doordringen met een gradient"). moonRimFactor only lights
+// the single outermost silhouette texel; near the sun Han wants the glow to bite ~3 game-px INTO the
+// sprite with a smooth gradient. Isotropic distance-to-edge: an opaque texel 1 px from an empty
+// neighbour returns 1.0, 2 px → 0.6, 3 px → 0.3, deeper → 0.0. Reuses anyNeighborBelowAlpha at the
+// RIM_EMPTY_ALPHA threshold so soft AA edges count (same reason moonRimFactor now does). Up to 12
+// texture2D reads, but returns on the first hit (a true edge texel costs 4) and applySunGlow only calls
+// it for fragments already inside the sun's screen-space mask. Sun-only — the moon keeps its thin rim.
+float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize) {
+    if (anyNeighborBelowAlpha(tex, duv, texelSize, RIM_EMPTY_ALPHA)) return 1.0;
+    if (anyNeighborBelowAlpha(tex, duv, texelSize * 2.0, RIM_EMPTY_ALPHA)) return 0.6;
+    if (anyNeighborBelowAlpha(tex, duv, texelSize * 3.0, RIM_EMPTY_ALPHA)) return 0.3;
+    return 0.0;
+}
+
 // §377 (#1193). The SUN edge-glow. Same two-term structure as applyMoonLight above (a luminance-masked
 // screen-blend sheen + a screen-blended rim), with THREE deliberate differences:
 //   • no directional dot(normal, DIR) term: the sun has no fixed world direction here — its LOCALITY
@@ -296,14 +324,18 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
 //     sprites "vlakbij de zon" light up ("felle zon door de bomen", "zon vlak over daken").
 // NOTE for future editors: no backticks in comments inside this template literal — they terminate it.
 // 'rimFactor' is the SAME moonRimFactor value the call site already computed for §370 — reusing it
-// costs zero extra texture fetches (moonRimFactor is up to 6 texture2D reads) and keeps ONE rim
-// definition in the codebase. Its fixed up/left/right bias is fine here: the sun is above the horizon
-// whenever this term is non-zero at all.
+// costs zero extra texture fetches and keeps ONE thin-rim definition in the codebase. Its fixed
+// up/left/right bias is fine here: the sun is above the horizon whenever this term is non-zero at all.
+// UAT r4: the rim term is now max(rimFactor, sunInwardGlow(...)) — the isotropic 3-px inward gradient
+// takes over near the sun (where moonRimFactor's one-texel outline is not enough) and never weakens it.
+// sunInwardGlow is computed HERE, after the two early-outs, so the up-to-12 extra texture reads are
+// only paid by fragments that are both near the sun on-screen AND while the sun is up — hence the
+// sampler/duv/texelSize params (tex is each consumer's own diffuse atlas).
 // 'fragUnit' is this fragment's TOP-DOWN screen position divided by the canvas WIDTH — the same
 // scalar for both axes, so the metric stays isotropic (a circle is a circle at any aspect ratio) and
 // devicePixelRatio cancels exactly ((cssPx·dpr)/(cssW·dpr) == cssPx/cssW). Each consumer computes it
 // from the gl_FragCoord/uCanvasSize flip it ALREADY has; no new varying anywhere.
-vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, vec2 fragUnit) {
+vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, sampler2D tex, vec2 duv, vec2 texelSize, vec2 fragUnit) {
     if (uSunGlowStrength <= 0.0) return currentColor;   // night / overcast / consumer never uploads it
     // GLSL ES 1.00 leaves smoothstep UNDEFINED when edge0 >= edge1, so the "inverted" form
     // smoothstep(uSunGlowRadius, 0.0, d) must NOT be written. Same curve, defined behaviour.
@@ -323,7 +355,8 @@ vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rim
     float hi = smoothstep(MOON_LUM_LO, MOON_LUM_HI, lum);
     float sheen = clamp(edgeFactor * hi * uSunGlowStrength * near * SUN_SHEEN_SCALE, 0.0, 1.0);
     vec3 lit = screenBlend(currentColor, uSunGlowColor * sheen);
-    float rim = clamp(rimFactor * uSunGlowStrength * near, 0.0, 1.0);
+    float rimSrc = max(rimFactor, sunInwardGlow(tex, duv, texelSize));   // UAT r4: 3-px inward gradient
+    float rim = clamp(rimSrc * uSunGlowStrength * near, 0.0, 1.0);
     if (rim > 0.0) lit = screenBlend(lit, uSunGlowColor * rim);
     return clamp(lit, 0.0, 1.0);
 }

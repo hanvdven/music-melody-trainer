@@ -125,7 +125,7 @@ void main() {
     // §377 (#1193): the sun edge-glow on roof ridges / decor outlines ("zon vlak over daken"). Reuses
     // the 'screenPx' local computed at the top of main() — the SAME top-down canvas-px value the sun
     // mask needs — divided by the canvas WIDTH on both axes (isotropic, dpr-free). No recomputation.
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, screenPx / uCanvasSize.x);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, uv, texelSize, screenPx / uCanvasSize.x);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;

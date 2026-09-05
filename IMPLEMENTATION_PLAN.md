@@ -18,11 +18,27 @@ binnen de zon-gloed) hergebruikt dezelfde constante → die cutoff verdubbelde o
 bewust gehouden. `lint` 0 · `build` clean · vitest overgeslagen per Han. Commit
 `d1e74b90`. Doc §377 masker-alinea bijgewerkt.
 
-🔨 **Vervolg-CR (Han, screenshot nacht-scene):** effect mag nog een tikje sterker;
-dicht bij de zon moet de gloed ~X gpx IN de sprite doordringen (nu enkel de
-buitenste rand); bij foliage nog een donkere rand-fringe → toepassings-volgorde
-t.o.v. de wind "pixel-switch" (`shiftedNativeX`) / semi-transparante rand-texels;
-geldt voor alle illum. Interview loopt — nog niet geïmplementeerd.
+## 2026-09-06 — ✅ #1193 UAT r4: sterkere interieur-sheen + 3px inward-glow + AA-fringe fix
+
+Han (interview afgerond): (1) interieur-sheen sterker → `SUN_SHEEN_SCALE` 0.5 →
+0.8. (2) "dicht bij de zon tot 3px doordringen met een gradient" → nieuwe
+`sunInwardGlow(tex,duv,texelSize)` in `foliageLightingGLSL.js`: isotrope
+afstand-tot-rand, 1px→1.0 / 2px→0.6 / 3px→0.3 / dieper→0; rim-term wordt
+`max(rimFactor, sunInwardGlow(...))`, binnen `applySunGlow` berekend ná de twee
+early-outs (dus alleen betaald vlak bij de zon). (3) donkere AA-rand-fringe bij
+foliage → `RIM_EMPTY_ALPHA = 0.7`: `moonRimFactor` + `sunInwardGlow` testen nu
+`< 0.7` i.p.v. `< 0.5` zodat zachte AA-randtexels als rand tellen. Gedeeld →
+maan-rim profiteert mee; `edgeLightFactor` (kratten, #141) houdt 0.5 via de
+`anyNeighborTransparent`-wrapper over nieuwe `anyNeighborBelowAlpha(tex,duv,off,thr)`.
+(4) "alle illum, altijd" bevestigd — `sunGlowStrength` = `min(1, altDeg/2)`, 0
+onder horizon, geen illum-fade. Wolk-gate (#1192) blijft.
+`applySunGlow`-signatuur: +`sampler2D tex, vec2 duv, vec2 texelSize`. 4 call-sites
+bijgewerkt (foliage instanced + non-instanced, `LdtkLitGround`, `FoliageInstancingTest`).
+`lint` 0 · `build` clean · `test:run` draait. Doc §377 r4-alinea toegevoegd.
+
+⏳ **Volgende (Han: "eerst 2, dan 1"):** de foliage wind-pixel-switch `clamp`-bug
+(felle groene spikkels buiten de canopy-silhouet) — eigen bug-ticket, dan fixen.
+Los daarvan meldde Han: maan overdag te donker onbelicht deel — apart #1191-item.
 
 ## 2026-09-06 — ✅ #1193 UAT r2: sun-glow leest nu als "overbelicht", zoals de maan
 

@@ -26509,8 +26509,9 @@ existing `highp uScreenPos/uSizePx/uCanvasSize` fragment uniforms (#141 round 23
 fragment-highp requirement is introduced, and they are fragment-stage-only in all four consumers, so
 round 23's cross-stage precision-mismatch trap does not apply.
 
-`applySunGlow(currentColor, baseColor, edgeFactor, rimFactor, fragUnit)` mirrors `applyMoonLight`'s
-shape — a luminance-masked screen-blend sheen plus a screen-blended rim — with three differences:
+`applySunGlow(currentColor, baseColor, edgeFactor, rimFactor, tex, duv, texelSize, fragUnit)` mirrors
+`applyMoonLight`'s shape — a luminance-masked screen-blend sheen plus a screen-blended rim — with three
+differences:
 
 1. **no directional `dot(normal, DIR)` term** — the sun has no fixed world direction here; its
    LOCALITY is the distance mask, which is the whole point of the feature;
@@ -26523,6 +26524,28 @@ tuned `MOON_LUM_LO/HI` luminance thresholds, so the sun rides the art's painted 
 the moon does (Han's UAT r1 answer: "hou 'm zoals de maan"). **UAT r2: `SUN_SHEEN_SCALE` 0.35 → 0.5**,
 matching the moon's `MOON_SHEEN_SCALE` — "hetzelfde effect hergebruiken", not a weaker supporting term.
 Setting it to 0 still gives strictly-edges-only.
+
+**UAT r4** — three tweaks, all "altijd actief zolang de zon boven de horizon staat, hoogte/tijd-onafhankelijk"
+(which `sunGlowStrength` already is — `min(1, altDeg/2)`, zero below the horizon, no illumination fade):
+
+- **`SUN_SHEEN_SCALE` 0.5 → 0.8** (Han: "interieur sheen mag sterker") — the sun's near-object surface
+  sheen now reads stronger than the moon's supporting term, no longer strict parity.
+- **`sunInwardGlow(tex, duv, texelSize)`** — moonRimFactor only lights the single outermost silhouette
+  texel; near the sun Han wants the glow to bite **3 game-px INTO** the sprite with a gradient. New
+  isotropic distance-to-edge helper: 1 px from an empty neighbour → `1.0`, 2 px → `0.6`, 3 px → `0.3`,
+  deeper → `0`. The rim term became `max(rimFactor, sunInwardGlow(...))` — the inward gradient takes
+  over near the sun and never weakens the existing directional rim. It is computed **inside**
+  `applySunGlow` after both early-outs, so its up-to-12 `texture2D` reads are only paid by fragments
+  already inside the sun's screen-space mask while the sun is up — hence the new `tex/duv/texelSize`
+  params. Still multiplied by the `near` mask, so the 3-px bite is full in the hard core and fades out
+  with the rest of the glow.
+- **`RIM_EMPTY_ALPHA = 0.7`** — a silhouette's own anti-aliased edge texels (α ≈ 0.5–0.9) render (they
+  clear the 0.5 cutout-discard) but a `< 0.5` "is my neighbour empty" test does not see them as an
+  edge, so the rim stopped one texel short and left a dark fringe (Han: "bij foliage zie ik nog donkere
+  pixels aan de randen"). `moonRimFactor` and `sunInwardGlow` now test `< RIM_EMPTY_ALPHA` so the glow
+  reaches the true visual edge. Shared → the **moon** rim benefits too (its thin outline now hugs the
+  real silhouette). `edgeLightFactor` (crates/fences, #141) keeps the original 0.5 via the
+  `anyNeighborTransparent` wrapper over the new `anyNeighborBelowAlpha(tex, duv, off, thr)`.
 
 **The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
 the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of

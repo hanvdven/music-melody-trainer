@@ -509,7 +509,7 @@ void main() {
     // normalised by the canvas WIDTH on BOTH axes so the mask is isotropic and dpr-free. Reuses the
     // moonRim value too — one rim definition, zero extra texture fetches.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -778,7 +778,7 @@ void main() {
     // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
     // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, sunFragUnit);   // §377
 
     // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
