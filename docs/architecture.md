@@ -26528,7 +26528,11 @@ Setting it to 0 still gives strictly-edges-only.
 the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
 the moon's rim strength. It is now `1.0 - smoothstep(0.5·r, r, d)` — a **flat core** at full strength
 out to half the radius (an actual blow-out there), then a smooth fade over the outer half. Paired with
-`SUN_GLOW_RADIUS_GPX` **40 → 55**, so the flat core reaches ~27 gpx from the disc.
+`SUN_GLOW_RADIUS_GPX` **40 → 55**, so the flat core reaches ~27 gpx from the disc. **UAT r3** (Han:
+"kippenvel! Maak de radius dubbel zo groot — harde straal en fall-off schaal"): `SUN_GLOW_RADIUS_GPX`
+**55 → 110** — one constant, and because the mask is written off `0.5·r` and `r` it doubles the hard
+core (~55 gpx now) and the fade end together. `CelestialSky`'s `nearSun` moon-hide reuses the same
+constant, so that screen-space cutoff doubled too (kept unified).
 
 **GLSL ES 1.00 trap, avoided deliberately.** `smoothstep(edge0, edge1, x)` is **undefined** when
 `edge0 >= edge1`, so the natural-looking `smoothstep(uSunGlowRadius, 0.0, d)` must NOT be written. The

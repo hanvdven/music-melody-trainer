@@ -7,6 +7,23 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-06 — ✅ #1193 UAT r3: sun-glow radius verdubbeld (55 → 110 gpx)
+
+Han ("oooh heel nice! kippenvel. Maak de radius dubbel zo groot — harde straal en
+fall-off schaal. je hoeft niet te testen"): één constante, `SUN_GLOW_RADIUS_GPX`
+55 → 110 in `celestialModel.js`. De shader-mask `1 - smoothstep(0.5·r, r, d)`
+schaalt zowel de vlakke harde kern (`0.5·r`, nu ~55 gpx) als het fade-eind (`r`,
+nu 110 gpx) mee met dit ene getal. `CelestialSky`'s `nearSun` (maan verbergen
+binnen de zon-gloed) hergebruikt dezelfde constante → die cutoff verdubbelde ook,
+bewust gehouden. `lint` 0 · `build` clean · vitest overgeslagen per Han. Commit
+`d1e74b90`. Doc §377 masker-alinea bijgewerkt.
+
+🔨 **Vervolg-CR (Han, screenshot nacht-scene):** effect mag nog een tikje sterker;
+dicht bij de zon moet de gloed ~X gpx IN de sprite doordringen (nu enkel de
+buitenste rand); bij foliage nog een donkere rand-fringe → toepassings-volgorde
+t.o.v. de wind "pixel-switch" (`shiftedNativeX`) / semi-transparante rand-texels;
+geldt voor alle illum. Interview loopt — nog niet geïmplementeerd.
+
 ## 2026-09-06 — ✅ #1193 UAT r2: sun-glow leest nu als "overbelicht", zoals de maan
 
 Han (screenshot: zon vlak boven wilg, geen zichtbare gloed op de wilg-rand):
