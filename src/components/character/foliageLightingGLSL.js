@@ -145,8 +145,7 @@ bool anyNeighborBelowAlpha(sampler2D tex, vec2 duv, vec2 off, float thr) {
     if (texture2D(tex, duv - vec2(0.0, off.y)).a < thr) return true;
     return false;
 }
-// #141's edge-lit crates/fences keep the original 0.5 cutout threshold (an "edge" there means next to a
-// fully-transparent texel, matching the discard). §377 UAT r4's sun glow passes RIM_EMPTY_ALPHA instead.
+// The rim helpers pass RIM_EMPTY_ALPHA; edgeLitOnly crates/fences pass a literal 0.5 via the wrapper.
 bool anyNeighborTransparent(sampler2D tex, vec2 duv, vec2 off) {
     return anyNeighborBelowAlpha(tex, duv, off, 0.5);
 }
@@ -238,13 +237,14 @@ const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*h
 // UAT r4 (Han: "interieur sheen mag sterker"): 0.5 → 0.8 — the sun's near-object glow now reads
 // STRONGER than the moon's supporting sheen, per Han's explicit ask. Set to 0.0 for strictly-edges-only.
 const float SUN_SHEEN_SCALE = 0.8;
-// §377 UAT r4 (Han: bij foliage nog een donkere rand-fringe). A silhouette's own anti-aliased edge
-// texels have alpha ~0.5..0.9 — above the 0.5 cutout-discard so they render (a dark leaf-outline
-// colour), but a plain "is my neighbour transparent" test at < 0.5 does not see them as an edge, so
-// the rim / inward glow stops one texel short and leaves that dark fringe unlit. Anything below this
-// counts as "empty" for rim purposes, so the glow reaches the true visual edge. moonRimFactor uses it
-// too (shared) — the moon's thin outline now hugs the real silhouette instead of the opaque core.
-const float RIM_EMPTY_ALPHA = 0.7;
+// The "is this neighbour empty?" cutoff for the rim / inward-glow edge test. UAT r4 raised this to 0.7
+// to catch anti-aliased edge texels — but the LDtk foliage atlas is composited with no smoothing and
+// sampled NEAREST, so its alpha is strictly 0 or 1 and 0.7 behaves identically to the 0.5 cutout
+// discard (Han, UAT r5: "mijn pixel art heeft geen sub-1 alpha"). Back to 0.5 = one honest threshold,
+// matching the discard. The actual dark-fringe fix is the inward-glow giving full rim strength on the
+// outermost texel. Kept as a named constant so any future AA-d art has one place to lift it.
+// (No backticks in comments in this template literal — they terminate it.)
+const float RIM_EMPTY_ALPHA = 0.5;
 
 // §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
 // gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
@@ -267,8 +267,8 @@ float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect) {
     float uL = min(uvRect.x, uvRect.z);
     float uR = max(uvRect.x, uvRect.z);
     // §370 r6 (Han: "maak het allemaal 15 procentpunten minder fel — dus opacity 70→55 etc").
-    // §377 UAT r4: the "is this neighbour empty" test moved from a bare < 0.5 to < RIM_EMPTY_ALPHA (0.7)
-    // so a soft AA edge texel counts as the edge and the rim hugs the real silhouette (no dark fringe).
+    // The "is this neighbour empty" test uses RIM_EMPTY_ALPHA (see its comment — currently 0.5, i.e.
+    // identical to the cutout discard for the binary-alpha foliage atlas).
     float r = 0.0;
     if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
     else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
@@ -305,8 +305,8 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
 // the single outermost silhouette texel; near the sun Han wants the glow to bite ~3 game-px INTO the
 // sprite with a smooth gradient. Isotropic distance-to-edge: an opaque texel 1 px from an empty
 // neighbour returns 1.0, 2 px → 0.6, 3 px → 0.3, deeper → 0.0. Reuses anyNeighborBelowAlpha at the
-// RIM_EMPTY_ALPHA threshold so soft AA edges count (same reason moonRimFactor now does). Up to 12
-// texture2D reads, but returns on the first hit (a true edge texel costs 4) and applySunGlow only calls
+// RIM_EMPTY_ALPHA threshold. Up to 12 texture2D reads, but returns on the first hit (a true edge texel
+// costs 4) and applySunGlow only calls
 // it for fragments already inside the sun's screen-space mask. Sun-only — the moon keeps its thin rim.
 float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize) {
     if (anyNeighborBelowAlpha(tex, duv, texelSize, RIM_EMPTY_ALPHA)) return 1.0;
