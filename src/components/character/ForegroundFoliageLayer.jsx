@@ -718,11 +718,17 @@ void main() {
     }
     float totalShiftPx = skewShiftPx + stretchShiftPx;
 
-    // #1219: discard fragments a wind bend pushed outside this sprite's own [0, W-1] column range
-    // instead of clamping them onto the edge texel column (bright specks outside the silhouette). Floor
-    // (kind 1) keeps the clamp. See the non-instanced shader's fuller comment above.
+    // #1219: a wind bend past this tile's [0, W-1] range would clamp onto the edge texel column, smearing
+    // bright specks OUTSIDE the silhouette — discard those instead. #1221 follow-up (Han: "ik heb nu
+    // verticale stroken"): but a multi-tile canopy tile whose screen-left/right abuts a SISTER tile
+    // (bits 16 / 32, raw screen-space adjacency) must NOT discard there — the missing columns belong to
+    // that neighbour, and discarding punches a wind-driven gap at every internal vertical seam. Clamp
+    // those (the two tiles' shifted content meets); discard only where the canopy silhouette truly ends.
+    // Floor (kind 1) keeps the plain clamp.
     float shiftedNativeXraw = nativeX + totalShiftPx;
-    if (vInstanceKind < 0.5 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > vWorldWidth - 1.0)) discard;
+    bool offL = shiftedNativeXraw < 0.0;
+    bool offR = shiftedNativeXraw > vWorldWidth - 1.0;
+    if (vInstanceKind < 0.5 && ((offL && !edgeIsInternal(vInternalEdges, 16.0)) || (offR && !edgeIsInternal(vInternalEdges, 32.0)))) discard;
     float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, vWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),

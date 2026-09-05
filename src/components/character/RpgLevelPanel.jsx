@@ -2248,7 +2248,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const aDown = tile.flipY ? wUp : wDown;
         const aLeft = tile.flipX ? wRight : wLeft;
         const aRight = tile.flipX ? wLeft : wRight;
-        const internalEdges = (aUp ? 1 : 0) + (aDown ? 2 : 0) + (aLeft ? 4 : 0) + (aRight ? 8 : 0);
+        // Bits 1/2/4/8 (atlas up/down/left/right) drive the rim / inward-glow suppression, which samples
+        // in atlas space, so they follow the flip. Bits 16/32 (raw screen-space left/right adjacency)
+        // drive the #1219 wind-bend discard, which indexes the SCREEN column (flip-independent) — a tile
+        // with a sister to its screen-left/right must clamp, not gap, at that seam.
+        const internalEdges = (aUp ? 1 : 0) + (aDown ? 2 : 0) + (aLeft ? 4 : 0) + (aRight ? 8 : 0)
+            + (wLeft ? 16 : 0) + (wRight ? 32 : 0);
         return {
             diffuseUV: [
                 tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
