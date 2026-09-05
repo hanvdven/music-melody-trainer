@@ -26614,25 +26614,35 @@ so a wind-moved texel can land outside the rest silhouette (the bend) and is lit
 per-tile atlas-cell seam. The dead screen-space bits 16/32 (only the deleted #1219 discard read them)
 are removed from the JS packing.
 
-**Column-skip → render-to-texture two-pass (Han chose "c").** §156's crisp integer per-column shift
-inherently skips/doubles source columns; with per-pixel lighting on top those read as "losse pixels
-die niet gesheent/verdonkerd worden". The instanced foliage shader (`FoliageInstancingTest` /
-`ForegroundFoliageLayer`'s instanced path) is now **two passes**:
+**The wind pixel-switch — render-to-texture two-pass, DISPLACE then LIGHT (Han: "check de volgorde van
+acties").** After a long whack-a-mole (clamp / discard / `duv0` / lighting-then-displace all failed),
+Han and the code converged on this ORDER, which Han confirmed: **texel-swap → global illum → normal-map
+light → sheen → shimmer → reflection**. The instanced foliage path (`ForegroundFoliageLayer`) is two
+passes:
 
-1. `FRAGMENT_SRC_INSTANCED` renders the foliage **at rest** — `shiftedNativeX = nativeX`, no
-   skew/stretch on `duv`/`normalUV` — with the full lighting + shimmer, into an offscreen RGBA texture
-   `sceneTex` (blend OFF, cleared transparent).
-2. `PASS2_FRAGMENT_SRC` re-draws the **same instance quads** (same `VERTEX_SRC_INSTANCED`, so every
-   per-instance varying is there), recomputes only the skew/stretch offset (identical math) and samples
-   `sceneTex` at `gl_FragCoord + shiftPx·pxPerNativeX` — it **pulls** the already-lit rest pixel from
-   inside the sprite outward. The canopy still bends into empty space, and a skipped/doubled column is
-   now a coherent squish of a smoothly-lit image, not a per-pixel lighting glitch.
+1. `FRAGMENT_SRC_INSTANCED` does **only the wind bend** on the RAW diffuse — `shiftedNativeX =
+   clamp(nativeX + floor(skew) + floor(stretch), 0, W-1)`, always whole-texel, deliberately letting an
+   opaque source texel land where the rest sprite was transparent (that **is** the bend) — and writes
+   the bent raw art to an offscreen RGBA texture `sceneTex` (its own program, blend OFF, cleared
+   transparent, NEAREST).
+2. `PASS2_FRAGMENT_SRC` re-draws the same instance quads and **lights the bent image in SCREEN SPACE**:
+   `edgeLightFactor` / `moonRimFactor` / `sunInwardGlow` / `applySunGlow` all sample `sceneTex` at
+   neighbouring **screen** positions, so the rim / sheen / darkening follow the **bent** silhouette and
+   a wind-blown edge pixel finally gets its glow. `worldX` / `groundDist` come from the bent screen
+   position (point lights follow); `uNormal` is re-sampled at the same shifted UV so the relief lines
+   up. Global illum (`baseColor * ambientTint`) is applied here, before the point lights, on every
+   pixel including the blown-out ones. Shimmer stays last.
 
-`sceneTex`/`sceneFbo` are created in the GL-setup effect and resized from `drawFrame` via
-`ensureSceneTex()` (NEAREST + CLAMP); a `checkFramebufferStatus` guard falls back to a **still**
-(un-bent) foliage render straight to the canvas if a driver refuses the FBO — never a crash. The
-non-instanced (Legacy-mode, one sprite per object) path is unchanged. Cost: pass 2 adds ~1 texture
-sample + the wave noise per foliage fragment, plus one FBO clear per frame.
+`screenTexel` (the game-px step for the screen-space edge tests) is passed with a **negative Y**:
+`gl_FragCoord.y` is bottom-up but `moonRimFactor` assumes the atlas top-down convention, so without the
+flip its "up" bias lit the canopy's *underside* instead of the sun-facing top.
+
+Bonus: screen-space compositing makes adjacent tiles just adjacent pixels, so the whole `internalEdges`
+/ per-tile-atlas-rect machinery is **dead** in pass 2 (`uvRect` = the whole frame, `internalEdges` =
+0). `sceneTex`/`sceneFbo` are created in GL-setup, resized from `drawFrame` via `ensureSceneTex()`; a
+`checkFramebufferStatus` guard falls back to a **still** (un-bent) foliage render straight to canvas if
+a driver refuses the FBO. Non-instanced (Legacy) path unchanged. Cost: pass 2 is a second full
+lighting pass over the visible foliage area + one FBO clear/frame.
 
 **#1220 — the glow radius shrinks to 0 as the sun sinks behind the PARALLAX layers** (Han: *"als de zon
 volledig achter de bomen verdwenen is, stop met sheenen op alle lagen"*; *"maak de straal kleiner,
