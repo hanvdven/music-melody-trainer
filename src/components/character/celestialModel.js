@@ -217,29 +217,24 @@ export function moonShine(moon) {
 // §377 (#1193, Han 2026-09-04: "geef de zon een glow (net zoals de maan) ... enkel voor pixels aan de
 // rand van sprites vlakbij de zon ... zo krijg je een felle zon door de bomen-effect, of zon vlak over
 // daken"). The SUN counterpart of `moonShine` above: a 0..1 scalar for how strongly the sun edge-glows
-// right now, purely as a function of its own altitude. Same shape as `moonShine` (takes the position
-// object, returns 0..1), so both weather knobs read identically at their call sites.
+// right now. Same shape as `moonShine` (takes the position object, returns 0..1), so both weather
+// knobs read identically at their call sites.
 //
 // Screen-space reach of the glow in GAME px (sprite px — see MEMORY "pixels = RPG sprite pixels").
 // THE retune knob at UAT: bigger = the glow spills further from the disc.
 export const SUN_GLOW_RADIUS_GPX = 40;
-// Altitude falloff. The 0..SUN_GLOW_RISE_DEG band exists ONLY so the term cannot POP 1 → 0 at the
-// horizon line while half of its 40 gpx disc still covers on-screen rooftops; 2° is ~7 gpx of sky at
-// the shipped fov, i.e. still very much "vlak over daken".
+// UAT r1 (Han 2026-09-06, "ik vind de sun-glow nog niet goed zichtbaar ... ik wil de zelfde soort gloed
+// die de maan geeft, op objecten die visueel dicht bij de zon staan"): the original design faded the
+// term down to a low floor above ~25° altitude, reasoning that "vlak over daken" was a low-sun moment.
+// Han's follow-up interview answer was explicit — "niet hoogte afhankelijk": a willow right under a
+// HIGH midday sun should glow exactly as strongly as one right under a low dusk sun. The altitude-fade
+// term and its floor are gone; only this rise band survives, so the glow still eases in from 0 instead
+// of popping the instant the sun clears the horizon (2° is ~7 gpx of sky at the shipped fov).
 export const SUN_GLOW_RISE_DEG = 2;
-// Above this altitude the glow has fully eased down to its floor — a high midday sun still rims
-// faintly (the light is real), it just no longer rakes across the silhouettes.
-export const SUN_GLOW_ALT_FADE_DEG = 25;
-export const SUN_GLOW_ZENITH_FLOOR = 0.25;
 
 export function sunGlowStrength(sun) {
     if (sun.altDeg <= 0) return 0;   // ac3 — nothing at all at or below the horizon
-    const rise = Math.min(1, sun.altDeg / SUN_GLOW_RISE_DEG);
-    const t = Math.min(1, sun.altDeg / SUN_GLOW_ALT_FADE_DEG);
-    // Reuses weatherCycle's already-imported `easeInOut` (starOpacity below uses the same one) — there
-    // is deliberately no second smoothstep implementation in this codebase (CLAUDE.md §6c).
-    const fall = SUN_GLOW_ZENITH_FLOOR + (1 - SUN_GLOW_ZENITH_FLOOR) * (1 - easeInOut(t));
-    return rise * fall;
+    return Math.min(1, sun.altDeg / SUN_GLOW_RISE_DEG);
 }
 
 /**

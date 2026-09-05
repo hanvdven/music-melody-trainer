@@ -7,6 +7,35 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-06 — ✅ #1193 UAT r1: sun-glow niet meer hoogte-afhankelijk
+
+Han: "ik vind de sun-glow nog niet goed zichtbaar. ... ik wil de zelfde soort
+gloed die de maan geeft, op objecten die visueel dicht bij de zon staan. Dus
+als zon vlak boven de wilg staat, wil ik een gloed zien op de wilg."
+
+Code-review van het mechanisme (coördinaten/randdetectie klopten al) wees op de
+hoogte-afhankelijke terugval als waarschijnlijke hoofdoorzaak: sterkte zakte
+terug naar 25% zodra de zon >25° boven de horizon staat — maar "vlak boven de
+wilg" gebeurt op willekeurig welk moment van de dag, dus voor een groot deel
+van de dag was de gloed al fors gedempt.
+
+Interview (2 vragen): (1) hoogte-terugval weg — "niet hoogte afhankelijk"
+bevestigd. (2) helderheids-mask (enkel reeds-lichte pixels vangen de gloed,
+gedeeld met de maan) NIET versoepelen voor foliage — "hou 'm zoals de maan".
+
+- `celestialModel.sunGlowStrength`: het hele fall-naar-vloer-stuk (en de 2
+  constantes `SUN_GLOW_ALT_FADE_DEG`/`SUN_GLOW_ZENITH_FLOOR`) verwijderd —
+  enkel de korte rise-band (0→2°) blijft, zodat de term niet plots van 1→0
+  popt op de horizonlijn. Sterkte is nu exact 1 vanaf 2° tot 90°, ongeacht
+  hoogte; nog steeds exact 0 onder de horizon (ac3 blijft gelden).
+- Helderheids-mask (`MOON_LUM_LO`/`MOON_LUM_HI`, gedeeld met `applyMoonLight`)
+  ONGEWIJZIGD.
+- Tests herschreven (`celestialModel.test.js`): "peaks just above horizon" →
+  "reaches full strength and stays there"; midday-assert nu exact 1 i.p.v. de
+  oude vloer-waarde.
+- `lint` 0 · `build` clean · `test:run` 1483 pass / 1 skip. Doc §377
+  bijgewerkt (oude curve gemarkeerd als "superseded", nieuwe curve + waarom).
+
 ## 2026-09-05 — ✅ #1191 UAT r6: maan opnieuw ontworpen — geen alpha meer, enkel kleur
 
 Han (screenshot): "de maan is nog niet perfect. Nu is de 'lichte kant' dicht bij de
@@ -8600,3 +8629,31 @@ voordat dit gebouwd wordt (§4b — raakt de render-pipeline).
 sheet / SSW_Interriors tiles) bleken oude, vrijwel-transparante placeholder-tiles — niet Han's eigen
 werk. De echte brug zit op de `City_Walls`-laag (Castle_Tiles2), die pas zichtbaar wordt zodra Bug 2
 is opgelost.
+
+---
+
+## #1195 vervolg (2026-09-05) — "houd gewoon áltijd de volgorde van LDTK aan" (volledige herbouw)
+
+✅ **Root-cause was dieper dan Bug 2 hierboven.** Han na de City_Walls-fix: "de wilg staat VOOR de brug,
+maar in ldtk staat ie er achter." De app rendert al sinds het begin via VASTE buckets (1 grondlaag-canvas,
+1 foliage-shimmerlaag, 1 animated-overlay, 1 achtergrond-set, Entities als één vaste knip front/back) —
+nooit de echte per-laag LDtk-volgorde. Han, na interview over scope: "het is heel simpel: houd gewoon
+áltijd de volgorde van LDTK aan" — bevestigd voor ALLES (grond/foliage/water/campfire/achtergrond/
+Entities), inclusief het risico dat ik expliciet benoemde (Entities kan nu bedekt worden door content die
+ervoor staat in LDtk) — "alles in één keer, inclusief Entities-interleaving."
+
+✅ **Herbouwd:** `ldtkWorld.js` — `buildWorld()` levert nu `world.passes` (geordende back-to-front lijst,
+één pass per aaneengesloten reeks lagen van hetzelfde "soort" in de echte LDtk-volgorde) i.p.v. vaste
+buckets. `RpgLevelPanel.jsx` — `SceneryBack`/`SceneryFront`/vaste `EntityLayer`-positie vervangen door
+`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass` + Entities inline, gerenderd via één
+`.map()` over `world.passes`. Perf-optimalisaties (imperatieve camera-pan transform, gedeelde
+foliage-atlas, per-pass culling) generiek gemaakt i.p.v. verwijderd. Legacy-mode volgorde apart
+gecorrigeerd (decor-blok moest vóór de map blijven staan i.p.v. erna).
+
+✅ Tests herschreven rond `world.passes` (incl. regressietest: City_Walls landt in een ground-pass
+tussen twee shimmer-passes — precies Han's gerapporteerde bug). **1483 tests groen, build OK, lint 0
+errors.** Architecture.md §383 (volledige write-up, §382's Bug 2 gemarkeerd als superseded).
+
+⚠️ **Nog niet visueel geverifieerd — dit is WebGL/canvas-rendering zonder testharnas** (zelfde
+precedent als §370/§374/§375/§377). Wacht op Han's UAT: brug/wilg-volgorde, lit-ground per pass,
+water-reflectie, Legacy-mode, camera-pan-soepelheid.

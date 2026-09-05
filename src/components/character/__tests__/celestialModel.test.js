@@ -5,7 +5,7 @@ import {
     solarHourAngleDeg, localSiderealDeg, altAz, degPerPx, projectToScreen,
     sunPosition, moonPosition, illuminatedFraction, brightLimbUnitVector,
     moonShine, MOON_SHINE_ALT_FADE_DEG,
-    sunGlowStrength, SUN_GLOW_RISE_DEG, SUN_GLOW_ALT_FADE_DEG, SUN_GLOW_ZENITH_FLOOR, SUN_GLOW_RGB,
+    sunGlowStrength, SUN_GLOW_RISE_DEG, SUN_GLOW_RGB,
     starOpacity, starSizeGpx, starColor, everVisibleFromSouth,
 } from '../celestialModel';
 import { BRIGHT_STARS } from '../data/brightStars';
@@ -280,15 +280,9 @@ describe('sunGlowStrength', () => {
         expect(sunGlowStrength({ altDeg: -45 })).toBe(0);
     });
 
-    it('peaks just above the horizon ("zon vlak over daken")', () => {
+    it('reaches full strength by SUN_GLOW_RISE_DEG ("zon vlak over daken")', () => {
         const peak = sunGlowStrength({ altDeg: SUN_GLOW_RISE_DEG });
-        // The rise band is fully open there, and the fall term has barely started — near, but not
-        // exactly, 1: the two bands overlap by design, so nothing pops at the horizon line.
-        expect(peak).toBeGreaterThan(0.98);
-        expect(peak).toBeLessThanOrEqual(1);
-        for (const alt of [10, 25, 45, 90]) {
-            expect(peak).toBeGreaterThan(sunGlowStrength({ altDeg: alt }));
-        }
+        expect(peak).toBe(1);
     });
 
     it('rises quickly over the first SUN_GLOW_RISE_DEG and never quite reaches 0 while the sun is up', () => {
@@ -301,16 +295,12 @@ describe('sunGlowStrength', () => {
         }
     });
 
-    it('eases monotonically down to a low floor by SUN_GLOW_ALT_FADE_DEG and stays there', () => {
-        let prev = sunGlowStrength({ altDeg: SUN_GLOW_RISE_DEG });
-        for (let a = SUN_GLOW_RISE_DEG; a <= 90; a += 1) {
-            const v = sunGlowStrength({ altDeg: a });
-            expect(v).toBeLessThanOrEqual(prev + 1e-12);   // non-increasing
-            prev = v;
+    // UAT r1 (Han 2026-09-06, "niet hoogte afhankelijk"): a willow under a HIGH midday sun must glow
+    // exactly as strongly as one under a low dusk sun — no fall-to-a-floor term any more.
+    it('stays at exactly 1 for any altitude at or above SUN_GLOW_RISE_DEG, however high the sun climbs', () => {
+        for (const a of [SUN_GLOW_RISE_DEG, 10, 25, 39, 45, 90]) {
+            expect(sunGlowStrength({ altDeg: a })).toBe(1);
         }
-        expect(sunGlowStrength({ altDeg: SUN_GLOW_ALT_FADE_DEG })).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
-        expect(sunGlowStrength({ altDeg: 90 })).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
-        expect(sunGlowStrength({ altDeg: 90 })).toBeGreaterThan(0);
     });
 
     it('stays inside [0, 1] across the whole altitude range', () => {
@@ -335,8 +325,9 @@ describe('sunGlowStrength', () => {
         expect(lowSun.altDeg).toBeGreaterThan(0);
         expect(lowSun.altDeg).toBeLessThan(10);
         expect(sunGlowStrength(lowSun)).toBeGreaterThan(0.9);
-        // Midday: the sun transits at 90 − φ ≈ 39°, past SUN_GLOW_ALT_FADE_DEG ⇒ the floor.
-        expect(sunGlowStrength(sunPosition(MID_DAY_T, 0))).toBeCloseTo(SUN_GLOW_ZENITH_FLOOR, 9);
+        // Midday: the sun transits at 90 − φ ≈ 39°, well past the rise band ⇒ still FULL strength
+        // (UAT r1: not altitude-dependent — a high midday sun glows exactly as strongly as a low one).
+        expect(sunGlowStrength(sunPosition(MID_DAY_T, 0))).toBe(1);
     });
 
     it('SUN_GLOW_RGB is the warm yellow every sun surface shares', () => {

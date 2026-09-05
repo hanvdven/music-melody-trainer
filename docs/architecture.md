@@ -26431,20 +26431,32 @@ sit in front of it.
 
 ```
 altDeg <= 0                       ->  0                           (nothing at or below the horizon)
-rise = min(1, altDeg / 2 deg)                                     (SUN_GLOW_RISE_DEG)
-t    = min(1, altDeg / 25 deg)                                    (SUN_GLOW_ALT_FADE_DEG)
-fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (SUN_GLOW_ZENITH_FLOOR = 0.25)
-strength = rise * fall
+strength = min(1, altDeg / 2 deg)                                 (SUN_GLOW_RISE_DEG)
 ```
 
-Two overlapping bands. The `rise` band exists ONLY so the term cannot pop 1 -> 0 at the horizon line
-while half of the glow's 40 gpx disc still covers on-screen rooftops — 2° is ~7 gpx of sky, i.e. still
-"vlak over daken". The `fall` band eases the glow down to a low floor (0.25) by 25° of altitude and
-holds it there: a high midday sun still rims faintly (the light is real) but no longer rakes across the
-silhouettes. It reuses `weatherCycle.easeInOut` — the app has exactly one smoothstep.
+**UAT r1 (Han 2026-09-06, "ik vind de sun-glow nog niet goed zichtbaar ... ik wil de zelfde soort gloed
+die de maan geeft, op objecten die visueel dicht bij de zon staan").** The ORIGINAL curve (below) faded
+the term down to a floor of 0.25 above 25° altitude, on the assumption that "vlak over daken" was
+specifically a low-sun moment. Han's interview answer was the opposite — **"niet hoogte afhankelijk"**:
+a willow standing right under a HIGH midday sun must glow exactly as strongly as one under a low dusk
+sun, because "the sun is visually close to that object" can happen at any point in its arc, not just at
+the horizon. The fall-to-a-floor term (and its two constants, `SUN_GLOW_ALT_FADE_DEG` /
+`SUN_GLOW_ZENITH_FLOOR`) are GONE. Only the `rise` band survives — it exists purely so the term cannot
+pop 1 → 0 at the horizon line while half of the glow's 40 gpx disc still covers on-screen rooftops (2°
+is ~7 gpx of sky at the shipped fov) — so strength is **exactly 1 for any altitude ≥ 2°**, however high
+the sun climbs. Below the horizon it is still *exactly* 0 (ac3). The interview's OTHER half — whether
+to also loosen the luminance mask that gates the glow to already-bright-painted texels (shared with
+`applyMoonLight`, §370) — Han declined: "hou 'm zoals de maan", so `MOON_LUM_LO`/`MOON_LUM_HI` are
+untouched and shared as before.
 
-The peak therefore sits just above the horizon (~0.99 at 2°), which is exactly Han's "zon vlak over
-daken". Below the horizon it is *exactly* 0, so there is no sun glow at night (ac3).
+*Superseded — kept for the historical record of why this was tried and reverted:*
+
+```
+rise = min(1, altDeg / 2 deg)                                     (SUN_GLOW_RISE_DEG)
+t    = min(1, altDeg / 25 deg)                                    (was SUN_GLOW_ALT_FADE_DEG)
+fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (was SUN_GLOW_ZENITH_FLOOR = 0.25)
+strength = rise * fall
+```
 
 **The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB,
 sunsetFactor(illum))` — the sun's OWN yellow `[255, 233, 160]` lerped to the sky's OWN warm rose
@@ -26580,7 +26592,7 @@ effect and introduces no system boundary (no I/O, no decode, no external API). A
 curve and the pure colour lerp.
 
 **Files:** `src/components/character/celestialModel.js` (`SUN_GLOW_RGB` moved in, `SUN_GLOW_RADIUS_GPX`
-/`SUN_GLOW_RISE_DEG`/`SUN_GLOW_ALT_FADE_DEG`/`SUN_GLOW_ZENITH_FLOOR`, `sunGlowStrength`),
+/`SUN_GLOW_RISE_DEG`, `sunGlowStrength`; UAT r1 removed `SUN_GLOW_ALT_FADE_DEG`/`SUN_GLOW_ZENITH_FLOOR`),
 `src/components/character/CelestialSky.jsx` (`skyGeom` extracted + exported and consumed here;
 `SUN_GLOW_RGB` now imported), `src/components/character/SkyGradientBackdrop.jsx` (`SUNSET_RGB`
 exported, `sunGlowColor`), `src/components/character/foliageLightingGLSL.js` (4 uniforms,
@@ -26869,3 +26881,226 @@ CONSUMER side changed, not how `weatherRef`/`weather` state itself is produced o
 (the three earlier fixes in this same investigation, all the same "throttle the derivation, not the
 display" shape). BACKLOG.md "Performance: hakkelige rendering" — this closes the gradient follow-up Han
 raised after the original 3-part request.
+
+---
+
+### §382. LDtk world content pipeline: generic layer rendering + `WORLD_ART_GPX_H` height fix (#1195, Han 2026-09-05)
+
+**Purpose.** Han grew every `RAM level.ldtk` level's native height from 272px to 320px and added new
+authored content (a `City_Walls`-layer stone bridge using Castle Tiles, `Water_FG`/`Grass_tiles_fg_poc`/
+`Decor_Shimmer_FG` reed/water decoration, a `Character_examples_placeholders` test layer). None of it
+appeared in-game after saving, and the top of the level looked permanently clipped. Two independent
+bugs, found via direct investigation of the raw `.ldtk` JSON (not a caching issue — `ldtkWorld.js`
+already re-parses the file fresh via a Vite `?raw` import on every build, see §194).
+
+**Bug 1 — the level's top was clipped behind a flat colour.** `WORLD_ART_GPX_H` (`worldLayout.js`,
+§348) was still hardcoded to **272** — the level height at the time §348 was written (2026-08-29), a
+week before Han's resize. Since `RpgLevelPanel` (ground/water/foliage/sky/celestial, everything) is
+always rendered at a fixed `WORLD_ART_GPX_H·N` px tall (`App.jsx`), any world-block height above 272
+was filled with a flat `#8fd0d9` div standing in for real content, and content between the level's new
+top (0) and the old cap (48px in from the top) was ADDITIONALLY clipped by `RpgLevelPanel`'s own
+`overflow: hidden` regardless of the outer crop. **Fix:** `WORLD_ART_GPX_H` → 320 (now equal to
+`WORLD_GPX_H_MAX` and to `ldtkWorld.js`'s `LEVEL_PX_HEIGHT`). `cropFor`'s `skyPadGpx` (the flat-colour
+pad) is consequently always 0 now — the art fills the world block at whatever height the ladder gives
+it, real content only. **Invariant:** `WORLD_ART_GPX_H` MUST track `LEVEL_PX_HEIGHT` — nothing
+cross-checks the two modules (`worldLayout.js` deliberately has no import of `ldtkWorld.js`, keeping
+the ladder level-content-agnostic), so this must be verified by hand whenever either changes.
+
+**Bug 2 — new LDtk layers were invisible (silently, no error).** *(Superseded same day — see §383. The
+`GENERIC_LAYERS` fix below was step one, correctly diagnosed and shipped, but Han's very next report —
+"de wilg staat VOOR de brug, maar in ldtk staat ie er achter" — showed the deeper issue: even with every
+layer rendering, ground/foliage/water/background/entities were each still hardcoded into fixed, ONE-TIME
+"which bucket, front or back of Entities" buckets, so a ground layer between two foliage layers (like
+`City_Walls`) still couldn't land in its true paint position. §383 replaces the bucket system itself
+with a general back-to-front pass list, superseding `GENERIC_LAYERS` — this write-up is kept for the
+diagnosis history, not as a description of the current code.)* `ldtkWorld.js` reads tiles through an
+explicit per-purpose whitelist (`STATIC_TILE_LAYERS`, `TAVERN_TIER_LAYERS`, `BRIDGE_TIER_LAYERS`,
+`FOLIAGE_LAYERS`, `BACKGROUND_LAYERS`, `ANIMATED_LAYERS`) — CLAUDE.md §6c calls for deriving from the
+data instead of hand-typed lists, and this is exactly the failure mode it warns about: a layer added in
+LDtk that isn't in one of these lists just never renders, with no warning (unlike a missing tileset
+PNG, which at least logs — `tilesetUrls.js`). Han's own framing after the investigation: *"render de
+nieuwe levels gewoon zoals in LDTK. Enkel de sheets met 'level' erin en de masking moeten speciale
+behandeling."*
+
+**Fix.** A new `GENERIC_LAYERS` list in `ldtkWorld.js`, derived from `ldtk.defs.layers` (the file's own
+authoritative layer list) rather than hand-typed: every layer identifier NOT already claimed by one of
+the existing special-cased buckets above (tiers, foliage-shimmer, animated frame-cycling,
+background-parallax, a grass rule-group, a Terrain/Pavement rule-engine source, the collision mask, or
+Entities) AND not containing `_level_` in its name. Appended to `groundTiles` in `buildWorld()`
+(`...GENERIC_LAYERS.flatMap(staticLayerTiles)`), reusing the SAME `staticLayerTiles`/
+`isInFrontOfEntities` front/back split every other ground layer already gets — no new rendering
+mechanism. `_level_`-named layers (the tier families: Tavern/Bridge today, plus Blacksmith/Alchemist's
+single always-on "tier") are excluded on purpose — Han: *"apart, ik ga de tiering herbouwen"* — the
+tier system is being reworked separately, so a brand-new tier layer must still be wired in by hand, not
+silently render as a permanently-on layer. Existing `STATIC_TILE_LAYERS` etc. are UNCHANGED (kept
+exactly as they were) — this is purely an additive fallback bucket, chosen over replacing the existing
+lists to avoid any regression risk to already-working tiers.
+
+**Interview answers (Han 2026-09-05), for reference:**
+
+1. Keep the existing special-cased buckets (background/foliage/animated) exactly as they are — "apart."
+2. New content (`Water_FG` etc.) are legitimate new variants, not replacements — "nieuwe varianten :)."
+3. `Character_examples_placeholders` renders too, no filtering — "render maar." (It currently has no
+   matching tileset PNG under ASSORTED — `characters sheet1.png` — so it logs the existing
+   `tilesetUrls.js` "tileset PNG not found" warning and its tiles are skipped; this is the pre-existing,
+   non-fatal missing-asset path, not a new failure mode.)
+4. Unreachable levels (different `worldY` than the Hero's level, §233's `REACHABLE_LEVELS` filter) stay
+   out of scope — "je mag de niet-bereikbare levels negeren." No change needed; already correct by
+   design.
+
+**Side-finding (no action taken).** `Bridge_level_1_log`/`Bridge_level_2_wood` (already-existing
+`BRIDGE_TIER_LAYERS` entries, pre-dating this investigation) turned out to reference tile coordinates
+that are 85-100% transparent in their assigned tilesets (`Pine forest sheet.png`/`SSW_Interriors.png`)
+— old placeholder content, not Han's new stone bridge (which lives on `City_Walls`, now covered by the
+`GENERIC_LAYERS` fix above). Left as-is; not in scope of this fix.
+
+**Invariants.** `GENERIC_LAYERS` is computed once at module load (same pattern as every other derived
+constant in this file) from the CURRENT `ldtk.defs.layers` — adding a new non-tier layer in LDtk needs
+zero code changes going forward, closing the exact gap that caused Bug 2. A layer accidentally named
+with `_level_` in it that ISN'T meant to be a tier family would silently need manual wiring (matches
+Han's stated intent for tier layers, but is a sharp edge worth remembering if a future decor layer
+happens to get a `_level_`-containing name).
+
+**Files:** `src/utils/worldLayout.js` (`WORLD_ART_GPX_H` 272→320 + comments), `src/App.jsx` (comments
+only), `src/utils/__tests__/worldLayout.test.js` (2 tests updated to stop conflating the ladder's own
+272-plateau literal with `WORLD_ART_GPX_H`), `src/levels/ldtk/ldtkWorld.js` (new
+`HANDLED_LAYER_IDENTIFIERS` and `GENERIC_LAYERS`, `buildWorld`'s `groundTiles` extended),
+`IMPLEMENTATION_PLAN.md`. Verified: `npm run test:run` (131 files / 1479 tests, 1 pre-existing skip),
+`npm run build`, `npm run lint` (0 errors, same pre-existing warning baseline).
+
+**Cross-references.** §194/§195-201/§233 (the original LDtk scenery pipeline and its file-ownership
+rule this generalizes); §348/§379 (the world-height ladder and toggle `WORLD_ART_GPX_H` belongs to);
+CLAUDE.md §6c (the "derive, don't hardcode" rule this directly applies).
+
+---
+
+### §383. LDtk world content pipeline, take 2 — a general back-to-front PASS list replaces the fixed ground/foliage/animated/background/entities buckets (#1195, Han 2026-09-05)
+
+**Purpose.** §382's `GENERIC_LAYERS` fix made every layer render, but Han's very next report —
+*"nice, ik zie de brug. Let goed op dat je dezelfde volgorde van lagen aanhoudt als in de ldtk. Nu staat
+bijvoorbeeld de wilg VOOR de brug, maar in ldtk staat ie er achter"* — exposed the deeper bug §382
+didn't touch: the app has always rendered scenery through a small number of FIXED, hardcoded stacking
+buckets (a "ground" canvas, a "foliage" WebGL shimmer layer, an "animated" DOM overlay, a "background"
+parallax set, and `Entities`, split into exactly "everything behind Entities" and "everything in front
+of Entities" — `isInFrontOfEntities`/`splitByFront`, §925). `City_Walls` (the new stone bridge, a plain
+`'ground'`-shaped layer) sits BETWEEN `Grass_decoration_fg` and `Grass_decoration_bg` in the real
+`.ldtk` layer order — but the old buckets always painted ALL foliage after ALL ground, so the bridge
+rendered UNDER the willow regardless of what LDtk's own order said. Han's direction after being shown
+the scope: *"het is heel simpel: houd gewoon áltijd de volgorde van LDTK aan"* — confirmed, after an
+interview about scope, to apply to EVERY kind of content (ground, foliage, water, campfire, background
+parallax, AND `Entities` itself — Han: *"alles in één keer, inclusief Entities-interleaving"*, accepting
+that a layer in front of `Entities` in the file can now visually cover the hero/pet/NPCs, a real
+behaviour change from the old "hero is always drawn between exactly two halves" model).
+
+**The fix — `ldtkWorld.js`: `buildWorld()` returns `world.passes`, not fixed buckets.**
+
+- `PAINT_ORDER_IDENTIFIERS` — every layer identifier the file defines (`LAYER_INDEX`, already built for
+  §925's front/back check), sorted by DESCENDING index — i.e. back-to-front, the file's own real paint
+  order.
+- `classifyLayer(identifier, {tavernTier, bridgeTier})` — the ONE place that decides what kind of
+  content a layer is: `'entities'` (the `Entities` layer), `null`/excluded (`Collision_mask`, `Terrain`
+  — the IntGrid rule-engine SOURCE with no tiles of its own, an inactive tavern/bridge tier), or one of
+  `'background'`/`'campfire'`/`'shimmer'` (foliage AND water — water renders through the same WebGL
+  shimmer pipeline as foliage, see `useLdtkWaterInstances.js`)/`'ground'` (the default — tiers, plain
+  decor, any future layer with no special treatment needed).
+- `tilesForIdentifier(identifier, {season, city})` — fetches ONE identifier's tiles the right way
+  (season/city-gated rule engine for Terrain_Tiles/Pavement, the two grass rule-groups,
+  `withAnimMeta`+`kind` tagging for water/campfire, plain `staticLayerTiles` for everything else).
+- `buildPasses(params)` walks `PAINT_ORDER_IDENTIFIERS` back-to-front, classifies each, and merges
+  CONTIGUOUS same-kind identifiers into one pass (`{kind, tiles}`, or `{kind:'background', layers:
+  [{identifier, factor, tiles}]}` — each background layer keeps its own parallax factor — or
+  `{kind:'entities'}`, always a singleton). An identifier contributing zero tiles this call is skipped
+  WITHOUT flushing, so it doesn't break up a run of its neighbours. The result: `world.passes`, an
+  ordered array `RpgLevelPanel.jsx` renders directly via one `.map()`.
+
+This is a strict generalization of §382's principle — "derive from the file, don't hand-type a list"
+— extended from "which layers exist" to "in what ORDER do they render," and it made `GENERIC_LAYERS`/
+`HANDLED_LAYER_IDENTIFIERS` themselves redundant (deleted): the pass-builder's `'ground'` DEFAULT
+already covers everything those two lists existed to enumerate.
+
+**The fix — `RpgLevelPanel.jsx`: one small component per pass KIND, mounted via `.map()`.**
+
+React's Rules of Hooks forbid a dynamic number of hook calls inside ONE component body, but allow a
+dynamic number of SIBLING component instances — so each pass kind that needs its own per-pass hook call
+(lit-ground textures, water instances, campfire culling) got its own tiny component, replacing the old
+fixed `SceneryBack`/`SceneryFront`/`EntityLayer` trio:
+
+- **`GroundPass`** — `LdtkScenery` (flat canvas) + its own `LdtkLitGround` (lighting), one
+  `useLdtkLitGroundTextures` call per pass. `edgeLitOnly` (the old back(false)/front(true) split) is now
+  computed per-pass in `RpgLevelPanel`: `i > entitiesPassIndex`.
+- **`BackgroundPass`** — thin wrapper around `LdtkScenery`'s existing `backgroundLayers` prop (already a
+  LIST of independently-parallaxing canvases, §6d reuse — no new mechanism).
+- **`ShimmerPass`** — `ForegroundFoliageLayer` for this pass's foliage/water tiles, PLUS (RAM-level bug
+  fix, Han 2026-08-11) a flat `LdtkScenery` fallback canvas of the SAME tiles underneath, so there's
+  always a correctly-drawn un-shimmering sprite visible before the WebGL atlas/instances resolve — this
+  used to be achieved by literally baking foliage into the ground canvas array (`groundAndFoliageBack/
+  Front`); now each shimmer pass carries its own fallback. If the pass contains water tiles,
+  `WaterReflectionLayer` also mounts (immediately before the shimmer layer, preserving the
+  animation-reflection-shimmer z-order from #1032).
+- **`CampfirePass`** — `LdtkAnimatedTiles`' DOM frame-cycling overlay + its own `useCulledAnimatedTiles`
+  call (campfire is the only remaining consumer — water moved to the shimmer path back in #925 round 2).
+- **`'entities'`** — no new component; the EXISTING memoized `EntityLayer` (§1162 Fase 3) is rendered
+  inline in the `.map()`'s `'entities'` branch, at whatever array position the real LDtk order puts it.
+  `EntityLayer` already took every input via props (no sibling-JSX coupling), so relocating its MOUNT
+  POINT in the tree — while its own hooks/state/refs stay exactly where they were, called unconditionally
+  every render as before — was a low-risk move despite Entities being a live, imperative,
+  physics/camera-driven subsystem (§233/§322/§325/§330/§331), not static tile data like everything else
+  in this rewrite.
+
+**Perf preserved: the imperative camera-pan transform, generalized to a dynamic set.** §1162 Fase 1 made
+every "factor=1 ground-plane" wrapper `<div>` receive its pan `transform` IMPERATIVELY every rAF frame
+(bypassing React state/props for the offset) via 4 fixed refs. With a dynamic pass count, those became
+`panElsRef` — a `Map` each pass's own wrapper div joins/leaves via `useRegisteredRef` (a `useLayoutEffect`
+registering `ref.current` on mount, deleting on unmount) — and the pan loop now does
+`for (const el of panElsRef.current.values()) el.style.transform = transform;` instead of 4 fixed
+`if`-checks. `entityScrollRef` (Entities' own pan wrapper) stayed a single fixed ref — there is always
+exactly one `'entities'` pass, so no dynamism was needed there.
+
+**Legacy-mode ordering preserved.** The old JSX order was `SceneryBack → Legacy decor block →
+EntityLayer → SceneryFront`; folding `SceneryBack`/`EntityLayer`/`SceneryFront` into one `.map()` would
+have put the Legacy decor block (floor/trunk/tent, meant to render BEHIND the hero) AFTER `Entities` —
+a real regression for `sceneryMode === 'Legacy'` (the dev/comparison toggle, §194). Fixed by moving the
+Legacy decor block to render BEFORE the `.map()` (the Legacy "foreground foliage" block — tree
+canopy/tufts/crates, meant to stay IN FRONT of the hero — was already positioned after, and stays there
+unchanged). Every non-`'entities'` pass component already no-ops outside `sceneryMode === 'LDtk'`, so
+interleaving them with Legacy-only JSX has no visual effect in Legacy mode.
+
+**Verification note.** This is WebGL/canvas-compositing rendering code with no visual test harness
+(same "not unit-testable, stated explicitly" precedent as §370/§374/§375/§377) — `npm run test:run`/
+`build`/`lint` all pass, confirming no reference errors and no regression in `ldtkWorld.js`'s own pure
+logic (`ldtkWorld.test.js` rewritten around `world.passes`, including a regression test asserting
+`City_Walls` lands in a `'ground'` pass sandwiched between `'shimmer'` passes), but the actual on-screen
+result — bridge/willow ordering, lit-ground per pass, water reflection, Legacy-mode parity, camera-pan
+smoothness — has NOT been visually confirmed and needs Han's UAT.
+
+**Invariants.**
+
+- `world.passes` order IS render order — `RpgLevelPanel` must never reorder or re-bucket it; any new
+  per-pass concern (lighting, culling, instancing) belongs in that pass kind's own small component, not
+  in a new top-level split.
+- Every wrapper `<div>` positioned via the `panElsRef` imperative-transform convention must register via
+  `useRegisteredRef` (mount) and be trusted to unregister on unmount — a leaked entry would apply a
+  transform to a detached DOM node harmlessly, but a MISSING registration would leave that pass's
+  content frozen at `transform: translateX(0)` while the camera pans.
+- A pass kind's component must remain the ONLY place its hooks are called — do not hoist a per-pass hook
+  (e.g. `useLdtkLitGroundTextures`) back up into `RpgLevelPanel` itself, since the pass count is dynamic.
+
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`buildWorld` rewritten around `PAINT_ORDER_IDENTIFIERS`/
+`classifyLayer`/`tilesForIdentifier`/`buildPasses`; `GENERIC_LAYERS`/`HANDLED_LAYER_IDENTIFIERS`/
+`STATIC_TILE_LAYERS`'s old role/`isInFrontOfEntities`/`splitByFront`/`ENTITIES_INDEX` removed;
+`reflectableTilesFor` rederived from `classifyLayer`), `src/levels/ldtk/__tests__/ldtkWorld.test.js`
+(rewritten around `world.passes`), `src/components/character/RpgLevelPanel.jsx` (`SceneryBack`/
+`SceneryFront` replaced by `useRegisteredRef`/`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`;
+`panElsRef` replaces the 4 fixed scroll refs; the render body's scenery JSX replaced by one
+`world.passes.map()`; various per-pass derivations — `atlasFoliageInstanceFor`, `foliageInstanceProps`,
+`waterPonds`, `campfireLight`, `waterSpanNear`, the ambient-audio `envAudioRef.waterTiles` — updated to
+read `world.passes` instead of the old fixed buckets). Verified: `npm run test:run` (131 files / 1483
+tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors).
+
+**Cross-references.** §382 (the same-day predecessor this supersedes for layer VISIBILITY — still
+correct for that, just not for ordering); §194/§195-201/§233/§925 (the original LDtk pipeline, multi-
+level stitching, and the `isInFrontOfEntities` front/back split this replaces); §1162 (the perf work —
+Fase 1's imperative pan transform, Fase 3's `EntityLayer` extraction, Fase 4's `SceneryBack`/
+`SceneryFront` extraction, Fase 10a/10c's shared foliage atlas — all generalized here, none of it
+reverted); §1032 (water reflection, animation-reflection-shimmer z-order); CLAUDE.md §6c (derive, don't
+hardcode — extended from "which layers" to "what order").
