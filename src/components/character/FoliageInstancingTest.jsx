@@ -200,7 +200,12 @@ void main() {
     }
     float totalShiftPx = skewShiftPx + stretchShiftPx;
 
-    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    // #1219: discard fragments a wind bend pushed outside this sprite's own [0, W-1] column range
+    // instead of clamping them onto the edge texel column (bright specks outside the silhouette). Floor
+    // (kind 1) keeps the clamp. Mirrors ForegroundFoliageLayer's instanced shader.
+    float shiftedNativeXraw = nativeX + totalShiftPx;
+    if (vInstanceKind < 0.5 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > vWorldWidth - 1.0)) discard;
+    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, vWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)

@@ -7,6 +7,23 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1219 🐞 foliage wind pixel-switch: felle spikkels buiten de canopy-silhouet
+
+Han: "felle groene spikkels buiten de sprite na de switch; global illum + pixel-
+switch werken niet samen." Onderzoek → root cause: `shiftedNativeX = clamp(nativeX
++ totalShiftPx, 0, W-1)` in de 3 foliage-fragment-shaders. Wind-bend (`totalShiftPx`
+skew+stretch, ±4 npx, gesatureerd op max voor elke tile boven de onderste) duwt de
+sample-index buiten `[0, W-1]` → `clamp` sampelt dan de opake RANDkolom-texel i.p.v.
+transparant. Foliage-randkolommen zijn vaak felle blad-tips → verticaal uitgesmeerd,
+per-rij wisselende shift → rafelige sliert felle pixels buiten de canopy. Ambient-
+verduistering (uniform) kan ze niet verbergen.
+
+Fix: voor alpha-cutout sprites (kind 0) `discard` als de pre-clamp
+`shiftedNativeXraw < 0 || > W-1`, i.p.v. klemmen. Opake floor (kind 1) houdt de
+clamp. Toegepast in `ForegroundFoliageLayer` (instanced + non-instanced) en
+`FoliageInstancingTest`. lint 0 · build clean · test:run draait. Doc §156 bug-
+follow-up toegevoegd. Kanban-ticket #1219 aangemaakt.
+
 ## 2026-09-05 — 🐞 Wereld-level: hakkelige / inconsistente framerate "vooral bij veel beweging" (perf-diagnostiek)
 
 Han vroeg een performance-diagnostiek op het wereld-level. Diagnose (code-reading, nog geen

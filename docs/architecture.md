@@ -10771,6 +10771,24 @@ offsets from `duv` after this fix already runs).
 **Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`duv`/`normalUV` computation in `main()`
 rewritten to snap to an explicit clamped native-pixel index before any UV conversion).
 
+**Bug follow-up — the `clamp` itself smeared bright specks outside the silhouette (#1219, Han 2026-09-05).**
+*Symptom:* scattered BRIGHT green/yellow pixels along the OUTSIDE of tree-canopy silhouettes in the
+world at night, brightest on the tall upper canopies, not darkening with global illumination like the
+rest of the foliage. *Root cause:* `shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, W - 1.0)`. A
+wind bend (`totalShiftPx`, skew + stretch, up to ±4 native px, saturated to max on every tile above the
+bottom one because `heightRatio²` clamps to 1) can push `nativeX + totalShiftPx` OUTSIDE `[0, W-1]` —
+fragments that after the bend belong OUTSIDE the deformed silhouette. `clamp` made them sample (and
+render **opaque**) the sprite's EDGE texel column instead of being transparent. Foliage edge columns
+are often bright leaf-tip pixels in the art; smeared vertically (each screen row samples the same
+clamped column at its own `nativeY`) with a per-row-varying shift, they read as a ragged band of bright
+specks beyond the canopy outline. Uniform ambient darkening cannot hide them — they are the brightest
+source texels, sitting where only sky should be. *Fix:* for alpha-cutout sprites (kind 0) `discard`
+when the PRE-clamp `shiftedNativeXraw` is `< 0` or `> W - 1`, instead of clamping onto the edge column.
+The opaque floor (kind 1) keeps the clamp (it wants edge extension, has no cutout). Applied in all
+three foliage fragment shaders — `ForegroundFoliageLayer` instanced + non-instanced, and
+`FoliageInstancingTest` (kept in sync per its own header). Files:
+`src/components/character/{ForegroundFoliageLayer,FoliageInstancingTest}.jsx`.
+
 ### §157. Floor pinned to a flat "from above" normal; tunable normal-map strength; 5 new composite blend modes; hero light raised to 32px (Han 2026-08-06, round 19)
 
 **1. Floor lighting pinned flat (Han, NL: "normal map van de floor tiles mag toch globaal 'van boven' zijn;

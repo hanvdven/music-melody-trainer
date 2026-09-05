@@ -424,7 +424,14 @@ void main() {
     // UV, so texture2D() always lands solidly in the middle of one texel with no boundary ambiguity,
     // regardless of skew/stretch. nativeY (now gl_FragCoord-derived, see its own comment above) is reused
     // unchanged here — untouched by skew/stretch, which only ever shift the X sample.
-    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, uWorldWidth - 1.0);
+    // #1219 (Han: "felle groene spikkels buiten de sprite na de pixel-switch"): a wind bend can push the
+    // sample index outside this sprite's OWN [0, W-1] column range — those fragments belong OUTSIDE the
+    // deformed silhouette. Clamping them onto the edge texel column smeared a ragged band of (often
+    // bright leaf-tip) pixels beyond the canopy outline that global illumination could not hide. Discard
+    // them for alpha-cutout sprites; the opaque floor (kind 1) still wants the clamp (edge extension).
+    float shiftedNativeXraw = nativeX + totalShiftPx;
+    if (uInstanceKind == 0 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > uWorldWidth - 1.0)) discard;
+    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, uWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(uDiffuseUV.x, uDiffuseUV.z, (shiftedNativeX + 0.5) / uWorldWidth),
         mix(uDiffuseUV.y, uDiffuseUV.w, (nativeY + 0.5) / uWorldHeight)
@@ -707,7 +714,12 @@ void main() {
     }
     float totalShiftPx = skewShiftPx + stretchShiftPx;
 
-    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    // #1219: discard fragments a wind bend pushed outside this sprite's own [0, W-1] column range
+    // instead of clamping them onto the edge texel column (bright specks outside the silhouette). Floor
+    // (kind 1) keeps the clamp. See the non-instanced shader's fuller comment above.
+    float shiftedNativeXraw = nativeX + totalShiftPx;
+    if (vInstanceKind < 0.5 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > vWorldWidth - 1.0)) discard;
+    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, vWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
