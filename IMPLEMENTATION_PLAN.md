@@ -7,6 +7,31 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1221 r7: ROBUSTE oplossing — belichting losgekoppeld van de pixel-switch
+
+Na clamp → discard → clamp-bij-naad → per-tap gating bleef Han artefacten zien
+("vind een robuuste oplossing ... het blijft problemen opleveren!!!"). Structurele
+fix in béíde foliage-shaders: de wind-bend verplaatst nog enkel de KLEUR-sample
+(`duv`). Alles dat de VORM bepaalt leest de ONGESHIFTE tile-UV `duv0`:
+- discard op `texture2D(uDiffuse, duv0).a` → fragment buiten het echte silhouet
+  valt weg ongeacht waar de shift wijst → geen spikkels; #1219's hele
+  discard/clamp/bits-16-32 machinerie VERWIJDERD.
+- `moonRimFactor`/`sunInwardGlow`/`applySunGlow`/`edgeLightFactor` krijgen `duv0`
+  → rim/sheen op de echte, stabiele omtrek, nooit gegapt of weggeschoven.
+- `duv` (gewone clamp, nooit discard) = enkel kleur → shifted read voorbij de
+  tegelrand = 1-2px kleur-smeer binnen een dicht bladerdek, onzichtbaar.
+`normalUV` blijft op de geshifte coord. `internalEdges` (bits 1/2/4/8) onderdrukt
+nog de per-tegel atlas-cel naad, nu op stabiele coords. Subsumeert ook de
+skew/stretch kolom-skip (silhouet is `duv0`-solide). lint 0 · build · 1484 tests.
+Doc §377 r6/r7. Commits `8bca1f70` (r6 per-tap) + `ebeb9eb6` (r7 decoupling).
+
+## 2026-09-05 — ✅ #1193 item 1: flat surface-sheen op de parallax-achtergrond
+
+`LdtkScenery.drawSunRimPatch` bakt nu ook een FLAT sheen uit de eigen `src`
+tegel-composite: `src * 0.35`, dan de rim additief (`lighter`), dan één radiaal-
+masker + één zon-tint over het geheel. Geen per-pixel luminantie-bake — voor een
+verre boomlijn niet te onderscheiden van de shader-versie. Commit `a3666b4f`.
+
 ## 2026-09-05 — ✅ #1221: interne tegel-naden in multi-tile canopies (optie b)
 
 Han koos optie (b) na kosten-analyse van (a). Elke LDtk-foliage-instance krijgt
@@ -8858,3 +8883,22 @@ plek in de laagvolgorde, dus dit is zowel correct als toekomstvast.
 
 **Visueel bevestigd**: riet-reflectie duidelijk zichtbaar in het water onder de brug, gemêleerd
 grond/gras-patroon in de rest van de vijver. 1484 tests groen, build/lint OK.
+
+## #1195 UAT r4 (2026-09-05) — eenden-reflectie, universele fix voor alle entity-reflecties
+
+Build brak tijdelijk op een ONGERELATEERDE, parallelle wijziging (#1221, canopy-internal-edges shader
+werk in `foliageLightingGLSL.js`/`ForegroundFoliageLayer.jsx`/`LdtkLitGround.jsx` — niet door mij
+aangeraakt). Na "probeer opnieuw" bleek dat werk afgerond; build weer groen.
+
+🐞→✅ **Root cause**: eenden gebruiken een EIGEN spiegelmechanisme (los van `WaterReflectionLayer`),
+genest in hun eigen imperatief-gepositioneerde wrapper — dus dezelfde front-of-Entities-overschilder-bug
+als de brug/riet-reflectie. Bleek ook LATENT te gelden voor hero/pet/wisp/slime/worker-NPC-reflecties
+(`EntityReflection`), die allemaal in dezelfde `'entities'`-pass zaten.
+
+✅ **Fix**: één gedeelde "altijd-laatste-laag" (`LastLayerPass`, was `ReflectionPass`) die zijn eigen DOM-
+node beschikbaar stelt via React state. `EntityReflection` (declaratief, puur prop-gedreven) portalt daar nu
+gewoon naartoe — geen desync-risico. De eend (imperatief, rAF-gedreven positie) portalt ook, met een eigen
+ref die elke tick de SAMEN `left`/`bottom`-waarden van de echte sprite kopieert — dus geen drift.
+
+**Visueel bevestigd**: eend-reflectie duidelijk zichtbaar direct onder de eend. 1484 tests groen, build/
+lint schoon (0 errors).

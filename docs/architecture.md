@@ -26590,11 +26590,46 @@ instance gets `internalEdges`, a 4-bit mask of which world-space edges abut a si
 into atlas-sample space** (a `flipX`/`flipY` mirrors the shader's neighbour direction, exactly as it
 mirrors the UV rect) — bit 1 = atlas-up (−v), 2 = down (+v), 4 = left (−u), 8 = right (+u). It rides
 `aInstance4.z` (a previously-unused slot — no new attribute) → `varying float vInternalEdges` → passed
-to `moonRimFactor` and `applySunGlow`/`sunInwardGlow`, which skip any flagged direction. `edgeIsInternal`
-does the bit test with `mod(floor(mask/bit), 2.0)` (GLSL ES 1.00 has no bit ops). The non-instanced
-foliage shader (legacy mode, one sprite per object), `LdtkLitGround` (one composite), and the
-`FoliageInstancingTest` harness all pass `0.0` — no seams there. **Not fixed by this:** the separate
-skew/stretch column-skip (§156's staircase shear dropping source columns) — its own concern.
+to `moonRimFactor` and `applySunGlow`/`sunInwardGlow`. `edgeIsInternal` does the bit test with
+`mod(floor(mask/bit), 2.0)` (GLSL ES 1.00 has no bit ops). The non-instanced foliage shader (legacy
+mode, one sprite per object), `LdtkLitGround` (one composite), and the `FoliageInstancingTest` harness
+all pass `0.0` — no seams there.
+
+**UAT r6 — per-tap, not per-direction.** r1 skipped a flagged direction WHOLESALE, killing genuine
+leaf-gap edges inside a densely-neighboured tile. r6 gated each tap individually (drop only when the
+direction is internal AND that tap coordinate crossed the tile's own `uvRect`). Superseded by r7 below,
+but the per-tap `internalEdges` gating survives in `moonRimFactor`/`sunInwardGlow`.
+
+**UAT r7 — ROBUST: lighting decoupled from the wind pixel-switch** (Han, after clamp → discard →
+clamp-at-seam → per-tap kept exposing new artefacts: *"vind een robuuste oplossing voor belichting icm
+de pixel switch. het blijft problemen opleveren!!!"*). Root cause of the whole whack-a-mole: the
+edge/rim/sheen detection sampled the **wind-shifted** tile UV, so every gust interacted with the
+per-tile atlas cells and the quantised per-column shift (§156's staircase) — gaps, specks outside the
+silhouette, edges sliding off the lighting, unsheened pixels near seams. Both foliage shaders
+(instanced + non-instanced) now compute a `duv0` — the **unshifted** tile UV, the sprite's true stable
+outline — alongside the shifted `duv`:
+
+- the discard is gated on `texture2D(uDiffuse, duv0).a` — a fragment outside the TRUE silhouette is
+  dropped no matter where the shift points, so **no smeared specks** and #1219's whole
+  discard/clamp/bits-16-32 apparatus is **deleted**;
+- `moonRimFactor` / `sunInwardGlow` / `applySunGlow` / `edgeLightFactor` all take `duv0` — the rim/sheen
+  sits on the real outline, never gapped or slid off;
+- `duv` (plain `clamp`, never discarded) is the **colour only** — a shifted read past a tile edge is a
+  1–2 px colour smear inside a solid canopy, invisible.
+
+`normalUV` stays on the shifted coord (visible relief). `internalEdges` (bits 1/2/4/8) still suppresses
+the per-tile atlas-cell seam, now on stable coordinates. This also subsumes the skew/stretch
+column-skip concern: the silhouette is `duv0`-solid, so a skipped colour column is a texture wobble,
+not a hole.
+
+**Item 1 — flat surface sheen on the DOM parallax layers** (Han: *"sub sheen moet ook werken op de
+achtergrond (parallaxlagen)"*). The shader layers have a luminance-masked surface sheen
+(`SUN_SHEEN_SCALE`); the `LdtkScenery` parallax layers only ever had the rim (`computeMoonRim`).
+`drawSunRimPatch` now also lays down a **flat** sheen from the layer's own `src` tile composite —
+`src × SUN_SHEEN_WEIGHT` (0.35), then the baked rim additively (`lighter`) on top, then **one** radial
+mask + **one** sun-colour tint over the combined patch (so `destination-in` masks both contributions at
+once, no double-mask). No per-pixel luminance bake — for a distant treeline the flat form is
+indistinguishable from the shader's highlight-riding version.
 
 **The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
 the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
