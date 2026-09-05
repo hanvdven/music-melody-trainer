@@ -26567,13 +26567,15 @@ Setting it to 0 still gives strictly-edges-only.
   already inside the sun's screen-space mask while the sun is up — hence the new `tex/duv/texelSize`
   params. Still multiplied by the `near` mask, so the 3-px bite is full in the hard core and fades out
   with the rest of the glow.
-- **`RIM_EMPTY_ALPHA = 0.7`** — a silhouette's own anti-aliased edge texels (α ≈ 0.5–0.9) render (they
-  clear the 0.5 cutout-discard) but a `< 0.5` "is my neighbour empty" test does not see them as an
-  edge, so the rim stopped one texel short and left a dark fringe (Han: "bij foliage zie ik nog donkere
-  pixels aan de randen"). `moonRimFactor` and `sunInwardGlow` now test `< RIM_EMPTY_ALPHA` so the glow
-  reaches the true visual edge. Shared → the **moon** rim benefits too (its thin outline now hugs the
-  real silhouette). `edgeLightFactor` (crates/fences, #141) keeps the original 0.5 via the
-  `anyNeighborTransparent` wrapper over the new `anyNeighborBelowAlpha(tex, duv, off, thr)`.
+- **`RIM_EMPTY_ALPHA`** — introduced at r4 as `0.7` to catch anti-aliased edge texels (idea: α ≈
+  0.5–0.9 texels clear the 0.5 cutout-discard but a `< 0.5` "neighbour empty" test misses them, so the
+  rim stops one texel short of a dark fringe). **Reverted to `0.5` at UAT r5** (Han: "mijn pixel art
+  heeft geen sub-1 alpha") — verified: the LDtk foliage atlas is composited with
+  `imageSmoothingEnabled = false`, 1:1 blits, and sampled `NEAREST` with no mipmaps, so its alpha is
+  strictly 0 or 1 and `0.7` behaved identically to the `0.5` discard. The actual dark-fringe fix is
+  `sunInwardGlow` returning full rim strength (`1.0`) on the outermost texel. The constant is kept as a
+  single named lift point for any future genuinely-AA'd art. `edgeLightFactor` (crates/fences, #141)
+  keeps its own literal `0.5` via the `anyNeighborTransparent` wrapper over `anyNeighborBelowAlpha`.
 
 **The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
 the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
@@ -26583,7 +26585,9 @@ out to half the radius (an actual blow-out there), then a smooth fade over the o
 "kippenvel! Maak de radius dubbel zo groot — harde straal en fall-off schaal"): `SUN_GLOW_RADIUS_GPX`
 **55 → 110** — one constant, and because the mask is written off `0.5·r` and `r` it doubles the hard
 core (~55 gpx now) and the fade end together. `CelestialSky`'s `nearSun` moon-hide reuses the same
-constant, so that screen-space cutoff doubled too (kept unified).
+constant, so that screen-space cutoff doubled too (kept unified). **UAT r5** (Han, screenshot: "maak de
+straal iets kleiner, 30%"): `SUN_GLOW_RADIUS_GPX` **110 → 77** (hard core ~38 gpx, fade to 77); the
+`nearSun` cutoff shrinks with it.
 
 **GLSL ES 1.00 trap, avoided deliberately.** `smoothstep(edge0, edge1, x)` is **undefined** when
 `edge0 >= edge1`, so the natural-looking `smoothstep(uSunGlowRadius, 0.0, d)` must NOT be written. The

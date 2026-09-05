@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1193 UAT r5: radius 110→77; RIM_EMPTY_ALPHA terug naar 0.5
+
+Han (screenshot): "maak de straal iets kleiner (30%)". `SUN_GLOW_RADIUS_GPX`
+110 → 77 (harde kern ~38 gpx, fade tot 77); `CelestialSky.nearSun` krimpt mee.
+Han: "mijn pixel art heeft geen sub-1 alpha" — bevestigd (`ldtkTileCompositing`
+`imageSmoothingEnabled=false`, 1:1 blits, NEAREST, geen mipmaps → alpha strikt
+0/1), dus `RIM_EMPTY_ALPHA` 0.7 gedroeg zich identiek aan de 0.5 discard →
+teruggezet naar 0.5. De echte fringe-fix uit r4 (`sunInwardGlow` = volle rim-
+sterkte op de buitenste texel) blijft. Constant blijft als enig lift-punt voor
+eventuele latere AA-art. Commit `8ba6a5dc`. lint 0 · build clean.
+
+Openstaand (tickets aangemaakt): #1220 (sheen uit bij volledige zon-occlusie,
+JS-side), #1221 (LDtk-foliage per-sprite compositen — naden/skip-artefacten).
+Item 1 (parallax Canvas2D-sheen op r4-pariteit brengen) nog te ticketen/plannen.
+
 ## 2026-09-05 — ✅ #1219 🐞 foliage wind pixel-switch: felle spikkels buiten de canopy-silhouet
 
 Han: "felle groene spikkels buiten de sprite na de switch; global illum + pixel-
