@@ -26614,12 +26614,25 @@ so a wind-moved texel can land outside the rest silhouette (the bend) and is lit
 per-tile atlas-cell seam. The dead screen-space bits 16/32 (only the deleted #1219 discard read them)
 are removed from the JS packing.
 
-**Still open:** the per-column skew/stretch **column-skip** ("losse pixels" on stretched foliage/grass
-— a source column dropped or doubled everywhere the quantised shift steps by 1, so a dark outline or a
-bright highlight in that column vanishes). Inherent to §156's crisp integer nearest-neighbour shift;
-the artefact-free fixes are all trade-offs — reduce `stretchAmount`/`skewAmount`, accept a slight
-bilinear blur on stretched foliage, or a render-to-texture post-displacement pass (lighting computed
-before the shift). Deferred pending Han's choice.
+**Column-skip → render-to-texture two-pass (Han chose "c").** §156's crisp integer per-column shift
+inherently skips/doubles source columns; with per-pixel lighting on top those read as "losse pixels
+die niet gesheent/verdonkerd worden". The instanced foliage shader (`FoliageInstancingTest` /
+`ForegroundFoliageLayer`'s instanced path) is now **two passes**:
+
+1. `FRAGMENT_SRC_INSTANCED` renders the foliage **at rest** — `shiftedNativeX = nativeX`, no
+   skew/stretch on `duv`/`normalUV` — with the full lighting + shimmer, into an offscreen RGBA texture
+   `sceneTex` (blend OFF, cleared transparent).
+2. `PASS2_FRAGMENT_SRC` re-draws the **same instance quads** (same `VERTEX_SRC_INSTANCED`, so every
+   per-instance varying is there), recomputes only the skew/stretch offset (identical math) and samples
+   `sceneTex` at `gl_FragCoord + shiftPx·pxPerNativeX` — it **pulls** the already-lit rest pixel from
+   inside the sprite outward. The canopy still bends into empty space, and a skipped/doubled column is
+   now a coherent squish of a smoothly-lit image, not a per-pixel lighting glitch.
+
+`sceneTex`/`sceneFbo` are created in the GL-setup effect and resized from `drawFrame` via
+`ensureSceneTex()` (NEAREST + CLAMP); a `checkFramebufferStatus` guard falls back to a **still**
+(un-bent) foliage render straight to the canvas if a driver refuses the FBO — never a crash. The
+non-instanced (Legacy-mode, one sprite per object) path is unchanged. Cost: pass 2 adds ~1 texture
+sample + the wave noise per foliage fragment, plus one FBO clear per frame.
 
 **#1220 — the glow radius shrinks to 0 as the sun sinks behind the PARALLAX layers** (Han: *"als de zon
 volledig achter de bomen verdwenen is, stop met sheenen op alle lagen"*; *"maak de straal kleiner,
