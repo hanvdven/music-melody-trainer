@@ -3,9 +3,10 @@ import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background 
 import logger from '../../utils/logger';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import { cloudClearness, cloudCollapseT, cloudDarkT, weatherOutputs } from './weatherCycle';
-// §377 UAT r2: `sunGlowColor` no longer imports the sun DISC's saturated yellow — the rim tint is a
-// warm near-white of its own (SUN_GLOW_RIM_DAY / SUN_GLOW_RIM_DUSK below). `sunGlowColor` still lives
-// in THIS file because it owns `sunsetFactor`, the one shared dusk/dawn curve (cr2).
+// §377: the sun's own colour. `celestialModel` is a PURE module (no React, no DOM) so importing it
+// from this .jsx is safe; the reverse (`sunGlowColor` in celestialModel importing SUNSET_RGB from
+// here) is NOT — scripts/generate-star-catalog.mjs imports celestialModel under plain node.
+import { SUN_GLOW_RGB } from './celestialModel';
 
 // §372 (Han 2026-09-04): the backmost sky used to be TWO stacked static elements in RpgLevelPanel — a
 // hard-coded CSS `linear-gradient` div and the painted `Background layers_layer 5.png` image, both
@@ -178,31 +179,25 @@ export function sunsetFactor(illum) {
     return smoothstep(0.05, 0.33, illum) * (1 - smoothstep(0.33, 0.75, illum));
 }
 
-// §377 UAT r2 (Han, screenshot 2026-09-06: "ik wil bijv dat de buitenste paar pixels in de buurt van
-// de zon 'overbelicht' zijn, precies zoals bij de maan ... effect bestaat al voor de maan; je moet
-// hetzelfde effect hergebruiken"). The moon's rim (`MOON_RIM_COLOR = vec3(1.0)`) blows edge pixels
-// toward pure WHITE — that "overbelicht" read is the whole point. A saturated yellow tint (r0/r1) only
-// warms the edge, it never overexposes it. So the sun rim colour is now a warm near-WHITE by day,
-// lerping to a warm pink-white at dusk/dawn — the sun's colour is a CAST on an otherwise white
-// blow-out, not a saturated fill. `SUN_GLOW_RGB` (the saturated yellow) stays as-is: it is the DISC's
-// colour, not the rim's.
-export const SUN_GLOW_RIM_DAY = [255, 247, 230];    // barely-warm white — blows out like the moon, faint gold cast
-export const SUN_GLOW_RIM_DUSK = [255, 226, 214];   // warm pink-white for the dusk/dawn plateau
-
 /**
- * §377: the sun EDGE-GLOW tint (see UAT r2 note above). Lerps `SUN_GLOW_RIM_DAY → SUN_GLOW_RIM_DUSK`
- * on the SAME `sunsetFactor` curve the sky gradient uses — one dusk/dawn curve for the whole app (cr2).
+ * §377: the sun EDGE-GLOW tint. Han (2026-09-06 UAT): "gewoon de huidige kleur van de zon
+ * hergebruiken" — so this is the sun's OWN `SUN_GLOW_RGB` yellow `[255, 233, 160]`, lerped toward the
+ * sky's OWN warm rose `SUNSET_RGB` at dusk/dawn on the SAME `sunsetFactor` hump §372 uses for the
+ * horizon glow (one shared dusk/dawn curve, cr2). What makes the edge read "overbelicht, zoals bij de
+ * maan" is the STRENGTH — `SUN_SHEEN_SCALE` matches `MOON_SHEEN_SCALE` and the distance mask holds a
+ * flat full-strength core near the disc — not a whiter colour (an earlier r2 tried warm-white and Han
+ * reverted it). `SUN_GLOW_RGB` moved out of `CelestialSky.jsx` into `celestialModel.js` so the drawn
+ * disc's glow and this tint are provably the same colour (CLAUDE.md §6d).
  *
- * Lives here (not in celestialModel, not inline in RpgLevelPanel) because this file OWNS `sunsetFactor`,
- * and its pure helpers are exported precisely so the colour maths stays testable in jsdom without a
- * canvas.
+ * Lives here (not in celestialModel, not inline in RpgLevelPanel) because this file OWNS `SUNSET_RGB` /
+ * `sunsetFactor`, and its pure helpers are exported so the colour maths stays testable in jsdom.
  *
  * `lerpRgb` ROUNDS to integers, so the result is inherently quantised to 1/255 steps — which is why
  * this needs no term of its own in RpgLevelPanel's per-tick change-detection list: it is a pure
  * function of `globalIllumination`, which is already in that list at 0.004 granularity (cr3).
  */
 export function sunGlowColor(illum) {
-    return lerpRgb(SUN_GLOW_RIM_DAY, SUN_GLOW_RIM_DUSK, sunsetFactor(illum));
+    return lerpRgb(SUN_GLOW_RGB, SUNSET_RGB, sunsetFactor(illum));
 }
 
 function sampleLayer5(url) {

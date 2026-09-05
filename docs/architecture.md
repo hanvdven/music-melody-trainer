@@ -26458,18 +26458,18 @@ fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (was SUN_GLOW_
 strength = rise * fall
 ```
 
-**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** **UAT r2 (Han, screenshot 2026-09-06: "ik
-wil dat de buitenste paar pixels in de buurt van de zon 'overbelicht' zijn, precies zoals bij de maan
-... effect bestaat al voor de maan; je moet hetzelfde effect hergebruiken").** The r0/r1 tint was the
-sun's own SATURATED yellow `[255, 233, 160]` — which only *warms* a sprite edge, it never *overexposes*
-it. The moon's rim (`MOON_RIM_COLOR = vec3(1.0)`) blows edge pixels toward pure white, and that
-blow-out IS the effect Han wants. So `sunGlowColor` now lerps `SUN_GLOW_RIM_DAY [255,247,230]` (a
-barely-warm near-white) → `SUN_GLOW_RIM_DUSK [255,226,214]` (warm pink-white) on the SAME
-`sunsetFactor` hump §372 uses — the sun's colour is a *cast* on an otherwise white blow-out, not a
-saturated fill. Still one shared dusk/dawn curve (cr2); the two rim endpoints are their own constants
-(the disc's `SUN_GLOW_RGB` yellow is untouched — it is the disc's colour, not the rim's). `lerpRgb`
-rounds to integers, so the result is inherently quantised to 1/255 steps — the colour needs no term of
-its own in the change-detection list (below), being a pure function of `globalIllumination`.
+**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB,
+sunsetFactor(illum))` — the sun's OWN yellow `[255, 233, 160]` lerped to the sky's OWN warm rose
+`[255, 150, 130]` on the SAME `sunsetFactor` hump §372 already uses for the horizon glow. There is no
+second dusk/dawn curve and no new pink constant (cr2). `SUN_GLOW_RGB` moved out of `CelestialSky.jsx`
+into `celestialModel.js` so the drawn disc's glow and this tint are provably one colour (CLAUDE.md
+§6d). **UAT r2 (Han, screenshot 2026-09-06: "de buitenste paar pixels in de buurt van de zon
+'overbelicht', precies zoals bij de maan"; then, after a try with a warm near-white: "gewoon de
+huidige kleur van de zon hergebruiken. het effect mag even sterk zijn als dat van de maan").** A brief
+r2 attempt swapped the colour to a warm near-white to force the blow-out; Han reverted it — the fix is
+STRENGTH, not colour (see the rim/mask paragraphs below), so this stays the sun's own yellow.
+`lerpRgb` rounds to integers, so the result is inherently quantised to 1/255 steps — the colour needs
+no term of its own in the change-detection list (below), being a pure function of `globalIllumination`.
 
 **The cloud gate.** `quantSunGlow` multiplies the altitude curve by `(1 - cloudCollapseT(cloudCoverT))`
 — the SAME factor `quantMoonShine` uses, so "sun hidden behind cloud" and "no sun glow in the world"
@@ -26514,7 +26514,7 @@ shape — a luminance-masked screen-blend sheen plus a screen-blended rim — wi
 
 1. **no directional `dot(normal, DIR)` term** — the sun has no fixed world direction here; its
    LOCALITY is the distance mask, which is the whole point of the feature;
-2. the colour is a **uniform** (the day->dusk warm-near-white lerp, UAT r2) instead of a fixed const;
+2. the colour is a **uniform** (the sun's own yellow → dusk-rose lerp) instead of a fixed const;
 3. **everything is multiplied by the screen-space distance mask** around the sun's own position.
 
 It reuses the `rimFactor` the call site already computed for §370 (`moonRimFactor`, up to 6

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { mixNight, sunsetFactor, sunsetWeightAt, cloudSkyStop, cloudSheetAt, sunGlowColor, SUNSET_RGB, SUN_GLOW_RIM_DAY, SUN_GLOW_RIM_DUSK } from '../SkyGradientBackdrop';
+import { mixNight, sunsetFactor, sunsetWeightAt, cloudSkyStop, cloudSheetAt, sunGlowColor, SUNSET_RGB } from '../SkyGradientBackdrop';
 import { CLOUD_COVER } from '../weatherCycle';
+import { SUN_GLOW_RGB } from '../celestialModel';
 
 // §372 — the rendered sky-gradient backdrop. These cover the two pure colour helpers; the canvas
 // sampling / DOM render is not unit-tested (jsdom has no real 2D canvas).
@@ -158,23 +159,21 @@ describe('sunGlowColor', () => {
     it('is the sun\u2019s own yellow wherever sunsetFactor is 0 (full day and deep night)', () => {
         expect(sunsetFactor(1)).toBe(0);
         expect(sunsetFactor(0)).toBe(0);
-        expect(sunGlowColor(1)).toEqual(SUN_GLOW_RIM_DAY);
-        expect(sunGlowColor(0)).toEqual(SUN_GLOW_RIM_DAY);
-        for (const v of sunGlowColor(1)) expect(v).toBeGreaterThanOrEqual(225);   // near-white ⇒ blows out
+        expect(sunGlowColor(1)).toEqual(SUN_GLOW_RGB);
+        expect(sunGlowColor(0)).toEqual(SUN_GLOW_RGB);
     });
 
     it('reaches the sky\u2019s own SUNSET_RGB rose at the dusk/dawn illum plateau', () => {
         // 0.33 is where sunsetFactor peaks at exactly 1 — the plateau BOTH dusk and dawn cross.
         expect(sunsetFactor(0.33)).toBeCloseTo(1, 9);
-        expect(sunGlowColor(0.33)).toEqual(SUN_GLOW_RIM_DUSK);
+        expect(sunGlowColor(0.33)).toEqual(SUNSET_RGB);
     });
 
-    it('moves measurably toward the warm pink at dusk/dawn: G and B drop, R stays 255, still near-white', () => {
+    it('moves measurably toward the rose at dusk/dawn: G and B drop, R stays at 255', () => {
         const dusk = sunGlowColor(0.33);
         expect(dusk[0]).toBe(255);
-        expect(dusk[1]).toBeLessThan(SUN_GLOW_RIM_DAY[1]);
-        expect(dusk[2]).toBeLessThan(SUN_GLOW_RIM_DAY[2]);
-        for (const v of dusk) expect(v).toBeGreaterThanOrEqual(200);   // still a blow-out, not a saturated fill
+        expect(dusk[1]).toBeLessThan(SUN_GLOW_RGB[1]);
+        expect(dusk[2]).toBeLessThan(SUN_GLOW_RGB[2]);
     });
 
     it('stays integral and in-range across a sweep of illumination', () => {

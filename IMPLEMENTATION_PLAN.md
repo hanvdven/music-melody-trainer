@@ -19,12 +19,11 @@ ground-canvas dekken exact dezelfde RpgLevelPanel-container; `zoom = size.h/320`
 maakt `skyGeom.Hpx == 320`, dus de width-genormaliseerde fracties lijnen op). Het
 euvel zat in de STERKTE/KLEUR, niet de positie:
 
-- **Kleur** (`SkyGradientBackdrop.sunGlowColor`): was de verzadigde disc-gele
-  `SUN_GLOW_RGB` → dat *warmt* een rand maar *overbelicht* 'm nooit. Nu een
-  warm bijna-WIT (`SUN_GLOW_RIM_DAY [255,247,230]` → `SUN_GLOW_RIM_DUSK
-  [255,226,214]` op dezelfde `sunsetFactor`-curve). Screen-blend richting bijna-wit
-  = de "overbelicht"-look die de maan-rim ook geeft; de zonkleur is een cast, geen
-  vulling. Disc-`SUN_GLOW_RGB` blijft ongemoeid.
+- **Kleur** (`SkyGradientBackdrop.sunGlowColor`): kort een warm bijna-wit geprobeerd
+  om de blow-out af te dwingen; Han: "gewoon de huidige kleur van de zon
+  hergebruiken. het effect mag even sterk zijn als dat van de maan." → terug naar
+  `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB, sunsetFactor(illum))` (zon-geel → dusk-roze).
+  De "overbelicht"-look komt van de STERKTE, niet de kleur.
 - **Sterkte** (`SUN_SHEEN_SCALE`): 0.35 → 0.5 = pariteit met `MOON_SHEEN_SCALE`
   ("hetzelfde effect", geen zwakkere hulp-term).
 - **Afstandsmasker** (`applySunGlow`): was `1 - smoothstep(0, radius, d)` (fade
