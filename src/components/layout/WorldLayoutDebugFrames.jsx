@@ -26,16 +26,19 @@ export default function WorldLayoutDebugFrames({ layout }) {
     const crop = (world.topCropGpx || world.bottomCropGpx)
         ? `  crop −${world.topCropGpx}↑ −${world.bottomCropGpx}↓` : '';
 
+    // UI world-height toggle (Han 2026-09-04): `nav`/`content.block1`/`content.block2` can be `null`
+    // in full-height mode (computeWorldFullHeightLayout drops blocks to make room) — no frame for a
+    // block that isn't there.
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 99998, pointerEvents: 'none' }}>
             <Frame r={world} color="#ff9800"
                 label={`world  ${world.gpxW}×${world.gpxH} gpx   ×${scale}   [${arrangement}]${crop}`} />
-            <Frame r={nav} color="#8bc34a"
-                label={`nav  ${nav.gpxW}×${nav.gpxH} gpx  (${nav.cols}×${nav.rows} icons)   ×${scale}`} />
-            <Frame r={content.block1} color="#03a9f4"
-                label={`content 1 · conversation  ${content.block1.gpxW}×${content.block1.gpxH} gpx   ×${scale}`} />
-            <Frame r={content.block2} color="#03a9f4"
-                label={`content 2  ${content.block2.gpxW}×${content.block2.gpxH} gpx   ×${scale}`} />
+            {nav && <Frame r={nav} color="#8bc34a"
+                label={`nav  ${nav.gpxW}×${nav.gpxH} gpx  (${nav.cols}×${nav.rows} icons)   ×${scale}`} />}
+            {content.block1 && <Frame r={content.block1} color="#03a9f4"
+                label={`content 1 · conversation  ${content.block1.gpxW}×${content.block1.gpxH} gpx   ×${scale}`} />}
+            {content.block2 && <Frame r={content.block2} color="#03a9f4"
+                label={`content 2  ${content.block2.gpxW}×${content.block2.gpxH} gpx   ×${scale}`} />}
         </div>
     );
 }

@@ -26606,3 +26606,70 @@ entity updates (music LEVEL flow) are throttled to ~30 Hz while the scroll itsel
 §375 (the same weather `useFrameLoop` subscription, `cloudCoverT`); §377 (`#1193`, which also edits this
 same subscription's body — see its own §376/§377 numbering note above; the two changes are additive and
 do not conflict, confirmed by re-reading the live file before editing).
+
+---
+
+### §379. World-height toggle — reclaim height by turning blocks off in priority order (Han 2026-09-04)
+
+**Purpose.** The world block (`worldLayout.js`'s pixel-perfect ladder, §334/§348) can render as short as
+`WORLD_GPX_H_MIN` (192 gpx) on a cramped viewport. Han: *"als het 'wereld' beeld lager is dan 320 GPX,
+wil ik een knopje rechtsbovenin om het volle hoogte te geven. Als content 1 en 2 niet meer passen,
+render die dan niet. als het nog wel past, render ze dan wel. bij volle hoogte moet het knopje weer
+terug naar standaardhoogte gaan."* — a manual, player-controlled toggle that trades the OTHER three
+blocks' visibility for a taller world, in a stated priority: content2 (usually the piano) goes first,
+then content1 (the conversation panel), then the nav bar last (kept longest, since it is normally how
+the player navigates away from the world screen at all).
+
+**How it works.**
+- **`computeWorldFullHeightLayout(w, h, n)`** (`worldLayout.js`) is a NEW function, deliberately NOT a
+  variant of the existing 4-arrangement ladder (`ARRANGEMENTS`/`pickArrangement`/`distributeHeight`):
+  "make room by turning blocks off" is a different question from "which arrangement best fills the
+  space", and conflating them would make both harder to reason about. It always produces a simple
+  full-width vertical stack: world (pinned to `WORLD_GPX_H_MAX` = 320 gpx, clamped down only if the
+  viewport genuinely can't reach it even alone) then whichever of content1/content2/nav survive, each
+  full width. `n` (the scale) is the CALLER's already-chosen scale from the normal `computeWorldLayout`
+  — toggling full-height never itself changes the pixel scale, only how the height at that scale is
+  spent.
+- **Drop order.** Four candidate combinations are tried, most-content-first: all three → content2
+  dropped → content1 also dropped → everything dropped. The first one whose survivors' MINIMUM sizes
+  (`CONTENT_GPX_H_MIN` × 2, `NAV_GPX` for the nav strip) fit in `h − worldH` is used — "als het nog wel
+  past, render ze dan wel". Survivors stack top-to-bottom in the SAME visual order Han listed (world,
+  content1, content2, nav); the LAST surviving block absorbs whatever height is left over (pins to the
+  viewport bottom, the same ±1px rounding convention `build()` already uses in the normal ladder).
+- **The toggle itself** is plain React state in `App.jsx` (`worldFullHeight`, default `false`) — NOT
+  re-derived from the viewport, so it stays exactly where the player left it across a resize.
+  `worldLayoutBase` (the normal `computeWorldLayout` result) is still always computed; `worldLayout`
+  (what everything actually renders from) is `worldFullHeight ? computeWorldFullHeightLayout(...,
+  worldLayoutBase.scale) : worldLayoutBase`.
+- **`<WorldHeightToggleButton>`** (`components/layout/`) — a plain DOM `<button>`, top-right, shown
+  whenever `worldLayoutBase.world.gpxH < WORLD_GPX_H_MAX` (there is height to gain) OR the toggle is
+  already on (so it can always be switched back off — "moet het knopje weer terug naar standaardhoogte
+  gaan"). Glyph flips `⤢`/`⤡` with the toggle state.
+- **Where it is anchored.** The button is a SIBLING of the `<RpgLevelPanel>` wrapper, not a child of it.
+  That inner wrapper is the full 272·N-tall (uncropped) art layer, offset by `bottom: −(bottomCropGpx·N)`
+  to align the visible crop window — a button placed inside it would inherit that offset and could
+  scroll off-screen with the crop. The OUTER container (already `position:'relative'`, already
+  `overflow:'hidden'` at exactly `world.screenH` in world mode) is the CLIPPED box the player actually
+  sees, so anchoring there means "top-right" really is top-right of the visible world block.
+
+**Invariants.**
+- `computeWorldFullHeightLayout` can return `null` for `nav` / `content.block1` / `content.block2` — any
+  consumer of a `worldLayout`-shaped object MUST null-check those three before reading their rects.
+  Fixed at both existing consumers: `WorldBottomArea.jsx` (skips the block's DOM entirely) and
+  `WorldLayoutDebugFrames.jsx` (skips that block's debug frame). The normal `computeWorldLayout` never
+  returns `null` for these — only the full-height path can.
+- CLAUDE.md §3a (debug hit boxes) is **N/A** for `<WorldHeightToggleButton>`: a real `<button>`'s
+  rendered box IS its hit box, so there is no separate hit region to visualise.
+- The world's pixel SCALE (`n`) never changes when the toggle flips — only which of the four blocks
+  below it exist and how tall they are.
+
+**Files:** `src/utils/worldLayout.js` (`computeWorldFullHeightLayout`, new), `src/App.jsx`
+(`worldLayoutBase` / `worldFullHeight` state / `worldLayout` derivation, the button's mount point),
+`src/components/layout/WorldHeightToggleButton.jsx` (new), `src/components/layout/WorldBottomArea.jsx`
+(null-guards), `src/components/layout/WorldLayoutDebugFrames.jsx` (null-guards). Tests:
+`src/utils/__tests__/worldLayout.test.js` (`computeWorldFullHeightLayout` describe, 6 cases).
+
+**Cross-references.** §334/§348 (the normal pixel-perfect world-layout ladder this deliberately does
+NOT extend); §141 (`HORIZON_PX`, unrelated but the same "world block" this toggle resizes).
+
+**Note.** §378 was the last section header, so this is §379.

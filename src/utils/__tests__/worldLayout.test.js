@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    computeWorldLayout,
+    computeWorldLayout, computeWorldFullHeightLayout,
     WORLD_GPX_W_MIN, WORLD_GPX_H_MIN, WORLD_GPX_H_MAX, WORLD_ART_GPX_H, WORLD_SQUEEZE_BOTTOM_BELOW,
     WORLD_BOTTOM_CROP_GPX, CONTENT_GPX_H_MIN, CONTENT1_GPX_W_MIN, CONTENT2_GPX_W_MIN,
     NAV_GPX, NAV_ICON_COUNT,
@@ -204,6 +204,82 @@ describe('computeWorldLayout — portrait stacks the content blocks (Han 2026-08
     it('landscape (w > h) keeps a side-by-side arrangement — the portrait rule does not fire', () => {
         for (const [w, h] of [[1920, 1080], [1366, 768], [1600, 900]]) {
             expect(['v-row', 'h-row']).toContain(computeWorldLayout(w, h).arrangement);
+        }
+    });
+});
+
+// UI world-height toggle (Han 2026-09-04): "als het 'wereld' beeld lager is dan 320 GPX, wil ik een
+// knopje ... om het volle hoogte te geven. Als content 1 en 2 niet meer passen, render die dan niet.
+// als het nog wel past, render ze dan wel." Drop priority: content2 first, then content1, then nav.
+describe('computeWorldFullHeightLayout — the manual full-height override', () => {
+    it('pins the world block to WORLD_GPX_H_MAX and keeps the scale the caller passed in', () => {
+        for (const [w, h] of VIEWPORTS) {
+            const n = computeWorldLayout(w, h).scale;
+            const L = computeWorldFullHeightLayout(w, h, n);
+            expect(L.scale).toBe(n);
+            expect(L.world.x).toBe(0);
+            expect(L.world.y).toBe(0);
+            expect(L.world.screenW).toBe(w);
+            // Clamped only when the viewport itself can't reach 320 gpx at this scale.
+            expect(L.world.gpxH).toBe(Math.min(WORLD_GPX_H_MAX, Math.round(h / n)));
+        }
+    });
+
+    it('when everything comfortably fits, all three blocks survive full-width, filling the viewport', () => {
+        const n = 1;
+        const L = computeWorldFullHeightLayout(2000, 2000, n);   // world 320 + plenty left over
+        expect(L.nav).not.toBeNull();
+        expect(L.content.block1).not.toBeNull();
+        expect(L.content.block2).not.toBeNull();
+        for (const r of [L.nav, L.content.block1, L.content.block2]) {
+            expect(r.x).toBe(0);
+            expect(r.screenW).toBe(2000);
+        }
+        // stacked top-to-bottom with no gap, filling to the viewport bottom.
+        expect(L.content.block1.y).toBe(L.world.screenH);
+        expect(L.content.block2.y).toBe(L.content.block1.y + L.content.block1.screenH);
+        expect(L.nav.y).toBe(L.content.block2.y + L.content.block2.screenH);
+        expect(L.nav.y + L.nav.screenH).toBe(2000);
+    });
+
+    it('drops content2 FIRST when there is only room for content1 + nav (ac: priority order)', () => {
+        const n = 1;
+        // world 320 + content1 min (64) + nav (16) = 400; leave a bit of slack but not enough for content2 too.
+        const h = 320 + CONTENT_GPX_H_MIN + NAV_GPX + 10;
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.content.block2).toBeNull();
+        expect(L.content.block1).not.toBeNull();
+        expect(L.nav).not.toBeNull();
+        // the survivors still fill exactly to the viewport bottom.
+        expect(L.nav.y + L.nav.screenH).toBe(h);
+    });
+
+    it('drops content1 too when even that does not fit, keeping nav (kept longest)', () => {
+        const n = 1;
+        const h = 320 + NAV_GPX + 5;   // room for world + nav only
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.content.block1).toBeNull();
+        expect(L.content.block2).toBeNull();
+        expect(L.nav).not.toBeNull();
+        expect(L.nav.y + L.nav.screenH).toBe(h);
+    });
+
+    it('drops everything but the world when even nav does not fit — world alone fills the viewport', () => {
+        const n = 1;
+        const h = 320;   // exactly the world, nothing left for nav
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.nav).toBeNull();
+        expect(L.content.block1).toBeNull();
+        expect(L.content.block2).toBeNull();
+        expect(L.world.screenH).toBe(h);
+    });
+
+    it('never renders a surviving block below its own minimum size', () => {
+        for (const h of [340, 360, 400, 420, 450, 500, 600]) {
+            const L = computeWorldFullHeightLayout(2000, h, 1);
+            if (L.content.block1) expect(L.content.block1.screenH).toBeGreaterThanOrEqual(CONTENT_GPX_H_MIN - 0.5);
+            if (L.content.block2) expect(L.content.block2.screenH).toBeGreaterThanOrEqual(CONTENT_GPX_H_MIN - 0.5);
+            if (L.nav) expect(L.nav.screenH).toBeGreaterThanOrEqual(NAV_GPX - 0.5);
         }
     });
 });

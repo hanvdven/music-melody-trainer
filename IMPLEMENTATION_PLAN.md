@@ -7,6 +7,41 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-04 — ✅ Wereld-hoogte-knop: volle hoogte (320 gpx) door content2→content1→nav uit te zetten
+
+Han (item 4, vervolg op #1191 pre-test-ronde): "als het 'wereld' beeld lager is dan
+320 GPX, wil ik een knopje rechtsbovenin om het volle hoogte te geven. Als content 1
+en 2 niet meer passen, render die dan niet. als het nog wel past, render ze dan wel.
+bij volle hoogte moet het knopje weer terug naar standaardhoogte gaan." Na interview:
+knop rechtsboven IN de wereld-view zelf; "volle hoogte" = precies 320 gpx (niet de
+volledige viewport); "content 1/2" = de bestaande blokken uit `worldLayout.js`
+(content1 = RpgLevelBottomPanel/gesprek, content2 = WorldPiano) + navigatieknoppen
+(WorldNavBar) — bevestigd via `WorldBottomArea.jsx`.
+
+- **`worldLayout.js`**: nieuwe pure `computeWorldFullHeightLayout(w, h, n)` — GEEN
+  variant van de bestaande 4-arrangement-ladder (dat is een andere vraag: "welke
+  arrangement past het best" vs. "hoe maak ik plaats door blokken uit te zetten").
+  Altijd een simpele volle-breedte verticale stapel: wereld (vast op
+  `WORLD_GPX_H_MAX`=320, geklemd bij een te korte viewport) → wat overleeft van
+  content1/content2/nav. 4 combinaties geprobeerd, meeste content eerst: alles →
+  content2 weg → content1 ook weg → alles weg. Eerste combinatie die past ("als het
+  nog wel past, render ze dan wel") wordt gebruikt. `n` (schaal) komt van de caller
+  — de toggle verandert nooit de pixel-schaal, enkel de hoogte-verdeling.
+- **`App.jsx`**: `worldLayoutBase` (normale layout, altijd berekend) + `worldFullHeight`
+  state (handmatige toggle, niet auto-afgeleid) + `worldLayout` = full-height-variant
+  wanneer aan. Knop getoond zodra `worldLayoutBase.world.gpxH < 320` OF de toggle al
+  aanstaat (zodat je 'm altijd weer uit kan zetten).
+- **`WorldHeightToggleButton.jsx`** (nieuw): plain `<button>`, rechtsboven, ⤢/⤡ icoon.
+  Geplaatst als SIBLING van de RpgLevelPanel-wrapper (niet erin) — die wrapper is de
+  volle 272·N-tal ongecropte laag met een negatieve bottom-offset; een knop daarin zou
+  met de crop kunnen mee-scrollen. De buitenste (geclipte, `overflow:hidden`,
+  `world.screenH` hoge) container is wat de speler echt ziet.
+- **`WorldBottomArea.jsx` + `WorldLayoutDebugFrames.jsx`**: null-guards toegevoegd —
+  `nav`/`content.block1`/`content.block2` kunnen nu `null` zijn (full-height mode).
+- Tests: 6 nieuwe cases in `worldLayout.test.js` (schaal behouden, alles-past-nog,
+  content2-eerst-weg, content1-ook-weg, alles-weg-behalve-wereld, nooit onder minimum).
+- `lint` 0 · `build` clean · `test:run` 1479 pass / 1 skip (+6). Doc §379 toegevoegd.
+
 ## 2026-09-04 — ✅ #1191 pre-test r5: maan verdwijnt bij zon-nabijheid · opacity 0.1 · lijnen off-screen
 
 Han (voor het testen, 3 concrete + 1 nieuwe feature + 1 vervolgvraag):

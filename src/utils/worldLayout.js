@@ -237,3 +237,69 @@ export function computeWorldLayout(w, h, dpr = 1) {
     if (best) return build(best.n, best.arr, w, h);
     return build(1, ARRANGEMENTS[3], w, h);           // degenerate fallback (viewport too small)
 }
+
+// UI world-height override (Han 2026-09-04): "als het 'wereld' beeld lager is dan 320 GPX, wil ik een
+// knopje ... om het volle hoogte te geven. Als content 1 en 2 niet meer passen, render die dan niet.
+// als het nog wel past, render ze dan wel. bij volle hoogte moet het knopje weer terug naar
+// standaardhoogte gaan" — a manual toggle (not auto-managed) that pins the world block to
+// WORLD_GPX_H_MAX and reclaims the height it needs from the OTHER three blocks, dropped one at a time
+// in Han's stated priority: content2 (usually the piano) first, then content1 (the conversation), then
+// nav last (kept longest — it is how the player gets back OUT of full-height mode from anywhere the
+// button itself might not reach). Whichever combination is the FIRST (most content kept) that actually
+// fits is used — "als het nog wel past, render ze dan wel".
+//
+// Deliberately NOT a variant of the 4-arrangement ladder above (`ARRANGEMENTS`/`pickArrangement`):
+// "make room by turning blocks off" is a different question from "which arrangement best fills the
+// space", and this is always a simple full-width vertical stack — world, then whichever of
+// content1/content2/nav survive, each full width. `n` (the scale) is passed in from the CALLER's
+// normal `computeWorldLayout` result so toggling full-height never itself changes the pixel scale —
+// only how the height already at that scale is spent.
+export function computeWorldFullHeightLayout(w, h, n) {
+    const navH = NAV_GPX * n;
+    const blockMinH = CONTENT_GPX_H_MIN * n;
+    const worldGpxH = Math.min(WORLD_GPX_H_MAX, Math.round(h / n));   // clamp: a pathologically short
+    const worldH = worldGpxH * n;                                    // viewport can't reach 320 even bare
+    const belowWorld = h - worldH;
+
+    const combos = [
+        { c1: true, c2: true, nav: true },
+        { c1: true, c2: false, nav: true },
+        { c1: false, c2: false, nav: true },
+        { c1: false, c2: false, nav: false },
+    ];
+    let chosen = combos[combos.length - 1];
+    for (const combo of combos) {
+        const need = (combo.c1 ? blockMinH : 0) + (combo.c2 ? blockMinH : 0) + (combo.nav ? navH : 0);
+        if (need <= belowWorld) { chosen = combo; break; }
+    }
+
+    const gpx = (px) => Math.round(px / n);
+    const rect = (x, y, rw, rh) => ({ x, y, screenW: rw, screenH: rh, gpxW: gpx(rw), gpxH: gpx(rh) });
+    const order = [];
+    if (chosen.c1) order.push('block1');
+    if (chosen.c2) order.push('block2');
+    if (chosen.nav) order.push('nav');
+
+    let y = worldH;
+    let block1 = null;
+    let block2 = null;
+    let nav = null;
+    order.forEach((id, i) => {
+        // The LAST surviving block absorbs whatever height is left (pins to the viewport bottom, same
+        // ±1px rounding convention `build()` uses elsewhere) rather than each block computing its own
+        // share independently.
+        const rh = i === order.length - 1 ? Math.max(0, h - y) : (id === 'nav' ? navH : blockMinH);
+        if (id === 'block1') block1 = rect(0, y, w, rh);
+        else if (id === 'block2') block2 = rect(0, y, w, rh);
+        else nav = { ...rect(0, y, w, rh), cols: NAV_ICON_COUNT, rows: 1, orientation: 'horizontal' };
+        y += rh;
+    });
+
+    return {
+        scale: n,
+        arrangement: 'full-height',
+        world: { ...rect(0, 0, w, worldH), gpxH: worldGpxH, ...cropFor(worldGpxH) },
+        nav,
+        content: { block1, block2 },
+    };
+}

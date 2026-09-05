@@ -51,7 +51,8 @@ import SubHeader from './components/layout/SubHeader';
 import WorldNavBar from './components/layout/WorldNavBar';
 import WorldBottomArea from './components/layout/WorldBottomArea';
 import WorldLayoutDebugFrames from './components/layout/WorldLayoutDebugFrames';
-import { computeWorldLayout, WORLD_ART_GPX_H } from './utils/worldLayout';
+import WorldHeightToggleButton from './components/layout/WorldHeightToggleButton';
+import { computeWorldLayout, computeWorldFullHeightLayout, WORLD_ART_GPX_H, WORLD_GPX_H_MAX } from './utils/worldLayout';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -2794,9 +2795,21 @@ const App = () => {
     // Computed always (cheap, pure); only consulted while `inWorld && characterScreen === 'rpg-level'`.
     // #347: `devicePixelRatio` gates the 1.5 half-step. A dpr change (browser zoom, monitor move)
     // fires `resize` in practice, so keying the memo on window size is enough to pick it up.
-    const worldLayout = useMemo(
+    const worldLayoutBase = useMemo(
         () => computeWorldLayout(windowSize.width, windowSize.height, window.devicePixelRatio || 1),
         [windowSize.width, windowSize.height],
+    );
+    // UI world-height toggle (Han 2026-09-04, "als het 'wereld' beeld lager is dan 320 GPX, wil ik een
+    // knopje ... om het volle hoogte te geven"): a manual, user-controlled override — NOT re-derived
+    // from the viewport, so it stays exactly where the player left it (see worldLayout.js
+    // `computeWorldFullHeightLayout` for the drop-priority mechanism: content2 → content1 → nav).
+    const [worldFullHeight, setWorldFullHeight] = useState(false);
+    const canExpandWorld = worldLayoutBase.world.gpxH < WORLD_GPX_H_MAX;
+    const worldLayout = useMemo(
+        () => (worldFullHeight
+            ? computeWorldFullHeightLayout(windowSize.width, windowSize.height, worldLayoutBase.scale)
+            : worldLayoutBase),
+        [worldFullHeight, worldLayoutBase, windowSize.width, windowSize.height],
     );
     const inWorldLevel = inWorld && characterScreen === 'rpg-level';
     // Top-section (world / sheet / avatar panel) CSS height. In world mode it's the pixel-perfect
@@ -3291,6 +3304,15 @@ const App = () => {
                     ) : (
                         <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />
                     ))}
+                    {/* UI world-height toggle (Han 2026-09-04) — top-right of the world block. A sibling
+                        of the RpgLevelPanel wrapper above, NOT a child of it: that inner div is the
+                        full 272*N-tall (uncropped) art layer, offset by `bottom: -(bottomCrop*N)` — a
+                        button anchored inside it would scroll off-screen with the crop. This outer
+                        container is the CLIPPED, correctly-sized (`world.screenH`) box the player
+                        actually sees, so `top-right` here means top-right of the visible world. */}
+                    {inWorldLevel && (canExpandWorld || worldFullHeight) && (
+                        <WorldHeightToggleButton active={worldFullHeight} onToggle={() => setWorldFullHeight((v) => !v)} />
+                    )}
                     {/* #867 (Han 2026-08-18, "de info op de plaats van de bladmuziek"): the old
                         <LevelSplash> sibling-swap is gone — SheetMusic now stays mounted for
                         `levelResult` too and renders the result view INSIDE its own SVG (levelResult
@@ -3663,6 +3685,15 @@ const App = () => {
                             dedicatedPortraitUrl={wizardDedicatedPortrait?.portraitUrl}
                             dedicatedPortraitCell={wizardDedicatedPortrait?.portraitCell}
                             dedicatedPortraitFrame={wizardDedicatedPortrait?.portraitFrame}
+                            /* #weather (Han 2026-09-04): name the post-combat speaker — the three wizards
+                               (black Antophon / yellow Prosperus / green Modulatus) and the plain slime
+                               (Blob). The named-NPC case keeps no plate (its own label isn't a name). */
+                            speakerName={
+                                levelResultSpeaker.kind === 'slime' ? 'Blob'
+                                    : levelResultSpeaker.kind === 'wizard'
+                                        ? ({ Black: 'Antophon', Yellow: 'Prosperus', Green: 'Modulatus' })[wizardColorName]
+                                        : null
+                            }
                             text={levelResultDialogue.visibleText}
                             onClick={levelResultDialogue.handleTextClick}
                             autoContinue={rpgLevel.autoContinue}
