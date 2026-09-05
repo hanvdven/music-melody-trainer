@@ -75,20 +75,28 @@ const SUN_MASK_STOPS = Array.from({ length: 9 }, (_, i) => {
     return { t, a: 1 - t * t * (3 - 2 * t) };
 });
 
+// §377 item 1 (Han: "sub sheen moet ook werken op de achtergrond (parallaxlagen)"). The DOM parallax
+// layers only ever had the RIM (computeMoonRim); the shader layers also have a luminance-masked SURFACE
+// sheen (SUN_SHEEN_SCALE). This is the DOM twin — a FLAT approximation (no per-pixel luminance mask,
+// which would need a getImageData bake): the layer's own silhouette, radially masked and sun-tinted, at
+// a modest weight, laid down UNDER the rim in the same patch. For a distant treeline the flat form is
+// visually indistinguishable from the shader's highlight-riding version.
+const SUN_SHEEN_WEIGHT = 0.35;
+
 /**
- * §377: bake the sun's edge glow into a layer's small patch canvas, reusing the SAME baked `rim`
- * canvas `computeMoonRim` already produced for the moon (cr5 — not a second rim renderer). Three
- * Canvas2D ops: copy the rim under the sun → mask it to the radial disc → tint it with the sun's
- * colour at the glow's own opacity.
+ * §377: bake the sun's edge glow into a layer's small patch canvas — the RIM (reusing the baked
+ * `computeMoonRim` canvas, cr5) plus (item 1) a flat SURFACE SHEEN from the layer's own `src` tiles.
+ * Order on one canvas: src·SHEEN_WEIGHT, then rim additively on top, then ONE radial mask, then ONE
+ * sun-colour tint — so `destination-in` masks both contributions together and nothing double-masks.
  *
  * `bx`/`by` are the patch's top-left corner in canvas-LOCAL level px; `cx`/`cy` the sun's centre in
  * the same space. The caller derives them from the sun's container-space css position and this layer's
  * own `leftPx`, which already carries the layer's parallax factor — so the glow stays welded to the
  * visible sun disc while the art slides underneath it, exactly like the shaders' gl_FragCoord mask.
  */
-function drawSunRimPatch(ctx, rim, bx, by, cx, cy, color, opacity) {
+function drawSunRimPatch(ctx, src, rim, bx, by, cx, cy, color, opacity) {
     const R = SUN_GLOW_RADIUS_GPX;
-    // Clip the source read to the rim canvas; skip when the patch does not overlap this layer at all.
+    // Clip the source read to the layer canvas; skip when the patch does not overlap this layer at all.
     const x0 = Math.max(0, bx);
     const y0 = Math.max(0, by);
     const x1 = Math.min(LEVEL_PX_WIDTH, bx + SUN_PATCH_PX);
@@ -98,10 +106,17 @@ function drawSunRimPatch(ctx, rim, bx, by, cx, cy, color, opacity) {
     if (w <= 0 || h <= 0) return;
 
     ctx.globalCompositeOperation = 'source-over';
+    // Surface sheen: the layer's own tile silhouette at a modest weight.
+    if (src) {
+        ctx.globalAlpha = SUN_SHEEN_WEIGHT;
+        ctx.drawImage(src, x0, y0, w, h, x0 - bx, y0 - by, w, h);
+    }
+    // Rim on top, additive so a lit edge reads brighter than the flat sheen behind it.
+    ctx.globalCompositeOperation = src ? 'lighter' : 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(rim, x0, y0, w, h, x0 - bx, y0 - by, w, h);
 
-    // Mask to the radial falloff. 'destination-in' keeps (rim alpha × gradient alpha).
+    // Mask to the radial falloff. 'destination-in' keeps (accumulated alpha × gradient alpha).
     const grad = ctx.createRadialGradient(cx - bx, cy - by, 0, cx - bx, cy - by, R);
     for (const s of SUN_MASK_STOPS) grad.addColorStop(s.t, `rgba(255,255,255,${s.a})`);
     ctx.globalCompositeOperation = 'destination-in';
@@ -221,7 +236,7 @@ const BgLayer = React.memo(function BgLayer({
         // 0 at night and under real overcast (`sunRimOpacity` IS the shaders' own gated, quantised
         // `sunGlow`), so a night/overcast frame does nothing here beyond the clear (ac3/ac5).
         if (!rimRef.current || sunRimOpacity <= 0 || zoom <= 0) return;
-        drawSunRimPatch(ctx, rimRef.current, sunBoxX, sunBoxY, sunLocalX, sunLocalY, sunRimColor, sunRimOpacity);
+        drawSunRimPatch(ctx, srcRef.current, rimRef.current, sunBoxX, sunBoxY, sunLocalX, sunLocalY, sunRimColor, sunRimOpacity);
     }, [gen, sunRimOpacity, sunRimColor, sunBoxX, sunBoxY, sunLocalX, sunLocalY, zoom]);
 
     return (
