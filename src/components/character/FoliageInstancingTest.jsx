@@ -260,7 +260,7 @@ void main() {
     // unnoticed. The harness has no sun, so with DEFAULT_FOLIAGE_PARAMS it uploads strength 0 and this
     // is a proven no-op — which is precisely the "omit ⇒ 0, never a compile error" contract in action.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, 0.0, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vDiffuseUV, 0.0, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
