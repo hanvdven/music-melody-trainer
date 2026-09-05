@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1191 UAT r6: maan opnieuw ontworpen — geen alpha meer, enkel kleur
+
+Han (screenshot): "de maan is nog niet perfect. Nu is de 'lichte kant' dicht bij de
+zon donkerder dan de donkere kant. Design even hoe de maan moet eruit zien from
+scratch."
+
+**Diagnose** (3e keer dat dit exacte euvel opduikt — r3, r5, nu weer): zodra "hoe
+belicht" via ALPHA loopt, wordt de onbelichte kant deels DOORZICHTIG — de heldere
+lucht schijnt erdoorheen en oogt dus licht, terwijl de belichte kant (ondoorzichtig,
+eigen lichtgrijze kleur) tegen een heel heldere/blauwe lucht juist donkerder kan
+ogen. Geen enkele alpha-waarde lost dit structureel op — het zit in het
+alpha-blenden zelf.
+
+**From-scratch ontwerp (interview, alle 3 vragen beantwoord):**
+1. Schijf is ALTIJD volledig ondoorzichtig (`MOON_DISC_ALPHA = 1`, geen
+   uitzonderingen meer).
+2. "Hoe belicht" loopt voortaan UITSLUITEND via vulkleur (`MOON_SHADE[]` = 4
+   kant-en-klare kleuren, geen `{fill,alpha}` meer) — kan dus nooit meer omkeren
+   t.o.v. de achtergrond.
+3. Geen rand/outline (Han: nee).
+4. Onbelichte kant blijft hetzelfde donkerblauwgrijs (`MOON_EARTHSHINE_RGB`,
+   ongewijzigd) — nu alleen consistent zo getoond i.p.v. soms lichter door
+   transparantie.
+`drawMoonDisc`'s `alphaMul`-param is nu puur de §375-wolkenfade, losgekoppeld van
+"hoe belicht". `lint` 0 · `build` clean · `test:run` 1479 pass / 1 skip (ongewijzigd,
+canvas-only code). Doc §374 r6-aantekening.
+
 ## 2026-09-04 — ✅ Wereld-hoogte-knop: volle hoogte (320 gpx) door content2→content1→nav uit te zetten
 
 Han (item 4, vervolg op #1191 pre-test-ronde): "als het 'wereld' beeld lager is dan
@@ -8545,3 +8572,31 @@ reikt), `SUN_GLOW_RISE_DEG` (2), `SUN_GLOW_ALT_FADE_DEG` (25), `SUN_GLOW_ZENITH_
 
 **Valkuil genoteerd:** een backtick in een comment BINNEN een GLSL template literal beëindigt de
 literal — brak de eerste build van dit ticket. Gebruik daar enkele quotes.
+
+---
+
+## #1195 (2026-09-05) — RAM level.ldtk save niet (volledig) zichtbaar na Han's edit
+
+🐞 **Bug 1 — lucht/sterrenhemel stopt te vroeg (opgelost).** `WORLD_ART_GPX_H` in `worldLayout.js`
+stond hardcoded op 272 (level-hoogte van vóór Han's resize), terwijl de LDtk-levels nu 320px hoog
+zijn (`LEVEL_PX_HEIGHT`, ldtkWorld.js). Het wereldblok toonde daardoor een vlakke `#8fd0d9`-kleur
+i.p.v. echte content boven de 272-gpx grens. Fix: `WORLD_ART_GPX_H` → 320. Zie architecture.md §348
+bug-log entry voor volledige root-cause. Tests/build/lint groen (1479 tests, 1 test aangepast omdat
+hij per ongeluk `WORLD_ART_GPX_H` gebruikte voor de ladder's eigen (aparte) 272-plateau).
+
+⏳ **Bug 2 — nieuwe LDtk-lagen niet gerenderd (interview lopend, nog niet geïmplementeerd).**
+Han's nieuwe content (stenen brug via `City_Walls`/Castle_Tiles2, riet, extra water-tegels via
+`Water_FG`/`Grass_tiles_fg_poc`/`Decor_Shimmer_FG`, interior-lagen in Level_9) staat in het bestand
+maar wordt niet gerenderd — `ldtkWorld.js` houdt een EXPLICIETE whitelist bij (`STATIC_TILE_LAYERS`
+e.a.) die deze nieuwe laagnamen niet kent. Han's instructie: render alles generiek zoals in LDtk,
+behalve `_level_`-tier-lagen (Tavern/Bridge/Blacksmith/Alchemist — 1 tier tegelijk actief) en
+`Collision_mask` (alleen hoogteberekening, nooit zichtbaar). Wacht op Han's antwoorden op 4
+interviewvragen (bestaande BACKGROUND_LAYERS/FOLIAGE_LAYERS/ANIMATED_LAYERS-special-cases blijven
+staan? generieke `_level_N_`-tier-detectie i.p.v. TAVERN_TIER_LAYERS/BRIDGE_TIER_LAYERS-kaarten?
+Character_examples_placeholders meerenderen of uitsluiten? front/back-of-Entities ongewijzigd?)
+voordat dit gebouwd wordt (§4b — raakt de render-pipeline).
+
+🐞 **Zijbevinding (geen actie, false lead).** `Bridge_level_1_log`/`Bridge_level_2_wood` (Pine forest
+sheet / SSW_Interriors tiles) bleken oude, vrijwel-transparante placeholder-tiles — niet Han's eigen
+werk. De echte brug zit op de `City_Walls`-laag (Castle_Tiles2), die pas zichtbaar wordt zodra Bug 2
+is opgelost.

@@ -79,29 +79,29 @@ const SUN_WET_RING_ALPHA_SCALE = 0.6;   // the two existing rings dim to 60 % wh
 const SUN_WET_BODY_ALPHA = 0.5;         // the soft diffuse body that replaces the core
 const SUN_WET_EXTRA_RINGS = [{ pad: 9, alpha: 0.05 }, { pad: 5, alpha: 0.08 }];
 const lerpNum = (a, b, t) => a + (b - a) * t;
-const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0
-const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the grey of the unlit disc
-// §374 UAT r4 (Han, screenshot of the day moon: "de gradient in het midden is donkerder dan het
-// onbelichte stuk, zou niet moeten"). The r3 version varied ALPHA per shade (0.18 → 1). Over a BRIGHT
-// day sky a low-alpha dark-grey earthshine reads light, but a mid-alpha mid-grey reads dark — so the
-// terminator band punched a dark ring between two lighter areas. r4's fix was ONE uniform alpha
-// (0.9) for the whole disc, colour-only ramp.
-// §374 UAT r5 (Han, pre-test 2026-09-04: "geef de unlit part opacity 0.1, en de half lit part
-// accordingly"): back to a PER-SHADE alpha, explicitly lower than r3's 0.18 at the unlit end — Han's
-// call, made knowing it can in principle reopen r4's dark-ring risk against a very bright day sky
-// (a low-alpha dark shade can read lighter there than a higher-alpha mid shade). Flagged here; revisit
-// at UAT if the ring reappears. `MOON_SHADE[i]` is now `{ fill, alpha }`; `alpha` ramps
-// MOON_UNLIT_ALPHA → 1 alongside the colour ramp, so "how lit" drives both together.
-const MOON_UNLIT_ALPHA = 0.1;
-// §374 UAT r3: a 4-LEVEL terminator (earthshine · 30 % · 70 % · full) instead of a hard binary edge,
-// so the crescent edge softens by one game pixel each side. Quantised pixel-art dither, not sub-pixel
-// AA (cr6).
+// §374 UAT r6 (Han, screenshot 2026-09-05: "de 'lichte kant' dicht bij de zon donkerder dan de donkere
+// kant. Design even hoe de maan moet eruit zien from scratch"). Root cause, chased across THREE prior
+// rounds: whenever "how lit" was expressed as ALPHA (r3, r5), the unlit side became partially
+// TRANSPARENT — so its apparent brightness depends on whatever sky is behind it. Against a bright day
+// sky a barely-visible (low-alpha) dark fill reads as almost sky-bright, while the fully-opaque lit
+// fill shows its own (merely light-grey) colour — which can be DARKER than a very bright/saturated sky.
+// Result: the "lit" side reads darker than the "unlit" side. This can never be tuned away with
+// different alpha numbers — it is inherent to blending a variable-brightness disc over a
+// variable-brightness sky. FIX, confirmed with Han: the disc is now ALWAYS FULLY OPAQUE
+// (`MOON_DISC_ALPHA = 1`) and "how lit" is expressed ONLY through fill colour, never alpha again — a
+// self-contained object whose own brightness relationships (lit > terminator > unlit) can never invert
+// against whatever is behind it. Han explicitly declined a legibility outline (still visible enough
+// against every sky without one) and kept the earthshine tone dark-blue-grey, not near-black.
+const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0 — the fully-lit fill
+const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the fixed, always-opaque unlit fill
+const MOON_DISC_ALPHA = 1;
+// A 4-LEVEL terminator (earthshine · 30 % · 70 % · full) instead of a hard binary edge, so the
+// crescent edge softens by one game pixel each side — colour-only quantised pixel-art dither, not
+// sub-pixel AA (cr6). `alphaMul` (drawMoonDisc's own parameter) is a SEPARATE, later multiply for the
+// §375 cloud-cover fade — it is not "how lit", so it must never vary per shade here.
 const rgbStr = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
 const mixRgbInt = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => ({
-    fill: rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)),
-    alpha: lerpNum(MOON_UNLIT_ALPHA, 1, t),
-}));
+const MOON_SHADE = [0, 0.3, 0.7, 1].map((t) => rgbStr(mixRgbInt(MOON_EARTHSHINE_RGB, MOON_LIT_RGB, t)));
 
 // §374 UAT r4 (Han: "de zon en maancirkels ... uiteinden boven, onder, links, rechts één game-pixel
 // ... Maak die randen ten minste 3 gpx breed"). A raw `floor(√(r²−dy²))` disc tapers to a single
@@ -162,10 +162,16 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  * each side. The disc outline comes from `discHalfWidth` (≥3 px poles), not a `dx²+dy² ≤ r²` circle
  * test. 169 tests per redraw at R = 6 — negligible.
  *
- * §374 UAT r5: each shade carries its OWN alpha (`MOON_SHADE[i].alpha`, ramping `MOON_UNLIT_ALPHA` →
- * 1) — `alphaMul` is an ADDITIONAL multiply on top (cloud-cover fade, §375), not the disc's own alpha.
+ * §374 UAT r6: the disc is ALWAYS FULLY OPAQUE (`MOON_DISC_ALPHA = 1`) — `MOON_SHADE[i]` is a fill
+ * colour only, never an alpha. `alphaMul` is the SEPARATE cloud-cover fade (§375) applied on top of
+ * that fixed opacity, not "how lit" — see the `MOON_DISC_ALPHA` comment above for why the two must
+ * never be conflated again.
  */
 function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul) {
+    // UAT r6: ONE alpha for the whole disc (opaque × the §375 cloud fade) — "how lit" lives entirely
+    // in `MOON_SHADE`'s fill colour, set per-pixel below. Never per-shade alpha again (see the
+    // MOON_DISC_ALPHA comment above for why).
+    ctx.globalAlpha = MOON_DISC_ALPHA * alphaMul;
     for (let dy = -r; dy <= r; dy++) {
         const halfW = discHalfWidth(r, dy);
         if (halfW < 0) continue;
@@ -174,9 +180,7 @@ function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul) {
             const v = -dx * sy + dy * sx;
             const wt = Math.sqrt(Math.max(0, r * r - v * v));   // terminator half-width on this row
             const su = u - wt * (1 - 2 * k);
-            const shade = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
-            ctx.globalAlpha = shade.alpha * alphaMul;
-            ctx.fillStyle = shade.fill;
+            ctx.fillStyle = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
             ctx.fillRect(cx + dx, cy + dy, 1, 1);
         }
     }

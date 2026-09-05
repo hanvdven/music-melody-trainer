@@ -23129,6 +23129,48 @@ regression.
 `src/utils/__tests__/worldLayout.test.js` (ladder describe block + updated invariant/scale-selection
 assertions), `docs/architecture.md` §334 + this section, `IMPLEMENTATION_PLAN.md`.
 
+#### Bug: level top (sky/celestial layer) permanently clipped after the LDtk levels grew to 320px (Han 2026-09-05)
+
+**Symptom.** Han resized every `RAM level.ldtk` level's `pxHei` from 272 to 320 (adding more
+mountain/background art above the old horizon) and rebuilt the walkable-world content (§25's
+`ldtkWorld.js` `LEVEL_PX_HEIGHT`, now correctly 320, derived live from the file). But in-game the new
+top strip never appeared: `<SkyGradientBackdrop>`/`<CelestialSky>` (§372/§374) showed a flat solid
+`#8fd0d9` band above the real gradient, and it always started at whatever height the world block
+ladder (this section) happened to be at that viewport (Han: *"de lucht stopt op 288 gpx"*).
+
+**Root cause.** `WORLD_ART_GPX_H` (this file's own constant, used by `cropFor` for the crop/pad split
+and by `App.jsx` to size the `<RpgLevelPanel>` wrapper) was still hardcoded to **272** — the level
+height at the time §348 was written (2026-08-29), a full week before Han's 2026-09-05 LDtk resize.
+`RpgLevelPanel` (and everything inside it — ground, water, foliage, the sky gradient, the celestial
+layer) was therefore always rendered at a fixed **272·N** px tall, bottom-anchored, regardless of the
+level's real (now 320 gpx) height or the world block's own current height. Any world-block height
+above 272 was filled with a flat `#8fd0d9` div (`App.jsx`'s `topSection` background) standing in for
+real content — this is what "the sky stops early" actually was: not a crop, but real rendered content
+capped at 272 with a flat-colour stand-in above it that never became real art again, even once the
+block grew past 272 toward its 320-gpx max.
+
+**Fix.** `WORLD_ART_GPX_H` → **320**, matching `WORLD_GPX_H_MAX` and `ldtkWorld.js`'s
+`LEVEL_PX_HEIGHT`. Since the two constants are now equal, `cropFor`'s `skyPadGpx` (the flat-colour pad)
+is always 0 — the art now fills the world block at whatever height the ladder gives it, with only a
+real top/bottom CROP (never a flat-colour substitute) when the block is shorter than 320. The
+ladder's own phase-2 plateau (`distributeHeight`'s literal 272 in `P1`/`P2`) is a SEPARATE, deliberate
+UI-layout design value (Han 2026-08-29) and was deliberately left untouched — it still makes the world
+block pause at 272 gpx on many viewports; the art itself just correctly renders that much of the real
+320-tall level now, instead of 272 real + a fake pad.
+
+**Invariant going forward.** `WORLD_ART_GPX_H` MUST track the LDtk levels' own native height
+(`ldtkWorld.js`'s `LEVEL_PX_HEIGHT`) — if the two constants ever diverge again (either file resized
+independently), the level's top clips behind a flat colour again with no visible error, since nothing
+enforces this relationship across the two modules. No test currently cross-checks them (`worldLayout.js`
+has no import of `ldtkWorld.js`, deliberately — the world-height ladder is level-content-agnostic by
+design); this must be checked BY HAND whenever either the ladder or the LDtk level geometry changes.
+
+**Files:** `src/utils/worldLayout.js` (`WORLD_ART_GPX_H` 272→320, header + `cropFor` comments),
+`src/App.jsx` (updated comments only — `topSection` background, the `<RpgLevelPanel>` crop wrapper, the
+world-height-toggle button anchor comment), `src/utils/__tests__/worldLayout.test.js` (the "ladder
+phase 2" test now asserts the literal 272 plateau instead of `WORLD_ART_GPX_H`; the "sky pad" test
+comment updated to note it's now always 0).
+
 ### §349. `generateBlock.js` — the ONE shared per-block generator (#1164 / #1163a, Han 2026-08-29)
 
 **Purpose.** Level content generation had drifted into several unrelated mechanisms with different
@@ -25956,14 +25998,23 @@ weather clock — not a decorative twinkle layer.
   earthshine — a dark ring. Fixed: ONE uniform `MOON_DISC_ALPHA = 0.9` for the whole disc, only the
   fill COLOUR ramps (`MOON_SHADE[]` = 4 pre-mixed greys), so lightness is monotone over any
   background; the disc is effectively opaque. **UAT r5 (Han, pre-test 2026-09-04: "geef de unlit part
-  opacity 0.1, en de half lit part accordingly"):** back to a PER-SHADE alpha (r3's shape), each
-  `MOON_SHADE[i]` now `{ fill, alpha }` with `alpha = lerp(MOON_UNLIT_ALPHA (0.1), 1, t)` alongside the
-  colour ramp — Han's explicit call, made with the r4 dark-ring risk known (a low-alpha dark shade can
-  in principle still read lighter than a mid-alpha mid shade over a very bright sky); flagged for UAT,
-  not re-litigated here. `drawMoonDisc`'s `alphaMul` parameter is now an ADDITIONAL multiply on top
-  (the §375 cloud-cover fade), not the disc's own alpha. Still integer-coord `fillRect` — a quantised
-  4-level dither, not sub-pixel AA. The sun's SCREEN position is computed even while the sun is below
-  the horizon — that is what keeps the crescent pointing the right way after dark. **Also UAT r5 (Han:
+  opacity 0.1, en de half lit part accordingly"):** back to a PER-SHADE alpha (r3's shape) — reopened
+  r4's exact failure mode, now visibly: against a bright day sky the low-alpha unlit side read almost
+  sky-bright while the higher-alpha lit side showed its own (comparatively darker) colour, so the
+  "lit" side looked DARKER than the "unlit" side. **UAT r6 (Han, screenshot 2026-09-05: "de 'lichte
+  kant' dicht bij de zon donkerder dan de donkere kant. Design even hoe de maan moet eruit zien from
+  scratch"):** root-caused for good this time — expressing "how lit" as ALPHA is inherently
+  background-dependent (a translucent fill's apparent brightness always depends on what's behind it),
+  so no alpha tuning can fix it; only removing alpha from the equation can. Redesigned with Han from
+  scratch: the disc is now ALWAYS FULLY OPAQUE (`MOON_DISC_ALPHA = 1`, no exceptions) and `MOON_SHADE[]`
+  is a plain fill-colour array — "how lit" lives ONLY in colour, never alpha, so the disc's internal
+  brightness ordering (lit > terminator > unlit) can never invert against whatever sky is behind it.
+  Han explicitly declined a legibility outline (kept simple) and kept the earthshine tone dark
+  blue-grey (`MOON_EARTHSHINE_RGB`, unchanged), not near-black. `drawMoonDisc`'s `alphaMul` parameter
+  remains the SEPARATE §375 cloud-cover fade, applied once for the whole disc — never "how lit" again.
+  Still integer-coord `fillRect` — a quantised 4-level colour dither, not sub-pixel AA. The sun's
+  SCREEN position is computed even while the sun is below the horizon — that is what keeps the
+  crescent pointing the right way after dark. **UAT r5 (Han:
   "if moon within the glow radius of the sun, make it invisible"):** the moon draw gains a
   `nearSun = hypot(moonXY − sunXY) < SUN_GLOW_RADIUS_GPX` screen-space cutoff, reusing the SAME
   `SUN_GLOW_RADIUS_GPX` constant (`celestialModel.js`) §377's sun edge-glow already defines — one
@@ -26096,9 +26147,10 @@ layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `
 (`lunationOverride`, `seekLunation`, night `illum` 0.05 → 0.12), `celestialModel.js` (`moonShine` +
 `MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels; UAT
 r3 4-level moon terminator; UAT r4 `discHalfWidth` ≥3-px poles; UAT r5 per-shade `MOON_SHADE[].alpha`
-(`MOON_UNLIT_ALPHA` 0.1) replacing the r4 uniform `MOON_DISC_ALPHA`, the `nearSun` sun-proximity
-cutoff, and off-canvas `starXY` entries for constellation lines; full-res `labelCanvasRef` overlay for
-the names), `ForegroundFoliageLayer.jsx` + `LdtkLitGround.jsx`
+(briefly, then reverted); UAT r6 back to a single always-opaque `MOON_DISC_ALPHA = 1` with
+colour-only `MOON_SHADE[]`; the `nearSun` sun-proximity cutoff; and off-canvas `starXY` entries for
+constellation lines; full-res `labelCanvasRef` overlay for the names), `ForegroundFoliageLayer.jsx` +
+`LdtkLitGround.jsx`
 (premultiply `uMoonStrength` by `p.moonShine ?? 1`;
 `DEFAULT_FOLIAGE_PARAMS.moonShine`), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the
 first cut added is removed — labels now use the existing `BestiaryPixel` family). Tests:
@@ -26673,3 +26725,147 @@ the player navigates away from the world screen at all).
 NOT extend); §141 (`HORIZON_PX`, unrelated but the same "world block" this toggle resizes).
 
 **Note.** §378 was the last section header, so this is §379.
+
+---
+
+### §380. Music-LEVEL entity jank — X-position interpolated between the #1050 entity throttle's ticks (#1192-jank, Han 2026-09-04, "ik zie dit soort problemen ook in de muzieklevels")
+
+**Symptom.** Continuing §376/§378's jank investigation into the music LEVEL flow (`SheetRpgLayer.jsx`):
+slimes, bass-slimes, critters, projectiles, and the Level-11 switch-flourish all visibly "jump" relative
+to the smoothly-scrolling staff/barlines behind them, instead of gliding at the same rate.
+
+**Root cause.** The scroll transform (barlines/notes) is written every rAF frame (60 fps, never
+throttled — see the `#1050 third follow-up` comment at the top of this section). Every entity's
+position, by contrast, is gated by `runRpgEntityUpdates` (`RPG_ENTITY_THROTTLE_MS = 33`, ~30 fps) — and
+this throttle is **not an oversight**: it is itself a deliberate, previously-shipped fix for a real,
+measured problem (#1050, Han 2026-08-18, "the performance sucks... decouple [note scrolling] from the
+RPG-overlay"). Scroll and entity work run in the SAME rAF callback, and the browser cannot paint until
+the whole callback returns, so on a frame with many on-screen entities the (per-entity `sideScrollX` +
+animation-frame selection + oscillation) work could delay the ALREADY-computed scroll position from
+reaching the screen. The throttle lets entity work skip itself on some frames while the clock/scroll
+transform never does. **This fix does not touch that throttle** — lowering or removing it risks
+resurrecting #1050, and this session has no browser/GPU available to verify a real-hardware FPS claim
+either way (the same caveat §319 already logged for the RPG *world*).
+
+**Fix — interpolate only X, only on the frames the throttle skips.** Two pure module-level helpers,
+`tickInterpX(entry, freshX)` and `interpX(entry, frac)`, record each entity's PREVIOUS and CURRENT
+throttle-tick X (the exact final value already written to the DOM, oscillation/wiggle included) on the
+entry object itself (the `slimeRefsMap`/`bassSlimeRefsMap`/`critterRefsMap` Map values; a new parallel
+`switchInterpRef` array for `switchRefsArr`, whose entries are bare imperative handles with no object of
+their own to attach state to). A new `entityTickIntervalMsRef` records the OBSERVED gap between the last
+two throttle ticks (rAF timing jitters, so this is measured, not assumed to be exactly 33 ms). On a
+throttle-skipped frame, a new `else` branch (sibling to the existing `if (runRpgEntityUpdates)` block)
+computes `frac = clamp((now - lastTickMs) / observedIntervalMs, 0, 1)` and re-issues each entity's
+existing setter (`setPosition`/`.update`/`setCenter`) with `lerp(prevX, currX, frac)`, replaying the
+LAST tick's Y/frame/frozen-state exactly (stored as `entry.lastY`/`lastGF`/`lastFrozen` at tick time) —
+never recomputed fresh. This is standard "hold last two snapshots, ease between them" interpolation
+(client-side netcode's usual pattern): a ~33 ms display lag, imperceptible, in exchange for a smooth
+glide instead of a jump. The expensive per-entity work (`sideScrollX`, `slimeWalkOrIdleFrame`,
+`oscillate`, `critterDraw`'s trig) still runs ONLY at the throttled rate — untouched.
+
+One subtlety caught during implementation: a projectile's Y is `g.projectileCenterY + oscY`, where
+`oscY` is itself a continuous, time-varying oscillation term computed only at tick time — recomputing a
+fresh `g.projectileCenterY` (without `oscY`) on interpolated frames would have introduced a NEW every-
+frame Y-snap jitter between "centerY+oscY" and "bare centerY". Fixed by storing the actual Y written
+(`entry.lastY`) and replaying it verbatim, rather than re-deriving any Y term inside the interpolation
+branch. `g.slimeY`/`g.bassSlimeY` are fixed layout lanes (not time-varying), so this matters only for
+the projectile branch, but `lastY` is stored uniformly for every entity kind to avoid relying on that
+distinction staying true in the future.
+
+**Deliberately out of scope, per Han's own call:** the slime "hop gait" (`movingProgress`/
+`movingFramesBefore` — advances only on specific animation frames, pausing on others, tempo-locked) is
+NOT smoothed into continuous motion. Han confirmed this is a deliberate art-style choice to keep, not a
+bug — this fix only removes the scroll/entity DESYNC (the jump), not the intentional stepped RATE of a
+slime's own hop.
+
+**Invariant, generalized from §376/§378.** When a value driving PER-FRAME visual motion is deliberately
+throttled for a documented perf reason, do not remove the throttle to fix a smoothness complaint —
+interpolate the cheap, already-computed sample between throttle ticks instead. This keeps the expensive
+work's call rate exactly as low as the perf fix intended, while the DISPLAYED value still updates every
+frame.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`tickInterpX`/`interpX` module-level helpers,
+`entityTickIntervalMsRef`, `switchInterpRef`, the `else` interpolation branch, `lastY`/`lastGF`/
+`lastFrozen` bookkeeping on each entity's tick-time write). No test changes — this is a rendering-path
+change with no new pure, independently-testable logic beyond the two tiny helpers (already covered by
+the full suite's existing SheetRpgLayer-adjacent smoke tests continuing to pass). Verified: `npm run
+test:run` (131 files / 1479 tests, 1 pre-existing skip, unaffected), `npm run build`, `npm run lint`
+(0 new warnings).
+
+**Cross-references.** §376 (the hero/pet fix this investigation started with); §378 (the star-field fix,
+same investigation, same "throttle the expensive derivation, not the displayed value" principle); the
+`#1050` comment block at the top of this file's `RPG_ENTITY_THROTTLE_MS` declaration (the perf fix this
+entry explicitly does not touch). BACKLOG.md "Performance: hakkelige rendering" tracks the original
+3-part request this closes out.
+
+---
+
+### §381. Sky-gradient transition jank — cloud-cover fix, the 4th "throttle the derivation, not the display" bug in this series (#1192-jank, Han 2026-09-05, "transitie van gradient loopt ook nog wat schokkerig")
+
+**Symptom.** After §376/§378/§380 shipped, Han asked "zie je nog meer opportuniteiten?" and separately
+flagged the RPG world's sky-gradient backdrop (`<SkyGradientBackdrop>`, §372) as still feeling choppy
+during a weather transition — clarified mid-message as "(achtergrond)", i.e. the sky background, not the
+foreground layers already fixed.
+
+**Root cause — same family as §378, different component.** Unlike `<CelestialSky>` (§374), which reads
+`weatherOutputs(weatherRef.current)` directly inside its own `useFrameLoop` draw callback,
+`SkyGradientBackdrop` was a plain declarative React component: it only repainted its CSS gradient when
+its `globalIllumination`/`cloudCoverT` PROPS changed. `globalIllumination` arrived reasonably fine-
+grained (RpgLevelPanel's weather tick already gates `pushWeatherToFoliage` at a 0.004 threshold — see
+§375/§377's own invariant comments). `cloudCoverT`, however, arrived pre-QUANTISED to 0.05 via
+`quantCloudCover` (`RpgLevelPanel.jsx`, `Math.round(out.cloudCoverT * 20) / 20`) specifically so this
+component would NOT force a React render on every weather-tick frame. With `CLOUD_FADE_S = 10` (the
+cloud-cover ease duration, `weatherCycle.js`), 0.05-quantisation means at most ~20 renders across a full
+0→1 transition — roughly 2 repaints per SECOND for a full-screen colour sweep, easily perceived as
+discrete jumps rather than a smooth fade. This is the exact same bug shape as §378 (`cycleT` throttled to
+~12 fps while `CelestialSky` drew at 60 fps) — a continuously-eased value gated behind a React-render
+threshold that was tuned for render-COST reasons, not for how smooth the thing driven by it needs to look.
+
+**Fix.** `SkyGradientBackdrop` now takes `weatherRef` directly (the same ref `<CelestialSky>` already
+reads) instead of `globalIllumination`/`cloudCoverT` props, and mirrors `<CelestialSky>`'s own
+architecture exactly:
+- A `useFrameLoop` (`priority: 'critical'`) callback reads `weatherOutputs(weatherRef.current)` fresh
+  every frame — the raw, unquantised, un-thresholded values — and writes the computed gradient string to
+  `divRef.current.style.background` imperatively.
+- The same early-out epsilons `<CelestialSky>` uses (`ILLUM_EPSILON = 0.004`, `CLOUD_EPSILON = 0.002`,
+  redefined locally rather than imported — the two components' guards are otherwise independent) skip the
+  DOM write on a byte-for-byte-settled frame, so a stable sky (no weather changing) costs nothing extra.
+- `buildGradientCss` (extracted from the old `useMemo` body, unchanged arithmetic — 17 stops, plain
+  per-stop colour math, no trig) is cheap enough for 60 fps, same reasoning as `tickWeather`/
+  `weatherOutputs` themselves in §378.
+- The initial paint (before the first rAF tick, and again the instant the async `dayStops` image-sample
+  effect resolves) is seeded via `useLayoutEffect`, NOT a `style={{ background: ... }}` JSX prop — a JSX
+  prop would fight the imperative rAF write on every unrelated parent re-render, since React resets
+  inline styles it controls on every commit. This is CLAUDE.md §6's opacity invariant ("never set opacity
+  via JSX props on animated elements... all animation opacity must go through `element.style.opacity` in
+  the rAF callback"), generalized here to `background` — the same generalization §376 already made for
+  DOM position.
+- `RpgLevelPanel.jsx`'s `<SkyGradientBackdrop>` call site now passes `weatherRef={weatherRef}` only;
+  `quantCloudCover` is no longer threaded through here (it is still used, unchanged, by the SEPARATE
+  `weather`-state gate a few lines up, which other consumers — the critter pool, debug picker — still
+  need at the coarser cadence).
+
+**Invariant, generalized further from §376/§378/§380.** Any component whose visual output should track
+the world's weather clock CONTINUOUSLY (a colour, a position, an angle — not a discrete state like
+`phaseName` or `critterKind`) should read `weatherOutputs(weatherRef.current)` directly inside its own
+per-frame callback, the same way `<CelestialSky>` always has — never through a React prop gated by a
+render-cost threshold, however fine-grained that threshold seems. A quantisation step chosen to protect
+render cost is a statement about how often REACT should reconcile, not a statement about how smooth the
+underlying phenomenon is allowed to look.
+
+**Files:** `src/components/character/SkyGradientBackdrop.jsx` (`weatherRef` prop replaces
+`globalIllumination`/`cloudCoverT`, `buildGradientCss` extracted, `useFrameLoop` + `useLayoutEffect`
+imperative paint, local `ILLUM_EPSILON`/`CLOUD_EPSILON`), `src/components/character/RpgLevelPanel.jsx`
+(call-site update). No test changes — `skyGradientBackdrop.test.js` only covers the PURE colour helpers
+(`cloudSkyStop`, `mixNight`, etc.), none of which changed; the component's own render/prop wiring was
+never unit-tested (jsdom has no real canvas/rAF timing to assert against). Verified: `npm run test:run`
+(131 files / 1479 tests, 1 pre-existing skip, unaffected), `npm run build`, `npm run lint` (0 new
+warnings beyond the pre-existing project-wide "missing prop-types" style, matching every other
+`weatherRef`-consuming component).
+
+**Cross-references.** §374 (`<CelestialSky>`, the architecture this now mirrors exactly); §375/§377 (the
+`globalIllumination`/`cloudCoverT` gating invariants this respects — only the SkyGradientBackdrop
+CONSUMER side changed, not how `weatherRef`/`weather` state itself is produced or gated); §376/§378/§380
+(the three earlier fixes in this same investigation, all the same "throttle the derivation, not the
+display" shape). BACKLOG.md "Performance: hakkelige rendering" — this closes the gradient follow-up Han
+raised after the original 3-part request.
