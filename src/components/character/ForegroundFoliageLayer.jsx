@@ -784,6 +784,7 @@ varying float vWhiteCapThreshold;
 varying float vWhiteCapStrength;
 uniform sampler2D uScene;
 uniform sampler2D uNormal;
+uniform sampler2D uDiffuse;
 
 const float GRAIN_CELL = 1.0;
 float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -831,11 +832,6 @@ vec3 blendHighlightDual(vec3 base, vec3 tintColor, float waveQuant, float streng
 }
 
 void main() {
-    // Colour comes from PASS 1's wind-bent raw art at THIS screen pixel — no extra shift here.
-    vec2 screenUV = gl_FragCoord.xy / uCanvasSize;
-    vec4 diffuse = texture2D(uScene, screenUV);
-    if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
-
     float localXPx = gl_FragCoord.x - (vScreenPos.x - vSizePx.x * 0.5);
     float pxPerNativeX = max(vSizePx.x / vWorldWidth, 0.0001);
     float nativeX = clamp(floor(localXPx / pxPerNativeX), 0.0, vWorldWidth - 1.0);
@@ -847,15 +843,8 @@ void main() {
     float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
     float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
 
-    // ONE game px in FBO-normalised coords — the step for the SCREEN-SPACE edge tests. The Y is
-    // NEGATIVE on purpose: gl_FragCoord.y (hence screenUV.y) is BOTTOM-UP, but moonRimFactor / the rim
-    // helpers assume the atlas TOP-DOWN convention (smaller v = higher on screen). Flipping the Y step
-    // makes their "up" bias point at the VISUAL top — the edge that faces the sun — instead of the
-    // canopy's underside.
-    vec2 screenTexel = vec2(pxPerNativeX, -pxPerNativeY) / uCanvasSize;
-    vec4 fullRect = vec4(0.0, 0.0, 1.0, 1.0);
-
-    // Re-derive the SAME wind shift PASS 1 used, so the atlas normal lines up with the bent diffuse.
+    // Re-derive the SAME wind shift PASS 1 used (bit-identical math) — the shift picks THIS fragment's
+    // own atlas texel, exactly as the old single pass did.
     bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
     float wave01 = wantsWave ? computeWave01(worldX, groundDist) : 0.0;
     float skewShiftPx = 0.0;
@@ -870,10 +859,26 @@ void main() {
         stretchShiftPx = floor((-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount + 0.5);
     }
     float shiftedNativeX = clamp(nativeX + skewShiftPx + stretchShiftPx, 0.0, vWorldWidth - 1.0);
-    vec2 normalUV = vec2(
+    vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
     );
+    vec2 normalUV = duv;
+
+    // COLOUR + DISCARD from THIS instance's OWN atlas, wind-shifted — so every screen pixel is lit
+    // exactly once, by the instance that owns it (never double-lit by an overlapping frond tile, which
+    // is what left some pixels un-darkened / un-sheened). PASS 1's texture (uScene) carries the bent
+    // COMPOSITE silhouette and is used ONLY for the screen-space edge geometry below.
+    vec4 diffuse = texture2D(uDiffuse, duv);
+    if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
+
+    vec2 screenUV = gl_FragCoord.xy / uCanvasSize;
+    // ONE game px in FBO-normalised coords — the step for the SCREEN-SPACE edge tests on uScene. Y is
+    // NEGATIVE: gl_FragCoord.y (hence screenUV.y) is BOTTOM-UP, but moonRimFactor assumes the atlas
+    // TOP-DOWN convention, so the flip makes its "up" bias point at the VISUAL top (the sun-facing edge)
+    // instead of the canopy underside.
+    vec2 screenTexel = vec2(pxPerNativeX, -pxPerNativeY) / uCanvasSize;
+    vec4 fullRect = vec4(0.0, 0.0, 1.0, 1.0);
 
     float edgeFactor = edgeLightFactor(uScene, screenUV, screenTexel, vEdgeLitOnly);
 
@@ -1327,7 +1332,7 @@ function ForegroundFoliageLayer({
             };
             ['uCanvasSize', 'uTime', 'uDebugChannel', 'uSkewAmount', 'uStretchAmount',
                 'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
-                'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2', 'uScene', 'uNormal',
+                'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2', 'uScene', 'uNormal', 'uDiffuse',
                 'uLightCount', 'uLightWorldX', 'uLightWorldHeight', 'uLightColor',
                 'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
                 'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
@@ -1720,6 +1725,9 @@ function ForegroundFoliageLayer({
                     gl.activeTexture(gl.TEXTURE1);
                     gl.bindTexture(gl.TEXTURE_2D, atlasTex.normal);
                     gl.uniform1i(p2u.uNormal, 1);
+                    gl.activeTexture(gl.TEXTURE2);
+                    gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);
+                    gl.uniform1i(p2u.uDiffuse, 2);
                     instExt.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, 4, visibleAtlas.length);
                     p2AInst.forEach((loc) => { if (loc >= 0) { instExt.vertexAttribDivisorANGLE(loc, 0); gl.disableVertexAttribArray(loc); } });
                 }
