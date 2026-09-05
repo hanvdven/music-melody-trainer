@@ -1556,6 +1556,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         }
         return s;
     }, [allShimmerTiles, world.gridSize]);
+    // #1220 (Han: "beperken van de sheen-straal moet ALLEEN wanneer bedekt door parallax-lagen, niet
+    // door de gewone laag"): per parallax background layer, its own occupied grid cells + its parallax
+    // `factor` (so the sun's screen X maps back to THAT layer's local X with `cameraX * factor`).
+    const bgOccluders = useMemo(() => {
+        const g = world.gridSize;
+        const out = [];
+        for (const p of world.passes) {
+            if (p.kind !== 'background') continue;
+            for (const { factor, tiles } of (p.layers || [])) {
+                const s = new Set();
+                for (const t of tiles) s.add(`${Math.round(t.worldX / g)},${Math.round(t.worldY / g)}`);
+                if (s.size) out.push({ factor, cells: s });
+            }
+        }
+        return out;
+    }, [world.passes, world.gridSize]);
     // #1032 (Han 2026-08-17, water reflection): groups ALL water tiles (any visual band, unlike
     // waterSpanNear's swim-only logicalRow-2 filter — a pond's visual EXTENT includes its shoreline/edge
     // tiles too) into connected components via flood-fill (adjacent = both X and Y within one gridSize —
@@ -2324,24 +2340,28 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const bgSunLeftPx = Math.round(sunGpxX / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
     const bgSunBottomPx = size.h - Math.round(sunGpxY / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
     const bgSunRimColor = rgbCss(foliageParams.sunGlowColor ?? SUN_GLOW_RGB);
-    // #1220 (Han: "als de zon volledig achter de bomen verdwenen is, stop met sheenen op alle lagen").
-    // The sun is screen-fixed (celestial projection); the world scrolls under it, so this is CAMERA-aware
-    // and lives here in the render body (Han's call), which already re-runs on every pan frame. Sample
-    // the sun disc (centre + a ring at 0.85·R / 0.6·R) against #1221's `foliageCellSet` — the fraction of
-    // the disc sitting in an occupied foliage grid cell drives a LINEAR shrink of the glow RADIUS
-    // (Han: "maak de straal kleiner, lineair tot 0"), quantised to 0.05 so the memo below stays stable.
+    // #1220 (Han: "als de zon volledig achter de PARALLAX-lagen verdwenen is, stop met sheenen op alle
+    // lagen — NIET wanneer bedekt door de gewone [voorgrond] laag"). The sun is screen-fixed (celestial
+    // projection); the world scrolls under it, so this is CAMERA-aware and lives here in the render body
+    // (Han's call), which already re-runs on every pan frame. Sample the sun disc (centre + a ring at
+    // 0.85·R / 0.6·R) against the parallax BACKGROUND layers only (`bgOccluders`) — each with its own
+    // `factor`; the covered fraction drives a LINEAR shrink of the glow RADIUS (Han: "maak de straal
+    // kleiner, lineair tot 0"), quantised to 0.05 so the memo below stays stable.
     let sunGlowVisFrac = 1;
-    if ((foliageParams.sunGlow ?? 0) > 0 && world.gridSize > 0 && foliageCellSet.size > 0) {
+    if ((foliageParams.sunGlow ?? 0) > 0 && world.gridSize > 0 && bgOccluders.length > 0) {
         const g = world.gridSize;
         const R = SUN_GLOW_RADIUS_GPX;
-        const sunLocalX = sunGpxX - skyGeomWpx / 2 - LEVEL_MIN_X + cameraX;
-        const sunLocalY = LEVEL_PX_HEIGHT - (size.h - sunGpxY * zoom - GROUND_ANCHOR) / zoom;
+        // Parallax layers are bottom-anchored at the container bottom (groundAnchor 0), unlike the
+        // foreground's GROUND_ANCHOR offset — so the Y maps back without that term.
+        const sunLocalYbg = LEVEL_PX_HEIGHT - (size.h - sunGpxY * zoom) / zoom;
         const pts = [[0, 0], [0.85, 0], [-0.85, 0], [0, -0.85], [0, 0.85], [0.6, 0.6], [-0.6, 0.6], [0.6, -0.6], [-0.6, -0.6]];
         let hit = 0;
         for (const [dx, dy] of pts) {
-            const cxs = Math.round((sunLocalX + dx * R) / g);
-            const cys = Math.round((sunLocalY + dy * R) / g);
-            if (foliageCellSet.has(`${cxs},${cys}`)) hit++;
+            const cys = Math.round((sunLocalYbg + dy * R) / g);
+            for (const { factor, cells } of bgOccluders) {
+                const sunLocalXbg = sunGpxX - skyGeomWpx / 2 - LEVEL_MIN_X + cameraX * factor;
+                if (cells.has(`${Math.round((sunLocalXbg + dx * R) / g)},${cys}`)) { hit++; break; }
+            }
         }
         sunGlowVisFrac = Math.round((1 - hit / pts.length) * 20) / 20;
     }
