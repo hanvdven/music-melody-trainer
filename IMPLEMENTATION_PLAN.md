@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1221: interne tegel-naden in multi-tile canopies (optie b)
+
+Han koos optie (b) na kosten-analyse van (a). Elke LDtk-foliage-instance krijgt
+`internalEdges` (4-bits masker: welke wereldrichtingen grenzen aan een zuster-
+cel), JS-side berekend in `RpgLevelPanel.atlasFoliageInstanceFor` uit een nieuwe
+`foliageCellSet` (alle bezette foliage-grid-cellen). Masker gemapt naar atlas-
+sample-ruimte (flipX/flipY spiegelt ook de buur-richting). Rijdt mee op de al
+bestaande lege slot `aInstance4.z` → nieuwe `varying vInternalEdges` → doorgegeven
+aan `moonRimFactor` + `applySunGlow`/`sunInwardGlow`, die geflagde richtingen
+overslaan. `edgeIsInternal` doet de bit-test met `mod(floor(mask/bit),2.0)`
+(GLSL ES 1.00 heeft geen bit-ops). Non-instanced foliage / `LdtkLitGround` /
+`FoliageInstancingTest` geven 0.0 door. Fixt maan-rim én zon-sheen naden.
+NIET gefixt: de skew/stretch kolom-skip (§156 staircase-shear) — apart.
+lint 0 · build clean · test:run draait. Doc §377 sub-sectie toegevoegd.
+
 ## 2026-09-05 — ✅ #1193 UAT r5: radius 110→77; RIM_EMPTY_ALPHA terug naar 0.5
 
 Han (screenshot): "maak de straal iets kleiner (30%)". `SUN_GLOW_RADIUS_GPX`
@@ -8823,3 +8838,23 @@ wordt ingevoegd (niet meer gekoppeld aan een specifieke shimmer-pass) — op dat
 netjes achter de speler zitten.
 
 1484 tests groen, build/lint OK.
+
+## #1195 UAT r3 (2026-09-05) — reflectie ECHT gefixt, ditmaal visueel geverifieerd
+
+Twee blinde fixes op rij hielpen niet — app zelf opgestart (losse dev-server op poort 5175, niet Han's
+eigen sessie geraakt) en met Playwright/headless Chromium de vijver bij de brug daadwerkelijk bekeken,
+DOM/pixels geïnspecteerd i.p.v. nog een keer giswerk.
+
+🐞→✅ **Echte root cause**: mijn vorige fix (reflectie pal vóór Entities) was nog steeds niet laat
+genoeg. `Water_FG` zit vóór Entities in de echte LDtk-volgorde, en zijn eigen volledig-viewport WebGL
+shimmer-canvas (ForegroundFoliageLayer) rendert dus NÁ de reflectie en schildert 'm dicht — exact op
+dezelfde vijver waar `Water_tile` ook toe bijdraagt. Pixel-inspectie bevestigde dat de samengestelde
+reflectie-afbeelding en de CSS-transform-wiskunde al die hele tijd al kloppend waren — puur een
+render-volgorde-probleem.
+
+✅ **Fix**: reflectie rendert nu als allerlaatste ding, ná ALLE LDtk-passes (grond/achtergrond/shimmer/
+campfire/entities) — een compositie-effect dat uit meerdere lagen tegelijk put heeft toch geen "eigen"
+plek in de laagvolgorde, dus dit is zowel correct als toekomstvast.
+
+**Visueel bevestigd**: riet-reflectie duidelijk zichtbaar in het water onder de brug, gemêleerd
+grond/gras-patroon in de rest van de vijver. 1484 tests groen, build/lint OK.

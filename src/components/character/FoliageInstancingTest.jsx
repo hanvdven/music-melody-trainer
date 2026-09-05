@@ -253,14 +253,14 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, 0.0);   // #weather §370 (harness: no #1221 seam mask)
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370
     // §377 (#1193): kept line-for-line identical to ForegroundFoliageLayer's instanced shader — this
     // harness is a copy of it, and letting the two drift is how §368 r3's atlas-UV bug survived
     // unnoticed. The harness has no sun, so with DEFAULT_FOLIAGE_PARAMS it uploads strength 0 and this
     // is a proven no-op — which is precisely the "omit ⇒ 0, never a compile error" contract in action.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, 0.0, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;

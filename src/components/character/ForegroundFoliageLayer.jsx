@@ -509,14 +509,15 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV);   // #weather §370
+    // Legacy-mode foliage is one sprite per object — no internal tile seams, so internalEdges = 0.0 (#1221).
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV, 0.0);   // #weather §370
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow, masked to a screen-space disc around the sun. Reuses the SAME
     // gl_FragCoord → top-down canvas-px flip localYPx already does above (uCanvasSize.y - gl_FragCoord.y),
     // normalised by the canvas WIDTH on BOTH axes so the mask is isotropic and dpr-free. Reuses the
     // moonRim value too — one rim definition, zero extra texture fetches.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, 0.0, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -536,7 +537,7 @@ void main() {
 //   aInstance1 = (diffuseU0, diffuseV0, diffuseU1, diffuseV1)   — the atlas UV rect
 //   aInstance2 = (worldCenterX, worldWidth, worldHeight, groundDistOffset)
 //   aInstance3 = (instanceKind, hasWave, hasSkew, edgeLitOnly)  — 0.0/1.0 floats, GLSL ES 1.00 varyings can't be int
-//   aInstance4 = (whiteCapThreshold, whiteCapStrength, 0, 0)
+//   aInstance4 = (whiteCapThreshold, whiteCapStrength, internalEdges, 0)  — internalEdges: #1221 seam-suppress bitmask
 const VERTEX_SRC_INSTANCED = `
 attribute vec2 aPos;
 attribute vec4 aInstance0;
@@ -559,6 +560,7 @@ varying float vHasSkew;
 varying float vEdgeLitOnly;
 varying float vWhiteCapThreshold;
 varying float vWhiteCapStrength;
+varying float vInternalEdges;
 void main() {
     vec2 screenPos = aInstance0.xy;
     vec2 sizePx = aInstance0.zw;
@@ -580,6 +582,7 @@ void main() {
     vEdgeLitOnly = aInstance3.w;
     vWhiteCapThreshold = aInstance4.x;
     vWhiteCapStrength = aInstance4.y;
+    vInternalEdges = aInstance4.z;   // #1221: which of this tile's 4 edges abut a sister canopy tile
 }
 `;
 
@@ -624,6 +627,7 @@ uniform int uWaveBlendMode2;
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
 varying float vWhiteCapThreshold;
 varying float vWhiteCapStrength;
+varying float vInternalEdges;
 
 const float GRAIN_CELL = 1.0;
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
@@ -784,13 +788,13 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
     vec3 lit = applyPointLights(baseColor, darkened, n, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV);   // #weather §370
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow — LIGHTING, so it belongs in this block (immediately after the moon),
     // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
     // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vInternalEdges, sunFragUnit);   // §377 / #1221
 
     // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
@@ -1414,7 +1418,7 @@ function ForegroundFoliageLayer({
                     data.set(inst.diffuseUV, off + 4);
                     data.set([inst.worldX, inst.worldWidth, inst.worldHeight, inst.groundDistOffset || 0], off + 8);
                     data.set([inst.kind === 'floor' ? 1 : 0, inst.wave === false ? 0 : 1, inst.skew ? 1 : 0, inst.edgeLitOnly ? 1 : 0], off + 12);
-                    data.set([inst.isWater ? p.waterWhiteCapThreshold : 1.0, inst.isWater ? p.waterWhiteCapStrength : 0.0, 0, 0], off + 16);
+                    data.set([inst.isWater ? p.waterWhiteCapThreshold : 1.0, inst.isWater ? p.waterWhiteCapStrength : 0.0, inst.internalEdges || 0, 0], off + 16);
                 });
 
                 gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);

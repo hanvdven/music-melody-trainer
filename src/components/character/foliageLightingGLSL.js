@@ -262,7 +262,18 @@ float moonPresence() {
 // Neighbour samples are clamped to the tile's own UV rect so the gap-free foliage atlas never bleeds an
 // adjacent tile's alpha in. On the foliage path duv already carries the wind pixel-switch
 // (shiftedNativeX), so the rim shifts along with the leaves for free.
-float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect) {
+//
+// #1221 option b: a tree canopy is a vertical/horizontal grid of separate LDtk tile instances, each
+// sampling its own atlas cell. The per-cell uvRect clamp above then makes every INTERNAL tile boundary
+// of a multi-tile canopy read as a silhouette edge, so the rim / inward glow lit up horizontal seam
+// lines. internalEdges (packed JS-side from grid adjacency, mapped into atlas/sample space for flips)
+// flags which of the four sample directions abut a sister tile: 1 = atlas-up (-v), 2 = atlas-down (+v),
+// 4 = atlas-left (-u), 8 = atlas-right (+u). A flagged direction is skipped entirely. GLSL ES 1.00 has
+// no bit ops, hence the mod/floor test. (No backticks in comments in this template literal.)
+bool edgeIsInternal(float mask, float bit) {
+    return mod(floor(mask / bit), 2.0) >= 0.5;
+}
+float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float internalEdges) {
     float vUp = min(uvRect.y, uvRect.w);     // atlases are drawn top-down → smaller v = higher on screen
     float uL = min(uvRect.x, uvRect.z);
     float uR = max(uvRect.x, uvRect.z);
@@ -270,12 +281,18 @@ float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect) {
     // The "is this neighbour empty" test uses RIM_EMPTY_ALPHA (see its comment — currently 0.5, i.e.
     // identical to the cutout discard for the binary-alpha foliage atlas).
     float r = 0.0;
-    if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
-    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
-    else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 3.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.05);
-    if      (texture2D(tex, vec2(max(duv.x - texelSize.x, uL), duv.y)).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
-    else if (texture2D(tex, vec2(max(duv.x - texelSize.x * 2.0, uL), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.15);
-    if      (texture2D(tex, vec2(min(duv.x + texelSize.x, uR), duv.y)).a < RIM_EMPTY_ALPHA)        r = max(r, 0.35);
+    if (!edgeIsInternal(internalEdges, 1.0)) {
+        if      (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y, vUp))).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
+        else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 2.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
+        else if (texture2D(tex, vec2(duv.x, max(duv.y - texelSize.y * 3.0, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.05);
+    }
+    if (!edgeIsInternal(internalEdges, 4.0)) {
+        if      (texture2D(tex, vec2(max(duv.x - texelSize.x, uL), duv.y)).a < RIM_EMPTY_ALPHA)        r = max(r, 0.55);
+        else if (texture2D(tex, vec2(max(duv.x - texelSize.x * 2.0, uL), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.15);
+    }
+    if (!edgeIsInternal(internalEdges, 8.0)) {
+        if (texture2D(tex, vec2(min(duv.x + texelSize.x, uR), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
+    }
     return r;
 }
 
@@ -306,12 +323,23 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
 // sprite with a smooth gradient. Isotropic distance-to-edge: an opaque texel 1 px from an empty
 // neighbour returns 1.0, 2 px → 0.6, 3 px → 0.3, deeper → 0.0. Reuses anyNeighborBelowAlpha at the
 // RIM_EMPTY_ALPHA threshold. Up to 12 texture2D reads, but returns on the first hit (a true edge texel
-// costs 4) and applySunGlow only calls
-// it for fragments already inside the sun's screen-space mask. Sun-only — the moon keeps its thin rim.
-float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize) {
-    if (anyNeighborBelowAlpha(tex, duv, texelSize, RIM_EMPTY_ALPHA)) return 1.0;
-    if (anyNeighborBelowAlpha(tex, duv, texelSize * 2.0, RIM_EMPTY_ALPHA)) return 0.6;
-    if (anyNeighborBelowAlpha(tex, duv, texelSize * 3.0, RIM_EMPTY_ALPHA)) return 0.3;
+// costs 4) and applySunGlow only calls it for fragments already inside the sun's screen-space mask.
+// Sun-only — the moon keeps its thin rim. internalEdges (see moonRimFactor) skips any of the four
+// directions that abut a sister canopy tile, so the 3-px bite never fires along an internal seam.
+float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize, float internalEdges) {
+    bool upOpen    = !edgeIsInternal(internalEdges, 1.0);
+    bool downOpen  = !edgeIsInternal(internalEdges, 2.0);
+    bool leftOpen  = !edgeIsInternal(internalEdges, 4.0);
+    bool rightOpen = !edgeIsInternal(internalEdges, 8.0);
+    for (int k = 1; k <= 3; k++) {
+        float fk = float(k);
+        bool hit = false;
+        if (upOpen    && texture2D(tex, duv - vec2(0.0, texelSize.y * fk)).a < RIM_EMPTY_ALPHA) hit = true;
+        if (downOpen  && texture2D(tex, duv + vec2(0.0, texelSize.y * fk)).a < RIM_EMPTY_ALPHA) hit = true;
+        if (leftOpen  && texture2D(tex, duv - vec2(texelSize.x * fk, 0.0)).a < RIM_EMPTY_ALPHA) hit = true;
+        if (rightOpen && texture2D(tex, duv + vec2(texelSize.x * fk, 0.0)).a < RIM_EMPTY_ALPHA) hit = true;
+        if (hit) return fk < 1.5 ? 1.0 : (fk < 2.5 ? 0.6 : 0.3);
+    }
     return 0.0;
 }
 
@@ -335,7 +363,7 @@ float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize) {
 // scalar for both axes, so the metric stays isotropic (a circle is a circle at any aspect ratio) and
 // devicePixelRatio cancels exactly ((cssPx·dpr)/(cssW·dpr) == cssPx/cssW). Each consumer computes it
 // from the gl_FragCoord/uCanvasSize flip it ALREADY has; no new varying anywhere.
-vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, sampler2D tex, vec2 duv, vec2 texelSize, vec2 fragUnit) {
+vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, sampler2D tex, vec2 duv, vec2 texelSize, float internalEdges, vec2 fragUnit) {
     if (uSunGlowStrength <= 0.0) return currentColor;   // night / overcast / consumer never uploads it
     // GLSL ES 1.00 leaves smoothstep UNDEFINED when edge0 >= edge1, so the "inverted" form
     // smoothstep(uSunGlowRadius, 0.0, d) must NOT be written. Same curve, defined behaviour.
@@ -355,7 +383,7 @@ vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rim
     float hi = smoothstep(MOON_LUM_LO, MOON_LUM_HI, lum);
     float sheen = clamp(edgeFactor * hi * uSunGlowStrength * near * SUN_SHEEN_SCALE, 0.0, 1.0);
     vec3 lit = screenBlend(currentColor, uSunGlowColor * sheen);
-    float rimSrc = max(rimFactor, sunInwardGlow(tex, duv, texelSize));   // UAT r4: 3-px inward gradient
+    float rimSrc = max(rimFactor, sunInwardGlow(tex, duv, texelSize, internalEdges));   // UAT r4: 3-px inward gradient
     float rim = clamp(rimSrc * uSunGlowStrength * near, 0.0, 1.0);
     if (rim > 0.0) lit = screenBlend(lit, uSunGlowColor * rim);
     return clamp(lit, 0.0, 1.0);

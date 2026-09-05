@@ -26577,6 +26577,25 @@ Setting it to 0 still gives strictly-edges-only.
   single named lift point for any future genuinely-AA'd art. `edgeLightFactor` (crates/fences, #141)
   keeps its own literal `0.5` via the `anyNeighborTransparent` wrapper over `anyNeighborBelowAlpha`.
 
+**Internal-tile-seam suppression — `internalEdges` (#1221, Han: "de sheen verraadt dat er nog naden
+zitten in de foliage layer").** A tree canopy in an LDtk world is a grid of separate `gridSize`-tile
+instances (§337's atlas packs each *distinct crop* once, deduped), each sampling its own atlas cell.
+`moonRimFactor`/`sunInwardGlow` clamp their neighbour taps to the instance's own `uvRect` (to stop
+atlas-cell bleed), so **every internal boundary of a multi-tile canopy reads as a silhouette edge** —
+subtle under the moon rim, blatant once #1193 r4 strengthened the sun sheen, which lit up horizontal
+seam lines across every tree. Han picked option **(b)** (a per-instance edge mask) over **(a)**
+(compositing foliage per-sprite — rejected as an atlas/bin-pack/instanced-pipeline rewrite). JS side
+(`RpgLevelPanel.atlasFoliageInstanceFor`): `foliageCellSet` is every occupied foliage grid cell; each
+instance gets `internalEdges`, a 4-bit mask of which world-space edges abut a sister cell, **mapped
+into atlas-sample space** (a `flipX`/`flipY` mirrors the shader's neighbour direction, exactly as it
+mirrors the UV rect) — bit 1 = atlas-up (−v), 2 = down (+v), 4 = left (−u), 8 = right (+u). It rides
+`aInstance4.z` (a previously-unused slot — no new attribute) → `varying float vInternalEdges` → passed
+to `moonRimFactor` and `applySunGlow`/`sunInwardGlow`, which skip any flagged direction. `edgeIsInternal`
+does the bit test with `mod(floor(mask/bit), 2.0)` (GLSL ES 1.00 has no bit ops). The non-instanced
+foliage shader (legacy mode, one sprite per object), `LdtkLitGround` (one composite), and the
+`FoliageInstancingTest` harness all pass `0.0` — no seams there. **Not fixed by this:** the separate
+skew/stretch column-skip (§156's staircase shear dropping source columns) — its own concern.
+
 **The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
 the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
 the moon's rim strength. It is now `1.0 - smoothstep(0.5·r, r, d)` — a **flat core** at full strength

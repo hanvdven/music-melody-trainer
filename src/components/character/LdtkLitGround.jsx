@@ -120,12 +120,12 @@ void main() {
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
     // #weather §370: top-left moon rim on the ground/building/decor silhouettes (uv rect = the whole
     // composited canvas). texelSize/uv are the same ones edgeLightFactor above already uses.
-    float moonRim = moonRimFactor(uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0));
+    float moonRim = moonRimFactor(uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0), 0.0);   // #1221: one composite, no per-tile seams
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377 (#1193): the sun edge-glow on roof ridges / decor outlines ("zon vlak over daken"). Reuses
     // the 'screenPx' local computed at the top of main() — the SAME top-down canvas-px value the sun
     // mask needs — divided by the canvas WIDTH on both axes (isotropic, dpr-free). No recomputation.
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, uv, texelSize, screenPx / uCanvasSize.x);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, uv, texelSize, 0.0, screenPx / uCanvasSize.x);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
