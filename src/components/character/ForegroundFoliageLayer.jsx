@@ -865,10 +865,16 @@ void main() {
         const float SKEW_CONTRAST = 5.0;
         float sway = clamp((wave01 - 0.5) * SKEW_CONTRAST, -1.0, 1.0);
         float heightRatio = clamp(groundDist / vWorldHeight, 0.0, 1.0);
+        // SKEW is a rigid per-row translation (same for every column in the row) → it never skips a
+        // source column, so keep it a WHOLE-pixel shift and it stays perfectly crisp.
         float skewShiftPx = floor(sway * heightRatio * heightRatio * uSkewAmount + 0.5);
+        // STRETCH is position-dependent (compresses/expands across the sprite width) → THIS is what
+        // dropped/doubled columns ("losse pixels"). Keep it CONTINUOUS (no floor) and let PASS 1's
+        // LINEAR-filtered FBO blend across texels — a coherent squish. Only the squeeze softens, and
+        // only while it is active; the pixel-art detail lives crisp in PASS 1.
         float offsetFromCenterPx = (stableUVx - 0.5) * vWorldWidth;
         float halfWidthPx = max(vWorldWidth * 0.5, 1.0);
-        float stretchShiftPx = floor((-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount + 0.5);
+        float stretchShiftPx = (-offsetFromCenterPx / halfWidthPx) * sway * uStretchAmount;
         shiftPx = skewShiftPx + stretchShiftPx;
     }
     // Screen column nativeX shows what PASS 1 rendered at column (nativeX + shiftPx) — that column's
@@ -1295,8 +1301,11 @@ function ForegroundFoliageLayer({
             if (!sceneTex || (sceneTexW === canvas.width && sceneTexH === canvas.height)) return;
             gl.bindTexture(gl.TEXTURE_2D, sceneTex);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            // LINEAR: pass 2 samples this at a CONTINUOUS (sub-pixel) wind offset, so a skew/stretch that
+            // used to drop/double a whole source column now blends across FBO texels — a coherent squish,
+            // not "losse pixels". At rest (shift = 0) the sample lands on texel centres so it stays crisp.
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo);
