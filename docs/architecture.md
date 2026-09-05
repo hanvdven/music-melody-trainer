@@ -26033,13 +26033,17 @@ weather clock — not a decorative twinkle layer.
   **UAT r7 (Han 2026-09-05: "de maan is nog steeds donker overdag — overdag moet het onbelichte stuk
   vd maan haast onzichtbaar zijn"):** the one sanctioned carve-out from r6's colour-only rule. The
   real daytime moon shows only its lit crescent; the unlit half is invisible against the bright sky.
-  `drawMoonDisc` gains a `dayness` arg (`easeInOut((illum − 0.45) / 0.45)` — 0 through night AND
-  dusk/dawn, ramping to 1 only in real daylight) and fades ONLY the unlit shades (0/1, the geometric
-  dark half of the terminator) to ~8 % alpha at full day. Shades 2/3 (the lit crescent + its soft
-  edge) stay at the full opaque × cloud-fade alpha at ALL times, so everything that remains visible is
-  still fully opaque and r6's no-inversion guarantee is untouched: by day an opaque near-white lit
-  fill always out-reads a near-transparent unlit fill over any sky. At night `dayness == 0` → the r6
-  full-earthshine disc, byte-identical.
+  `drawMoonDisc` gains a `dayness` arg that fades the non-fully-lit shades toward transparent as the
+  sky brightens. **UAT r8 (two more Han complaints):** (a) *"de rand tussen het verlichte en
+  onverlichte deel is donkerder dan de rest"* — the opaque 70 %-lit **shade 2** band read as a dark
+  rim by day, so now EVERY shade below fully-lit (0 earthshine + 1 **and** 2, the soft terminator)
+  fades with `dayness`; only shade 3 (near-white crescent) stays opaque → clean crescent, no rim.
+  (b) *"de maan 's avonds/'s ochtends geeft een zwarte plek"* — `dayness` used to be 0 all through
+  dusk/dawn, so the unlit half was a solid earthshine blob then. It now ramps up from **deep night**:
+  `easeInOut((illum − 0.13) / 0.35)` — 0 only when `illum ≲ 0.13` (full earthshine), ~0.6 at the
+  dusk/dawn plateau (`illum ~0.33` → faint ghost, not a blob), 1 by real daylight. r6's no-inversion
+  guarantee is untouched: the only fully-opaque part that shows as the sky brightens is the near-white
+  crescent, which always out-reads a near-transparent fill over any sky.
   Still integer-coord `fillRect` — a quantised 4-level colour dither, not sub-pixel AA. The sun's
   SCREEN position is computed even while the sun is below the horizon — that is what keeps the
   crescent pointing the right way after dark. **UAT r5 (Han:
@@ -26600,41 +26604,37 @@ leaf-gap edges inside a densely-neighboured tile. r6 gated each tap individually
 direction is internal AND that tap coordinate crossed the tile's own `uvRect`). Superseded by r7 below,
 but the per-tap `internalEdges` gating survives in `moonRimFactor`/`sunInwardGlow`.
 
-**UAT r7 — ROBUST: lighting decoupled from the wind pixel-switch** (Han, after clamp → discard →
-clamp-at-seam → per-tap kept exposing new artefacts: *"vind een robuuste oplossing voor belichting icm
-de pixel switch. het blijft problemen opleveren!!!"*). Root cause of the whole whack-a-mole: the
-edge/rim/sheen detection sampled the **wind-shifted** tile UV, so every gust interacted with the
-per-tile atlas cells and the quantised per-column shift (§156's staircase) — gaps, specks outside the
-silhouette, edges sliding off the lighting, unsheened pixels near seams. Both foliage shaders
-(instanced + non-instanced) now compute a `duv0` — the **unshifted** tile UV, the sprite's true stable
-outline — alongside the shifted `duv`:
+**UAT r7 — TRIED then REVERTED.** r7 decoupled the lighting from the wind shift by sampling an
+*unshifted* `duv0` for the silhouette/discard/edge detection. That **broke the wind effect** — Han:
+*"het is juist de bedoeling dat pixels buiten de oorspronkelijke sprite terecht kunnen komen, dat geeft
+net het wind effect"*. Reverted. Both foliage shaders again sample the **shifted `duv`** for the colour,
+the discard, and all lighting (`edgeLightFactor` / `moonRimFactor` / `sunInwardGlow` / `applySunGlow`),
+so a wind-moved texel can land outside the rest silhouette (the bend) and is lit coherently *as itself*.
+`normalUV` stays on the shifted coord. `internalEdges` (bits 1/2/4/8) is kept — it still suppresses the
+per-tile atlas-cell seam. The dead screen-space bits 16/32 (only the deleted #1219 discard read them)
+are removed from the JS packing.
 
-- the discard is gated on `texture2D(uDiffuse, duv0).a` — a fragment outside the TRUE silhouette is
-  dropped no matter where the shift points, so **no smeared specks** and #1219's whole
-  discard/clamp/bits-16-32 apparatus is **deleted**;
-- `moonRimFactor` / `sunInwardGlow` / `applySunGlow` / `edgeLightFactor` all take `duv0` — the rim/sheen
-  sits on the real outline, never gapped or slid off;
-- `duv` (plain `clamp`, never discarded) is the **colour only** — a shifted read past a tile edge is a
-  1–2 px colour smear inside a solid canopy, invisible.
+**Still open:** the per-column skew/stretch **column-skip** ("losse pixels" on stretched foliage/grass
+— a source column dropped or doubled everywhere the quantised shift steps by 1, so a dark outline or a
+bright highlight in that column vanishes). Inherent to §156's crisp integer nearest-neighbour shift;
+the artefact-free fixes are all trade-offs — reduce `stretchAmount`/`skewAmount`, accept a slight
+bilinear blur on stretched foliage, or a render-to-texture post-displacement pass (lighting computed
+before the shift). Deferred pending Han's choice.
 
-`normalUV` stays on the shifted coord (visible relief). `internalEdges` (bits 1/2/4/8) still suppresses
-the per-tile atlas-cell seam, now on stable coordinates. This also subsumes the skew/stretch
-column-skip concern: the silhouette is `duv0`-solid, so a skipped colour column is a texture wobble,
-not a hole.
-
-**#1220 — the glow shrinks to 0 as the sun sinks behind foliage** (Han: *"als de zon volledig achter
-de bomen verdwenen is, stop met sheenen op alle lagen"*, and *"maak de straal kleiner, lineair tot 0"*).
-The sun is screen-fixed (celestial projection) so its level-local position is **camera-aware**;
-`RpgLevelPanel`'s render body (which already re-runs every pan frame — Han's chosen compute site) maps
-it back — `sunLocalX = sunGpxX − skyGeomWpx/2 − LEVEL_MIN_X + cameraX`,
-`sunLocalY = LEVEL_PX_HEIGHT − (size.h − sunGpxY·zoom − GROUND_ANCHOR)/zoom` — and samples the sun disc
-at 9 points (centre + a ring at 0.85·R / 0.6·R) against #1221's `foliageCellSet`. The covered fraction
-drives `sunGlowVisFrac = 1 − fraction` (quantised 0.05), which **linearly scales the glow radius**:
-`foliageParamsRender` is a `useMemo` that multiplies `foliageParams.sunGlowRadius` by it — keeping the
-*same object identity* on a clear-sky frame so the foliage/ground layers' `React.memo` never breaks —
-and `BgLayer`'s `drawSunRimPatch` takes a `radiusScale` so the parallax-bg disc contracts in step. The
-shader needs no change: `near = 1 − smoothstep(0.5·r, r, d)` with `r → 0` zeroes the term (early-out
-included).
+**#1220 — the glow radius shrinks to 0 as the sun sinks behind the PARALLAX layers** (Han: *"als de zon
+volledig achter de bomen verdwenen is, stop met sheenen op alle lagen"*; *"maak de straal kleiner,
+lineair tot 0"*; and — the rescope — *"beperken van sheen-straal moet ALLEEN wanneer bedekt door
+parallax-lagen, niet wanneer bedekt door de gewone laag"*). The sun is screen-fixed (celestial
+projection) so its level position is **camera-aware**; `RpgLevelPanel`'s render body (which already
+re-runs every pan frame — Han's chosen compute site) samples the sun disc at 9 points (centre + a ring
+at 0.85·R / 0.6·R) against `bgOccluders` — the occupied grid cells of each **background parallax layer**,
+each paired with its parallax `factor` so the sun's screen X maps back through `cameraX · factor` (Y
+through the parallax bottom-anchor, no `GROUND_ANCHOR` term). The **foreground** foliage never triggers
+it. The covered fraction drives `sunGlowVisFrac = 1 − fraction` (quantised 0.05) which **linearly scales
+the glow radius**: `foliageParamsRender` is a `useMemo` multiplying `foliageParams.sunGlowRadius` by it,
+keeping the *same object identity* on a clear frame so the foliage/ground `React.memo` never breaks;
+`BgLayer`'s `drawSunRimPatch` takes a matching `radiusScale`. The shader needs no change: `near =
+1 − smoothstep(0.5·r, r, d)` with `r → 0` zeroes the term.
 
 **Item 1 — flat surface sheen on the DOM parallax layers** (Han: *"sub sheen moet ook werken op de
 achtergrond (parallaxlagen)"*). The shader layers have a luminance-masked surface sheen

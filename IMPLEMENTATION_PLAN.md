@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ r7-revert + maan r8 + #1220 parallax-only + open kolom-skip
+
+Han: meerdere issues in één bericht.
+1. **r7 teruggedraaid** — de `duv0`-split brak het wind-effect (pixels MOETEN
+   buiten het silhouet kunnen komen). Beide foliage-shaders sampelen weer de
+   geshifte `duv` voor kleur, discard én alle belichting → wind-bend werkt weer,
+   coherent belicht. `internalEdges` (1/2/4/8) blijft; dode bits 16/32 verwijderd.
+2. **#1220 herscopeerd** — straal-krimp alleen bij occlusie door PARALLAX-lagen,
+   niet door de voorgrond-willow. Nieuwe `bgOccluders` memo (per parallax-laag:
+   bezette cellen + eigen `factor`); 9-punts zonneschijf-sample mapt de zon-scherm-X
+   terug via `cameraX * factor`, Y via de parallax bottom-anchor.
+3. **Maan overdag** — de opake 70%-shade-2 band las als "donkere rand" tussen
+   verlicht/onverlicht. Nu faden álle niet-vol-verlichte shades (0+1+2) met
+   `dayness`; enkel shade 3 blijft opaak → schone sikkel, geen rand.
+4. **Maan dusk/dawn** — was "zwarte plek". `moonDayness` ramp start nu vanaf
+   diepe nacht (`easeInOut((illum-0.13)/0.35)`) → dusk ~0.6 → vage schim i.p.v.
+   blok; volle earthshine alleen bij `illum ≤ ~0.13`.
+
+lint 0 · build clean · 1484 tests. Commit `ae015ce7` + docs.
+
+⏳ **NIET opgelost:** de skew/stretch KOLOM-SKIP ("losse pixels" op uitgerekte
+foliage/gras). Inherent aan §156's crispe integer nearest-neighbour shift — een
+bronkolom valt weg/verdubbelt overal waar de gekwantiseerde shift met 1 stapt.
+Fixes zijn trade-offs: `stretchAmount`/`skewAmount` verlagen · lichte bilineaire
+blur op uitgerekte foliage · render-to-texture post-displacement pass. Wacht op
+Han's keuze — NIET geclaimd als opgelost.
+
 ## 2026-09-05 — ✅ #1220: zon-gloed krimpt lineair naar 0 zodra de zon achter de bomen zakt
 
 Han: "compute in de render body" + "maak de straal kleiner, lineair tot 0".
