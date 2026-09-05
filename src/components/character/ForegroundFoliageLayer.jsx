@@ -847,8 +847,12 @@ void main() {
     float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
     float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
 
-    // ONE game px in FBO-normalised coords — the step size for the SCREEN-SPACE edge tests.
-    vec2 screenTexel = vec2(pxPerNativeX, pxPerNativeY) / uCanvasSize;
+    // ONE game px in FBO-normalised coords — the step for the SCREEN-SPACE edge tests. The Y is
+    // NEGATIVE on purpose: gl_FragCoord.y (hence screenUV.y) is BOTTOM-UP, but moonRimFactor / the rim
+    // helpers assume the atlas TOP-DOWN convention (smaller v = higher on screen). Flipping the Y step
+    // makes their "up" bias point at the VISUAL top — the edge that faces the sun — instead of the
+    // canopy's underside.
+    vec2 screenTexel = vec2(pxPerNativeX, -pxPerNativeY) / uCanvasSize;
     vec4 fullRect = vec4(0.0, 0.0, 1.0, 1.0);
 
     // Re-derive the SAME wind shift PASS 1 used, so the atlas normal lines up with the bent diffuse.
