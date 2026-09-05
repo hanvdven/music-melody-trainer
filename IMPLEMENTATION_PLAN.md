@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — ✅ #1220: zon-gloed krimpt lineair naar 0 zodra de zon achter de bomen zakt
+
+Han: "compute in de render body" + "maak de straal kleiner, lineair tot 0".
+`RpgLevelPanel` render-body (draait al elke pan-frame): zon staat scherm-vast
+(celestiaal) → level-locale positie is camera-afhankelijk:
+`sunLocalX = sunGpxX - skyGeomWpx/2 - LEVEL_MIN_X + cameraX`,
+`sunLocalY = LEVEL_PX_HEIGHT - (size.h - sunGpxY*zoom - GROUND_ANCHOR)/zoom`.
+9-punts sample van de zonneschijf (center + ring op 0.85R/0.6R) tegen
+`foliageCellSet` → `sunGlowVisFrac = 1 - gedekte fractie` (kwantum 0.05).
+`foliageParamsRender` = useMemo die `sunGlowRadius * sunGlowVisFrac` doet, met
+DEZELFDE object-identiteit bij heldere lucht (memo breekt niet). `BgLayer`/
+`drawSunRimPatch` krijgt `radiusScale` → parallax-bg schijf krimpt mee. Shader
+ongewijzigd (`near` met `r→0` nult de term). lint 0 · build clean · tests draaien.
+Commit `8d3f6467`. Doc §377.
+
 ## 2026-09-05 — ✅ #1221 r7: ROBUSTE oplossing — belichting losgekoppeld van de pixel-switch
 
 Na clamp → discard → clamp-bij-naad → per-tap gating bleef Han artefacten zien

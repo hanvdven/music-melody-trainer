@@ -26622,6 +26622,20 @@ the per-tile atlas-cell seam, now on stable coordinates. This also subsumes the 
 column-skip concern: the silhouette is `duv0`-solid, so a skipped colour column is a texture wobble,
 not a hole.
 
+**#1220 — the glow shrinks to 0 as the sun sinks behind foliage** (Han: *"als de zon volledig achter
+de bomen verdwenen is, stop met sheenen op alle lagen"*, and *"maak de straal kleiner, lineair tot 0"*).
+The sun is screen-fixed (celestial projection) so its level-local position is **camera-aware**;
+`RpgLevelPanel`'s render body (which already re-runs every pan frame — Han's chosen compute site) maps
+it back — `sunLocalX = sunGpxX − skyGeomWpx/2 − LEVEL_MIN_X + cameraX`,
+`sunLocalY = LEVEL_PX_HEIGHT − (size.h − sunGpxY·zoom − GROUND_ANCHOR)/zoom` — and samples the sun disc
+at 9 points (centre + a ring at 0.85·R / 0.6·R) against #1221's `foliageCellSet`. The covered fraction
+drives `sunGlowVisFrac = 1 − fraction` (quantised 0.05), which **linearly scales the glow radius**:
+`foliageParamsRender` is a `useMemo` that multiplies `foliageParams.sunGlowRadius` by it — keeping the
+*same object identity* on a clear-sky frame so the foliage/ground layers' `React.memo` never breaks —
+and `BgLayer`'s `drawSunRimPatch` takes a `radiusScale` so the parallax-bg disc contracts in step. The
+shader needs no change: `near = 1 − smoothstep(0.5·r, r, d)` with `r → 0` zeroes the term (early-out
+included).
+
 **Item 1 — flat surface sheen on the DOM parallax layers** (Han: *"sub sheen moet ook werken op de
 achtergrond (parallaxlagen)"*). The shader layers have a luminance-masked surface sheen
 (`SUN_SHEEN_SCALE`); the `LdtkScenery` parallax layers only ever had the rim (`computeMoonRim`).
