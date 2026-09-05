@@ -424,27 +424,28 @@ void main() {
     // UV, so texture2D() always lands solidly in the middle of one texel with no boundary ambiguity,
     // regardless of skew/stretch. nativeY (now gl_FragCoord-derived, see its own comment above) is reused
     // unchanged here — untouched by skew/stretch, which only ever shift the X sample.
-    // #1219 (Han: "felle groene spikkels buiten de sprite na de pixel-switch"): a wind bend can push the
-    // sample index outside this sprite's OWN [0, W-1] column range — those fragments belong OUTSIDE the
-    // deformed silhouette. Clamping them onto the edge texel column smeared a ragged band of (often
-    // bright leaf-tip) pixels beyond the canopy outline that global illumination could not hide. Discard
-    // them for alpha-cutout sprites; the opaque floor (kind 1) still wants the clamp (edge extension).
-    float shiftedNativeXraw = nativeX + totalShiftPx;
-    if (uInstanceKind == 0 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > uWorldWidth - 1.0)) discard;
-    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, uWorldWidth - 1.0);
+    // ROBUST decoupling (Han: "vind een robuuste oplossing voor belichting icm de pixel switch") —
+    // see the instanced shader's fuller comment. The wind bend displaces ONLY the colour sample duv.
+    // Silhouette membership, edge/rim/sheen detection and edgeFactor all read the UNSHIFTED duv0, so a
+    // gust can never gap the silhouette, smear a spec outside it, or move an edge off the lighting.
+    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, uWorldWidth - 1.0);
+    vec2 duv0 = vec2(
+        mix(uDiffuseUV.x, uDiffuseUV.z, (nativeX + 0.5) / uWorldWidth),
+        mix(uDiffuseUV.y, uDiffuseUV.w, (nativeY + 0.5) / uWorldHeight)
+    );
     vec2 duv = vec2(
         mix(uDiffuseUV.x, uDiffuseUV.z, (shiftedNativeX + 0.5) / uWorldWidth),
-        mix(uDiffuseUV.y, uDiffuseUV.w, (nativeY + 0.5) / uWorldHeight)
+        duv0.y
     );
     vec2 normalUV = vec2(
         clamp((shiftedNativeX + 0.5) / uWorldWidth, 0.0, 1.0),
         clamp((nativeY + 0.5) / uWorldHeight, 0.0, 1.0)
     );
 
-    vec4 diffuse = texture2D(uDiffuse, duv);
-    if (uInstanceKind == 0 && diffuse.a < 0.5) discard;
+    if (uInstanceKind == 0 && texture2D(uDiffuse, duv0).a < 0.5) discard;   // TRUE (unshifted) silhouette gates
+    vec4 diffuse = texture2D(uDiffuse, duv);                                 // wind-displaced colour
 
-    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, float(uEdgeLitOnly));
+    float edgeFactor = edgeLightFactor(uDiffuse, duv0, texelSize, float(uEdgeLitOnly));
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -510,14 +511,14 @@ void main() {
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
     // Legacy-mode foliage is one sprite per object — no internal tile seams, so internalEdges = 0.0 (#1221).
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV, 0.0);   // #weather §370
+    float moonRim = moonRimFactor(uDiffuse, duv0, texelSize, uDiffuseUV, 0.0);   // #weather §370 — UNSHIFTED silhouette
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow, masked to a screen-space disc around the sun. Reuses the SAME
     // gl_FragCoord → top-down canvas-px flip localYPx already does above (uCanvasSize.y - gl_FragCoord.y),
     // normalised by the canvas WIDTH on BOTH axes so the mask is isotropic and dpr-free. Reuses the
     // moonRim value too — one rim definition, zero extra texture fetches.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, uDiffuseUV, 0.0, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv0, texelSize, uDiffuseUV, 0.0, sunFragUnit);   // §377 — UNSHIFTED silhouette
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -718,21 +719,23 @@ void main() {
     }
     float totalShiftPx = skewShiftPx + stretchShiftPx;
 
-    // #1219: a wind bend past this tile's [0, W-1] range would clamp onto the edge texel column, smearing
-    // bright specks OUTSIDE the silhouette — discard those instead. #1221 follow-up (Han: "ik heb nu
-    // verticale stroken"): but a multi-tile canopy tile whose screen-left/right abuts a SISTER tile
-    // (bits 16 / 32, raw screen-space adjacency) must NOT discard there — the missing columns belong to
-    // that neighbour, and discarding punches a wind-driven gap at every internal vertical seam. Clamp
-    // those (the two tiles' shifted content meets); discard only where the canopy silhouette truly ends.
-    // Floor (kind 1) keeps the plain clamp.
-    float shiftedNativeXraw = nativeX + totalShiftPx;
-    bool offL = shiftedNativeXraw < 0.0;
-    bool offR = shiftedNativeXraw > vWorldWidth - 1.0;
-    if (vInstanceKind < 0.5 && ((offL && !edgeIsInternal(vInternalEdges, 16.0)) || (offR && !edgeIsInternal(vInternalEdges, 32.0)))) discard;
-    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, vWorldWidth - 1.0);
+    // ROBUST decoupling (Han, after a long whack-a-mole of clamp/discard/seam fixes: "vind een robuuste
+    // oplossing voor belichting icm de pixel switch. het blijft problemen opleveren!!!"): the wind bend
+    // displaces ONLY the sampled colour. Everything that defines this fragment's SHAPE — silhouette
+    // membership (the discard), edge/rim/sheen detection, edgeFactor — reads the UNSHIFTED tile UV
+    // duv0, the sprite's true stable outline. So a gust can no longer punch a gap, smear a spec
+    // OUTSIDE the silhouette, or slide an edge out from under the lighting. duv0 gates the discard;
+    // duv (clamped, NEVER discarded) is the colour only — a fragment inside the true silhouette whose
+    // shifted read runs past the tile edge just gets a 1-2 px colour smear, invisible next to a solid
+    // canopy. #1221's internalEdges (bits 1/2/4/8) still suppresses the per-tile atlas-cell seam.
+    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    vec2 duv0 = vec2(
+        mix(vDiffuseUV.x, vDiffuseUV.z, (nativeX + 0.5) / vWorldWidth),
+        mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
+    );
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
-        mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
+        duv0.y
     );
     // #weather §368 r3 (Han: "allicht een probleem met het lijmen van de normal-maps? In debug zie ik dat
     // die is opgebouwd in stroken; lijkt of die stroken strepen geven die prominent zichtbaar zijn in de
@@ -748,10 +751,10 @@ void main() {
         mix(vDiffuseUV.y, vDiffuseUV.w, clamp((nativeY + 0.5) / vWorldHeight, 0.0, 1.0))
     );
 
-    vec4 diffuse = texture2D(uDiffuse, duv);
-    if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
+    if (vInstanceKind < 0.5 && texture2D(uDiffuse, duv0).a < 0.5) discard;   // TRUE (unshifted) silhouette gates
+    vec4 diffuse = texture2D(uDiffuse, duv);                                  // wind-displaced colour
 
-    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, vEdgeLitOnly);
+    float edgeFactor = edgeLightFactor(uDiffuse, duv0, texelSize, vEdgeLitOnly);
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -794,13 +797,13 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
     vec3 lit = applyPointLights(baseColor, darkened, n, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
+    float moonRim = moonRimFactor(uDiffuse, duv0, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221 — UNSHIFTED silhouette
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow — LIGHTING, so it belongs in this block (immediately after the moon),
     // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
     // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges, sunFragUnit);   // §377 / #1221
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv0, texelSize, vDiffuseUV, vInternalEdges, sunFragUnit);   // §377 / #1221 — UNSHIFTED silhouette
 
     // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
