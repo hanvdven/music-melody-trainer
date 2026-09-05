@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import logger from '../../utils/logger';
-import { weatherOutputs, cloudCollapseT, cloudDarkT } from './weatherCycle';
+import { weatherOutputs, cloudCollapseT, cloudDarkT, easeInOut } from './weatherCycle';
 import {
     SUN_R_GPX, MOON_R_GPX, HALF_FOV_AZ_DEG, SUN_GLOW_RGB, SUN_GLOW_RADIUS_GPX,
     localSiderealDeg, altAz, projectToScreen, degPerPx,
@@ -92,6 +92,15 @@ const lerpNum = (a, b, t) => a + (b - a) * t;
 // self-contained object whose own brightness relationships (lit > terminator > unlit) can never invert
 // against whatever is behind it. Han explicitly declined a legibility outline (still visible enough
 // against every sky without one) and kept the earthshine tone dark-blue-grey, not near-black.
+//
+// §374 UAT r7 — the ONE sanctioned exception (Han: "de maan is nog steeds donker overdag — overdag
+// moet het onbelichte stuk vd maan haast onzichtbaar zijn"). By day the real moon shows only its lit
+// crescent; the unlit half is invisible against the bright sky. So `drawMoonDisc` fades ONLY the unlit
+// shades (0/1 — the geometric dark half of the terminator) toward transparent as `dayness` → 1. The
+// r6 inversion cannot happen here: by day the opaque near-white lit fill always reads brighter than a
+// near-transparent unlit fill over any sky. `dayness` is 0 at night AND at dusk/dawn — full earthshine,
+// r6 unchanged — and ramps up only in real daylight, so the crescent/terminator (shades 2/3) stay
+// fully opaque at all times and "how lit" is still colour, never alpha, for everything that shows.
 const MOON_LIT_RGB = [230, 233, 240];        // #e6e9f0 — the fully-lit fill
 const MOON_EARTHSHINE_RGB = [58, 65, 82];    // #3a4152 — the fixed, always-opaque unlit fill
 const MOON_DISC_ALPHA = 1;
@@ -166,12 +175,17 @@ function fillDisc(ctx, cx, cy, r, color, alpha) {
  * colour only, never an alpha. `alphaMul` is the SEPARATE cloud-cover fade (§375) applied on top of
  * that fixed opacity, not "how lit" — see the `MOON_DISC_ALPHA` comment above for why the two must
  * never be conflated again.
+ *
+ * §374 UAT r7: `dayness` (0 at night/dusk/dawn, → 1 in real daylight) fades ONLY the unlit shades
+ * (0/1) toward transparent, so by day the moon reads as just its lit crescent. The lit crescent and
+ * both terminator-lit shades (2/3) stay at the full opaque × cloud-fade alpha at all times.
  */
-function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul) {
-    // UAT r6: ONE alpha for the whole disc (opaque × the §375 cloud fade) — "how lit" lives entirely
-    // in `MOON_SHADE`'s fill colour, set per-pixel below. Never per-shade alpha again (see the
-    // MOON_DISC_ALPHA comment above for why).
-    ctx.globalAlpha = MOON_DISC_ALPHA * alphaMul;
+function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul, dayness) {
+    // UAT r6: base alpha = opaque × the §375 cloud fade — "how lit" lives in `MOON_SHADE`'s fill colour.
+    // UAT r7: the unlit half (shades 0/1) additionally fades to ~8 % of that by full day; everything
+    // that stays visible is still fully opaque, so r6's no-inversion guarantee holds.
+    const baseA = MOON_DISC_ALPHA * alphaMul;
+    const unlitA = baseA * (1 - 0.92 * dayness);
     for (let dy = -r; dy <= r; dy++) {
         const halfW = discHalfWidth(r, dy);
         if (halfW < 0) continue;
@@ -180,7 +194,9 @@ function drawMoonDisc(ctx, cx, cy, r, k, sx, sy, alphaMul) {
             const v = -dx * sy + dy * sx;
             const wt = Math.sqrt(Math.max(0, r * r - v * v));   // terminator half-width on this row
             const su = u - wt * (1 - 2 * k);
-            ctx.fillStyle = MOON_SHADE[su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0];
+            const shade = su >= 1 ? 3 : su >= 0 ? 2 : su >= -1 ? 1 : 0;
+            ctx.globalAlpha = shade <= 1 ? unlitA : baseA;
+            ctx.fillStyle = MOON_SHADE[shade];
             ctx.fillRect(cx + dx, cy + dy, 1, 1);
         }
     }
@@ -467,7 +483,10 @@ export default function CelestialSky({
             const nearSun = Math.hypot(moonXY.x - sunXY.x, moonXY.y - sunXY.y) < SUN_GLOW_RADIUS_GPX;
             if (!moon.belowHorizon && inAzWindow(moon) && bodyAlphaMul >= STAR_ALPHA_FLOOR && !nearSun) {
                 const { sx, sy } = brightLimbUnitVector(moonXY, sunXY);
-                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy, bodyAlphaMul);
+                // §374 UAT r7: 0 at night and through dusk/dawn (illum ≲ 0.45 → full earthshine),
+                // ramping to 1 in real daylight — fades only the moon's unlit half by day.
+                const moonDayness = easeInOut((illum - 0.45) / 0.45);
+                drawMoonDisc(ctx, moonXY.x, moonXY.y, MOON_R_GPX, moon.illumFraction, sx, sy, bodyAlphaMul, moonDayness);
             }
 
             // ---- sun ---------------------------------------------------------------------------

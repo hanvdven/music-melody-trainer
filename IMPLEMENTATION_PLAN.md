@@ -7,6 +7,36 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-05 — 🐞 Wereld-level: hakkelige / inconsistente framerate "vooral bij veel beweging" (perf-diagnostiek)
+
+Han vroeg een performance-diagnostiek op het wereld-level. Diagnose (code-reading, nog geen
+real-device trace):
+
+- **F1 (hoofdoorzaak, bestaand):** `setCameraX` in de camera-`useFrameLoop` (RpgLevelPanel ~r1822)
+  draait 60 Hz zónder throttle → volledige re-render van heel `RpgLevelPanel` (~3000 r) elke frame
+  tijdens bewegen. Bekend/geaccepteerd sinds §321–§325 (imperatieve transforms omzeilen de *visuele*
+  update, maar `cameraX` blijft React-state voor parallax-bg + `worldToScreenX`/`leftPxForFactor`).
+- **F2 (regressie, #1195/§383 vandaag):** `SceneryBack`/`SceneryFront` (de §324-extractie die die
+  60 Hz-re-render goedkoop maakte) zijn vervangen door een inline `world.passes.map(...)` in de
+  render-body (r2568) → elke frame worden N pass-elementen opnieuw ge-`createElement`'d. Precies de
+  kost die §323/§324 wegnam, nu met meer passes.
+- **F3 (regressie, §383):** `leftPxForFactor` is een `useCallback` met `cameraX` in deps (r2048) →
+  nieuwe identiteit elke bewegingsframe → als prop aan `GroundPass`/`BackgroundPass`/`ShimmerPass`
+  (memo's) → hun `React.memo` faalt 60 Hz → cascade naar `LdtkScenery`/`LdtkLitGround`.
+- **F4:** `baseLights`→`ldtkLights` herbouwen ~16 Hz (dep `playerX` throttle-state) → nieuwe array →
+  weer een memo-breker op `GroundPass`/`ShimmerPass` → `LdtkLitGround`/`ForegroundFoliageLayer`.
+- **F5:** 2 nieuwe onvoorwaardelijke full-viewport per-frame paints sinds de laatste perf-ronde:
+  `CelestialSky` (§374, canvas clear+redraw elke frame dat de wereldklok loopt) en
+  `SkyGradientBackdrop` (§381, 17-stop gradient-string + `style.background` write elke frame).
+- **F6 (omgeving, bekend):** dominante kost in §318/§319/§325 was nooit React maar CPU-side
+  canvas/WebGL raster (`ForegroundFoliageLayer`: 1 un-batched `gl.drawArrays` per instance). Meer
+  zichtbare foliage bij bewegen = meer draw calls. Real-device Performance-trace nog steeds niet
+  geleverd (§319/§324/§325 vragen er alle drie om).
+
+⏳ Wacht op Han: welke findings aanpakken + interview (§4b) vóór implementatie. Kandidaat-fix F2/F3
+= snelste win (regressie terugdraaien: pass-groepen weer in een memo-component, camera-stabiele
+props).
+
 ## 2026-09-06 — ✅ #1193 UAT r3: sun-glow radius verdubbeld (55 → 110 gpx)
 
 Han ("oooh heel nice! kippenvel. Maak de radius dubbel zo groot — harde straal en
@@ -17,6 +47,19 @@ nu 110 gpx) mee met dit ene getal. `CelestialSky`'s `nearSun` (maan verbergen
 binnen de zon-gloed) hergebruikt dezelfde constante → die cutoff verdubbelde ook,
 bewust gehouden. `lint` 0 · `build` clean · vitest overgeslagen per Han. Commit
 `d1e74b90`. Doc §377 masker-alinea bijgewerkt.
+
+## 2026-09-06 — ✅ #1191 UAT r7: onbelichte maan-helft vervaagt overdag
+
+Han (screenshot dag-lucht: "de maan is nog steeds donker overdag — het onbelichte
+stuk moet haast onzichtbaar zijn. andere blend mode??"). Gekozen: optie A (alleen
+de onbelichte pixels alpha-faden overdag; de sikkel blijft altijd opaak). In
+`CelestialSky.drawMoonDisc`: nieuwe `dayness`-arg = `easeInOut((illum-0.45)/0.45)`
+— 0 door nacht én dusk/dawn, ramp naar 1 in echt daglicht. Shades 0/1 (donkere
+helft van de terminator) → ~8% alpha bij vol daglicht; shades 2/3 (sikkel + zachte
+rand) blijven altijd op volle opake × wolk-fade alpha. r6's geen-inversie-garantie
+blijft intact (opake bijna-witte lichte kant leest overdag altijd feller dan een
+bijna-transparante donkere kant). 's Nachts `dayness==0` → identiek aan r6.
+`easeInOut` hergebruikt uit `weatherCycle`. lint 0. Doc §374 r7-alinea toegevoegd.
 
 ## 2026-09-06 — ✅ #1193 UAT r4: sterkere interieur-sheen + 3px inward-glow + AA-fringe fix
 
@@ -8734,3 +8777,17 @@ tweede hardcoded naam toe te voegen (§6c) — elke toekomstige extra waterlaag 
 nu automatisch mee, geen code-wijziging nodig.
 
 Beide direct gefixt, 1484 tests groen, build/lint OK. Han: "verder PERFECT!!!" op de rest.
+
+## #1195 UAT r2 (2026-09-05) — reflectie was VOLLEDIG onzichtbaar (eenden, riet, brug, boom — alles)
+
+🐞→✅ **Root cause van mijn vorige "fix"**: ik hostte de reflectie op de éérste shimmer-pass — bleek een
+vroege, foliage-only pass te zijn, met nog VIJF grondlagen (o.a. het volledige terrain-canvas) die er ná
+overheen tekenen. Die overschilderden de reflectie compleet — dus niet alleen de nieuwe watertegels,
+maar ALLE reflectie (eenden, riet, brug, boom, terrain) verdween.
+
+✅ **Echte fix**: reflectie is nu een aparte, altijd-gerenderde pass die precies vóór de Entities-pass
+wordt ingevoegd (niet meer gekoppeld aan een specifieke shimmer-pass) — op dat punt heeft alles wat
+écht "achter de speler" hoort al getekend, dus niets kan er meer overheen komen, en de reflectie blijft
+netjes achter de speler zitten.
+
+1484 tests groen, build/lint OK.

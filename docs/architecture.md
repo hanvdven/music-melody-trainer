@@ -26012,6 +26012,16 @@ weather clock — not a decorative twinkle layer.
   Han explicitly declined a legibility outline (kept simple) and kept the earthshine tone dark
   blue-grey (`MOON_EARTHSHINE_RGB`, unchanged), not near-black. `drawMoonDisc`'s `alphaMul` parameter
   remains the SEPARATE §375 cloud-cover fade, applied once for the whole disc — never "how lit" again.
+  **UAT r7 (Han 2026-09-05: "de maan is nog steeds donker overdag — overdag moet het onbelichte stuk
+  vd maan haast onzichtbaar zijn"):** the one sanctioned carve-out from r6's colour-only rule. The
+  real daytime moon shows only its lit crescent; the unlit half is invisible against the bright sky.
+  `drawMoonDisc` gains a `dayness` arg (`easeInOut((illum − 0.45) / 0.45)` — 0 through night AND
+  dusk/dawn, ramping to 1 only in real daylight) and fades ONLY the unlit shades (0/1, the geometric
+  dark half of the terminator) to ~8 % alpha at full day. Shades 2/3 (the lit crescent + its soft
+  edge) stay at the full opaque × cloud-fade alpha at ALL times, so everything that remains visible is
+  still fully opaque and r6's no-inversion guarantee is untouched: by day an opaque near-white lit
+  fill always out-reads a near-transparent unlit fill over any sky. At night `dayness == 0` → the r6
+  full-earthshine disc, byte-identical.
   Still integer-coord `fillRect` — a quantised 4-level colour dither, not sub-pixel AA. The sun's
   SCREEN position is computed even while the sun is below the horizon — that is what keeps the
   crescent pointing the right way after dark. **UAT r5 (Han:
