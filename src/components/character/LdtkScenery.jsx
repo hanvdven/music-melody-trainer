@@ -94,8 +94,11 @@ const SUN_SHEEN_WEIGHT = 0.35;
  * own `leftPx`, which already carries the layer's parallax factor — so the glow stays welded to the
  * visible sun disc while the art slides underneath it, exactly like the shaders' gl_FragCoord mask.
  */
-function drawSunRimPatch(ctx, src, rim, bx, by, cx, cy, color, opacity) {
-    const R = SUN_GLOW_RADIUS_GPX;
+function drawSunRimPatch(ctx, src, rim, bx, by, cx, cy, color, opacity, radiusScale = 1) {
+    // #1220 (Han: "maak de straal kleiner, lineair tot 0"): as the sun sinks behind foliage the caller
+    // linearly shrinks radiusScale 1 → 0, so the whole disc contracts toward the sun and vanishes.
+    const R = SUN_GLOW_RADIUS_GPX * radiusScale;
+    if (R <= 0) return;
     // Clip the source read to the layer canvas; skip when the patch does not overlap this layer at all.
     const x0 = Math.max(0, bx);
     const y0 = Math.max(0, by);
@@ -147,7 +150,7 @@ const BgLayer = React.memo(function BgLayer({
     // `sunBottomPx` its css distance from the container's BOTTOM — both already quantised to 4 game px
     // by RpgLevelPanel, because each change here costs a canvas re-bake. All scalars/strings, so this
     // React.memo still holds.
-    sunRimOpacity = 0, sunLeftPx = 0, sunBottomPx = 0, sunRimColor = '#fff',
+    sunRimOpacity = 0, sunLeftPx = 0, sunBottomPx = 0, sunRimColor = '#fff', sunRadiusScale = 1,
 }) {
     const canvasRef = useRef(null);
     const srcRef = useRef(null);        // tiles-only, composited once
@@ -235,9 +238,9 @@ const BgLayer = React.memo(function BgLayer({
         ctx.clearRect(0, 0, SUN_PATCH_PX, SUN_PATCH_PX);
         // 0 at night and under real overcast (`sunRimOpacity` IS the shaders' own gated, quantised
         // `sunGlow`), so a night/overcast frame does nothing here beyond the clear (ac3/ac5).
-        if (!rimRef.current || sunRimOpacity <= 0 || zoom <= 0) return;
-        drawSunRimPatch(ctx, srcRef.current, rimRef.current, sunBoxX, sunBoxY, sunLocalX, sunLocalY, sunRimColor, sunRimOpacity);
-    }, [gen, sunRimOpacity, sunRimColor, sunBoxX, sunBoxY, sunLocalX, sunLocalY, zoom]);
+        if (!rimRef.current || sunRimOpacity <= 0 || zoom <= 0 || sunRadiusScale <= 0) return;
+        drawSunRimPatch(ctx, srcRef.current, rimRef.current, sunBoxX, sunBoxY, sunLocalX, sunLocalY, sunRimColor, sunRimOpacity, sunRadiusScale);
+    }, [gen, sunRimOpacity, sunRimColor, sunBoxX, sunBoxY, sunLocalX, sunLocalY, zoom, sunRadiusScale]);
 
     return (
         <>
@@ -321,7 +324,7 @@ function LdtkScenery({
     zoom, groundAnchor, bgDarkenColor = null, bgRimOpacity = 0,
     // §377 (#1193): the sun edge-glow's parallax-bg terms. Scalars + a css string only, so `BgLayer`'s
     // React.memo still holds (an array prop would break it on every render).
-    bgSunRimOpacity = 0, bgSunLeftPx = 0, bgSunBottomPx = 0, bgSunRimColor = '#fff',
+    bgSunRimOpacity = 0, bgSunLeftPx = 0, bgSunBottomPx = 0, bgSunRimColor = '#fff', bgSunRadiusScale = 1,
 }) {
     return (
         <>
@@ -340,7 +343,7 @@ function LdtkScenery({
                     zoom={zoom} groundAnchor={groundAnchor}
                     darkenColor={bgDarkenColor} rimOpacity={bgRimOpacity}
                     sunRimOpacity={bgSunRimOpacity} sunLeftPx={bgSunLeftPx}
-                    sunBottomPx={bgSunBottomPx} sunRimColor={bgSunRimColor}
+                    sunBottomPx={bgSunBottomPx} sunRimColor={bgSunRimColor} sunRadiusScale={bgSunRadiusScale}
                 />
             ))}
             <div ref={groundScrollRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>

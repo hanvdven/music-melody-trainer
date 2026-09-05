@@ -1099,7 +1099,7 @@ const GroundPass = React.memo(function GroundPass({
 // (it just never resolves `ready`, costing one inert `<canvas>`).
 const BackgroundPass = React.memo(function BackgroundPass({
     layers, leftPxForFactor, zoom, gridSize,
-    bgDarkenColor, bgRimOpacity, bgSunRimOpacity, bgSunLeftPx, bgSunBottomPx, bgSunRimColor,
+    bgDarkenColor, bgRimOpacity, bgSunRimOpacity, bgSunLeftPx, bgSunBottomPx, bgSunRimColor, bgSunRadiusScale = 1,
 }) {
     const unusedGroundScrollRef = useRef(null);
     return (
@@ -1113,7 +1113,7 @@ const BackgroundPass = React.memo(function BackgroundPass({
             groundScrollRef={unusedGroundScrollRef} groundLeftPx={0}
             zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
             bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
-            bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor}
+            bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor} bgSunRadiusScale={bgSunRadiusScale}
         />
     );
 });
@@ -2324,6 +2324,35 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const bgSunLeftPx = Math.round(sunGpxX / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
     const bgSunBottomPx = size.h - Math.round(sunGpxY / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
     const bgSunRimColor = rgbCss(foliageParams.sunGlowColor ?? SUN_GLOW_RGB);
+    // #1220 (Han: "als de zon volledig achter de bomen verdwenen is, stop met sheenen op alle lagen").
+    // The sun is screen-fixed (celestial projection); the world scrolls under it, so this is CAMERA-aware
+    // and lives here in the render body (Han's call), which already re-runs on every pan frame. Sample
+    // the sun disc (centre + a ring at 0.85·R / 0.6·R) against #1221's `foliageCellSet` — the fraction of
+    // the disc sitting in an occupied foliage grid cell drives a LINEAR shrink of the glow RADIUS
+    // (Han: "maak de straal kleiner, lineair tot 0"), quantised to 0.05 so the memo below stays stable.
+    let sunGlowVisFrac = 1;
+    if ((foliageParams.sunGlow ?? 0) > 0 && world.gridSize > 0 && foliageCellSet.size > 0) {
+        const g = world.gridSize;
+        const R = SUN_GLOW_RADIUS_GPX;
+        const sunLocalX = sunGpxX - skyGeomWpx / 2 - LEVEL_MIN_X + cameraX;
+        const sunLocalY = LEVEL_PX_HEIGHT - (size.h - sunGpxY * zoom - GROUND_ANCHOR) / zoom;
+        const pts = [[0, 0], [0.85, 0], [-0.85, 0], [0, -0.85], [0, 0.85], [0.6, 0.6], [-0.6, 0.6], [0.6, -0.6], [-0.6, -0.6]];
+        let hit = 0;
+        for (const [dx, dy] of pts) {
+            const cxs = Math.round((sunLocalX + dx * R) / g);
+            const cys = Math.round((sunLocalY + dy * R) / g);
+            if (foliageCellSet.has(`${cxs},${cys}`)) hit++;
+        }
+        sunGlowVisFrac = Math.round((1 - hit / pts.length) * 20) / 20;
+    }
+    // Scale the astronomy radius by the visible fraction, keeping the SAME object identity when nothing
+    // is occluded so the foliage/ground layers' React.memo never breaks on a clear-sky frame.
+    const foliageParamsRender = useMemo(
+        () => (sunGlowVisFrac >= 1
+            ? foliageParams
+            : { ...foliageParams, sunGlowRadius: (foliageParams.sunGlowRadius ?? 0) * sunGlowVisFrac }),
+        [foliageParams, sunGlowVisFrac],
+    );
 
     const floorTileIdx = useMemo(
         () => Array.from({ length: LEVEL_TILES }, () => Math.floor(Math.random() * FLOOR_CELLS.length)),
@@ -2665,7 +2694,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                             key={passKey} passKey={passKey} tiles={pass.tiles} edgeLitOnly={i > entitiesPassIndex}
                             sceneryMode={sceneryMode} leftPxForFactor={leftPxForFactor} panElsRef={panElsRef}
                             groundLeftPx={groundLeftPxLocal} zoom={zoom} size={size} ldtkLights={ldtkLights}
-                            foliageParams={foliageParams} foliageDebugChannel={foliageDebugChannel} gridSize={world.gridSize}
+                            foliageParams={foliageParamsRender} foliageDebugChannel={foliageDebugChannel} gridSize={world.gridSize}
                         />
                     );
                 }
@@ -2677,6 +2706,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                             bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
                             bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
                             bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor}
+                            bgSunRadiusScale={sunGlowVisFrac}
                         />
                     );
                 }
@@ -2687,7 +2717,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                             sceneryMode={sceneryMode}
                             leftPxForFactor={leftPxForFactor} panElsRef={panElsRef} groundLeftPx={groundLeftPxLocal}
                             zoom={zoom} size={size} cameraOffsetRef={cameraOffsetRef} foliageDebugChannel={foliageDebugChannel}
-                            ldtkLights={ldtkLights} foliageParams={foliageParams} gridSize={world.gridSize}
+                            ldtkLights={ldtkLights} foliageParams={foliageParamsRender} gridSize={world.gridSize}
                             foliageAtlas={foliageAtlas} atlasFoliageInstanceFor={atlasFoliageInstanceFor}
                             foliageInstanceProps={foliageInstanceProps}
                         />
