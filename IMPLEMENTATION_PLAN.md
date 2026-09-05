@@ -7,6 +7,36 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-09-06 — ✅ #1193 UAT r2: sun-glow leest nu als "overbelicht", zoals de maan
+
+Han (screenshot: zon vlak boven wilg, geen zichtbare gloed op de wilg-rand):
+"ik wil bijv dat de buitenste paar pixels in de buurt van de zon 'overbelicht'
+zijn, precies zoals bij de maan ... effect bestaat al voor de maan; je moet
+hetzelfde effect hergebruiken en gewoon beperken tot 'in de buurt van de zon'."
+
+Coördinaten-brug gecontroleerd en klopt (zowel de sky-canvas als de foliage/
+ground-canvas dekken exact dezelfde RpgLevelPanel-container; `zoom = size.h/320`
+maakt `skyGeom.Hpx == 320`, dus de width-genormaliseerde fracties lijnen op). Het
+euvel zat in de STERKTE/KLEUR, niet de positie:
+
+- **Kleur** (`SkyGradientBackdrop.sunGlowColor`): was de verzadigde disc-gele
+  `SUN_GLOW_RGB` → dat *warmt* een rand maar *overbelicht* 'm nooit. Nu een
+  warm bijna-WIT (`SUN_GLOW_RIM_DAY [255,247,230]` → `SUN_GLOW_RIM_DUSK
+  [255,226,214]` op dezelfde `sunsetFactor`-curve). Screen-blend richting bijna-wit
+  = de "overbelicht"-look die de maan-rim ook geeft; de zonkleur is een cast, geen
+  vulling. Disc-`SUN_GLOW_RGB` blijft ongemoeid.
+- **Sterkte** (`SUN_SHEEN_SCALE`): 0.35 → 0.5 = pariteit met `MOON_SHEEN_SCALE`
+  ("hetzelfde effect", geen zwakkere hulp-term).
+- **Afstandsmasker** (`applySunGlow`): was `1 - smoothstep(0, radius, d)` (fade
+  vanaf het midden). Nu `1 - smoothstep(0.5·r, r, d)` = een VLAKKE kern op volle
+  sterkte tot de halve straal, dan pas een fade. Plus `SUN_GLOW_RADIUS_GPX`
+  40 → 55, dus de vlakke kern reikt ~27 gpx van de schijf.
+- Luminantie-mask (`MOON_LUM_LO/HI`, gedeeld met de maan) ONGEWIJZIGD (Han: "hou
+  'm zoals de maan").
+- Tests herschreven (`skyGradientBackdrop.test.js` sunGlowColor-blok: near-white
+  i.p.v. yellow). `lint` 0 · `build` clean · `test:run` 1484 pass / 1 skip. Doc
+  §377 kleur- + masker-secties bijgewerkt.
+
 ## 2026-09-06 — ✅ #1193 UAT r1: sun-glow niet meer hoogte-afhankelijk
 
 Han: "ik vind de sun-glow nog niet goed zichtbaar. ... ik wil de zelfde soort
@@ -8657,3 +8687,18 @@ errors.** Architecture.md §383 (volledige write-up, §382's Bug 2 gemarkeerd al
 ⚠️ **Nog niet visueel geverifieerd — dit is WebGL/canvas-rendering zonder testharnas** (zelfde
 precedent als §370/§374/§375/§377). Wacht op Han's UAT: brug/wilg-volgorde, lit-ground per pass,
 water-reflectie, Legacy-mode, camera-pan-soepelheid.
+
+## #1195 UAT r1 (2026-09-05) — 2 bugs uit eerste visuele check, direct gefixt
+
+✅ **Gradient vóór parallax**: `BackgroundPass` kreeg per ongeluk `gridSize={0}` mee (dacht dat het
+alleen voor grondtiles nodig was) — achtergrondlagen zelf hebben ook de échte gridSize nodig om te
+tekenen, dus ze werden onzichtbaar (0×0 geblit) en de sky-gradient scheen erdoorheen. Fix: `gridSize`
+correct doorgegeven.
+
+✅ **Sommige watertiles geen shimmer**: `Water_FG` (Han's "extra tegels voor het water") is een apart
+laag-ID van `Water_tile`, dus de exacte-identifier-check miste hem — viel terug op de platte
+`'ground'`-classificatie. Fix: gederiveerd via de ECHTE tileset (`Animated_Water_Tiles`) i.p.v. een
+tweede hardcoded naam toe te voegen (§6c) — elke toekomstige extra waterlaag met diezelfde tileset werkt
+nu automatisch mee, geen code-wijziging nodig.
+
+Beide direct gefixt, 1484 tests groen, build/lint OK. Han: "verder PERFECT!!!" op de rest.

@@ -26458,14 +26458,18 @@ fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (was SUN_GLOW_
 strength = rise * fall
 ```
 
-**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB,
-sunsetFactor(illum))` — the sun's OWN yellow `[255, 233, 160]` lerped to the sky's OWN warm rose
-`[255, 150, 130]` on the SAME `sunsetFactor` hump §372 already uses for the horizon glow. There is no
-second dusk/dawn curve and no new pink constant anywhere. `SUN_GLOW_RGB` moved out of `CelestialSky.jsx`
-into `celestialModel.js` for this: the glow's tint and the drawn disc's own glow are now provably the
-same colour (CLAUDE.md §6d). `lerpRgb` rounds to integers, so the result is inherently quantised to
-1/255 steps — which is why the colour needs no term of its own in the change-detection list (below):
-it is a pure function of `globalIllumination`, already in that list at 0.004 granularity.
+**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** **UAT r2 (Han, screenshot 2026-09-06: "ik
+wil dat de buitenste paar pixels in de buurt van de zon 'overbelicht' zijn, precies zoals bij de maan
+... effect bestaat al voor de maan; je moet hetzelfde effect hergebruiken").** The r0/r1 tint was the
+sun's own SATURATED yellow `[255, 233, 160]` — which only *warms* a sprite edge, it never *overexposes*
+it. The moon's rim (`MOON_RIM_COLOR = vec3(1.0)`) blows edge pixels toward pure white, and that
+blow-out IS the effect Han wants. So `sunGlowColor` now lerps `SUN_GLOW_RIM_DAY [255,247,230]` (a
+barely-warm near-white) → `SUN_GLOW_RIM_DUSK [255,226,214]` (warm pink-white) on the SAME
+`sunsetFactor` hump §372 uses — the sun's colour is a *cast* on an otherwise white blow-out, not a
+saturated fill. Still one shared dusk/dawn curve (cr2); the two rim endpoints are their own constants
+(the disc's `SUN_GLOW_RGB` yellow is untouched — it is the disc's colour, not the rim's). `lerpRgb`
+rounds to integers, so the result is inherently quantised to 1/255 steps — the colour needs no term of
+its own in the change-detection list (below), being a pure function of `globalIllumination`.
 
 **The cloud gate.** `quantSunGlow` multiplies the altitude curve by `(1 - cloudCollapseT(cloudCoverT))`
 — the SAME factor `quantMoonShine` uses, so "sun hidden behind cloud" and "no sun glow in the world"
@@ -26510,19 +26514,25 @@ shape — a luminance-masked screen-blend sheen plus a screen-blended rim — wi
 
 1. **no directional `dot(normal, DIR)` term** — the sun has no fixed world direction here; its
    LOCALITY is the distance mask, which is the whole point of the feature;
-2. the colour is a **uniform** (the day->dusk lerp) instead of a fixed near-white const;
+2. the colour is a **uniform** (the day->dusk warm-near-white lerp, UAT r2) instead of a fixed const;
 3. **everything is multiplied by the screen-space distance mask** around the sun's own position.
 
 It reuses the `rimFactor` the call site already computed for §370 (`moonRimFactor`, up to 6
 `texture2D` reads) — one rim definition in the codebase, zero extra texture fetches — and §370's own
 tuned `MOON_LUM_LO/HI` luminance thresholds, so the sun rides the art's painted highlights exactly as
-the moon does (a dark eave recess next to a bright roof tile still does not glow). `SUN_SHEEN_SCALE =
-0.35` (Han's plan_review answer Q1) keeps a light interior sheen alongside the rim; the RIM carries the
-effect, per "enkel pixels aan de rand van sprites". Setting it to 0 gives strictly-edges-only.
+the moon does (Han's UAT r1 answer: "hou 'm zoals de maan"). **UAT r2: `SUN_SHEEN_SCALE` 0.35 → 0.5**,
+matching the moon's `MOON_SHEEN_SCALE` — "hetzelfde effect hergebruiken", not a weaker supporting term.
+Setting it to 0 still gives strictly-edges-only.
+
+**The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
+the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
+the moon's rim strength. It is now `1.0 - smoothstep(0.5·r, r, d)` — a **flat core** at full strength
+out to half the radius (an actual blow-out there), then a smooth fade over the outer half. Paired with
+`SUN_GLOW_RADIUS_GPX` **40 → 55**, so the flat core reaches ~27 gpx from the disc.
 
 **GLSL ES 1.00 trap, avoided deliberately.** `smoothstep(edge0, edge1, x)` is **undefined** when
 `edge0 >= edge1`, so the natural-looking `smoothstep(uSunGlowRadius, 0.0, d)` must NOT be written. The
-falloff is `1.0 - smoothstep(0.0, max(uSunGlowRadius, 1e-5), d)` — same curve, defined behaviour. Most
+falloff's edges are always passed low-then-high. Most
 drivers tolerate the reversed form; the spec does not. (Related trap in the same files: a **backtick**
 in a comment inside one of these GLSL template literals terminates the literal — this bit the first
 build of this ticket. Use single quotes there.)

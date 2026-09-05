@@ -1,12 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png';
 import logger from '../../utils/logger';
-import { CLOUD_COVER, cloudClearness, cloudCollapseT, cloudDarkT } from './weatherCycle';
-// §377: the sun's own yellow. `celestialModel` is a PURE module (no React, no DOM) so importing it
-// from this .jsx is safe in both directions — the reverse (putting `sunGlowColor` in celestialModel and
-// importing SUNSET_RGB from here) is NOT: scripts/generate-star-catalog.mjs imports celestialModel
-// under plain node, which cannot parse JSX.
-import { SUN_GLOW_RGB } from './celestialModel';
+import useFrameLoop from '../../hooks/useFrameLoop';
+import { cloudClearness, cloudCollapseT, cloudDarkT, weatherOutputs } from './weatherCycle';
+// §377 UAT r2: `sunGlowColor` no longer imports the sun DISC's saturated yellow — the rim tint is a
+// warm near-white of its own (SUN_GLOW_RIM_DAY / SUN_GLOW_RIM_DUSK below). `sunGlowColor` still lives
+// in THIS file because it owns `sunsetFactor`, the one shared dusk/dawn curve (cr2).
 
 // §372 (Han 2026-09-04): the backmost sky used to be TWO stacked static elements in RpgLevelPanel — a
 // hard-coded CSS `linear-gradient` div and the painted `Background layers_layer 5.png` image, both
@@ -179,21 +178,31 @@ export function sunsetFactor(illum) {
     return smoothstep(0.05, 0.33, illum) * (1 - smoothstep(0.33, 0.75, illum));
 }
 
+// §377 UAT r2 (Han, screenshot 2026-09-06: "ik wil bijv dat de buitenste paar pixels in de buurt van
+// de zon 'overbelicht' zijn, precies zoals bij de maan ... effect bestaat al voor de maan; je moet
+// hetzelfde effect hergebruiken"). The moon's rim (`MOON_RIM_COLOR = vec3(1.0)`) blows edge pixels
+// toward pure WHITE — that "overbelicht" read is the whole point. A saturated yellow tint (r0/r1) only
+// warms the edge, it never overexposes it. So the sun rim colour is now a warm near-WHITE by day,
+// lerping to a warm pink-white at dusk/dawn — the sun's colour is a CAST on an otherwise white
+// blow-out, not a saturated fill. `SUN_GLOW_RGB` (the saturated yellow) stays as-is: it is the DISC's
+// colour, not the rim's.
+export const SUN_GLOW_RIM_DAY = [255, 247, 230];    // barely-warm white — blows out like the moon, faint gold cast
+export const SUN_GLOW_RIM_DUSK = [255, 226, 214];   // warm pink-white for the dusk/dawn plateau
+
 /**
- * §377 (#1193, Han: "in de kleur van de zon (geel, of dusk/dawn naar roze toe)"): the sun EDGE-GLOW
- * tint — the sun's OWN yellow lerped toward the horizon's warm rose on the SAME `sunsetFactor` curve
- * the sky gradient above already uses. One dusk/dawn curve for the whole app (cr2).
+ * §377: the sun EDGE-GLOW tint (see UAT r2 note above). Lerps `SUN_GLOW_RIM_DAY → SUN_GLOW_RIM_DUSK`
+ * on the SAME `sunsetFactor` curve the sky gradient uses — one dusk/dawn curve for the whole app (cr2).
  *
- * Lives here (not in celestialModel, not inline in RpgLevelPanel) because this file OWNS `SUNSET_RGB`
- * and `sunsetFactor`, and its pure helpers are exported precisely so the colour maths stays testable
- * in jsdom without a canvas.
+ * Lives here (not in celestialModel, not inline in RpgLevelPanel) because this file OWNS `sunsetFactor`,
+ * and its pure helpers are exported precisely so the colour maths stays testable in jsdom without a
+ * canvas.
  *
  * `lerpRgb` ROUNDS to integers, so the result is inherently quantised to 1/255 steps — which is why
  * this needs no term of its own in RpgLevelPanel's per-tick change-detection list: it is a pure
  * function of `globalIllumination`, which is already in that list at 0.004 granularity (cr3).
  */
 export function sunGlowColor(illum) {
-    return lerpRgb(SUN_GLOW_RGB, SUNSET_RGB, sunsetFactor(illum));
+    return lerpRgb(SUN_GLOW_RIM_DAY, SUN_GLOW_RIM_DUSK, sunsetFactor(illum));
 }
 
 function sampleLayer5(url) {
@@ -239,22 +248,39 @@ function sampleLayer5(url) {
     });
 }
 
-// `globalIllumination` (0..1) comes straight from `foliageParams.globalIllumination` — the same
-// continuous value the shaders read. It is NOT quantised here (unlike the parallax canvases' `bgNight`)
-// because this component only rebuilds a short CSS string, never re-bakes a canvas, so it can follow the
-// 10 s illum crossfade smoothly.
-//
-// §375: `cloudCoverT` arrives as its OWN prop (not through `foliageParams`, the shader-uniform bag).
-// It is the eased SCALAR, not the type string — a string would force a hard switch in here and throw
-// the 10 s ease away. RpgLevelPanel hands over a 0.05-QUANTISED value so this component re-renders
-// ≤20 times across a transition and 0 while settled (the §374 invariant: the raw continuous value
-// must never drive a React render).
-export default function SkyGradientBackdrop({
-    globalIllumination = 1,
-    cloudCoverT = CLOUD_COVER.LIGHT,
-}) {
+function buildGradientCss(dayStops, illum, cloudCoverT) {
+    const parts = dayStops.map((stop, i) => {
+        const c = cloudSkyStop(stop, SAMPLE_FRACS[i], illum, cloudCoverT);
+        return `rgb(${c[0]}, ${c[1]}, ${c[2]}) ${(SAMPLE_FRACS[i] * 100).toFixed(2)}%`;
+    });
+    return `linear-gradient(to bottom, ${parts.join(', ')})`;
+}
+
+// Perf (#1192-jank, Han 2026-09-04, "transitie van gradient loopt ook nog wat schokkerig"): same
+// early-out epsilons CelestialSky.jsx (§374) uses for its own per-frame draw guard — kept as separate
+// local constants rather than imported, since the two components' early-out guards are otherwise
+// independent (no shared state between them beyond the values themselves).
+const ILLUM_EPSILON = 0.004;
+const CLOUD_EPSILON = 0.002;
+
+// `weatherRef` — the SAME ref RpgLevelPanel's weather-tick loop and `<CelestialSky>` (§374) already
+// read `weatherOutputs()` off directly, instead of a React-state-driven prop. Before this fix,
+// `cloudCoverT` arrived QUANTISED to 0.05 (RpgLevelPanel's `quantCloudCover`) specifically so this
+// component wouldn't force a React render on every one of the weather tick's frames — but that meant
+// a full 10 s cloud-cover transition only repainted ≤20 times (~2/s), visibly "schokkerig" for a
+// full-screen colour sweep (`globalIllumination`, by contrast, was already fine — its 0.004 gating
+// granularity is fine enough to look smooth). Fix: read the RAW continuous weather state directly
+// inside a `useFrameLoop` callback and write `style.background` imperatively, exactly like
+// CelestialSky already does for its canvas — bypassing React state/props (and therefore any
+// render-triggering threshold) for this value entirely. `buildGradientCss` (17 stops, plain arithmetic,
+// no trig) is cheap enough for 60fps, same reasoning as `tickWeather`/`weatherOutputs` themselves
+// (see architecture.md §378's identical fix for the star field's `cycleT`).
+export default function SkyGradientBackdrop({ weatherRef }) {
     const [dayStops, setDayStops] = useState(FALLBACK_STOPS);
     const doneRef = useRef(false);
+    const divRef = useRef(null);
+    const lastIllumRef = useRef(null);
+    const lastCloudCoverRef = useRef(null);
 
     useEffect(() => {
         if (doneRef.current) return undefined;
@@ -275,13 +301,35 @@ export default function SkyGradientBackdrop({
         };
     }, []);
 
-    const css = useMemo(() => {
-        const parts = dayStops.map((stop, i) => {
-            const c = cloudSkyStop(stop, SAMPLE_FRACS[i], globalIllumination, cloudCoverT);
-            return `rgb(${c[0]}, ${c[1]}, ${c[2]}) ${(SAMPLE_FRACS[i] * 100).toFixed(2)}%`;
-        });
-        return `linear-gradient(to bottom, ${parts.join(', ')})`;
-    }, [dayStops, globalIllumination, cloudCoverT]);
+    // Paints synchronously before first browser paint (mount), and again the instant `dayStops`
+    // resolves from the async image sample — so the div is NEVER left without a `background` waiting
+    // for the next rAF tick. CLAUDE.md §6 ("never set opacity via JSX props on animated elements,
+    // generalized to any imperatively-driven style") is why this is a `useLayoutEffect` write, not a
+    // `style={{ background: ... }}` JSX prop: a JSX prop would fight the rAF write below on every
+    // unrelated parent re-render (React resets inline styles it controls on every commit).
+    useLayoutEffect(() => {
+        if (!divRef.current) return;
+        const { globalIllumination, cloudCoverT } = weatherOutputs(weatherRef.current);
+        divRef.current.style.background = buildGradientCss(dayStops, globalIllumination, cloudCoverT);
+        lastIllumRef.current = globalIllumination;
+        lastCloudCoverRef.current = cloudCoverT;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dayStops]);
 
-    return <div aria-hidden style={{ position: 'absolute', inset: 0, background: css, pointerEvents: 'none' }} />;
+    useFrameLoop(() => {
+        if (!divRef.current) return;
+        const { globalIllumination, cloudCoverT } = weatherOutputs(weatherRef.current);
+        if (
+            lastIllumRef.current != null &&
+            Math.abs(globalIllumination - lastIllumRef.current) < ILLUM_EPSILON &&
+            Math.abs(cloudCoverT - lastCloudCoverRef.current) < CLOUD_EPSILON
+        ) {
+            return;   // settled — skip the DOM write, same early-out CelestialSky's draw loop uses
+        }
+        lastIllumRef.current = globalIllumination;
+        lastCloudCoverRef.current = cloudCoverT;
+        divRef.current.style.background = buildGradientCss(dayStops, globalIllumination, cloudCoverT);
+    }, [], { priority: 'critical' });
+
+    return <div ref={divRef} aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
 }

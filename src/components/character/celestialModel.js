@@ -221,8 +221,11 @@ export function moonShine(moon) {
 // knobs read identically at their call sites.
 //
 // Screen-space reach of the glow in GAME px (sprite px — see MEMORY "pixels = RPG sprite pixels").
-// THE retune knob at UAT: bigger = the glow spills further from the disc.
-export const SUN_GLOW_RADIUS_GPX = 40;
+// THE retune knob at UAT: bigger = the glow spills further from the disc. UAT r2 (Han: "de buitenste
+// paar pixels in de buurt van de zon overbelicht"): 40 → 55 — the shader now holds FULL rim strength
+// out to half of this (~27 gpx), then fades over the outer half, so a sprite edge just under the disc
+// blows out properly instead of only tinting.
+export const SUN_GLOW_RADIUS_GPX = 55;
 // UAT r1 (Han 2026-09-06, "ik vind de sun-glow nog niet goed zichtbaar ... ik wil de zelfde soort gloed
 // die de maan geeft, op objecten die visueel dicht bij de zon staan"): the original design faded the
 // term down to a low floor above ~25° altitude, reasoning that "vlak over daken" was a low-sun moment.

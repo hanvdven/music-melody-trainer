@@ -229,11 +229,10 @@ const float MOON_FACING_HI = 0.95;   // at/above -> full directional term
 const float MOON_LUM_LO = 0.35;      // texel luminance: below -> masked out (dark recess = no sheen)
 const float MOON_LUM_HI = 0.75;      // at/above -> full luminance term (a painted highlight)
 const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*hi rarely both hit 1
-// §377: the sun's interior sheen is deliberately WEAKER than its rim — Han asked for "enkel pixels aan
-// de rand van sprites", so the RIM carries the effect and this is only the soft supporting term.
-// Han's plan_review answer Q1: keep it at 0.35 (a light interior sheen), mirroring applyMoonLight's
-// two-term shape. Set to 0.0 for strictly-edges-only; a one-constant retune, no restructuring.
-const float SUN_SHEEN_SCALE = 0.35;
+// §377 UAT r2 (Han: "hetzelfde effect [als de maan] hergebruiken"): was 0.35, now MATCHES the moon's
+// MOON_SHEEN_SCALE (0.5) — Han wants the sun's near-object glow to read exactly as strong as the
+// moon's, not as a weaker supporting term. Set to 0.0 for strictly-edges-only.
+const float SUN_SHEEN_SCALE = 0.5;
 
 // §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
 // gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
@@ -308,8 +307,14 @@ vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rim
     if (uSunGlowStrength <= 0.0) return currentColor;   // night / overcast / consumer never uploads it
     // GLSL ES 1.00 leaves smoothstep UNDEFINED when edge0 >= edge1, so the "inverted" form
     // smoothstep(uSunGlowRadius, 0.0, d) must NOT be written. Same curve, defined behaviour.
+    // §377 UAT r2 (Han: "de buitenste paar pixels in de buurt van de zon overbelicht, precies zoals bij
+    // de maan"): the mask is now a FLAT core out to half the radius (there the rim is at its full,
+    // moon-parity strength — an actual blow-out) then a smooth fade over the outer half. The r0 form
+    // (fade the whole way from d=0) meant even a sprite edge right under the sun only ever got a
+    // fraction of the moon's rim strength.
     float d = distance(fragUnit, uSunScreenPos);
-    float near = 1.0 - smoothstep(0.0, max(uSunGlowRadius, 1e-5), d);
+    float r = max(uSunGlowRadius, 1e-5);
+    float near = 1.0 - smoothstep(0.5 * r, r, d);
     if (near <= 0.0) return currentColor;
     // Luminance mask, same reasoning as §370 r9: the sun rides the art's OWN painted highlights, so a
     // dark eave recess next to a bright roof tile does not glow. Reuses §370's already-tuned
