@@ -1344,7 +1344,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         setFoliageParams((fp) => ({
             ...fp,
             skewAmount: out.windValue,
-            stretchAmount: out.windValue,
+            // Han (persistent "vertikale strepen" on the canopy): STRETCH is a per-column-position shift,
+            // so wherever floor() steps between columns a source column is skipped/doubled -> a vertical
+            // discontinuity every ~1/stretch columns (§156's crisp-shift trade-off). SKEW is a rigid
+            // per-row translation and has no such artefact. Drive stretch OFF by default; the rigid lean
+            // (skew) still reads as wind. Re-enable via the debug slider if the width-oscillation is
+            // wanted back.
+            stretchAmount: 0,
             globalIllumination: out.globalIllumination,
             timeOfDay: out.timeOfDay,
             // §374 UAT r2 (#1191): how strongly the REAL moon lights the world (0 when it is below the

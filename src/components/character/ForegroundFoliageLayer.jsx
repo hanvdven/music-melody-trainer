@@ -815,13 +815,7 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
     vec3 lit = applyPointLights(baseColor, darkened, nPoint, worldX, groundDist, edgeFactor);
-    // Pass moonRimFactor the CELL rect (crop + the 3-texel transparent gutter useLdtkFoliageAtlas now
-    // bakes) instead of the crop rect, so its neighbour taps reach their full 3-texel depth into the
-    // gutter instead of clamping onto the crop's own edge column — the main-layer rim was shallower
-    // than the parallax layers' for exactly this reason (Han). Flip-safe (min/max, abs step).
-    vec2 g3 = abs(texelSize) * 3.0;
-    vec4 cellRect = vec4(min(vDiffuseUV.xy, vDiffuseUV.zw) - g3, max(vDiffuseUV.xy, vDiffuseUV.zw) + g3);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, cellRect, vInternalEdges);   // #weather §370 / #1221
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
     // Han ("pixels aan de rand van de boom krijgen geen glow"): where the WIND bend pushed this tile's
     // sample past its own [0,W-1] range, the clamped edge column IS the new (bent) silhouette — but
     // moonRimFactor clamps its neighbour taps to the tile rect and can't see the sky beyond, so it
