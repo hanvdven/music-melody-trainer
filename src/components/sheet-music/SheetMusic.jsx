@@ -242,6 +242,8 @@ const SheetMusic = ({
   levelTotalWaves = 0,
   // #1096 (Han 2026-08-20): forwarded straight through to SheetRpgLayer — see its own prop comment.
   gatedElapsedMsRef = null,
+  // #1120: likewise forwarded straight through — the adaptive ladder's hidden-grade ring buffer.
+  hiddenGradesRef = null,
   // Bug fix (Han 2026-08-20, #867 rework round 3, "einde lied... na 2 maten"): `scrollBarlines.numMeasures`
   // below drives `trebleFinalBarTick` (SheetRpgLayer) — the level's "true end" boundary that clips
   // notation/slimes and triggers the "song end" event. It used to reuse the plain `numMeasures` prop,
@@ -3040,6 +3042,8 @@ const SheetMusic = ({
                     levelTotalWaves={levelTotalWaves}
                     // #1096: forwarded straight through — see SheetRpgLayer's own comment on this prop.
                     gatedElapsedMsRef={gatedElapsedMsRef}
+                    // #1120: likewise — the adaptive ladder's hidden true-timing ring buffer.
+                    hiddenGradesRef={hiddenGradesRef}
                     beatsOnScreen={beatsOnScreen}
                     enemyType={enemyType}
                     wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}

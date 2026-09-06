@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import OscillatingText from '../OscillatingText';
+import OscillatingText, { parseEmphasis } from '../OscillatingText';
 
 // #925 (Han 2026-08-16): the per-letter wobble is rAF-driven and visual — these smoke tests just guard
 // the structural contract a refactor could break.
@@ -33,5 +33,33 @@ describe('OscillatingText', () => {
         const { container } = render(<OscillatingText text="" scale={2.5} />);
         expect(container.textContent).toBe('');
         expect(leafSpans(container).filter((s) => s.textContent !== '').length).toBe(0);
+    });
+
+    // #weather (Han 2026-09-04): *asterisks* mark a Bitfantasy emphasis run inside the SandyForest body.
+    describe('parseEmphasis', () => {
+        it('splits *runs* out and strips the markers', () => {
+            expect(parseEmphasis('a *b c* d')).toEqual([
+                { text: 'a ', emph: false },
+                { text: 'b c', emph: true },
+                { text: ' d', emph: false },
+            ]);
+        });
+        it('returns one plain segment when there is no markup', () => {
+            expect(parseEmphasis('plain text')).toEqual([{ text: 'plain text', emph: false }]);
+        });
+        it('leaves a lone/unbalanced asterisk as a literal', () => {
+            expect(parseEmphasis('2 * 3 = 6')).toEqual([{ text: '2 * 3 = 6', emph: false }]);
+        });
+    });
+
+    it('renders an emphasised run in Bitfantasy and the rest without an override', () => {
+        const { container } = render(<OscillatingText text="a *b*" scale={2.5} />);
+        const leaves = leafSpans(container);
+        const a = leaves.find((s) => s.textContent === 'a');
+        const b = leaves.find((s) => s.textContent === 'b');
+        expect(a.style.fontFamily).toBe('');
+        expect(b.style.fontFamily).toContain('Bitfantasy');
+        // markers are not rendered
+        expect(container.textContent).toBe('a b');
     });
 });

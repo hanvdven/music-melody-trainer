@@ -17,7 +17,11 @@ import {
     expectedOutcome,
     updateRating,
     RATING_MIN_NOTES,
+    nextAnpm,
+    ANPM_ALPHA_UP,
+    ANPM_ALPHA_DOWN,
 } from '../gamification';
+import { SPEED_UP_ACCURACY, SLOW_DOWN_ACCURACY } from '../../levels/adaptiveTempo';
 
 describe('levels', () => {
     it('level 1 needs 100 XP, curve is 100 × level^1.4', () => {
@@ -209,5 +213,50 @@ describe('effectiveStreakDays', () => {
 describe('localDateISO', () => {
     it('formats a local date as YYYY-MM-DD', () => {
         expect(localDateISO(new Date(2026, 0, 5))).toBe('2026-01-05');
+    });
+});
+
+describe('nextAnpm (#1122 asymmetric gated ANPM smoothing)', () => {
+    it('shares the accuracy gates with the in-level adaptive-tempo controller', () => {
+        expect(SPEED_UP_ACCURACY).toBe(90);
+        expect(SLOW_DOWN_ACCURACY).toBe(70);
+        expect(ANPM_ALPHA_UP).toBe(0.15);
+        expect(ANPM_ALPHA_DOWN).toBe(0.05);
+    });
+
+    it('returns anpm unchanged when there is no usable measurement', () => {
+        expect(nextAnpm({ anpm: 50, notesPerMinute: NaN, accuracyPercent: 95 })).toBe(50);
+        expect(nextAnpm({ anpm: 50, notesPerMinute: 0, accuracyPercent: 95 })).toBe(50);
+        expect(nextAnpm({ anpm: 50, notesPerMinute: -3, accuracyPercent: 95 })).toBe(50);
+        expect(nextAnpm({ anpm: null, notesPerMinute: NaN, accuracyPercent: 95 })).toBeNull();
+    });
+
+    it('seeds from the first clean run only', () => {
+        expect(nextAnpm({ anpm: null, notesPerMinute: 42, accuracyPercent: 92 })).toBe(42);
+        expect(nextAnpm({ anpm: null, notesPerMinute: 42, accuracyPercent: 80 })).toBeNull();
+    });
+
+    it('raises anpm by ANPM_ALPHA_UP on a clean FAST run', () => {
+        // 80 + 0.15*(100-80) = 83
+        expect(nextAnpm({ anpm: 80, notesPerMinute: 100, accuracyPercent: 95 })).toBeCloseTo(83, 6);
+    });
+
+    it('HOLDS on a fast-but-sloppy run', () => {
+        expect(nextAnpm({ anpm: 80, notesPerMinute: 100, accuracyPercent: 75 })).toBe(80);
+    });
+
+    it('HOLDS on a slow run at or above SLOW_DOWN_ACCURACY (covers ">80 never lowers" + the 70–80 deadband)', () => {
+        expect(nextAnpm({ anpm: 80, notesPerMinute: 50, accuracyPercent: 70 })).toBe(80);
+        expect(nextAnpm({ anpm: 80, notesPerMinute: 50, accuracyPercent: 85 })).toBe(80);
+    });
+
+    it('lowers anpm GENTLY on a slow-and-struggling run', () => {
+        // 80 + 0.05*(50-80) = 78.5
+        expect(nextAnpm({ anpm: 80, notesPerMinute: 50, accuracyPercent: 60 })).toBeCloseTo(78.5, 6);
+    });
+
+    it('a sample equal to anpm is a no-op in both directions', () => {
+        expect(nextAnpm({ anpm: 64, notesPerMinute: 64, accuracyPercent: 95 })).toBe(64);
+        expect(nextAnpm({ anpm: 64, notesPerMinute: 64, accuracyPercent: 40 })).toBe(64);
     });
 });

@@ -3,8 +3,10 @@ import playMelodies from '../audio/playMelodies';
 import { createMelodicInstrument } from '../audio/localInstruments';
 import { secondsPerTick } from '../constants/timing';
 import { nextMeasureStartTime } from '../audio/worldClock';
+import { outputLatencySeconds } from '../audio/audioOutputLatency';
 import { MF_VOLUME } from '../audio/dynamics';
 import { CHUNK_PX, AUDIBLE_CHUNKS, computeSpatialPanVolume } from '../audio/spatialPan';
+import { rustleLevels, bedFraction, thirdHasFoliage, WIND_THIRD_PANS, WIND_MASTER_GAIN } from '../audio/windRustle';
 import {
     generateWorldAmbientBlock, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_NUM_MEASURES,
 } from '../generation/generateWorldAmbientBlock';
@@ -95,25 +97,16 @@ const WATER_PERCUSSION_NOTE = 'C4';
 const PPP_VOLUME = VOL_STEPS.find((s) => s.label === 'pianissimo').value / 2;   // 'ppp' (pianississimo) = 0.1
 const WATER_PERCUSSION_GAIN = PPP_VOLUME;
 
-// #1091 round 7 (Han 2026-08-20, "nieuwe feature: af en toe wil ik een 'windvlaag'... fade in fade out
-// van applaus... ook op zeer laag volume. Trigger het voorlopig random - later wil ik dat ook
-// plaatsgebonden maken"): a NEW, separate voice — NOT a replacement for the water applause drone above
-// (Han's own choice: "keep both") — reusing the SAME 'applause' sample as a stand-in for wind noise
-// (its broadband/rustling texture reads as wind), but with a fade-in/fade-out envelope instead of a
-// held drone, and level-wide (not gated to water — Han: "location-bound" is an explicit LATER step).
-// Cadence is Han's own exact mechanic: "rol elk blok van 2 maten voor 20% kans om een hoos te starten.
-// een hoos duurt 2 maten" — every 2-measure cycle independently rolls a 20% chance to start a gust;
-// when one starts, it spans the FULL 3 measures, silent otherwise. Peak volume: round 8 (Han, "de
-// windvlaag mag volume mp zijn") supersedes round 7's initial "reuse the very-low applause level" —
-// gusts are now audibly louder (mezzo piano) than the applause drone (ppp), a real named VOL_STEPS
-// rung of their own rather than sharing water_percussion's.
-// #1094 (Han 2026-08-20, "Wind mag 3 maten: 1 maat fade in, 1 maat sustain, 1 maat fade out"): was 2
-// measures (fade-in to the midpoint, immediately fade back out — no sustain plateau at all). Now 3, with
-// an explicit held-flat measure in the middle — see the envelope build below.
-const WIND_GUST_BLOCK_MEASURES = 3;
-const WIND_GUST_TRIGGER_CHANCE = 0.2;
-const WIND_GUST_PEAK_GAIN = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;   // 'mp'
+// #1091 (Han 2026-08-20) first added a wind voice: the 'applause' sample as wind noise (its broadband
+// rustling texture reads as wind), random-triggered — 20% chance per 3-measure cycle, one fade-in /
+// hold / fade-out gust, level-wide, no panning.
+// #wind §363 (Han 2026-09-01, "ik wil dat de wind 'uit de foliage' komt") REPLACES that entirely: the
+// wind is now sourced from tree foliage and spatialised. See the effect below and `windRustle.js` for
+// the model. The 'applause' sample and its `mp` peak level are kept ("harde wind (3): zelfde geluid als
+// nu"); the random block loop is gone.
+const WIND_GUST_PEAK_GAIN = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;   // 'mp' — the "wind 3" rustle level
 const WIND_GUST_NOTE = WATER_PERCUSSION_NOTE;
+const WIND_RUSTLE_TICK_MS = 120;   // gain-retarget cadence; rampParam's setTargetAtTime smooths between
 
 // #1091 follow-up (Han 2026-08-19): the generated `hh` pattern (§266/§268) — was briefly one of
 // water's voices, but round 4 (Han: "Zorg dat percussie door het hele level te horen is, niet enkel
@@ -151,6 +144,13 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
     // depend on [active, context] by design (see their own eslint-disable-next-line comments).
     const musicVolumeMultiplierRef = useRef(musicVolumeMultiplier);
     useEffect(() => { musicVolumeMultiplierRef.current = musicVolumeMultiplier; }, [musicVolumeMultiplier]);
+    // Sync (Han 2026-09-01): the open world has visual beat cues that read `context.currentTime`
+    // directly — the `petFrame` sprite bob and the debug-metronome counter/pendulum (both now anchored
+    // to the world clock). So every GRID-ALIGNED ambient voice (`nextMeasureStartTime`) is scheduled
+    // `outputLatencySeconds` EARLIER, to be HEARD exactly on that grid rather than ~48 ms behind the
+    // visuals (§355/§357). `playMelodies` itself stays untouched — it is shared with non-world callers
+    // that have no visual clock. The two held water DRONES are not grid-aligned and are left as-is.
+    const heardAt = (gridTime) => gridTime - outputLatencySeconds(context);
     // Own dedicated Soundfont instances — NEVER the user's live configured treble/bass instrument (Han's
     // interview answer: this must not hijack the user's actual practice instrument slots).
     const instrumentsRef = useRef({});
@@ -193,7 +193,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                 if (treble) treble.volumes = treble.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
                 if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
                 if (treble || bassMelody) {
-                    playMelodies([treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime);
+                    playMelodies([treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, heardAt(startTime));
                 }
                 const blockMeasureSec = (startTime - context.currentTime)
                     + WORLD_AMBIENT_NUM_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
@@ -235,7 +235,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                 const block = generateHh(WORLD_AMBIENT_TIME_SIGNATURE, HH_BLOCK_MEASURES, smallestNoteDenom, notesPerMeasure);
                 block.volumes = block.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                playMelodies([block], [hhInstrument], context, WORLD_AMBIENT_BPM, startTime, null, null, null, FREEPATS_MAPPING);
+                playMelodies([block], [hhInstrument], context, WORLD_AMBIENT_BPM, heardAt(startTime), null, null, null, FREEPATS_MAPPING);
                 const blockDurationSec = (startTime - context.currentTime)
                     + HH_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
                 timeoutId = setTimeout(scheduleNextBlock, blockDurationSec * 1000);
@@ -249,53 +249,55 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 
-    // #1091 round 7 (Han 2026-08-20, "windvlaag"): level-wide, intermittent wind-gust voice — a JIT
-    // block loop (same shape as the hh loop above) that rolls WIND_GUST_TRIGGER_CHANCE every
-    // WIND_GUST_BLOCK_MEASURES-measure cycle; on a hit, the 'applause' sample plays for the FULL cycle
-    // duration under a linear fade-in-to-midpoint-then-fade-out-to-end gain envelope (Han: "fade in fade
-    // out"). Needs a real GainNode with native Web Audio ramp automation — unlike every other voice in
-    // this file, whose loudness is a single per-note value baked into `.volumes`/`velocity` at trigger
-    // time, this ramps CONTINUOUSLY while the note is sounding, which only a live AudioParam can do.
+    // #wind §363 (Han 2026-09-01, "ik wil dat de wind 'uit de foliage' komt... verdeel het scherm in 3"):
+    // foliage-sourced ambient wind, replacing #1091's random applause gust. FOUR held 'applause' voices:
+    //   - three RUSTLE voices, one per screen-third, panned WIND_THIRD_PANS (-0.5 / 0 / +0.5). A third
+    //     only sounds while it overlays a tree-foliage world-chunk (env.foliageChunkSet, precomputed by
+    //     buildWorld) AND wind level >= 2. A left->right gust (windRustle.sweepState) swells one third
+    //     at a time over a low base.
+    //   - one BED voice, pan 0, a steady centre wash whenever wind level >= 2 (half at wind 3, quarter
+    //     at wind 2), NOT foliage-gated — Han: "ook al zijn er geen bomen in beeld".
+    // Each voice holds ONE long 'applause' note (duration 3600, relying on the sample's own loop points —
+    // same "hele lange noot" trick the water hum/percussion use) and is shaped purely by retargeting its
+    // bus gain every WIND_RUSTLE_TICK_MS via rampParam. No musical-grid alignment — the sweep is free-
+    // running wall-clock, nothing visible is synced to it.
     useEffect(() => {
         if (!active || !context) return undefined;
-        const gustGain = context.createGain();
-        gustGain.gain.value = 0;
-        gustGain.connect(context.destination);
-        const gustInstrument = createMelodicInstrument(context, 'applause', { destination: gustGain });
         let cancelled = false;
-        let timeoutId;
-        gustInstrument.load.then(() => {
-            if (cancelled) return;
-            const scheduleNextBlock = () => {
-                if (cancelled) return;
-                const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                const gustDurationSec = WIND_GUST_BLOCK_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
-                if (Math.random() < WIND_GUST_TRIGGER_CHANCE) {
-                    const peakGain = WIND_GUST_PEAK_GAIN * musicVolumeMultiplierRef.current;
-                    // #1094: 1 measure fade-in, 1 measure held flat at peak (a `linearRampToValueAtTime`
-                    // to the SAME value it's already at is the standard Web Audio idiom for an explicit
-                    // sustain plateau — no separate "hold" API exists), 1 measure fade-out.
-                    const oneMeasureSec = WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);
-                    const sustainEndTime = startTime + oneMeasureSec * 2;
-                    const endTime = startTime + gustDurationSec;
-                    // Explicit Web Audio ramp scheduling (not `rampParam`'s setTargetAtTime — that's
-                    // tuned for the file's own quick pan/gain smoothing, PARAM_SMOOTH_TIME_CONSTANT is
-                    // far too fast for a multi-second gust envelope). Cancel first in case a PREVIOUS
-                    // gust's tail-end ramp is still scheduled (shouldn't happen — a cycle always waits
-                    // the full gustDurationSec before rolling again — but defensive against clock drift.
-                    gustGain.gain.cancelScheduledValues(context.currentTime);
-                    gustGain.gain.setValueAtTime(0, startTime);
-                    gustGain.gain.linearRampToValueAtTime(peakGain, startTime + oneMeasureSec);
-                    gustGain.gain.linearRampToValueAtTime(peakGain, sustainEndTime);
-                    gustGain.gain.linearRampToValueAtTime(0, endTime);
-                    gustInstrument.start({ note: WIND_GUST_NOTE, time: startTime, duration: gustDurationSec });
-                }
-                const blockDurationSec = (startTime - context.currentTime) + gustDurationSec;
-                timeoutId = setTimeout(scheduleNextBlock, blockDurationSec * 1000);
-            };
-            scheduleNextBlock();
+        let tickId;
+        const rustle = WIND_THIRD_PANS.map((pan) => {
+            const bus = createSpatialBus(context);   // panner -> gain -> destination, already wired
+            bus.panner.pan.value = pan;
+            return { bus, instrument: createMelodicInstrument(context, 'applause', { destination: bus.input }), stopFn: null };
         });
-        return () => { cancelled = true; clearTimeout(timeoutId); gustInstrument.disconnect(); gustGain.disconnect(); };
+        const bedGain = context.createGain();
+        bedGain.gain.value = 0;
+        bedGain.connect(context.destination);
+        const bed = { gain: bedGain, instrument: createMelodicInstrument(context, 'applause', { destination: bedGain }), stopFn: null };
+
+        Promise.all([...rustle.map((v) => v.instrument.load), bed.instrument.load]).then(() => {
+            if (cancelled) return;
+            for (const v of rustle) v.stopFn = v.instrument.start({ note: WIND_GUST_NOTE, time: context.currentTime, duration: 3600 });
+            bed.stopFn = bed.instrument.start({ note: WIND_GUST_NOTE, time: context.currentTime, duration: 3600 });
+            tickId = setInterval(() => {
+                const env = envAudioRef?.current;
+                const windLevel = env?.windLevel ?? 0;
+                const mv = musicVolumeMultiplierRef.current;
+                const foliageByThird = [0, 1, 2].map((k) => thirdHasFoliage(env?.foliageChunkSet, env?.cameraX, env?.viewportWorldWidth, k));
+                const levels = rustleLevels(windLevel, foliageByThird, context.currentTime);
+                rustle.forEach((v, k) => rampParam(v.bus.gain.gain, levels[k] * WIND_GUST_PEAK_GAIN * WIND_MASTER_GAIN * mv, context));
+                rampParam(bed.gain.gain, bedFraction(windLevel) * WIND_GUST_PEAK_GAIN * WIND_MASTER_GAIN * mv, context);
+            }, WIND_RUSTLE_TICK_MS);
+        });
+        return () => {
+            cancelled = true;
+            clearInterval(tickId);
+            // #1038 (Han: "bij level sluiten; unload/stop alle geluid") — same as the water voices: stop
+            // the held notes and disconnect the brand-new-per-mount instruments/buses.
+            for (const v of rustle) { if (v.stopFn) v.stopFn(); v.instrument.disconnect(); }
+            if (bed.stopFn) bed.stopFn();
+            bed.instrument.disconnect();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 
@@ -342,7 +344,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                     : 0;
                 const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                playMelodies([layer], [voice.instrument], context, WORLD_AMBIENT_BPM, startTime);
+                playMelodies([layer], [voice.instrument], context, WORLD_AMBIENT_BPM, heardAt(startTime));
                 const silenceSec = BIRD_MIN_SILENCE_SEC + Math.random() * (BIRD_MAX_SILENCE_SEC - BIRD_MIN_SILENCE_SEC);
                 const waitSec = (startTime - context.currentTime) + layerDurationSec + silenceSec;
                 setTimeout(triggerOnce, waitSec * 1000);
@@ -463,7 +465,7 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
                     : 0;
                 const phraseDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
                 const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                playMelodies([layer], [glockenspiel], context, WORLD_AMBIENT_BPM, startTime);
+                playMelodies([layer], [glockenspiel], context, WORLD_AMBIENT_BPM, heardAt(startTime));
                 const silenceSec = WATER_GLOCKENSPIEL_MIN_SILENCE_SEC + Math.random() * (WATER_GLOCKENSPIEL_MAX_SILENCE_SEC - WATER_GLOCKENSPIEL_MIN_SILENCE_SEC);
                 const waitSec = (startTime - context.currentTime) + phraseDurationSec + silenceSec;
                 setTimeout(triggerOnce, waitSec * 1000);

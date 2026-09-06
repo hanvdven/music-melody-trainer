@@ -27,13 +27,13 @@ import { LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
 // tileset don't all show the IDENTICAL static frame — pure visual variety, no animation), so
 // `normalCacheRef` reaches steady state (one entry per unique tile position) the FIRST time this runs,
 // never refilled again — no more timer, no more repeated cache misses.
-export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode) {
+export default function useLdtkWaterInstances(waterTiles, gridSize) {
     const [instances, setInstances] = useState([]);
     const startOffsetsRef = useRef([]);   // index -> random offset, rolled once per array slot
     const normalCacheRef = useRef(new Map());
 
     useEffect(() => {
-        if (sceneryMode !== 'LDtk' || waterTiles.length === 0) { setInstances([]); return undefined; }
+        if (waterTiles.length === 0) { setInstances([]); return undefined; }
         let cancelled = false;
 
         (async () => {
@@ -94,7 +94,7 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
         })();
 
         return () => { cancelled = true; };
-    }, [waterTiles, gridSize, sceneryMode]);
+    }, [waterTiles, gridSize]);
 
     return instances;
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+import { SUN_GLOW_RGB } from './celestialModel';   // §377 — the sun-glow colour fallback
 
 // #1162 Fase 10b (Han 2026-08-27, docs/architecture.md §339): an ISOLATED, debug-only test surface for the
 // new WebGL-instanced foliage draw path — the plan's own explicit step ("verify in isolation before wiring
@@ -199,7 +200,12 @@ void main() {
     }
     float totalShiftPx = skewShiftPx + stretchShiftPx;
 
-    float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    // #1219: discard fragments a wind bend pushed outside this sprite's own [0, W-1] column range
+    // instead of clamping them onto the edge texel column (bright specks outside the silhouette). Floor
+    // (kind 1) keeps the clamp. Mirrors ForegroundFoliageLayer's instanced shader.
+    float shiftedNativeXraw = nativeX + totalShiftPx;
+    if (vInstanceKind < 0.5 && (shiftedNativeXraw < 0.0 || shiftedNativeXraw > vWorldWidth - 1.0)) discard;
+    float shiftedNativeX = clamp(shiftedNativeXraw, 0.0, vWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
@@ -247,6 +253,14 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, 0.0);   // #weather §370 (harness: no #1221 seam mask)
+    lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370
+    // §377 (#1193): kept line-for-line identical to ForegroundFoliageLayer's instanced shader — this
+    // harness is a copy of it, and letting the two drift is how §368 r3's atlas-UV bug survived
+    // unnoticed. The harness has no sun, so with DEFAULT_FOLIAGE_PARAMS it uploads strength 0 and this
+    // is a proven no-op — which is precisely the "omit ⇒ 0, never a compile error" contract in action.
+    vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vDiffuseUV, 0.0, sunFragUnit);   // §377
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -346,7 +360,8 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
             'uNoiseScale', 'uWaveSpeed', 'uNoiseScaleB', 'uWaveSpeedB', 'uWaveSteps', 'uDitherAmount',
             'uHighlightStrength', 'uWaveBlendMode', 'uWaveBlendMode2',
             'uLightRadius', 'uLightHeightRadius', 'uLightStrength', 'uHuePull', 'uLightBlendMode', 'uLightBlendMode2',
-            'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination',
+            'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
+            'uSunGlowStrength', 'uSunGlowColor', 'uSunScreenPos', 'uSunGlowRadius',   // §377
         ].forEach((name) => { uniforms[name] = gl.getUniformLocation(program, name); });
 
         stateRef.current = { gl, ext, program, instanceBuf, uniforms, diffuseTex, normalTex, startTime: performance.now() };
@@ -419,6 +434,15 @@ export default function FoliageInstancingTest({ atlas, foliageParams, lights = [
         gl.uniform1f(uniforms.uGlobalIllumination, foliageParams?.globalIllumination ?? 0.6);
         gl.uniform1f(uniforms.uNormalStrength, foliageParams?.normalStrength ?? 1);
         gl.uniform1f(uniforms.uFlatIllumination, foliageParams?.flatIllumination ?? 0);
+        gl.uniform1f(uniforms.uMoonStrength, foliageParams?.moonStrength ?? 0.5);   // #weather §362
+        // §377 (#1193): the harness has no sky/sun of its own, so strength defaults to 0 and the whole
+        // sun-glow term short-circuits — parity with the real layer without inventing a fake sun.
+        const sunPos = foliageParams?.sunScreenPos ?? [0, 0];
+        const sunCol = foliageParams?.sunGlowColor ?? SUN_GLOW_RGB;
+        gl.uniform1f(uniforms.uSunGlowStrength, foliageParams?.sunGlow ?? 0);
+        gl.uniform3f(uniforms.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
+        gl.uniform2f(uniforms.uSunScreenPos, sunPos[0], sunPos[1]);
+        gl.uniform1f(uniforms.uSunGlowRadius, foliageParams?.sunGlowRadius ?? 0);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, s.diffuseTex);

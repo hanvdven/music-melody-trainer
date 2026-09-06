@@ -1,23 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 // #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
 import { CreatureSprite } from './CreatureSprite';
 import { frameMsForBpm } from '../sheet-music/SheetRpgLayer';
 import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl, findCreaturesByTags } from '../../model/bestiaryAssets';
-import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_COLS, SLIME_ROWS, SLIME_COLORS } from '../../model/enemyAssets';
-import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalMap';
+import { loadImageEl } from '../../utils/runtimeNormalMap';
 import WorkerNpc from './WorkerNpc';
 import useWorkerNpcAudio from '../../hooks/useWorkerNpcAudio';
 import useWorkerHitState from '../../hooks/useWorkerHitState';
 import useFrameLoop from '../../hooks/useFrameLoop';
 import { WORKER_SOUND_CONFIG } from '../../model/workerSoundConfig';
 import { LEVEL_MIN_X, LEVEL_MAX_X } from '../../hooks/useRpgLevelState';
-import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
-import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
-import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
+import {
+    createWeatherState, tickWeather, weatherOutputs, seekPhase, seekWind, seekLunation, seekCloud,
+    TIME_PHASES, CLOUD_TYPES, cloudCollapseT,
+} from './weatherCycle';
+import { loadWeatherState, saveWeatherState } from './weatherCycleStore';
 import WaterReflectionLayer from './WaterReflectionLayer';
 import useLdtkWaterInstances from './useLdtkWaterInstances';
 import LdtkScenery from './LdtkScenery';
@@ -28,33 +30,26 @@ import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
 import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, WATER_STAND_HEIGHT_PX, WATER_REFLECTION_AXIS_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH, groundHeightAt, reflectableTilesFor } from '../../levels/ldtk/ldtkWorld';
 import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
 import LdtkLitGround from './LdtkLitGround';
+// §387 (#1222, Han 2026-09-06): the ONE world silhouette every edge/rim/glow lighting term tests against.
+import useWorldSilhouetteMask from './useWorldSilhouetteMask';
 import useWorldAmbientMusic from '../../hooks/useWorldAmbientMusic';
+import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
 import { oscillate } from '../../utils/oscillate';
-// #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
-// scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
-// hand-painted normal-map asset needed).
-// #924 round 7 (Han 2026-08-12, "maak een failsafe voor als de normal maps weg zijn. Het level gaat vaak
-// geupdatet worden"): these used to be 6 STATIC imports — a Vite/Rollup static `import x from '...png'` is
-// resolved at BUILD time, so a missing file is a hard build failure (confirmed: this exact scenario just
-// broke `npm run build` entirely after the `generated/` folder was removed, before being regenerated via
-// `node scripts/generate-tree-normal-maps.mjs`). `import.meta.glob` only includes whatever files actually
-// EXIST at build time — a missing one silently yields `undefined` here instead of failing the whole build;
-// every consumer below already tolerates a missing/undefined normalUrl (ForegroundFoliageLayer's
-// E022-FOLIAGE-TEXTURE-LOAD skips that one shimmer instance rather than crashing the shared render loop).
-const NORMAL_MAP_URLS = import.meta.glob('../../assets/ASSORTED/tiles/trees/generated/*.png', { eager: true, query: '?url', import: 'default' });
-const normalMapUrl = (basename) => NORMAL_MAP_URLS[`../../assets/ASSORTED/tiles/trees/generated/${basename}`];
-const treeFoliageSummerNormalUrl = normalMapUrl('tree-foliage-summer-normal.png');
-const grassNormalR5C1Url = normalMapUrl('grass-normal-r5c1.png');
-const grassNormalR5C2Url = normalMapUrl('grass-normal-r5c2.png');
-const grassNormalR5C3Url = normalMapUrl('grass-normal-r5c3.png');
-const grassNormalR6C1Url = normalMapUrl('grass-normal-r6c1.png');
-const grassNormalR7C1Url = normalMapUrl('grass-normal-r7c1.png');
-const crateNormalUrl = normalMapUrl('crate-normal.png');
-import bgLayer1Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 1.png';
-import bgLayer2Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 2.png';
-import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 3.png';
-import bgLayer4Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 4.png';
-import bgLayer5Url from '../../assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png';
+// §372: the backmost static sky (a hard-coded CSS gradient + `Background layers_layer 5.png`) is now a
+// single rendered gradient — colours sampled once from layer-5, night + dusk/dawn baked in.
+// §377: `sunGlowColor` (the sun edge-glow tint) is a pure helper of this same module — it reuses the
+// file's own SUNSET_RGB + sunsetFactor dusk/dawn curve, so there is exactly ONE such curve.
+import SkyGradientBackdrop, { sunGlowColor } from './SkyGradientBackdrop';
+// §374 (#1191): the real south-facing sky — stars + constellations + an arcing sun and a 28-cycle
+// moon, all driven by the SAME weather clock. Mounted just in front of the gradient, behind every
+// parallax layer, so the scenery occludes the low sun/moon for free.
+// §377: `skyGeom` is the SHARED sky-canvas geometry <CelestialSky> itself consumes — importing it here
+// is what makes the sun edge-glow's centre and the drawn sun disc structurally the same projection.
+import CelestialSky, { skyGeom } from './CelestialSky';
+import {
+    moonPosition, moonShine as celestialMoonShine,
+    sunPosition, projectToScreen, sunGlowStrength, SUN_GLOW_RADIUS_GPX, SUN_GLOW_RGB,   // §377
+} from './celestialModel';
 
 // #691/#693 (Han 2026-08-04, "maak een extra tab: 'rpg level'" + round-2 movement/pet/NPC follow-up +
 // round-7 world/camera/parallax rework): a dev/preview scene — like the Bestiary tab, NOT wired into
@@ -71,158 +66,86 @@ const T = TILE * ZOOM;
 // component's own cull margin stay the exact same value — see that hook's own comment for the full story.
 const CULL_MARGIN_PX = 400;
 
-// #693 (Han round 2, "gebruik voor het gras: floor tiles 2. onderverdeel in 16x16 (was 32x32) en pak tiles
-// (2,3,4,5; 8,9,10,11) in willekeurige volgorde"): Floor Tiles2.png is the SAME 288×576 sheet as Floor
-// Tiles1, now sliced at 16×16 (18×36 cells) instead of 32×32 — row 1, cols 2-5 and 8-11 are the flat
-// grass-top tiles (verified visually: cols 1/6/7/12 are the block EDGES with a different silhouette, Han's
-// list picks only the safe flat-top middle tiles from each 6-wide block). One floor SLOT is now HALF the
-// old 32px width (16px native → `FLOOR_T` on screen), so two floor tiles fill the same world-grid unit the
-// tree/tent/character still align to.
-const FLOOR_TILE = 16;
-const FLOOR_T = FLOOR_TILE * ZOOM;
-// #141 (Han 2026-08-05, "can you apply the foliage effect to the top 3 rows of the grass tiles?" — round 7
-// follow-up: "Make the height 5 pixels with a lower and lower application as seen from the top" — round 10:
-// the floor overlay instance spans the FULL tile height (`FLOOR_T`) so ambient/point-light coverage reaches
-// the whole ground. Round 17 (Han, NL: "mag op de hele tile, dus de volle 16px hoogte van de grond"):
-// the wind-wave highlight's own "top 5 rows only" restriction (round 10's `FLOOR_TOP_ROWS_CONST` in
-// ForegroundFoliageLayer.jsx) is REMOVED — the highlight now runs across the floor's full tile height too.
-// #693 round 11/12 (Han, screenshot of hero/tent/pet: "ik zie dat de meeste items op 1 pixel lager staan,
-// dus level ground anchor is 15 (ipv 16)" + round 12: "dit soort settings moet globaal zijn"): the tile
-// GRID stays 16px (`FLOOR_TILE`/`FLOOR_T`, unrelated — that's the grass-texture cell size, changing it
-// would distort the tile art). The GROUND LINE every standing sprite anchors its `bottom` to reads the ONE
-// shared `GROUND_ANCHOR_PX` (worldAnchor.js) — this file just scales it by its own `ZOOM`.
-const GROUND_ANCHOR = GROUND_ANCHOR_PX * ZOOM;
-
-// #141 round 12 (Han, NL: "pas alles ook toe op de tiles, de tent, en de boomstam" + "pas de illum ook toe
-// op alle achtergronden" — apply the day/night lighting to the tent/trunk/backgrounds too): those are plain
-// DOM elements, never drawn through ForegroundFoliageLayer's WebGL shader, so they can't run the shader's
-// own darken/reveal math — this is a CSS approximation using the SAME colors/logic instead. `mix-blend-mode:
-// multiply` on an opaque overlay computes exactly `base*overlayColor` per channel — the same operation the
-// shader's `trueColor*ambientTint` darkening does. `mix-blend-mode: screen` computes `1-(1-base)*(1-blend)`
-// — the literal same formula as the shader's `screenBlend()`. No per-pixel normal-map interaction here
-// (these elements have no normal maps) — a flat approximation, matching the "can be simple" precedent
-// already set for non-focal props.
-const AMBIENT_DARK_RGB = [13, 20, 46];      // matches the shader's AMBIENT_DARK_COLOR (0.05,0.08,0.18)*255
+// Must stay in sync with the shader's AMBIENT_DARK_COLOR. §370 (Han: "echt donkerblauw") — deep
+// saturated blue, vec3(0.03,0.06,0.17)*255 ≈ [8,15,43]. Consumed by the parallax-background multiply
+// overlay (LdtkScenery `bgDarkenColor`).
+const AMBIENT_DARK_RGB = [8, 15, 43];
+// §377 (#1193): position quantum, in GAME px, for the PARALLAX-BG sun rim only. Coarser than the
+// shaders' 1 gpx because a BgLayer must RE-BAKE its canvas whenever the sun's masked patch moves,
+// whereas a shader just reads a new uniform. See `bgSunLeftPx`'s own comment further down.
+const BG_SUN_POS_QUANT_GPX = 4;
 // #141 round 13 (Han: "ik ga hooguit 10 lichtbronnen in beeld hebben"): 0..1 colors, the first two entries
 // of the `lights` array below (wisp, hero).
-// #141 round 17 (Han: "maak het licht van de blauwe wisp rgb (100,100,256) dus heel blauw" — 256 clamped
-// to the valid 0..255 byte range, i.e. 255): 100/255, 100/255, 255/255.
-const WISP_LIGHT_COLOR01 = [100 / 255, 100 / 255, 1.0];
+// #141 round 17 (Han: "maak het licht van de blauwe wisp rgb (100,100,256) dus heel blauw").
+// #weather §368 (Han UAT: "wisp licht is niet blauw of wordt overschaduwd door het licht van het vuur"):
+// deepened/saturated — R,G pulled well below B so it reads unambiguously blue even next to the warm,
+// bright campfire light. (Per-light strength isn't a thing yet — `uLightStrength` is global — so this
+// is colour only; can revisit if it still loses the fight near the fire.)
+const WISP_LIGHT_COLOR01 = [0.2, 0.4, 1.0];
 const HERO_LIGHT_COLOR01 = [1.0, 0.85, 0.25];
 // #1032 round 8 (Han: "het kampvuur heeft nog geen lichtbron"): warm orange/amber, matching a real fire.
 const CAMPFIRE_LIGHT_COLOR01 = [1.0, 0.55, 0.15];
-const mixRgb = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const rgbCss = ([r, g, b], a = 1) => `rgba(${r},${g},${b},${a})`;
-const FLOOR_SHEET = { w: 288, h: 576 };
-const FLOOR_CELLS = [2, 3, 4, 5, 8, 9, 10, 11].map((col) => ({ row: 1, col }));
-// #693 round 7 (Han: "Generate a level of 200 16x16 tiles"): the whole walkable floor is now a FIXED
-// 200-tile strip (LEVEL_MIN_X..LEVEL_MAX_X, useRpgLevelState.js's own world-bounds constants — §6c, one
-// shared bound) rather than a viewport-sized strip re-rolled on resize.
-const LEVEL_TILES = (LEVEL_MAX_X - LEVEL_MIN_X) / FLOOR_TILE;
 
-// Decor.png is 416×544 = 13×17 @ 32px. The tent is 96×64 (3×2 tiles); Han: "de tent is 96x64, linksaan rij
-// 2 en 3" — there are TWO side-by-side tents at rows 2-3 (cols 1-3 and cols 4-6, verified visually); "links"
-// (left) means the FIRST one, cols 1-3.
-const DECOR_SHEET = { w: 416, h: 544 };
-const TENT_CELL = { row: 2, col: 1 };
-const TENT_W = 3, TENT_H = 2;
-
-// "decor rij 5 heeft ook 3 graspollen... (tile 5;1 5;2, 5;3, 6;1, 7;1) (rij;kolom)" — 5 individual 32×32
-// grass-tuft sprites (row;col, 1-indexed), scattered along the floor in the FOREGROUND (Han: "op de
-// voorgrond direct boven de dirt renderen" — drawn above/in front of everything else standing on the tiles).
-const GRASS_TUFT_CELLS = [
-    { row: 5, col: 1 }, { row: 5, col: 2 }, { row: 5, col: 3 }, { row: 6, col: 1 }, { row: 7, col: 1 },
-];
-// #141 (Han 2026-08-05) — one generated normal map per grass-tuft cell, keyed the same "row-col" way the
-// cells themselves are looked up; MUST stay in sync with GRASS_TUFT_CELLS above and with
-// scripts/generate-tree-normal-maps.mjs's own GRASS_TUFT_CELLS copy.
-const GRASS_NORMAL_BY_CELL = {
-    '5-1': grassNormalR5C1Url, '5-2': grassNormalR5C2Url, '5-3': grassNormalR5C3Url,
-    '6-1': grassNormalR6C1Url, '7-1': grassNormalR7C1Url,
+// §374 UAT r2 (#1191): the real moon's lighting strength (celestialModel.moonShine) for a weather
+// state, quantised to 0.05. Quantising is what keeps it a COARSE re-render trigger — it steps a
+// handful of times as the moon rises/sets across a night, not every frame like `cycleT` (which the
+// §374 invariant bans from the weather change-detection lists).
+// §375 (#1192, Han plan_review Q1 = ja): gated by the SAME `(1 - cloudCollapseT)` factor CelestialSky
+// uses for the moon disc, so "moon hidden behind cloud" and "no moonlight in the world" can never
+// disagree — one source of truth. Without it an overcast night would still light the world (and draw
+// the parallax moon RIM) from a moon that is not drawn. This is NOT a second darkness knob (cr3): it
+// is the EXISTING moon knob, gated.
+const quantMoonShine = (out) =>
+    Math.round(
+        celestialMoonShine(moonPosition(out.cycleT, out.lunationPhase))
+        * (1 - cloudCollapseT(out.cloudCoverT)) * 20,
+    ) / 20;
+// §375: the cloud-cover scalar, quantised to 0.05 — the SAME quantisation convention as `bgNight` and
+// `quantMoonShine`. Coarse on purpose: ≤20 steps across a 10 s cloud ease, and 0 while settled. The
+// RAW `cloudCoverT` must never appear in a change-detection list (see the tick loop's invariant note).
+const quantCloudCover = (out) => Math.round(out.cloudCoverT * 20) / 20;
+// §377 (#1193): how strongly the sun edge-glows right now. The altitude curve (celestialModel) × the
+// SAME `(1 - cloudCollapseT)` cloud gate `quantMoonShine` uses, so "sun hidden behind cloud" and "no
+// sun glow in the world" can never disagree — one source of truth, not a second darkness knob.
+// Quantised to 0.05, exactly like `quantMoonShine`: a coarse, occasional re-render trigger rather than
+// a per-frame one (the §374/§375 invariant — no RAW cycleT-derived value in a change-detection list).
+const quantSunGlow = (out) => Math.round(
+    sunGlowStrength(sunPosition(out.cycleT, out.lunationPhase))
+    * (1 - cloudCollapseT(out.cloudCoverT)) * 20,
+) / 20;
+// §377: the sun's screen position in GAME px, quantised to ONE GAME PIXEL — the natural quantum of a
+// pixel-art world (sub-game-pixel motion is invisible) and, because that quantum is exactly 1, the
+// result is BIT-IDENTICAL to <CelestialSky>'s own `sunXY = {x: round(sunP.x), y: round(sunP.y)}`. The
+// glow's centre and the drawn disc therefore cannot drift apart (ac6). The RAW p.x/p.y never leave here.
+const quantSunScreenPos = (out, geom) => {
+    const s = sunPosition(out.cycleT, out.lunationPhase);
+    const p = projectToScreen(s.altDeg, s.azSouthDeg, geom);
+    return [Math.round(p.x), Math.round(p.y)];
 };
-
-// #141 (Han 2026-08-05, "Factorio-style" tree/grass wind shimmer): Trees_foliage_trunk.png replaces the old
-// Tree1.png — 1280×208 = 5 cells of 256×208 (col 1 summer, col 2 apples, col 3 fall, col 4 winter, col 5
-// trunk). Trunk renders as a static DOM crop (below, same slot the old full-tree image occupied); the
-// foliage cell is rendered through ForegroundFoliageLayer's normal-map shimmer shader instead, alongside
-// grass (Han: "render the trunk in the background, and the foliages + grass on a foreground foliage
-// layer"). Season selection is hardcoded to summer until a season system exists (Han, stage 1 interview).
-const TREE_SHEET = { w: 1280, h: 208 };
-const TREE_CELL = { w: 256, h: 208 };
-const TRUNK_CELL = { row: 1, col: 5 };
-const SUMMER_FOLIAGE_CELL = { row: 1, col: 1 };
-// #693 round 12 (Han: "gebruik de grassprieten uit decor.png royaal; dus bijna overal"): round 7 only ever
-// placed 5 fixed tufts near spawn. Now scattered across the WHOLE 200-tile floor — one roughly every 3
-// world tiles (with jitter so it doesn't read as a mechanical repeat), each a random pick from
-// GRASS_TUFT_CELLS. `useMemo(() => ..., [])` in the component below re-rolls this only once per mount, not
-// every render.
-const GRASS_TUFT_SPACING = FLOOR_TILE * 3;
-
-// World-space placement (was screen-edge-relative before the scrolling camera existed — Han round 7).
+// §377: componentwise compare of two weather states' quantised sun positions — the change-detection
+// term. Kept beside the quantisers it is built from rather than inlined in the tick loop.
+const sunPosMoved = (a, b, geom) => {
+    const pa = quantSunScreenPos(a, geom);
+    const pb = quantSunScreenPos(b, geom);
+    return pa[0] !== pb[0] || pa[1] !== pb[1];
+};
 // #RAM-level (Han 2026-08-11, "spawn personage op entity hero (staat in het level)"): the Wisp NPC's
-// world position now comes from the `.ldtk` file's own Wisp entity marker (ENTITY_WORLD_X, ldtkWorld.js)
-// instead of a hand-tuned number — falls back to the old §141-round-8 spot if the file ever loses that
-// marker. TREE_X/TENT_X stay hand-tuned: they're legacy-scenery-only positions (no Tree/Tent entity exists
-// in the file), used only when `sceneryMode === 'Legacy'`.
+// world position comes from the `.ldtk` file's own Wisp entity marker (ENTITY_WORLD_X, ldtkWorld.js) —
+// falls back to the old §141-round-8 spot if the file ever loses that marker.
 const NPC_X = ENTITY_WORLD_X.Wisp ?? -140;
 // #UI-overhaul (Han 2026-08-27): the ONE correct Wisp sprite — same file RpgLevelBottomPanel's dialogue
 // portrait resolves (`wispUrl` there). Kept as a literal string on both sides (the bestiary manifest
 // resolves this exact `public/` path to a variant `url`).
 const WISP_URL = '/ASSORTED/characters/animals/pets/Pet companion/Wisp.png';
-// #UI-overhaul (Han 2026-08-27, "clickzone moet 16x16 zijn"): the wisp/slime interaction hit box, in
-// game px.
-const HIT_ZONE_GPX = 16;
-const TREE_X = -220;
-const TENT_X = 220;
-// #141 round 10 (Han, NL: "om te testen, zet een paar kisten (linker boven cell (32x32) van decor.png) op
-// de voorgrond" — crates as a lit foreground-object test case, placed near the tent): edgeLitOnly (only the
-// outer few px catch point-light color, solid interior stays dark — see ForegroundFoliageLayer.jsx).
-const CRATE_CELL = { row: 1, col: 1 };
-const CRATE_SIZE = 32;
-const CRATE_POSITIONS = [TENT_X + 60, TENT_X + 100, TENT_X + 130];
-
-// #693 round 7 (Han: "use the background layers, and create a parallax effect... layer order back to
-// front: theme background (static), background 4 (0.2), background 3 (0.4), background 2 (0.6),
-// background 1 (0.8), level (parallax 1)"): the 5 "Normal BG" layers are, in depth order farthest→nearest,
-// layer5 (plain sky gradient — the static THEME backdrop, parallax 0 since it never needs to shift),
-// layer4 (distant mountains) → layer1 (dense near trees) — verified visually (file size / silhouette
-// density falls off exactly in that order). Declared once here so render order (JSX) and factor stay
-// paired — never edit one without the other.
-// #141 (Han 2026-08-05, "make all backgrounds the same scale as the rest of the level. There should be 1
-// global scaling factor, that's it"): round 8's per-layer `sinkPx` fine-tune (8/16/24/32px, a manual nudge
-// compensating for each layer's own bottom-offset quirks) is GONE — every layer now shares exactly the same
-// alignment rule (see `HORIZON_PX`/the render block below), no per-layer exceptions.
-const PARALLAX_LAYERS = [
-    { url: bgLayer4Url, factor: 0.2 },
-    { url: bgLayer3Url, factor: 0.4 },
-    { url: bgLayer2Url, factor: 0.6 },
-    { url: bgLayer1Url, factor: 0.8 },
-];
-const BG_NATIVE = { w: 1024, h: 346 };
-// #141 (Han 2026-08-05) — CORRECTS §693 round 12: HORIZON_PX used to be deliberately native/screen px, NOT
-// `ZOOM`-scaled, on the reasoning that a painted backdrop should fill the screen at its own resolution
-// rather than the world's to-scale sprite `ZOOM` (flagged explicitly in §140's "tree scale bug" entry).
-// Han has now reversed that call: "1 global scaling factor, that's it" — background layers render at
-// native × `ZOOM` like every other sprite (see the render block below), and this 64px value is measured in
-// that SAME scaled space, not raw native px.
+// #UI-overhaul (Han 2026-08-27, "clickzone moet 16x16 zijn") — #weather (Han 2026-09-04, worker NPCs
+// added to this same hit zone: "De hitbox is veel te klein, maak die maar 48x48"): the wisp / slime /
+// worker-NPC interaction hit box, in RPG sprite px (game px).
+const HIT_ZONE_GPX = 48;
+// #141 (Han 2026-08-05): the parallax-background alignment reference. `HORIZON_PX * ZOOM` above each
+// background image's own bottom edge lands exactly at the level's floor line — one rule, no per-layer
+// exceptions. Measured in the world's to-scale sprite `ZOOM` space, not raw native px.
 const HORIZON_PX = 64;
-
-// One sheet-cropped tile/prop, given its OWN tile size (defaults to the 32px world grid; the floor passes
-// FLOOR_TILE=16). `wTiles`/`hTiles` let it span more than one cell (the tent is 3×2 of the 32px grid).
-function SheetCrop({ url, sheet, row, col, tile = TILE, wTiles = 1, hTiles = 1, style }) {
-    const t = tile * ZOOM;
-    return (
-        <div style={{
-            width: t * wTiles, height: t * hTiles,
-            backgroundImage: `url("${url}")`,
-            backgroundPosition: `${-(col - 1) * t}px ${-(row - 1) * t}px`,
-            backgroundSize: `${sheet.w * ZOOM}px ${sheet.h * ZOOM}px`,
-            backgroundRepeat: 'no-repeat',
-            imageRendering: 'pixelated',
-            ...style,
-        }} />
-    );
-}
 
 // #691 debug grid (CLAUDE.md §3a convention — visible interactive/reference regions in debug mode): Han
 // explicitly asked for "een 32x32 grid, waarin de tiles geplaatst zijn" so tile alignment can be eyeballed.
@@ -331,14 +254,25 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 // every RpgLevelPanel re-render. `EntityReflection` (which has no state of its own) is passed in as a
 // prop specifically so this can still use the parent's ponds-aware reflection logic without needing to
 // live inside the parent's closure itself.
-function WorkerNpcSlot({ variant, hitConfig, petFrame, timeSignature, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX }) {
+function WorkerNpcSlot({ variant, hitConfig, petFrame, timeSignature, context, triggerBell, zoom, worldX, worldToScreenX, standAnchorFor, EntityReflection, getListenerX, onClick, debugMode }) {
     const { anim, frame } = useWorkerHitState(variant, hitConfig, petFrame, timeSignature, context, triggerBell, worldX, getListenerX);
     if (!variant || !anim) return null;
+    const screenX = worldToScreenX(worldX);
+    const standAnchor = standAnchorFor(worldX);
     return (
         <>
-            <div style={{ position: 'absolute', left: worldToScreenX(worldX), bottom: standAnchorFor(worldX), transform: 'translateX(-50%)' }}>
+            <div style={{ position: 'absolute', left: screenX, bottom: standAnchor, transform: 'translateX(-50%)' }}>
                 <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
             </div>
+            {/* #weather (Han 2026-09-04): the walk-then-talk click target — same fixed hit zone + debug
+                overlay (CLAUDE.md §3a) as the Wisp/Slime; stopPropagation so it doesn't ALSO walk-to-tap
+                on top of walk-to-NPC. */}
+            {onClick && (
+                <EntityHitZone
+                    screenX={screenX} standAnchor={standAnchor} zoom={zoom} flying={false} debugMode={debugMode}
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                />
+            )}
             <EntityReflection worldX={worldX}>
                 <WorkerNpc variant={variant} anim={anim} frame={frame} zoom={zoom} />
             </EntityReflection>
@@ -400,7 +334,10 @@ const randomTaggedVariant = (requiredTags, timeOfDay) => {
 const WATER_EDGE_MARGIN = 16;
 const OPEN_WATER_LOGICAL_ROW = 2;
 function waterSpanNear(spawnX, spawnY, world) {
-    const waterTiles = [...world.animatedTilesBack, ...world.animatedTilesFront]
+    // #1195 (Han 2026-09-05): `world.passes` replaced the old fixed groundTilesBack/Front-style buckets
+    // — water tiles are `'shimmer'`-kind (tagged `kind:'water'`), scattered across however many shimmer
+    // passes the real LDtk order produced this build.
+    const waterTiles = world.passes.filter((p) => p.kind === 'shimmer').flatMap((p) => p.tiles)
         .filter((t) => t.kind === 'water' && t.logicalRow === OPEN_WATER_LOGICAL_ROW);
     const row = waterTiles.filter((t) => Math.abs((t.worldY) - spawnY) < world.gridSize);
     if (!row.length) return { minX: spawnX - 16, maxX: spawnX + 16 };
@@ -464,8 +401,18 @@ function nearestFreeBirdSlot(slots, claimedSet, fromX, fromY) {
     return bestIndex;
 }
 
-function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, onGround, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef, birdSlots, birdSlotClaimsRef, globalIllumination = 1 }) {
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, onGround, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef, birdSlots, birdSlotClaimsRef, globalIllumination = 1, emitLightPos = false, lightPosRef = null, reflectionTarget = null }) {
     const elRef = useRef(null);
+    // #1195 bugfix (Han 2026-09-05, "ik zie niet de eenden [reflectie]"): a swim critter's reflection
+    // used to nest INSIDE `elRef`'s own wrapper (inheriting its live left/bottom for free) — but that
+    // wrapper lives inside the `'entities'` pass, same as everything else, so any front-of-Entities
+    // content (Han's `Water_FG`, rendered afterward per real LDtk order) painted directly over it —
+    // the exact same root cause `ReflectionPass` was fixed for (see its own header comment). Ducks can't
+    // just move to that same always-last pass wholesale (their position is refreshed imperatively every
+    // rAF tick via `elRef.current.style...`, not through React props/state, so a plain re-render-driven
+    // fix would leave the reflection stuck at a stale position) — instead this ref tracks a PORTALED
+    // copy of the reflection, mirroring `elRef`'s own left/bottom strings verbatim in the SAME tick.
+    const reflectionElRef = useRef(null);
     const facingRef = useRef(1);
     const posRef = useRef({ x: spawnX, y: spawnY });
     const swimDirRef = useRef(1);
@@ -515,6 +462,10 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
             // doesn't apply here (that check is aimed at DOM refs nulled on unmount).
             // eslint-disable-next-line react-hooks/exhaustive-deps
             if (isBird && birdPositionsRef) birdPositionsRef.current.delete(birdId);
+            // #weather §364 (Han: "de vuurvlieg is ook een lightsource"): fireflies publish their live
+            // {x,y} into a separate registry `RpgLevelPanel` reads to place a moving point light.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            if (emitLightPos && lightPosRef) lightPosRef.current.delete(birdId);
             // #1092: release a held slot claim on unmount too, or it would stay permanently locked
             // (e.g. the level closing while this bird happened to be perched).
             if (claimedSlotIndexRef.current != null && birdSlotClaimsRef) {
@@ -608,38 +559,56 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                 // convention (hero/pet/NPC/Slime all anchor via a plain `bottom` with no translateY offset).
                 elRef.current.style.transform = 'translateX(-50%)';
             }
+            // #1195 bugfix: the portaled reflection (see this component's own header comment) mirrors
+            // `elRef`'s freshly-written left/bottom STRINGS verbatim — same values, same tick, so it can
+            // never drift a frame behind the real sprite even though it now lives in a different part of
+            // the DOM tree.
+            if (swim && reflectionElRef.current && elRef.current) {
+                reflectionElRef.current.style.left = elRef.current.style.left;
+                reflectionElRef.current.style.bottom = elRef.current.style.bottom;
+            }
             // #925 follow-up (Han 2026-08-16, "enkel bird sounds wanneer bird in beeld"): this is the ONLY
             // place a bird's true LIVE (wandering) world position exists — posRef never escapes this
             // component otherwise. Writes into a registry SHARED across every WorldWanderer instance
             // (owned by RpgLevelPanel, read by useWorldAmbientMusic) so bird-audio visibility/panning can
             // track the SAME position the sprite itself renders at, not just its static spawn point.
             if (isBird && birdPositionsRef) birdPositionsRef.current.set(birdId, posRef.current.x);
+            // #weather §364: firefly light-position publish (see the matching cleanup above). Stores the
+            // whole {x,y} — y is native px from the level TOP (same convention as `elRef` `bottom` below
+            // and `campfireLight`), so RpgLevelPanel's `ldtkLights` can place the glow at the sprite.
+            if (emitLightPos && lightPosRef) lightPosRef.current.set(birdId, { x: posRef.current.x, y: posRef.current.y });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom], { priority: 'critical' });
 
     if (!variant) return null;
     return (
-        <div ref={elRef} style={{ position: 'absolute' }}>
-            <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
+        <>
+            <div ref={elRef} style={{ position: 'absolute' }}>
+                <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
+            </div>
             {/* #1032 (Han: "ducks weerspiegeling moet aan de ducks plakken, want zij zitten direct op het
                 water"): a swim critter's reflection just mirrors around ITS OWN current position — no
                 separate pond-surface lookup needed, since a duck IS the water surface by construction.
-                Nested inside the SAME ref-positioned wrapper (not a second top-level ref) so it tracks the
-                live rAF-driven position/frame/facing for free, `inset:0` guarantees it exactly overlaps the
-                real sprite's own box so `transformOrigin:'bottom'` mirrors around its actual feet line. */}
-            {swim && (
-                <div style={{
-                    position: 'absolute', inset: 0, transform: 'scaleY(-1)', transformOrigin: 'bottom',
+                #1195 bugfix (Han 2026-09-05, "ik zie niet de eenden"): used to nest INSIDE the sprite's own
+                `elRef` wrapper (inheriting its position via plain DOM nesting) — now portaled to
+                `reflectionTarget` (the always-painted-last layer, see this component's own header comment)
+                instead, with its OWN explicit `left`/`bottom` mirrored imperatively every tick (see the
+                rAF callback above). `translateX(-50%)` is baked into this wrapper's own transform now (no
+                longer inherited from `elRef`'s), composed with the `scaleY(-1)` mirror. */}
+            {swim && reflectionTarget && createPortal(
+                <div ref={reflectionElRef} style={{
+                    position: 'absolute', transform: 'translateX(-50%) scaleY(-1)', transformOrigin: 'bottom',
                     // #1032 round 5 (Han: "lijkt van onder belicht te worden"): same day/night brightness
                     // match every other reflection now gets — bypasses the WebGL lighting pass, so without
                     // this a duck's reflection would stay full-brightness even at night.
                     opacity: 0.35, filter: `brightness(${globalIllumination})`, pointerEvents: 'none',
                 }}>
                     <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
-                </div>
+                </div>,
+                reflectionTarget,
             )}
-        </div>
+        </>
     );
 }
 
@@ -750,10 +719,10 @@ function EntityHitZone({ screenX, standAnchor, zoom, flying, onClick, debugMode 
 
 const EntityLayer = React.memo(function EntityLayer({
     entityScrollRef, wispVariant, wispFlying, debugMode, clickNpc, worldToScreenXLocal, standAnchorFor, petFrame, zoom,
-    EntityReflection, sceneryMode, clickSlime, workerNpcs, timeSignature, context, workerNpcAudio,
-    playerXRef, critterWanderers, foliageParams, birdPositionsRef, birdSlots, birdSlotClaimsRef,
+    EntityReflection, clickSlime, clickWorkerNpc, workerNpcs, timeSignature, context, workerNpcAudio,
+    playerXRef, critterWanderers, critterOpacity, critterLightPosRef, foliageParams, birdPositionsRef, birdSlots, birdSlotClaimsRef,
     char, noPetChar, moving, running, walkAnim, runAnim, idleAnim, walkFrame, facing, playerX,
-    petUrl, petVariant, petX, petMoving,
+    petUrl, petVariant, petX, petMoving, heroWrapperRef, petWrapperRef, reflectionTarget,
 }) {
     return (
         <div ref={entityScrollRef} style={{ position: 'absolute', inset: 0 }}>
@@ -786,7 +755,7 @@ const EntityLayer = React.memo(function EntityLayer({
                 #922 (Han 2026-08-12, "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou
                 die op de slime van de RPG-wereld"): now clickable, same walk-then-talk pattern as the Wisp
                 (stopPropagation so it doesn't ALSO walk-to-tap-point on top of walk-to-Slime). */}
-            {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
+            {ENTITY_WORLD_X.Slime != null && (
                 <>
                     <div style={{ position: 'absolute', left: worldToScreenXLocal(ENTITY_WORLD_X.Slime), bottom: standAnchorFor(ENTITY_WORLD_X.Slime), transform: 'translateX(-50%)' }}>
                         <WorldSlime frame={petFrame} zoom={zoom} />
@@ -804,11 +773,12 @@ const EntityLayer = React.memo(function EntityLayer({
 
             {/* #1093 (Han 2026-08-20, open-world worker NPCs): 6 stationary workers standing at Level_1's
                 own "NPC" LDtk markers (workerNpcs above) — same stand-anchor/reflection treatment as
-                Wisp/Slime, no click handler (decorative only, no dialogue). Each gets its OWN
-                WorkerNpcSlot instance (one useWorkerHitState hook call per NPC, React's normal
-                one-component-per-list-item pattern — see that component's header for why the state
-                machine must NOT live inside the twice-rendered WorkerNpc itself). */}
-            {sceneryMode === 'LDtk' && workerNpcs.map((w) => (
+                Wisp/Slime. #weather (Han 2026-09-04): now ALSO clickable — walk-then-talk (a random line
+                from npcDialogue.js, keyed by `w.name`), same `EntityHitZone` + stopPropagation pattern as
+                the Wisp/Slime. Each gets its OWN WorkerNpcSlot instance (one useWorkerHitState hook call
+                per NPC, React's normal one-component-per-list-item pattern — see that component's header
+                for why the state machine must NOT live inside the twice-rendered WorkerNpc itself). */}
+            {workerNpcs.map((w) => (
                 <WorkerNpcSlot
                     key={w.name}
                     variant={w.variant} hitConfig={w.hitConfig} petFrame={petFrame} timeSignature={timeSignature}
@@ -816,23 +786,35 @@ const EntityLayer = React.memo(function EntityLayer({
                     worldX={w.x} worldToScreenX={worldToScreenXLocal} standAnchorFor={standAnchorFor}
                     EntityReflection={EntityReflection}
                     getListenerX={() => playerXRef.current}
+                    debugMode={debugMode}
+                    onClick={() => clickWorkerNpc(w.name, w.x)}
                 />
             ))}
 
             {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
                 (flying/ground/water)"): one WorldWanderer per spawned Critter_* marker (see
                 critterWanderers above) — each variant already carries its own habitat's wander box/perch
-                behaviour from HABITAT_WANDER. */}
-            {sceneryMode === 'LDtk' && critterWanderers.map((w, i) => (
-                <WorldWanderer
-                    key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
-                    rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
-                    swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
-                    frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenXLocal}
-                    isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
-                    birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
-                />
-            ))}
+                behaviour from HABITAT_WANDER.
+                #weather (Han 2026-09-01): the whole layer crossfades on `critterOpacity` (0..1) during a
+                dusk/dawn day↔night swap — one group opacity so the outgoing set fades out cleanly, the
+                pool re-rolls at the midpoint, and the incoming set fades in. Wrapper is `position:absolute
+                inset:0` so it's the SAME containing block as `entityScrollRef` above — the WorldWanderers'
+                own left/bottom math is unchanged. `pointerEvents:none` is safe (critters have no click
+                target, unlike Wisp/Slime). */}
+            <div style={{ position: 'absolute', inset: 0, opacity: critterOpacity, pointerEvents: 'none' }}>
+                {critterWanderers.map((w, i) => (
+                    <WorldWanderer
+                        key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                        rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
+                        swim={w.swim} waterSpan={w.waterSpan} onGround={w.onGround} globalIllumination={foliageParams.globalIllumination}
+                        frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenXLocal}
+                        isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
+                        birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
+                        emitLightPos={w.isFirefly} lightPosRef={critterLightPosRef}
+                        reflectionTarget={reflectionTarget}
+                    />
+                ))}
+            </div>
 
             {/* Hero — same paper-doll renderer as everywhere else (§6d), standing on the floor, walking
                 left/right (A/D, arrow keys, edge-hold, or tap-to-move) via `useRpgLevelState`. `noPetChar`:
@@ -840,7 +822,11 @@ const EntityLayer = React.memo(function EntityLayer({
                 stripped here to avoid double-drawing it glued to the character's hip. */}
             {char && (
                 <>
-                    <div style={{
+                    <div ref={heroWrapperRef} style={{
+                        // Perf (#1192-jank): `left`/`bottom` here are only the FIRST-PAINT fallback (still
+                        // correct — `playerX` state starts in sync with the physics ref) — every frame after
+                        // that, the camera useFrameLoop callback overwrites them directly on this ref at full
+                        // frame rate, bypassing React so movement no longer forces a re-render of this subtree.
                         position: 'absolute', left: worldToScreenXLocal(playerX), bottom: standAnchorFor(playerX),
                         transform: `translateX(-50%) scaleX(${facing})`,
                     }}>
@@ -866,7 +852,7 @@ const EntityLayer = React.memo(function EntityLayer({
                 match. Renders nothing if no pet is equipped. */}
             {petUrl && (
                 <>
-                    <div style={{ position: 'absolute', left: worldToScreenXLocal(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
+                    <div ref={petWrapperRef} style={{ position: 'absolute', left: worldToScreenXLocal(petX), bottom: standAnchorFor(petX), transform: 'translateX(-50%)' }}>
                         {petVariant
                             ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
                             : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
@@ -882,126 +868,222 @@ const EntityLayer = React.memo(function EntityLayer({
     );
 });
 
-// Perf (#1162, Fase 4, Han 2026-08-27, "doe maar" — extending Fase 3's own extraction to the scenery
-// blocks, flagged there as "the logical continuation"): same rationale as `EntityLayer` above — moves the
-// LDtk-mode ground/lit-ground/animated-tiles/water-reflection/foliage JSX construction out of
-// `RpgLevelPanel`'s own render body (which still has to run every panning frame) into its own memo
-// boundary, so a pure-pan frame skips reconstructing this subtree entirely. Two separate components
-// (`SceneryBack`/`SceneryFront`), not one parametrized one — the back pass has `backgroundLayers` +
-// `WaterReflectionLayer` the front pass doesn't, and mirroring the existing back/front code split exactly
-// (rather than introducing new branching inside a shared component) keeps this a pure, low-risk
-// extraction, not a redesign. Legacy-mode scenery (the OLD hand-rolled parallax/decor JSX, interleaved
-// with the LDtk block in `RpgLevelPanel`'s render) is untouched — same "Legacy stays as-is" scope boundary
-// every perf round this ticket has kept.
-const SceneryBack = React.memo(function SceneryBack({
-    sceneryMode, groundAndFoliageBack, world, leftPxForFactor, sceneryScrollBackRef, groundLeftPxLocal,
-    zoom, litGroundTexturesBack, size, ldtkLights, foliageParams, foliageDebugChannel, overlayScrollBackRef,
-    culledAnimatedTilesBack, localWorldToScreenXLocal, reflectableTiles, waterPonds, worldToScreenXLocal,
-    waterInstancesBack, localFoliageInstancesBack, cameraOffsetRef,
-    // Perf (#1162, Fase 10c): the shared atlas + this pass's culled/positioned atlas instance list — see
-    // `RpgLevelPanel`'s own `atlasFoliageInstanceFor`/`foliageAtlas` comments for how these are built.
-    foliageAtlas, atlasFoliageInstancesBack,
+// #1195 (Han 2026-09-05, "houd gewoon áltijd de volgorde van LDTK aan"): replaces the old fixed
+// `SceneryBack`/`SceneryFront` pair (Perf #1162 Fase 4) — a DYNAMIC number of passes, one per
+// contiguous same-kind run in `world.passes` (ldtkWorld.js), rendered via a `.map()` further down in
+// `RpgLevelPanel`'s own render body. Each pass kind gets its OWN small component below
+// (`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`) so a hook a pass needs (lit-ground
+// textures, water instances, culling) is called once PER PASS INSTANCE — a dynamic number of SIBLING
+// component instances is fine under React's Rules of Hooks; a dynamic number of hook CALLS inside one
+// component body is not, which is why this couldn't just stay one parametrized component looping
+// internally. Legacy-mode scenery (the OLD hand-rolled parallax/decor JSX, interleaved with the LDtk
+// block in `RpgLevelPanel`'s render) is untouched — same "Legacy stays as-is" scope boundary every perf
+// round before this one has kept.
+//
+// Perf (#1162, Fase 1): every "factor=1 ground-plane" wrapper div across every pass needs the SAME
+// imperative pan `transform` applied every camera-pan frame (previously 4 fixed refs —
+// `sceneryScrollBackRef`/`sceneryScrollFrontRef`/`overlayScrollBackRef`/`overlayScrollFrontRef` — now a
+// dynamic set, since the pass count is dynamic). `panElsRef` (a `Map`, declared once in `RpgLevelPanel`
+// and threaded down) is that set; `useRegisteredRef` is how each pass's own wrapper div joins/leaves it.
+function useRegisteredRef(panElsRef, key) {
+    const ref = useRef(null);
+    // Mount/unmount only, deliberately — `ref.current` is populated by React BEFORE layout effects run
+    // in the same commit, and `key` is this pass's stable identity (also its React `.map()` `key=`, so a
+    // genuinely different pass unmounts/remounts this component entirely rather than re-running this
+    // effect in place).
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return undefined;
+        panElsRef.current.set(key, el);
+        return () => { panElsRef.current.delete(key); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return ref;
+}
+
+// One `'ground'`-kind pass: a flat composited canvas (`LdtkScenery`) + its own lit-ground overlay
+// (`LdtkLitGround`) — the same pairing `SceneryBack`/`SceneryFront` used to hardcode ONCE each; now
+// however many ground passes the real LDtk order produces each get their own pairing and their own
+// `useLdtkLitGroundTextures` call, for just that pass's own tiles. `edgeLitOnly` mirrors the old
+// back(false)/front(true) split — `RpgLevelPanel` computes it per-pass from whether this pass falls
+// before or after the `'entities'` pass in `world.passes`.
+// Perf (#1196, F1): `cameraOffsetRef` replaces `leftPxForFactor` — the ground canvas scrolls via its
+// `groundScrollRef` wrapper transform (already), and `LdtkLitGround` now takes the same live
+// `cameraOffsetRef` the foliage layer does (§322/§331) and adds it to a camera-independent `leftPx` in
+// its own draw loop, so a pan needs no re-render here.
+const GroundPass = React.memo(function GroundPass({
+    passKey, tiles, edgeLitOnly, cameraOffsetRef, panElsRef, groundLeftPx, zoom,
+    size, ldtkLights, foliageParams, foliageDebugChannel, gridSize, worldMask, bgDarkenColor,
 }) {
+    const groundScrollRef = useRegisteredRef(panElsRef, passKey);
+    const litGroundTextures = useLdtkLitGroundTextures(tiles, gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT);
     return (
         <>
-            {sceneryMode === 'LDtk' && (
-                <LdtkScenery
-                    groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
-                    gridSize={world.gridSize} leftPxForFactor={leftPxForFactor}
-                    groundScrollRef={sceneryScrollBackRef} groundLeftPx={groundLeftPxLocal}
-                    zoom={zoom} groundAnchor={0}
-                />
-            )}
-            {sceneryMode === 'LDtk' && litGroundTexturesBack && (
+            <LdtkScenery
+                groundTiles={tiles} gridSize={gridSize}
+                groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
+                zoom={zoom} groundAnchor={0}
+                bgDarkenColor={bgDarkenColor}
+            />
+            {litGroundTextures && (
                 <LdtkLitGround
                     widthPx={size.w} heightPx={size.h}
-                    textures={litGroundTexturesBack} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
-                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    textures={litGroundTextures} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
+                    leftPx={groundLeftPx} cameraOffsetRef={cameraOffsetRef} canvasBottomScreenY={size.h} zoom={zoom}
                     lights={ldtkLights}
-                    params={foliageParams} edgeLitOnly={false} debugChannel={foliageDebugChannel}
-                />
-            )}
-            <div ref={overlayScrollBackRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                {sceneryMode === 'LDtk' && (
-                    <LdtkAnimatedTiles
-                        animatedTiles={culledAnimatedTilesBack} worldToScreenX={localWorldToScreenXLocal}
-                        groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
-                    />
-                )}
-                {sceneryMode === 'LDtk' && (
-                    <WaterReflectionLayer
-                        reflectableTiles={reflectableTiles} gridSize={world.gridSize} ponds={waterPonds}
-                        worldToScreenX={worldToScreenXLocal} leftPxForFactor={() => groundLeftPxLocal} zoom={zoom}
-                        globalIllumination={foliageParams.globalIllumination}
-                    />
-                )}
-            </div>
-            {sceneryMode === 'LDtk' && (atlasFoliageInstancesBack.length > 0 || waterInstancesBack.length > 0) && (
-                <ForegroundFoliageLayer
-                    widthPx={size.w}
-                    heightPx={size.h}
-                    instances={localFoliageInstancesBack}
-                    atlas={foliageAtlas}
-                    atlasInstances={atlasFoliageInstancesBack}
-                    cameraOffsetRef={cameraOffsetRef}
-                    debugChannel={foliageDebugChannel}
-                    lights={ldtkLights}
-                    params={foliageParams}
+                    params={foliageParams} edgeLitOnly={edgeLitOnly} debugChannel={foliageDebugChannel}
+                    worldMask={worldMask}
                 />
             )}
         </>
     );
 });
 
-const SceneryFront = React.memo(function SceneryFront({
-    sceneryMode, groundAndFoliageFront, world, leftPxForFactor, sceneryScrollFrontRef, groundLeftPxLocal,
-    zoom, litGroundTexturesFront, size, ldtkLights, foliageParams, foliageDebugChannel, overlayScrollFrontRef,
-    culledAnimatedTilesFront, localWorldToScreenXLocal, waterInstancesFront,
-    localFoliageInstancesFront, cameraOffsetRef,
-    // Perf (#1162, Fase 10c): same shared atlas as SceneryBack, this pass's own instance list.
-    foliageAtlas, atlasFoliageInstancesFront,
+// One `'background'`-kind pass: `LdtkScenery`'s own `backgroundLayers` prop already renders a LIST of
+// independently-parallaxing canvases (CLAUDE.md §6d: reuse, don't reimplement) — a pass here is just
+// "however many background layers happen to be paint-order-contiguous this walk" (currently all 5).
+// No lit-ground pairing (backgrounds never had one — the CSS darken/rim approximation `RpgLevelPanel`
+// computes covers them instead) and no pan-registration needed for its (empty, unused) ground-canvas
+// slot, since `LdtkScenery` always mounts a `GroundCanvas` internally even when `groundTiles` is empty
+// (it just never resolves `ready`, costing one inert `<canvas>`).
+// Perf (#1196, F1): `cameraXRef` + `bgLeftPx` replace `leftPxForFactor` — each parallax `BgLayer`
+// scrolls itself via its own `useFrameLoop` reading `cameraXRef.current` and applying its own `factor`
+// (see LdtkScenery.jsx). `bgLeftPx` is the shared camera-independent left edge (`groundLeftPxLocal`).
+const BackgroundPass = React.memo(function BackgroundPass({
+    layers, cameraXRef, bgLeftPx, zoom, gridSize,
+    bgDarkenColor, bgRimOpacity, bgSunRimOpacity, bgSunLeftPx, bgSunBottomPx, bgSunRimColor, bgSunRadiusScale = 1,
 }) {
+    const unusedGroundScrollRef = useRef(null);
+    return (
+        // #1195 bugfix (Han 2026-09-05, "ik zie nu een gradient achtergrond vóór de parallaxlagen"): the
+        // background LAYERS still need the real `gridSize` to blit their own tiles (`drawTilesToCanvas`
+        // uses it for every tile's width/height) — only the (unused, empty) `groundTiles` canvas needs
+        // none. A hardcoded `gridSize={0}` here silently drew every background tile at 0×0, so the
+        // parallax mountains/hills never appeared and the sky gradient behind them showed through bare.
+        <LdtkScenery
+            groundTiles={[]} backgroundLayers={layers} gridSize={gridSize}
+            cameraXRef={cameraXRef} bgLeftPx={bgLeftPx}
+            groundScrollRef={unusedGroundScrollRef} groundLeftPx={0}
+            zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
+            bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
+            bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor} bgSunRadiusScale={bgSunRadiusScale}
+        />
+    );
+});
+
+// One `'shimmer'`-kind pass: foliage/grass/water tiles, rendered through `ForegroundFoliageLayer`'s
+// WebGL wind-shimmer shader. #RAM-level bug fix (Han 2026-08-11, "ik zie nu heeeel veel flitsen... de
+// foliage laag flitst nogal bij bewegen; is slim om dan af te zetten. Maar toon dan de default
+// ongemodificeerde sprite, ipv niets"): this pass's tiles ALSO always bake into a plain flat
+// `LdtkScenery` canvas underneath — a correctly-drawn, un-shimmering fallback sprite that's visible the
+// instant tiles are known, before the WebGL atlas/instances resolve (the shimmer layer is fully opaque
+// once ready, so the flat version simply stops being visible then). Water reflection is a SEPARATE,
+// standalone pass (`ReflectionPass` below) — see its own header comment for why it can't live here.
+const ShimmerPass = React.memo(function ShimmerPass({
+    passKey, tiles, panElsRef, groundLeftPx, zoom,
+    size, cameraOffsetRef, foliageDebugChannel, ldtkLights, foliageParams, gridSize,
+    foliageAtlas, atlasFoliageInstanceFor, foliageInstanceProps, worldMask, bgDarkenColor,
+}) {
+    const groundScrollRef = useRegisteredRef(panElsRef, passKey);
+    const waterTiles = useMemo(() => tiles.filter((t) => t.kind === 'water'), [tiles]);
+    const waterInstances = useLdtkWaterInstances(waterTiles, gridSize);
+    const localFoliageInstances = useMemo(
+        () => waterInstances.map((inst) => foliageInstanceProps(inst)),
+        [waterInstances, foliageInstanceProps],
+    );
+    const atlasInstances = useMemo(
+        () => tiles.filter((t) => t.kind !== 'water').map(atlasFoliageInstanceFor).filter(Boolean),
+        [tiles, atlasFoliageInstanceFor],
+    );
     return (
         <>
-            {sceneryMode === 'LDtk' && (
-                <LdtkScenery
-                    groundTiles={groundAndFoliageFront} gridSize={world.gridSize}
-                    leftPxForFactor={leftPxForFactor}
-                    groundScrollRef={sceneryScrollFrontRef} groundLeftPx={groundLeftPxLocal}
-                    zoom={zoom} groundAnchor={0}
-                />
-            )}
-            {sceneryMode === 'LDtk' && litGroundTexturesFront && (
-                <LdtkLitGround
-                    widthPx={size.w} heightPx={size.h}
-                    textures={litGroundTexturesFront} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
-                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
-                    lights={ldtkLights}
-                    params={foliageParams} edgeLitOnly={true} debugChannel={foliageDebugChannel}
-                />
-            )}
-            <div ref={overlayScrollFrontRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                {sceneryMode === 'LDtk' && (
-                    <LdtkAnimatedTiles
-                        animatedTiles={culledAnimatedTilesFront} worldToScreenX={localWorldToScreenXLocal}
-                        groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
-                    />
-                )}
-            </div>
-            {sceneryMode === 'LDtk' && (atlasFoliageInstancesFront.length > 0 || waterInstancesFront.length > 0) && (
+            {/* Perf (#1196, F1): no `leftPxForFactor` — this LdtkScenery mounts only its ground canvas
+                (`groundScrollRef` transform) and no `backgroundLayers`. */}
+            <LdtkScenery
+                groundTiles={tiles} gridSize={gridSize}
+                groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
+                zoom={zoom} groundAnchor={0}
+                bgDarkenColor={bgDarkenColor}
+            />
+            {(atlasInstances.length > 0 || waterInstances.length > 0) && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}
-                    instances={localFoliageInstancesFront}
+                    instances={localFoliageInstances}
                     atlas={foliageAtlas}
-                    atlasInstances={atlasFoliageInstancesFront}
+                    atlasInstances={atlasInstances}
                     cameraOffsetRef={cameraOffsetRef}
                     debugChannel={foliageDebugChannel}
                     lights={ldtkLights}
                     params={foliageParams}
+                    worldMask={worldMask}
+                    worldMaskWidth={LEVEL_PX_WIDTH}
+                    worldMaskHeight={LEVEL_PX_HEIGHT}
                 />
             )}
         </>
+    );
+});
+
+// One `'campfire'`-kind pass: `LdtkAnimatedTiles`' plain DOM frame-cycling overlay (campfire is the
+// only remaining consumer — water moved to the WebGL shimmer path, see `ShimmerPass` above).
+const CampfirePass = React.memo(function CampfirePass({
+    passKey, tiles, panElsRef, localWorldToScreenXLocal, cameraOffsetRef, sizeRef, zoom, gridSize,
+}) {
+    const overlayRef = useRegisteredRef(panElsRef, passKey);
+    const culled = useCulledAnimatedTiles(tiles, localWorldToScreenXLocal, cameraOffsetRef, sizeRef);
+    return (
+        <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            <LdtkAnimatedTiles
+                animatedTiles={culled} worldToScreenX={localWorldToScreenXLocal}
+                groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={gridSize}
+            />
+        </div>
+    );
+});
+
+// #1195 bugfix, 3 rounds (Han 2026-09-05, "ik zie niet de reflectie van eenden, riet, de brug, terrain
+// tile, de boom, op het water" → "top, ik zie de brug! Maar.. niet de eenden..!"): `WaterReflectionLayer`
+// reflects the GLOBAL pond set (every pond, regardless of which layer/pass its water tiles came from —
+// see `RpgLevelPanel`'s `allWaterTiles`/`waterPonds`), so it must mount exactly ONCE, NOT once per
+// water-containing shimmer pass (round 1 bug: duplicated the render, and could land it on whichever
+// shimmer pass happens to be FIRST/most-back overall, with several MORE `'ground'` passes — Terrain_Tiles
+// among them, a full-level-width opaque canvas — still to come before Entities, painting directly over
+// it). Round 2 bug (found via a headless-browser DOM/pixel inspection, not guesswork — see the render
+// call site's own comment for the full story): mounting it right before `'entities'` was STILL not late
+// enough, because Han's `Water_FG` layer sits IN FRONT of Entities, and its own full-viewport
+// `ForegroundFoliageLayer` WebGL canvas rendered AFTER the reflection and painted over it — fixed by
+// rendering AFTER every other LDtk-mode pass instead.
+//
+// Round 3 (ducks): that same front-of-Entities risk turned out to also apply to EVERY entity's own
+// reflection (`EntityReflection` — hero/pet/Wisp/Slime/worker-NPCs, and `WorldWanderer`'s own duck
+// mirror), since those ALSO used to render inside the `'entities'` pass. This component is now the ONE
+// shared "always painted last" layer for ALL of it, not just the pond reflection: it exposes its own DOM
+// node via `registerNode` so `EntityReflection` (a declarative React component — portaling is a same-
+// render, zero-desync change) and `WorldWanderer`'s duck reflection (an imperative rAF-positioned ref —
+// see its own header comment for why it needs a live-mirrored position, not just a portal) can both
+// attach their content here as portaled siblings alongside the pond reflection. Always mounted now (not
+// gated on `waterPonds.length`) since entity reflections need this node to exist independent of whether
+// there happens to be a pond at all.
+const LastLayerPass = React.memo(function LastLayerPass({
+    panElsRef, reflectableTiles, waterPonds, gridSize, worldToScreenXLocal, groundLeftPx, zoom, globalIllumination, registerNode,
+}) {
+    const reflectionRef = useRegisteredRef(panElsRef, 'last-layer');
+    useEffect(() => {
+        registerNode(reflectionRef.current);
+        return () => registerNode(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [registerNode]);
+    return (
+        <div ref={reflectionRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {waterPonds.length > 0 && (
+                <WaterReflectionLayer
+                    reflectableTiles={reflectableTiles} gridSize={gridSize} ponds={waterPonds}
+                    worldToScreenX={worldToScreenXLocal} leftPxForFactor={() => groundLeftPx} zoom={zoom}
+                    globalIllumination={globalIllumination}
+                />
+            )}
+        </div>
     );
 });
 
@@ -1044,7 +1126,10 @@ function useCulledAnimatedTiles(tiles, localWorldToScreenXLocal, cameraOffsetRef
     return culled;
 }
 
-export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, setVolume, onGenerateVoice, rpgMusicVolumeMultiplier = 1, worldScale = null }) {
+// NOTE: no `bpm`/`timeSignature` props — every clock in the open world (this panel's beat-synced
+// sprite loop, the worker-NPC hit rolls, useDebugMetronome, useWorldAmbientMusic) runs on the fixed
+// WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js §924), never the live song tempo. (Han 2026-09-01.)
+export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, context, instruments, setVolume, onGenerateVoice, rpgMusicVolumeMultiplier = 1, worldScale = null }) {
     const containerRef = useRef(null);
     const [size, setSize] = useState({ w: 0, h: 0 });
     const [petFrame, setPetFrame] = useState(0);
@@ -1064,45 +1149,211 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const envAudioRef = useRef(null);
     // #141 round 2 (Han: "Can you implement 3 maps and let me toggle?" — in the spirit of the Factorio FFF's
     // own color-coded shader debug view): cycles ForegroundFoliageLayer's debugChannel (0 final shimmer, 1
-    // raw normal map, 2 wave band alone). Gated on `debugMode` like every other debug affordance (§3a).
+    // raw normal map, 2 wave band alone, 3 disabled, 4 = §387's edge mask — the silhouette TEST itself,
+    // red rim / green inward glow / dim blue coverage, on BOTH lighting layers at once).
+    // Gated on `debugMode` like every other debug affordance (§3a).
     const [foliageDebugChannel, setFoliageDebugChannel] = useState(0);
     // #141 round 11 (Han: "Kun je zorgen dat ik wat van de parameters kan tunen in het level debug ... Zet
     // alle params die je gebruikt in de debug"): every tunable foliage-shader dial, live-editable via the
     // debug panel below, gated on debugMode like every other debug affordance (§3a).
     const [foliageParams, setFoliageParams] = useState(DEFAULT_FOLIAGE_PARAMS);
     const setFoliageParam = (key, value) => setFoliageParams((prev) => ({ ...prev, [key]: value }));
+
+    // #weather (Han 2026-09-01, "windsnelheid 0-3 met transitie + dag/nacht-cyclus"): the world runs
+    // its own weather cycle now (see weatherCycle.js). `weather` is the clock state; `weatherRef` is
+    // the frame-loop's live copy (advanced every tick, only mirrored into `weather` state when a
+    // visible value actually moves, so a steady phase costs 0 re-renders). The derived
+    // globalIllumination / skew / stretch / timeOfDay are written INTO `foliageParams` so every
+    // existing consumer (shader, DOM tint, critter tags) keeps reading them from the same place;
+    // the debug pickers below become "seek" controls into the cycle. `weatherCycleStore` persists
+    // the clock across this panel's unmount so it FREEZES during a music LEVEL and resumes.
+    const [weather, setWeather] = useState(() => loadWeatherState() ?? createWeatherState());
+    const weatherRef = useRef(weather);   // NOT re-synced from `weather` each render — see loop below
+    const weatherLoopLastMsRef = useRef(0);
+    const wOut = weatherOutputs(weather);
+
+    // §377 (#1193): the sky canvas geometry (`skyGeom`, shared with <CelestialSky>), mirrored into a
+    // ref every render — the SAME sizeRef/illumRef/zoomRef convention this file already uses. It has to
+    // be a ref, not a dep: `pushWeatherToFoliage` below is a `useCallback` with `[]` deps (every caller
+    // — the tick loop, commitWeather, the pre-paint layout effect — depends on its identity being
+    // stable), and giving it size/zoom deps would rebuild it on every resize/zoom change.
+    // Assigned further down, right after `zoom` is computed.
+    const skyGeomRef = useRef({ Wpx: 0, Hpx: 0, horizonY: 0 });
+
+    const pushWeatherToFoliage = useCallback((s) => {
+        const out = weatherOutputs(s);
+        // §377: the sun edge-glow channels. When the sun is DOWN (or it is genuinely overcast) the
+        // strength is 0, and the position is deliberately FROZEN at [0,0] rather than tracked — so a
+        // whole night, or an overcast spell, costs exactly ZERO extra re-renders (ac7).
+        const geom = skyGeomRef.current;
+        const sunGlow = quantSunGlow(out);
+        const [sunGpxX, sunGpxY] = sunGlow > 0 ? quantSunScreenPos(out, geom) : [0, 0];
+        setFoliageParams((fp) => ({
+            ...fp,
+            skewAmount: out.windValue,
+            // Han (persistent "vertikale strepen" on the canopy): STRETCH is a per-column-position shift,
+            // so wherever floor() steps between columns a source column is skipped/doubled -> a vertical
+            // discontinuity every ~1/stretch columns (§156's crisp-shift trade-off). SKEW is a rigid
+            // per-row translation and has no such artefact. Drive stretch OFF by default; the rigid lean
+            // (skew) still reads as wind. Re-enable via the debug slider if the width-oscillation is
+            // wanted back.
+            stretchAmount: 0,
+            globalIllumination: out.globalIllumination,
+            timeOfDay: out.timeOfDay,
+            // §374 UAT r2 (#1191): how strongly the REAL moon lights the world (0 when it is below the
+            // horizon or new, scaling with the lit fraction). Gates §370's moonlight sheen/rim — which
+            // was previously on every night regardless of the moon. Quantised to 0.05 so it is a rare,
+            // coarse re-render trigger (see the tick loop) rather than a per-frame one like `cycleT`.
+            moonShine: quantMoonShine(out),
+            // §377 (#1193, Han: "felle zon door de bomen / zon vlak over daken"). Four channels feeding
+            // `applySunGlow` in the shared lighting GLSL. Positions/radius are normalised BY THE SKY
+            // CANVAS WIDTH — the same normalisation the shaders apply to gl_FragCoord, which is what
+            // makes the mask dpr-free, zoom-free and camera-independent (the sky layer never parallaxes).
+            sunGlow,
+            sunGlowColor: sunGlowColor(out.globalIllumination),
+            sunScreenPos: geom.Wpx > 0 ? [sunGpxX / geom.Wpx, sunGpxY / geom.Wpx] : [0, 0],
+            sunGlowRadius: geom.Wpx > 0 ? SUN_GLOW_RADIUS_GPX / geom.Wpx : 0,
+        }));
+    }, []);
+
+    // Commit a seeked/reset clock: update the loop's ref, the render state, and the foliage sink.
+    const commitWeather = useCallback((next) => {
+        weatherRef.current = next;
+        setWeather(next);
+        pushWeatherToFoliage(next);
+    }, [pushWeatherToFoliage]);
+
+    // Reflect the (possibly persisted) clock into foliageParams before first paint — no 1-frame
+    // flash of the DEFAULT_FOLIAGE_PARAMS daylight when re-entering the world mid-cycle.
+    useLayoutEffect(() => {
+        pushWeatherToFoliage(weatherRef.current);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Persist the clock on unmount (music LEVEL takes over) so the cycle resumes where it froze.
+    useEffect(() => () => { saveWeatherState(weatherRef.current); }, []);
+
+    // The cycle driver — one throttled subscriber on the shared rAF ticker (~12 fps is plenty for a
+    // 3 s / 10 s ease). `dt` from the raw rAF timestamp, clamped inside tickWeather.
+    useFrameLoop((now) => {
+        const last = weatherLoopLastMsRef.current;
+        weatherLoopLastMsRef.current = now;
+        if (!last) return;   // first tick just establishes the baseline (also after a remount)
+        const dt = (now - last) / 1000;
+        const prev = weatherRef.current;
+        const next = tickWeather(prev, dt, Math.random);
+        weatherRef.current = next;   // always advance the live copy…
+        const a = weatherOutputs(prev);
+        const b = weatherOutputs(next);
+        // …but only re-render (and repaint the shader/tint) when something visible moved.
+        // §374 (#1191) INVARIANT, extended by §375 (#1192): `cycleT` / `lunationPhase` / `cloudCoverT`
+        // must NEVER be added to this list (nor to the `setWeather` list below) in their RAW form.
+        // They move every single tick, so either list would turn a steady phase from 0 re-renders into
+        // ~12/s and undo #1162 Fase 8. <CelestialSky> reads them off `weatherRef` inside its own draw
+        // callback, which is exactly why it can. The QUANTISED `quantMoonShine` (§374 UAT r2) and
+        // `quantCloudCover` (§375) are allowed — 0.05-step values that change a handful of times per
+        // night / per transition, not every tick.
+        // §377 (#1193) restates that invariant for the SUN: no raw cycleT-derived sun value (altitude,
+        // `sunPosition(...)`, an unrounded projected x/y) may enter either list either. Only the
+        // QUANTISED `quantSunGlow` (0.05) and `sunPosMoved` (whole game px) below are allowed, and only
+        // in the FOLIAGE list — no sun term drives a React-only (`setWeather`) render.
+        // §375: NO cloud term is needed in THIS (foliage) list — during a cloud ease
+        // `globalIllumination` itself moves (illumMultiplier is folded into it), so the 0.004 term
+        // below already re-pushes at exactly the right moments, and `quantMoonShine` now carries the
+        // cloud gate too.
+        if (
+            Math.abs(a.globalIllumination - b.globalIllumination) >= 0.004
+            || Math.abs(a.windValue - b.windValue) >= 0.02
+            || a.timeOfDay !== b.timeOfDay
+            || quantMoonShine(a) !== quantMoonShine(b)
+            // §377 (#1193): the sun edge-glow. BOTH terms are quantised (0.05 strength / 1 game px of
+            // position) — the raw continuous sun altitude/position must NEVER appear here, same
+            // invariant as `cycleT`/`cloudCoverT` above. The `quantSunGlow(b) > 0 &&` short-circuit is
+            // what makes a whole night and an overcast spell completely free: no sun ⇒ no position
+            // tracking at all. While the sun IS up this fires ~2×/s (the sun crosses ~2 gpx/s on a
+            // ~426 gpx-wide sky), which is well inside the existing budget — `globalIllumination`
+            // already pushes ~12×/s during a 10 s ease.
+            || quantSunGlow(a) !== quantSunGlow(b)
+            || (quantSunGlow(b) > 0 && sunPosMoved(a, b, skyGeomRef.current))
+        ) {
+            pushWeatherToFoliage(next);
+        }
+        // `weather` state drives the render-only bits: the critter layer's opacity/pool, the debug
+        // picker selections, the always-visible 💨 count (one puff per whole wind step), and — since
+        // §375 — the sky's cloud blend. Both cloud terms are DISCRETE: `cloudType` is a string that
+        // changes at most once per 60-120 s (it drives the Weather picker's selection), and
+        // `quantCloudCover` steps ≤20 times across a 10 s transition and 0 while settled.
+        if (
+            a.critterKind !== b.critterKind
+            || Math.abs(a.critterOpacity - b.critterOpacity) >= 0.01
+            || a.phaseName !== b.phaseName
+            || Math.round(a.windValue) !== Math.round(b.windValue)
+            || a.cloudType !== b.cloudType
+            || quantCloudCover(a) !== quantCloudCover(b)
+        ) {
+            setWeather(next);
+        }
+    // Perf (#1192-jank, Han 2026-09-04, "de sterren bewegen hakkelig"): was `{ priority: 'throttled',
+    // throttleMs: 80 }` (~12 fps) — fine for the weather EASES this callback also drives (the comment
+    // above already notes those only need ~12/s), but `weatherRef.current` (holding `cycleT`, hence
+    // every star/moon/sun screen position — see `weatherOutputs` above) was ALSO only advancing at that
+    // same ~12 fps, even though `<CelestialSky>` redraws it every rAF frame. The result: stars visibly
+    // "stepped" in ~83ms jumps instead of moving continuously. `tickWeather`/`weatherOutputs` are both
+    // pure, allocation-light arithmetic (no trig, no loops beyond a rare phase-boundary `while`) — cheap
+    // enough to run at full frame rate. Moving to 'critical' only changes how often `weatherRef.current`
+    // is refreshed; the `if` blocks above still gate `setWeather`/`pushWeatherToFoliage` exactly as
+    // before, so this does NOT undo #1162 Fase 8's re-render reduction — only the invisible ref write
+    // runs more often, not any React commit.
+    }, [pushWeatherToFoliage], { priority: 'critical' });
     // #693 round 7: the camera's own world-x (what world position renders at screen center) — separate
     // from `playerX`, which can now roam the full 200-tile level while the camera only follows once the
     // player nears an edge (dead-zone follow, Han's "1/3 of either screen edge").
-    const [cameraX, setCameraX] = useState(0);
+    // Perf (#1196, F1, Han 2026-09-05, "ik ben voor consistentie, dus ik ga voor 1"): a REF, never
+    // React state. `setCameraX` fired on EVERY rAF frame while the hero moved, forcing a full re-render
+    // of this ~3000-line component 60×/sec even though the visible pan was ALREADY written imperatively.
+    // Every layer now reads the camera through this ref inside its OWN per-frame loop — the DOM ground/
+    // overlay/entity wrappers (this file's camera `useFrameLoop`), parallax `BgLayer` (its own loop, see
+    // LdtkScenery.jsx), `LdtkLitGround` + `ForegroundFoliageLayer` (`cameraOffsetRef`, §322/§331).
+    // Nothing reads the camera as a render value any more, so panning triggers zero React commits.
+    // See docs/architecture.md §384.
+    const cameraXRef = useRef(0);
     // #RAM-level (Han 2026-08-10, "vervang het RPG-level voor het level in RAM level.ldtk" + "maak een
-    // tier selector in debug mode... season en city toggler"): the LDtk-driven scenery (`ldtkWorld.js`)
-    // is the new DEFAULT — `sceneryMode` exists purely so Han can flip back to the old hand-placed scene
-    // in debug mode to visually compare before the legacy code is deleted for good (see the render block
-    // below). Season/city/tier default to the file's own authored defaults (Han: lowest tier by default).
-    const [sceneryMode, setSceneryMode] = useState('LDtk');
+    // tier selector in debug mode... season en city toggler"): the world is the LDtk-driven scenery
+    // (`ldtkWorld.js`). The old hand-placed `sceneryMode === 'Legacy'` scene (parallax PNGs + a
+    // hard-coded floor/tree/tent/crate layout) was deleted 2026-09-06 (Han: "haal legacy maar weg!") —
+    // it existed only as a side-by-side visual reference during the RAM-level migration and had been
+    // dead weight in every render path since. Season/city/tier default to the file's own authored
+    // defaults (Han: lowest tier by default).
     const [season, setSeason] = useState('Summer');
     const [city, setCity] = useState('No_City');
     const [tavernTier, setTavernTier] = useState('Tent');
     const [bridgeTier, setBridgeTier] = useState('Log');
     // #RAM-level (Han 2026-08-11, "zoom in/uit zodat de hoogte van het level precies in de viewbox past"):
-    // in LDtk mode, the display scale is no longer the fixed `ZOOM` module constant — it's WHATEVER makes
-    // the level's own native height fill the container exactly (`size.h / LEVEL_PX_HEIGHT`). Legacy mode
-    // is untouched (still the fixed `ZOOM`, its art was tuned specifically for that one scale). Computed
-    // here (early, before the camera-follow effect below) because that effect's own dead-zone math needs
-    // the CURRENT zoom too — it used to hardcode the module `ZOOM`, which silently mismatched the actual
-    // on-screen scale as soon as this dynamic zoom diverged from 3, throwing off the dead-zone boundaries
-    // (a likely contributor to "de scrolling is schokkerig").
+    // the display scale is WHATEVER makes the level's own native height fill the container exactly
+    // (`size.h / LEVEL_PX_HEIGHT`). Computed here (early, before the camera-follow effect below) because
+    // that effect's own dead-zone math needs the CURRENT zoom too.
     // #UI-overhaul Stap 3 (Han 2026-08-27): in world mode App passes an explicit INTEGER `worldScale`
     // (utils/worldLayout.js) — one global scale factor so every game pixel is exactly the same size in
-    // every layer (see docs/architecture.md §327/§334). It wins outright when set. Otherwise LDtk mode
-    // falls back to the old height-driven fit (`size.h / LEVEL_PX_HEIGHT`, non-integer) and legacy mode
-    // to the fixed module `ZOOM`. The Stap 1 interim `size.w / 320` clamp is gone — `worldScale` is
-    // chosen with the ≥320 gpx width rule already baked in.
+    // every layer (see docs/architecture.md §327/§334). It wins outright when set; otherwise the
+    // height-driven fit (`size.h / LEVEL_PX_HEIGHT`, non-integer) is used. The Stap 1 interim
+    // `size.w / 320` clamp is gone — `worldScale` is chosen with the ≥320 gpx width rule already baked in.
     const dynamicZoom = size.h > 0 ? size.h / LEVEL_PX_HEIGHT : ZOOM;
-    const zoom = worldScale != null
-        ? worldScale
-        : (sceneryMode === 'LDtk' ? dynamicZoom : ZOOM);
+    const zoom = worldScale != null ? worldScale : dynamicZoom;
+    // §377 (#1193): mirror the sky geometry into its ref (declared above `pushWeatherToFoliage`, which
+    // reads it inside its `[]`-deps callback). The IDENTICAL call <CelestialSky> makes below, so the
+    // sun-glow centre and the drawn sun disc are the same projection by construction (cr4).
+    const skyGeomNow = skyGeom(size, zoom, HORIZON_PX);
+    skyGeomRef.current = skyGeomNow;
+    const skyGeomWpx = skyGeomNow.Wpx;
+    const skyGeomHorizonY = skyGeomNow.horizonY;
+    // §377: `sunScreenPos`/`sunGlowRadius` are normalised by `skyGeom.Wpx`, which changes on a resize
+    // or a worldScale change WITHOUT the weather clock moving — so re-push then, or the glow would sit
+    // at a stale position/size until the next quantised weather change. Fires only on resize/zoom.
+    useEffect(() => {
+        pushWeatherToFoliage(weatherRef.current);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the geometry scalars ARE the trigger;
+        // the push itself reads the live clock off weatherRef (a ref, deliberately not a dep).
+    }, [skyGeomWpx, skyGeomHorizonY, pushWeatherToFoliage]);
     // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten"): debug-
     // only click track, off by default even when debugMode is on (Han still has to explicitly enable it) —
     // see useDebugMetronome.js for the rAF/AudioContext-clock design. #924 round 4 ("die kan nooit in sync
@@ -1110,6 +1361,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // bpm/timeSignature — defaults to WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the SAME fixed tempo
     // every open-world audio system now shares.
     const [metronomeOn, setMetronomeOn] = useState(false);
+    // §374 (#1191, Han: "vind het nog wel cute als er een stippellijn de sterrenbeelden toont
+    // (toggelbaar) en de namen in serif pixel font (toggelbaar)") — both default OFF and both live in
+    // the debug-only FoliageParamsPanel. Deliberately NOT in `foliageParams`: that bag is the SHADER
+    // uniform set (noiseScale, lightRadius, blend modes…), and these two are debug-view flags nothing
+    // else reads — keeping them out preserves that object's single responsibility.
+    const [showConstellationLines, setShowConstellationLines] = useState(false);
+    const [showConstellationNames, setShowConstellationNames] = useState(false);
     const { beat: metronomeBeat, pulseTick: metronomePulse } = useDebugMetronome({
         enabled: debugMode && metronomeOn, context, instruments, setVolume,
     });
@@ -1124,64 +1382,64 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         () => reflectableTilesFor({ tavernTier, bridgeTier }),
         [tavernTier, bridgeTier],
     );
-    // #RAM-level BUG FIX (Han 2026-08-11, "ik zie nu heeeel veel flitsen op alle lagen; totaal niet
-    // speelbaar"): `groundTiles={[...world.groundTilesBack, ...world.foliageTilesBack]}` (the flat-fallback
-    // merge added this round) built a NEW array literal on every RpgLevelPanel render — and this component
-    // re-renders ~60x/sec while the hero moves (`cameraX`/`playerX` state churn). `LdtkScenery`'s own
-    // compositing effect is keyed on `[tiles, gridSize]` by REFERENCE, so a fresh array every render tore
-    // the canvas down (`setReady(false)` → transparent) and rebuilt it from scratch 60x/sec — the flashing
-    // Han saw, on every layer that used this pattern. Memoized here so the combined array only changes when
-    // `world` itself changes (season/city/tier toggles), matching how `world.groundTilesBack` etc. were
-    // already stable before this merge was introduced.
-    const groundAndFoliageBack = useMemo(
-        () => [...world.groundTilesBack, ...world.foliageTilesBack],
-        [world.groundTilesBack, world.foliageTilesBack],
-    );
-    const groundAndFoliageFront = useMemo(
-        () => [...world.groundTilesFront, ...world.foliageTilesFront],
-        [world.groundTilesFront, world.foliageTilesFront],
-    );
-    // #RAM-level (Han 2026-08-11, "alle foliage lagen (via tag) moeten reageren op de wind"): foliage
-    // tiles render as ForegroundFoliageLayer instances (real wind-shimmer) instead of baked into the
-    // static ground canvas.
-    // Perf (#1162, Fase 10c): `useLdtkFoliageInstances` (the per-instance sheet-space UV + its own separate
-    // runtime normal-map generation) is REMOVED — superseded by the atlas-backed instances built below
-    // (`atlasFoliageInstancesBack/Front`, from the SAME `foliageAtlas` this file already builds one section
-    // up). Keeping both would have meant generating every foliage crop's normal map TWICE (once into the
-    // atlas, once into `useLdtkFoliageInstances`'s own per-URL cache) for data the atlas path never reads —
-    // real wasted work, not just dead code, so it's deleted rather than left dormant.
+    // #1195 (Han 2026-09-05, "houd gewoon áltijd de volgorde van LDTK aan"): `world.passes` (ldtkWorld.js)
+    // replaced the old fixed groundTilesBack/Front / foliageTilesBack/Front / animatedTilesBack/Front
+    // buckets — every "kind" of content (ground/background/shimmer/campfire/entities) now comes as an
+    // ORDERED, back-to-front list of passes, one per contiguous run of same-kind layers in the real
+    // `.ldtk` file order (architecture.md §382). `RpgLevelPanel` renders that list directly (see the
+    // `scenePasses` render loop below) instead of two fixed back/front halves — a `'ground'` pass can now
+    // legitimately sit BETWEEN two `'shimmer'` passes, matching e.g. `City_Walls` sitting between
+    // `Grass_decoration_fg` and `Grass_decoration_bg`.
+    //
+    // The aggregates below (shared atlas, pond clustering, campfire light) don't care which INDIVIDUAL
+    // pass a tile ended up in, only the total set — flattened once here from every pass of the relevant
+    // kind, same "stable memoized array, not a fresh literal every render" discipline the old
+    // groundAndFoliageBack/Front merge established (RAM-level bug fix, Han 2026-08-11, "ik zie nu heeeel
+    // veel flitsen op alle lagen" — LdtkScenery's compositing effect is keyed on `[tiles, gridSize]` by
+    // REFERENCE, so a fresh array every render tears the canvas down and rebuilds it from scratch).
+    const shimmerPasses = useMemo(() => world.passes.filter((p) => p.kind === 'shimmer'), [world.passes]);
+    const campfirePasses = useMemo(() => world.passes.filter((p) => p.kind === 'campfire'), [world.passes]);
+    // `GroundPass`'s `edgeLitOnly` mirrors the old SceneryBack(false)/SceneryFront(true) split — a ground
+    // pass AFTER the entities pass in real LDtk order gets the (cheaper) edge-lit-only treatment, same as
+    // every "front of Entities" ground tile always did.
+    const entitiesPassIndex = useMemo(() => world.passes.findIndex((p) => p.kind === 'entities'), [world.passes]);
     // Perf (#1162, Fase 10a, docs/architecture.md §337): builds a SHARED texture atlas from every distinct
-    // foliage crop across BOTH passes (back+front share the same tilesets/crops in practice, so one atlas
-    // covers both) — not wired to rendering yet, this phase only builds+verifies the atlas itself (see the
-    // debug canvas below). `useMemo`, not an inline spread, so the combined list is a STABLE array
-    // reference across renders that don't actually change back/front content — an unmemoized fresh array
-    // here would re-trigger the atlas hook's whole build on every render, the exact bug just fixed for
-    // `cullTilesToViewport` (§335) one section below this one.
-    const allFoliageTilesForAtlas = useMemo(
-        () => [...world.foliageTilesBack, ...world.foliageTilesFront],
-        [world.foliageTilesBack, world.foliageTilesFront],
-    );
-    const foliageAtlas = useLdtkFoliageAtlas(allFoliageTilesForAtlas, world.gridSize, sceneryMode);
-    // #925 round 2 (Han 2026-08-16, "doe ook de diffusie, gewoon een exacte kopie van de logica voor
-    // boomblaadjes"): water tiles pulled OUT of `animatedTilesBack/Front` (kind:'water') and rendered
-    // through the SAME shimmer shader as foliage instead of `LdtkAnimatedTiles`'s plain DOM frame-cycling
-    // — see useLdtkWaterInstances.js for how it still reproduces water's own frame-cycling animation
-    // (round 2 fix: per-placement independent offsets, not per-src). Campfire (the other animatedTiles
-    // kind) is untouched, still routed to `LdtkAnimatedTiles` below.
-    const waterTilesBack = useMemo(() => world.animatedTilesBack.filter((t) => t.kind === 'water'), [world.animatedTilesBack]);
-    const waterTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind === 'water'), [world.animatedTilesFront]);
-    const nonWaterAnimatedTilesBack = useMemo(() => world.animatedTilesBack.filter((t) => t.kind !== 'water'), [world.animatedTilesBack]);
-    const nonWaterAnimatedTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind !== 'water'), [world.animatedTilesFront]);
-    const waterInstancesBack = useLdtkWaterInstances(waterTilesBack, world.gridSize, sceneryMode);
-    const waterInstancesFront = useLdtkWaterInstances(waterTilesFront, world.gridSize, sceneryMode);
+    // foliage/water crop across EVERY shimmer pass (they share tilesets/crops in practice, so one atlas
+    // covers all of them).
+    const allShimmerTiles = useMemo(() => shimmerPasses.flatMap((p) => p.tiles), [shimmerPasses]);
+    const foliageAtlas = useLdtkFoliageAtlas(allShimmerTiles, world.gridSize);
+    // §387 (#1222, Han 2026-09-06, "alle entiteiten op de main layer als één behandeld ... het silhouet
+    // van de 'wereld' en niet van de tile laag"): the ONE level-space silhouette every WebGL lighting
+    // layer's edge/rim/glow term tests against, replacing #1221's per-tile `foliageCellSet`/`internalEdges`
+    // adjacency bitmask entirely (it could only ever see orthogonal FOLIAGE sisters — never a diagonal
+    // one, never the building behind the branch — and its uvRect clamp was a no-op on flipped tiles).
+    // Built once per world config; see useWorldSilhouetteMask.js for the full story.
+    const worldMask = useWorldSilhouetteMask(world.passes, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT);
+    // #1220 (Han: "beperken van de sheen-straal moet ALLEEN wanneer bedekt door parallax-lagen, niet
+    // door de gewone laag"): per parallax background layer, its own occupied grid cells + its parallax
+    // `factor` (so the sun's screen X maps back to THAT layer's local X with `cameraX * factor`).
+    const bgOccluders = useMemo(() => {
+        const g = world.gridSize;
+        const out = [];
+        for (const p of world.passes) {
+            if (p.kind !== 'background') continue;
+            for (const { factor, tiles } of (p.layers || [])) {
+                const s = new Set();
+                for (const t of tiles) s.add(`${Math.round(t.worldX / g)},${Math.round(t.worldY / g)}`);
+                if (s.size) out.push({ factor, cells: s });
+            }
+        }
+        return out;
+    }, [world.passes, world.gridSize]);
     // #1032 (Han 2026-08-17, water reflection): groups ALL water tiles (any visual band, unlike
     // waterSpanNear's swim-only logicalRow-2 filter — a pond's visual EXTENT includes its shoreline/edge
     // tiles too) into connected components via flood-fill (adjacent = both X and Y within one gridSize —
     // a pond can be more than one tile tall). Only `[minX,maxX]` is used by the reflection code (WHERE to
     // clip horizontally) — the mirror axis itself is Han's own fixed `WATER_REFLECTION_AXIS_PX` (round 6),
     // not a per-pond tile-derived height, so no `surfaceY` field is kept here.
+    const allWaterTiles = useMemo(() => allShimmerTiles.filter((t) => t.kind === 'water'), [allShimmerTiles]);
     const waterPonds = useMemo(() => {
-        const tiles = [...waterTilesBack, ...waterTilesFront];
+        const tiles = allWaterTiles;
         const visited = new Set();
         const ponds = [];
         for (let i = 0; i < tiles.length; i++) {
@@ -1208,7 +1466,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         }
         return ponds;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [waterTilesBack, waterTilesFront, world.gridSize]);
+    }, [allWaterTiles, world.gridSize]);
     // #1032 round 2 (Han: "die plakt vast aan de hero base. Voor de eenden moet de weerkaatsing aan de
     // eenden plakken, maar voor de brug, bomen, etc niet, dan moet je spiegel over [de rand]"): the round-1
     // nested self-mirror was correct ONLY for ducks (always exactly AT the water surface by construction —
@@ -1236,16 +1494,25 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // not `axis`. Matches Han's own worked example exactly (entity height 48, axis 32 in his example →
     // reflected bottom 2*32-48=16).
     // Perf (#1162, Fase 2a): `worldToScreenXLocal` (camera-independent) — this component renders entity
-    // reflections, which now live inside the SAME imperatively-scrolled `entityScrollRef` wrapper as the
-    // entities themselves (see that ref's own declaration/comment) — see `worldToScreenXLocal`'s own
+    // reflections, which used to live inside the SAME imperatively-scrolled `entityScrollRef` wrapper as
+    // the entities themselves (see that ref's own declaration/comment) — see `worldToScreenXLocal`'s own
     // comment for the full rationale.
+    // #1195 bugfix (Han 2026-09-05, "ik zie niet de reflectie van eenden"): that `entityScrollRef` nesting
+    // is EXACTLY why hero/pet/Wisp/Slime/worker-NPC reflections carried the same latent risk the duck's
+    // own reflection turned out to have — any front-of-Entities content (Han's `Water_FG`, rendered
+    // afterward per real LDtk order) can paint directly over anything still inside the `'entities'` pass.
+    // Since this component is purely declarative (position is plain React props, not an imperative
+    // rAF-driven ref like `WorldWanderer`'s duck reflection needed), portaling it to `lastLayerEl` (the
+    // always-painted-last layer `LastLayerPass` owns and exposes — see that component's own header
+    // comment) is a same-tick, zero-desync fix: it just re-renders normally wherever `worldX` changes,
+    // same as before, only attached to a different DOM parent.
     const EntityReflection = ({ worldX, extraTransform, children }) => {
         const pond = waterPonds.find((p) => worldX >= p.minX && worldX <= p.maxX);
-        if (!pond) return null;
+        if (!pond || !lastLayerEl) return null;
         const axisPx = WATER_REFLECTION_AXIS_PX * zoom;
         const entityHeightPx = standAnchorFor(worldX);
         const reflectedBottomPx = 2 * axisPx - entityHeightPx;
-        return (
+        return createPortal(
             <div style={{
                 position: 'absolute', left: worldToScreenXLocal(worldX), bottom: reflectedBottomPx,
                 transform: `translateX(-50%) scaleY(-1)${extraTransform ? ` ${extraTransform}` : ''}`,
@@ -1256,17 +1523,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 filter: `brightness(${foliageParams.globalIllumination})`, pointerEvents: 'none',
             }}>
                 {children}
-            </div>
+            </div>,
+            lastLayerEl,
         );
     };
     // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en
-    // reageren op licht"): ground/terrain/building/decor tiles (world.groundTilesBack/Front — everything
-    // EXCEPT background parallax layers and foliage, which already have their own lit pipelines) get a
-    // normal-map-lit pass too, via a SEPARATE static WebGL layer (LdtkLitGround.jsx) — see that file's own
-    // header comment for why this ISN'T the same per-instance approach foliage/water use (thousands of
-    // tiles, would repeat the perf problem viewport culling was built to avoid).
-    const litGroundTexturesBack = useLdtkLitGroundTextures(world.groundTilesBack, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
-    const litGroundTexturesFront = useLdtkLitGroundTextures(world.groundTilesFront, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
+    // reageren op licht"): ground/terrain/building/decor tiles (everything EXCEPT background parallax
+    // layers and foliage, which already have their own lit pipelines) get a normal-map-lit pass too, via
+    // a SEPARATE static WebGL layer (LdtkLitGround.jsx) — see that file's own header comment for why this
+    // ISN'T the same per-instance approach foliage/water use (thousands of tiles, would repeat the perf
+    // problem viewport culling was built to avoid). #1195 (Han 2026-09-05): the `useLdtkLitGroundTextures`
+    // call itself moved INTO `GroundPass` (declared above `RpgLevelPanel`) — one call per ground pass now
+    // that the pass count is dynamic, instead of two fixed back/front calls here.
 
     useEffect(() => {
         const el = containerRef.current;
@@ -1281,10 +1549,11 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
 
     // Pet idle/walk animation ticks independently of the movement rAF loop.
     // #923 (Han 2026-08-12, "zorg dat de rpg-framerate in world debug hiermee overeenstemt"): this used to
-    // be a hardcoded 150ms, completely independent of the song's bpm — a SECOND cadence, drifted from the
+    // be a hardcoded 150ms, completely independent of the bpm — a SECOND cadence, drifted from the
     // sheet-music view's own bpm-coupled sprite loop (SheetRpgLayer.jsx). Reuses that SAME shared formula
-    // (§6c/§6d — one cadence, not two hand-tuned copies) so wisp/pet/slime idle animation in the open world
-    // matches the in-song sprite cadence at any bpm/timeSignature.
+    // (§6c/§6d — one cadence, not two hand-tuned copies) so wisp/pet/slime idle animation in the open
+    // world runs on the world tempo (WORLD_BPM — see the 2026-09-01 sync fix below; it was the live song
+    // tempo until then).
     // Perf (#1161, Han 2026-08-27, "misschien moet het RPG-world frame ticks krijgen, bijvoorbeeld 60/s...
     // op 60fps is 'meest nabije frame' goed genoeg"): `setInterval` isn't frame-aligned (same "hakkelig"
     // reasoning SheetRpgLayer.jsx's own rAF-vs-setInterval header comment already documents for the level
@@ -1297,20 +1566,32 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // Perf (#1162, Fase 8): migrated onto the shared `useFrameLoop` ticker (docs/architecture.md §328) —
     // 'critical' priority (runs every rAF frame, same as before). `useFrameLoop` always calls the LATEST
     // callback closure via a ref (see its own header comment) rather than re-running an effect body per
-    // tick, so `startMs` can no longer live as a plain closure `let` inside the tick body (that would reset
-    // on every RENDER, not just on bpm/timeSignature/context changes) — moved to a ref, explicitly reset
-    // only when those deps change, matching the old effect's exact reset semantics.
-    const petFrameStartMsRef = useRef(null);
-    useEffect(() => { petFrameStartMsRef.current = null; }, [bpm, timeSignature, context]);
+    // tick.
+    //
+    // Sync fix (Han 2026-09-01, "de metronoom, de NPC's/vogels en de muziek klinken niet in sync"):
+    // TWO bugs corrected here.
+    //  (1) TEMPO — this loop read the live SONG `bpm`/`timeSignature` props (DEFAULT_BPM 90, or whatever
+    //      the last-played level left behind), while every OTHER open-world clock — the ambient music
+    //      (useWorldAmbientMusic), the debug metronome (useDebugMetronome) — runs on the fixed
+    //      WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js §924). The beat-synced sprites and the
+    //      worker-NPC hit rolls therefore ticked at a DIFFERENT tempo than the music they move with —
+    //      never in sync by construction. Now on WORLD_BPM, same as the rest of the world.
+    //  (2) PHASE — the frame index was measured from a local anchor (`petFrameStartMsRef`, latched on
+    //      the first frame after mount): the exact "its own phase, drifts whenever it re-anchors"
+    //      anti-pattern that worldClock.js and useDebugMetronome §924-r4 were fixed to avoid. Now it is
+    //      `floor(context.currentTime / frameSec)` with NO local anchor — frame 0 == world-clock t=0,
+    //      so `petFrame % (FRAMES_PER_BEAT·k)` boundaries coincide exactly with the metronome's beat
+    //      grid and the ambient music's measure grid (which start on `nextMeasureStartTime`).
     useFrameLoop(() => {
-        const nowMs = (context && typeof context.currentTime === 'number') ? context.currentTime * 1000 : performance.now();
-        if (petFrameStartMsRef.current === null) petFrameStartMsRef.current = nowMs;
-        const nextFrame = Math.floor((nowMs - petFrameStartMsRef.current) / frameMsForBpm(bpm, timeSignature));
+        const nowMs = (context && typeof context.currentTime === 'number')
+            ? context.currentTime * 1000
+            : performance.now();   // no AudioContext yet (eager-init makes this ~impossible) → free-running
+        const nextFrame = Math.floor(nowMs / frameMsForBpm(WORLD_BPM, WORLD_TIME_SIGNATURE));
         setPetFrame((f) => (f === nextFrame ? f : nextFrame));
-    }, [bpm, timeSignature, context], { priority: 'critical' });
+    }, [context], { priority: 'critical' });
 
     const { char } = characterEditor;
-    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, setHeldDirection } = rpgLevel;
+    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, clickWorkerNpc, registerWorldInteractables, setHeldDirection, playerXRef, petXRef } = rpgLevel;
     // #925 follow-up (Han 2026-08-16, bug found via LdtkLitGround diagnostic logging): NPC_X/playerX are
     // ABSOLUTE LDtk world coordinates (from useRpgLevelState, clamped to LEVEL_MIN_X..LEVEL_MAX_X), but
     // every LDtk tile-derived "worldX" this shimmer/lit-ground pipeline uses (tile.worldX post
@@ -1334,30 +1615,109 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // `* zoom` — this array's `worldHeight` is already world-space, matching the existing `0`/`32` literals).
     // #1032 round 8 (Han: "het kampvuur heeft nog geen lichtbron. Zet de lichtbron altijd in het midden
     // van de sprite. (bij wisp staat deze op de laagste plek in het level, bij karakter op baseline, mag
-    // echt in het midden van de sprite"): campfire tiles are already canvas-local (kind:'campfire' in
-    // world.animatedTilesBack/Front, ldtkWorld.js) — the light sits at the sprite's own CENTROID (average
+    // echt in het midden van de sprite"): campfire tiles are already canvas-local (kind:'campfire' passes
+    // in world.passes, ldtkWorld.js) — the light sits at the sprite's own CENTROID (average
     // of every campfire tile's own center point), unlike the Wisp (ground level) or hero (its own stand
     // anchor). Averages across ALL campfire-kind tiles, so this assumes one campfire per level — correct
     // for the current level, would need per-cluster grouping (same flood-fill idea as `waterPonds`) if a
     // future level ever placed more than one.
+    // #UI-overhaul bug (Han 2026-08-27): `findCreatureByName('Wisp')` returns an alt sprite — match by the
+    // SAME URL the dialogue portrait uses so the world sprite and the portrait are the one correct Wisp.
+    // (Moved above `ldtkLights` in §364 — that memo now reads `wispVariant.crop.h` / `wispFlying` for the
+    // light-height fix.)
+    const wispVariant = useMemo(
+        () => findVariantByUrl(WISP_URL) || findCreatureByName('Wisp'),
+        [],
+    );
+    // Whether the Wisp's idle animation is a flying/float one — the 16×16 click zone anchors like the
+    // sprite does: mid-bottom for a grounded entity, centre-on-the-hover for a flying one.
+    const wispFlying = useMemo(
+        () => (wispVariant ? isFlyingAnim(findIdleAnim(wispVariant), wispVariant) : false),
+        [wispVariant],
+    );
+    // Perf (#1196, F4, Han 2026-09-06): the hero's own point light is the ONLY light that moves every
+    // frame. Before F4 its position lived inside `baseLights`/`ldtkLights` via `playerX` STATE, so every
+    // ~16 Hz `playerX` throttle tick rebuilt the whole `ldtkLights` array → a fresh identity → busted
+    // `GroundPass`/`ShimmerPass`'s `React.memo` → `LdtkLitGround` + `ForegroundFoliageLayer` re-rendered
+    // ~16 Hz during movement. Now the hero light is a single ref-owned object: it sits in the memo arrays
+    // by REFERENCE (so array identity is stable during a pure walk), and the camera `useFrameLoop` below
+    // mutates its `worldX`/`worldHeight` in place every frame from `playerXRef.current`. Both WebGL
+    // layers already read the light array through their own `liveRef`/`lightsRef` inside their draw
+    // loops, so they pick up the mutated position at full 60 Hz — SMOOTHER than the old 16 Hz — with zero
+    // React re-renders. (§6 pattern: a ref mutation deliberately bypasses React.)
+    const heroLightRef = useRef({ worldX: 0, worldHeight: 0, color: HERO_LIGHT_COLOR01 });
     const campfireLight = useMemo(() => {
-        const tiles = [...world.animatedTilesBack, ...world.animatedTilesFront].filter((t) => t.kind === 'campfire');
+        // #1195: campfire tiles now live in `world.passes` (kind: 'campfire'), not a fixed back/front bucket.
+        const tiles = world.passes.filter((p) => p.kind === 'campfire').flatMap((p) => p.tiles);
         if (!tiles.length) return null;
         const cx = tiles.reduce((sum, t) => sum + t.worldX + world.gridSize / 2, 0) / tiles.length;
         const cyFromTop = tiles.reduce((sum, t) => sum + t.worldY + world.gridSize / 2, 0) / tiles.length;
         return { worldX: cx, worldHeight: LEVEL_PX_HEIGHT - cyFromTop, color: CAMPFIRE_LIGHT_COLOR01 };
     }, [world]);
-    const ldtkLights = useMemo(() => [
-        { worldX: NPC_X - LEVEL_MIN_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
-        { worldX: playerX - LEVEL_MIN_X, worldHeight: groundHeightAt(playerX - LEVEL_MIN_X), color: HERO_LIGHT_COLOR01 },
+    // #weather §364 (Han UAT r2: "de puntbron van de wisp staat op de onderkant van de viewbox, niet in
+    // het midden van de sprite. de puntbron van de hero staat op de onderkant van de sprite"): both were
+    // pinned at the sprite's FEET (wisp at worldHeight 0 = level floor; hero at `groundHeightAt` = its
+    // stand line). The #1032-r8 comment already asked for "altijd in het midden van de sprite" and only
+    // the campfire ever got it — now wisp and hero do too. `worldHeight` is native px above the level
+    // floor (same unit as campfire's `LEVEL_PX_HEIGHT - cyFromTop`), so "sprite centre" = the sprite's
+    // own bottom (stand line, + the float offset when the wisp idle anim is a flying one) + half its
+    // crop height.
+    // Perf (#1196, F4): index 1 is the ref-owned hero light (see `heroLightRef` above) — kept at a FIXED
+    // position in this array so the camera loop can address it as `ldtkLights[1]`; `playerX` is no longer
+    // a dep (the ref mutation drives the hero-light position instead).
+    const baseLights = useMemo(() => [
+        {
+            worldX: NPC_X - LEVEL_MIN_X,
+            worldHeight: groundHeightAt(NPC_X - LEVEL_MIN_X) + (wispFlying ? TILE : 0) + (wispVariant?.crop?.h ?? 16) / 2,
+            color: WISP_LIGHT_COLOR01,
+        },
+        heroLightRef.current,
         ...(campfireLight ? [campfireLight] : []),
-    ], [playerX, campfireLight]);
+    ], [campfireLight, wispFlying, wispVariant]);
+    // #weather §364 (Han: "ik zie nooit de vuurvlieg! ... Ze zijn ook een lightsource, sample voor de
+    // kleur eenmalig het limoengroen van de sprite"): each spawned Firefly critter contributes a MOVING
+    // point light that follows its live wander position (`critterLightPosRef`, written by WorldWanderer),
+    // lime-green (sampled once from the sprite — `fireflyLightColor`), and only while it's actually dark
+    // (colour scaled by `1 - globalIllumination`, and skipped entirely by day). Capped at 4 (nearest the
+    // hero) so wisp+hero+campfire+fireflies never exceeds MAX_LIGHTS (10). Rebuilds on `petFrame` (~10/s)
+    // so the glow tracks the drifting sprite without forcing a per-rAF-frame re-render.
+    const critterLightPosRef = useRef(new Map());
+    const [fireflyLightColor, setFireflyLightColor] = useState([0.7, 1.0, 0.2]);   // lime fallback
+    const fireflyVariant = useMemo(() => findCreatureByName('Firefly'), []);
+    useEffect(() => {
+        const v = fireflyVariant;
+        const cell = v?.animations?.find((a) => a.key === 'fly')?.cells?.[0] ?? v?.animations?.[0]?.cells?.[0];
+        if (!v?.url || !cell) return undefined;
+        let cancelled = false;
+        loadImageEl(v.url).then((img) => {
+            if (cancelled) return;
+            const fw = v.frame?.w ?? 16, fh = v.frame?.h ?? 16;
+            const cv = document.createElement('canvas');
+            cv.width = fw; cv.height = fh;
+            const ctx = cv.getContext('2d');
+            ctx.drawImage(img, cell.col * fw, cell.row * fh, fw, fh, 0, 0, fw, fh);
+            const { data } = ctx.getImageData(0, 0, fw, fh);
+            // Pick the single most green-dominant, brightest opaque pixel — that's the glow ("limoengroen"),
+            // not the average (which would be muddied by the dark body).
+            let best = null, bestScore = -Infinity;
+            for (let p = 0; p < data.length; p += 4) {
+                if (data[p + 3] < 128) continue;
+                const score = data[p + 1] * 2 - data[p] - data[p + 2];
+                if (score > bestScore) { bestScore = score; best = [data[p], data[p + 1], data[p + 2]]; }
+            }
+            if (best) setFireflyLightColor(best.map((c) => c / 255));
+        }).catch(() => {});   // best-effort — the lime fallback stands (§7a: expected & irrelevant)
+        return () => { cancelled = true; };
+    }, [fireflyVariant]);
 
     // #693 round 7 (Han: "level should start moving when the character is at 1/3 of either screen edge"):
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
     // middle third, then re-centers them back to that 1/3 line; clamped so the viewport never shows past
     // the generated level's own edges.
-    const playerXRef = useRef(playerX); playerXRef.current = playerX;
+    // Perf (#1192-jank, Han 2026-09-04): `playerXRef`/`petXRef` now come straight from useRpgLevelState —
+    // the SAME ref the physics loop writes every frame — instead of a local copy resynced from (now
+    // throttled) `playerX`/`petX` state on every render. See that hook's own comment for why a per-render
+    // resync would otherwise periodically clobber the live value with a stale throttled one.
     // #RAM-level BUG FIX (Han 2026-08-11, "ik zie app fps 37, px 0; dat vind ik raar"): this effect used
     // to depend on `[size.w]`, so it tore down and restarted every time the ResizeObserver-driven `size`
     // changed — which, per an existing documented pattern elsewhere in this file, "can genuinely fire more
@@ -1368,21 +1728,36 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // latest `size`/`zoom` through refs updated every render instead of restarting on every change.
     const sizeRef = useRef(size); sizeRef.current = size;
     const zoomRef = useRef(zoom); zoomRef.current = zoom;
-    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders"): 4 ground-plane wrapper `<div>`s
-    // (back-of-entities / front-of-entities passes × "scenery" / "overlay" z-order groups — see their
-    // render sites below, and `worldToScreenXLocal`'s own comment for the full rationale) whose
-    // `transform` this SAME loop now writes directly every frame, bypassing `cameraX` React state/props
-    // for the pan offset entirely. Split into two groups per pass (not one) because `LdtkLitGround` sits
-    // BETWEEN them in the level's own z-order (scenery → lit-ground → animated-tiles/water-reflection)
-    // and isn't wrapped this round (see that same comment) — a single wrapper spanning all of them would
-    // have silently reordered the stack.
-    const sceneryScrollBackRef = useRef(null);
-    const sceneryScrollFrontRef = useRef(null);
-    const overlayScrollBackRef = useRef(null);
-    const overlayScrollFrontRef = useRef(null);
+    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders"): every "factor=1 ground-plane"
+    // wrapper `<div>` across every scene pass (see their render sites below, and `worldToScreenXLocal`'s
+    // own comment for the full rationale) needs the SAME `transform` this loop writes every frame,
+    // bypassing `cameraX` React state/props for the pan offset entirely. #1195 (Han 2026-09-05): used to
+    // be exactly 4 fixed refs (back-of-entities / front-of-entities passes × "scenery" / "overlay"
+    // z-order groups); the pass COUNT is now dynamic (however many contiguous same-kind runs the real
+    // LDtk order produces), so this is a `Map` each pass's own wrapper joins/leaves via
+    // `useRegisteredRef` (declared above `RpgLevelPanel`) instead of a fixed set of refs.
+    const panElsRef = useRef(new Map());
+    // #1195 bugfix (Han 2026-09-05, "ik zie niet de reflectie van eenden"): the DOM node `LastLayerPass`
+    // mounts into — the one layer guaranteed to paint after every other LDtk-mode pass (ground/background/
+    // shimmer/campfire/entities), so nothing can ever paint over what's portaled here. `EntityReflection`
+    // (hero/pet/Wisp/Slime/worker-NPC reflections) and `WorldWanderer`'s own duck-reflection portal both
+    // target this same node — see their own header comments for why each needed it. `useState`, not a
+    // plain ref, because these portal CONSUMERS need to re-render once the target actually exists (it
+    // isn't available on the very first render, same "target created by the same render" pattern any
+    // portal-into-a-sibling needs).
+    const [lastLayerEl, setLastLayerEl] = useState(null);
     // Perf (#1162, Fase 2a): the entity layer (Wisp/Slime/workers/critters/hero/pet) shares this SAME
     // imperative-transform treatment — see `worldToScreenXLocal`'s own comment for the full rationale.
     const entityScrollRef = useRef(null);
+    // Perf (#1192-jank, Han 2026-09-04, "ik zie het ventje dubbel"): the hero/pet wrapper divs' `left`/
+    // `bottom` are written directly in the SAME camera useFrameLoop callback below, from `playerXRef`/
+    // `petXRef` (full frame rate), instead of via JSX driven by throttled React state. This was the
+    // strongest suspect for the reported hero stutter/"double sprite": `setPlayerX` used to fire every rAF
+    // frame (forcing a full React re-render of the whole entity subtree 60x/sec), and the hero's own
+    // position was NOT snapped to the same device-pixel grid the camera pan already snaps to (line below,
+    // `offsetPx`) — a per-frame React-commit-latency + sub-pixel mismatch between hero and background.
+    const heroWrapperRef = useRef(null);
+    const petWrapperRef = useRef(null);
     // Perf (#1162, Fase 2b): the WebGL-instance-layer counterpart to the 5 CSS-transform refs above —
     // `ForegroundFoliageLayer`'s own draw loop reads this directly (see its own `cameraOffsetRef` prop
     // comment) instead of a wrapper `<div>` transform, since its instances are positioned via a per-draw-
@@ -1398,9 +1773,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // render-driving loop (camera follow) — counting its ticks is what "Pixel art FPS" measures,
         // distinct from the generic browser paint rate ("App FPS", useFpsCounters' own rAF).
         reportPixelFrame();
-        setCameraX((cam) => {
+        {
                 const w = sizeRef.current.w;
-                if (w === 0) return cam;
+                if (w === 0) return;
+                const cam = cameraXRef.current;
                 // #RAM-level BUG FIX (Han 2026-08-11, "de scrolling is schokkerig"): was hardcoded to the
                 // module `ZOOM` (3) — silently wrong as soon as the dynamic zoom-to-fit (above) diverged
                 // from 3, throwing off the dead-zone/clamp math against the ACTUAL on-screen scale.
@@ -1414,38 +1790,62 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 const minCam = LEVEL_MIN_X + viewHalfWorld, maxCam = LEVEL_MAX_X - viewHalfWorld;
                 if (minCam <= maxCam) next = Math.min(maxCam, Math.max(minCam, next));
                 else next = (LEVEL_MIN_X + LEVEL_MAX_X) / 2;   // level narrower than viewport — just center it
+                // Perf (#1196, F1): `cameraX` is a REF — write the fresh value straight back, no React
+                // state, no re-render. Everything visible is written imperatively below (and by the
+                // per-layer loops that read `cameraXRef` / `cameraOffsetRef`).
+                cameraXRef.current = next;
                 // Perf (#1162): the ground-plane wrapper's own `left`-space offset is `-cameraX * zoom`
                 // (the exact term `worldToScreenXLocal` below drops from the full `worldToScreenX`
-                // formula) — writing it here, on the FRESH `next` value, means the transform is never a
-                // frame stale waiting for React to commit `cameraX` back down as a prop.
-                const offsetPx = -next * z;
+                // formula), written on the FRESH `next` value.
+                // #weather §364 (Han UAT r2: "ik zie veel naden ... strepen op 16x16 of 32x32 grid"):
+                // SNAP the DOM scroll offset to whole DEVICE pixels. `cameraXRef.current` stays a
+                // continuous float (the dead-zone / clamp math needs it), but the visible transform must
+                // land on the SAME device-pixel grid the WebGL foliage/water quads already snap to
+                // (ForegroundFoliageLayer §327 `Math.round(screenX*dpr)`). Without this the DOM tile
+                // layers slide sub-pixel while the WebGL layers step whole pixels → a 1-px seam that
+                // crawls along the tile grid as the camera pans. `cameraOffsetRef` (read by the WebGL
+                // cull, ForegroundFoliageLayer AND now LdtkLitGround, §322/§331) gets the snapped value
+                // too, so all stay in exact lockstep.
+                const dpr = window.devicePixelRatio || 1;
+                const offsetPx = Math.round(-next * z * dpr) / dpr;
                 const transform = `translateX(${offsetPx}px)`;
-                if (sceneryScrollBackRef.current) sceneryScrollBackRef.current.style.transform = transform;
-                if (sceneryScrollFrontRef.current) sceneryScrollFrontRef.current.style.transform = transform;
-                if (overlayScrollBackRef.current) overlayScrollBackRef.current.style.transform = transform;
-                if (overlayScrollFrontRef.current) overlayScrollFrontRef.current.style.transform = transform;
+                for (const el of panElsRef.current.values()) el.style.transform = transform;
                 if (entityScrollRef.current) entityScrollRef.current.style.transform = transform;
-                // Perf (#1162, Fase 2b): SAME offset, read by ForegroundFoliageLayer's own draw loop.
+                // Perf (#1162, Fase 2b / #1196 F1): SAME offset, read by ForegroundFoliageLayer's AND
+                // LdtkLitGround's own draw loops (the two WebGL layers that bake a per-frame camera term
+                // into a shader uniform rather than a CSS transform).
                 cameraOffsetRef.current = offsetPx;
-                return next;
-            });
+                // #wind §363: `useWorldAmbientMusic` reads camera position through `envAudioRef` for its
+                // per-screen-third rustle panning. That ref used to be refreshed by this component's own
+                // per-frame re-render; F1 removed that re-render, so feed it here directly.
+                if (envAudioRef.current) envAudioRef.current.cameraX = next;
+                // Perf (#1196, F4): the hero point light follows the hero at full frame rate via this
+                // ref-owned object (index 1 of `baseLights`/`ldtkLights` by reference). Mutated in place
+                // — both WebGL lighting layers read the array through their own `liveRef`/`lightsRef`
+                // every draw, so no React re-render is needed for the glow to track the hero smoothly.
+                {
+                    const lx = playerXRef.current - LEVEL_MIN_X;
+                    heroLightRef.current.worldX = lx;
+                    heroLightRef.current.worldHeight = groundHeightAt(lx) + HERO_CROP.h / 2;
+                }
+                // Perf (#1192-jank): hero/pet screen position, written imperatively every frame from the
+                // live physics refs — same rationale as the scroll-layer transforms just above, and SNAPPED
+                // to the same device-pixel grid `offsetPx` uses so the hero never sub-pixel-drifts relative
+                // to the camera/background it's standing on (the mismatch that made it look like a "double"
+                // sprite during fast movement/direction changes).
+                if (heroWrapperRef.current) {
+                    const hx = Math.round(worldToScreenXLocal(playerXRef.current) * dpr) / dpr;
+                    heroWrapperRef.current.style.left = `${hx}px`;
+                    heroWrapperRef.current.style.bottom = `${standAnchorFor(playerXRef.current)}px`;
+                }
+                if (petWrapperRef.current) {
+                    const px = Math.round(worldToScreenXLocal(petXRef.current) * dpr) / dpr;
+                    petWrapperRef.current.style.left = `${px}px`;
+                    petWrapperRef.current.style.bottom = `${standAnchorFor(petXRef.current)}px`;
+                }
+        }
     }, [], { priority: 'critical' });
 
-    // #UI-overhaul bug (Han 2026-08-27, "de verkeerde wisp is gebruikt in het level (wisp alt) — ik moet
-    // wisp hebben"): `findCreatureByName('Wisp')` returns the 'Plain'-or-first variant, which for the Wisp
-    // creature is an alt sprite. Match by the SAME URL the dialogue portrait uses (RpgLevelBottomPanel's
-    // `wispUrl`) so the world sprite and the portrait are the one correct Wisp; fall back to the by-name
-    // pick only if that URL somehow isn't in the scanned bestiary.
-    const wispVariant = useMemo(
-        () => findVariantByUrl(WISP_URL) || findCreatureByName('Wisp'),
-        [],
-    );
-    // Whether the Wisp's idle animation is a flying/float one — the 16×16 click zone anchors like the
-    // sprite does: mid-bottom for a grounded entity, centre-on-the-hover for a flying one.
-    const wispFlying = useMemo(
-        () => (wispVariant ? isFlyingAnim(findIdleAnim(wispVariant), wispVariant) : false),
-        [wispVariant],
-    );
     // #1093 (Han 2026-08-20, "gebruik de 5 NPC entities uit LDtk"): Level_1's 6 anonymous "NPC" markers
     // (the LDtk entity type carries no per-instance identifying field, confirmed via the .ldtk file's own
     // entity defs) get Han's 6 workers assigned in x-order — Han's own confirmed default, adjustable later
@@ -1471,6 +1871,14 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         })).filter((w) => w.variant && w.x != null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    // #weather (Han 2026-09-04, "'f' of 'spatie' werken niet om gesprek te starten"): register the
+    // worker NPCs' world positions + click actions with useRpgLevelState so its F/Space/Enter keyboard
+    // handler can start a conversation with the nearest one (their X lives in the LDtk markers here, not
+    // in the hook). Cleared on unmount.
+    useEffect(() => {
+        registerWorldInteractables(workerNpcs.map((w) => ({ x: w.x, run: () => clickWorkerNpc(w.name, w.x) })));
+        return () => registerWorldInteractables([]);
+    }, [workerNpcs, clickWorkerNpc, registerWorldInteractables]);
     // #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"): a purely visual
     // Slime, standing at the `.ldtk` file's own Slime entity marker — same treatment as the Wisp NPC
     // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
@@ -1510,7 +1918,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const out = [];
         for (const [identifier, cfg] of Object.entries(HABITAT_CONFIG)) {
             for (const pos of (ENTITY_INSTANCES[identifier] ?? [])) {
-                let variant = randomTaggedVariant(cfg.tags, foliageParams.timeOfDay);
+                // #weather: the pool follows the cycle's 'day'/'night' critter kind, which flips at
+                // the MIDPOINT of the dusk/dawn crossfade (the layer is faded out by then — see the
+                // `critterOpacity` wrapper below), so the re-roll is never visible popping in.
+                let variant = randomTaggedVariant(cfg.tags, wOut.critterKind);
                 // #989 ("birds zonder fly kunnen niet in bird gespawnd worden"): a bird-tagged creature with
                 // no actual fly-keyed/labelled animation (`isFlyingAnim` checks key/label/tags — same helper
                 // `isFlyingAnim` uses elsewhere) must never be picked for a bird marker specifically.
@@ -1518,12 +1929,38 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     variant = null;
                 }
                 if (!variant) continue;
-                out.push({ ...pos, ...cfg, variant, waterSpan: cfg.swim ? waterSpanNear(pos.x, pos.y, world) : null });
+                // #weather §364: tag firefly critters so `ldtkLights` below can attach a moving glow.
+                const isFirefly = !!(variant.url && fireflyVariant?.url && variant.url === fireflyVariant.url);
+                out.push({ ...pos, ...cfg, variant, isFirefly, waterSpan: cfg.swim ? waterSpanNear(pos.x, pos.y, world) : null });
             }
         }
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [foliageParams.timeOfDay, world]);
+    }, [wOut.critterKind, world, fireflyVariant]);
+
+    // #weather §364: base lights (wisp/hero/campfire) + a moving glow per spawned Firefly. Split from
+    // `baseLights` because `critterWanderers` is computed further down; merged here so every existing
+    // `ldtkLights` consumer is unchanged.
+    const ldtkLights = useMemo(() => {
+        const nightFactor = 1 - foliageParams.globalIllumination;
+        if (nightFactor < 0.35) return baseLights;   // daytime-ish — no firefly glow at all
+        const col = fireflyLightColor.map((c) => c * nightFactor);
+        // #weather §368 (Han UAT: "lichtbron van vuurvlieg staat niet gecentreerd op de sprite, maar op
+        // het 'bottom' anker"): `p.y` is the sprite's BOTTOM edge (top-down world Y, same as campfire
+        // tiles) — add half the firefly frame height so the glow sits at the sprite's centre.
+        const halfFireflyH = (fireflyVariant?.frame?.h ?? 16) / 2;
+        const flies = critterWanderers
+            .map((w, i) => (w.isFirefly ? critterLightPosRef.current.get(`critter-${i}`) : null))
+            .filter(Boolean)
+            // Perf (#1196, F4): `playerXRef.current` (live) not `playerX` (throttled state) — so this memo
+            // no longer rebuilds on every ~16 Hz `playerX` tick; the "nearest 4 fireflies" set is
+            // re-picked on `petFrame` (~10 Hz), plenty for a drifting-glow ordering.
+            .sort((a, b) => Math.abs(a.x - playerXRef.current) - Math.abs(b.x - playerXRef.current))
+            .slice(0, 4)
+            .map((p) => ({ worldX: p.x - LEVEL_MIN_X, worldHeight: LEVEL_PX_HEIGHT - p.y + halfFireflyH, color: col }));
+        return flies.length ? [...baseLights, ...flies] : baseLights;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [baseLights, critterWanderers, fireflyLightColor, foliageParams.globalIllumination, petFrame]);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -1570,54 +2007,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // pet.
     const noPetChar = useMemo(() => (char ? { ...char, layers: { ...char.layers, pet: null } } : char), [char]);
     const centerX = size.w / 2;
-    // #693 round 7: EVERY world object now goes through this ONE conversion (was `centerX + worldX*ZOOM`
-    // — a fixed mapping that only worked because the camera never moved) so introducing the scrolling
-    // camera couldn't silently miss a spot. Uses `zoom` (mode-aware) rather than the module `ZOOM` directly
-    // so hero/pet/Wisp/Slime — shared between both scenery modes — scale correctly in either.
-    // Perf (#1161, Han 2026-08-27): `useCallback`-wrapped so these keep a STABLE function identity across
-    // renders where `cameraX`/`zoom`/`centerX` genuinely haven't changed (e.g. a `petFrame`-only tick while
-    // the hero stands still) — plain function expressions got a fresh reference every render regardless,
-    // which silently defeated `React.memo` on every consumer below (`LdtkScenery`, `WaterReflectionLayer`,
-    // `LdtkAnimatedTiles`) even when NONE of their actual inputs had changed. Still changes every frame
-    // while the camera is genuinely panning (moving hero) — that part is unavoidable with the current
-    // React-state-driven camera and intentionally NOT addressed this round (see this ticket's own notes on
-    // `cameraX`'s 60×/sec rAF-driven `setCameraX` loop — a separate, larger follow-up if still needed).
-    const worldToScreenX = useCallback((worldX) => centerX + (worldX - cameraX) * zoom, [centerX, cameraX, zoom]);
-    // LdtkScenery's canvases are drawn in LDtk's own native (unshifted) coordinate space, i.e. their own
-    // x=0 = this app's `LEVEL_MIN_X`. `factor` scales how much of the camera's movement a layer reacts to
-    // (1 = the ground plane, <1 = a background layer that lags behind — parallax depth).
-    const leftPxForFactor = useCallback((factor) => centerX + (LEVEL_MIN_X - cameraX * factor) * zoom, [centerX, cameraX, zoom]);
-    // Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): the camera-aware
-    // `localWorldToScreenX` wrapper that used to live here (LDtk ground-plane tiles are stored LEVEL-LOCAL,
-    // 0..pxWid — it added the level's own world offset before projecting through `worldToScreenX`) is gone
-    // — its only caller, the animated-tiles cull, was switched to the camera-INDEPENDENT
-    // `localWorldToScreenXLocal` + a live `cameraOffsetRef` read instead (see `useCulledAnimatedTiles`'s own
-    // header comment for why). Nothing else needs the camera-aware "local" variant.
-    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders" — Fase 1): `worldToScreenX`/
-    // `leftPxForFactor(1)` above are STILL unstable while the camera genuinely pans (they depend on
-    // `cameraX`, by design — the deps comment above already says so). This is the fix for that: a ground-
-    // plane (factor=1) wrapper `<div>`s (`sceneryScrollBackRef`/`sceneryScrollFrontRef`/
-    // `overlayScrollBackRef`/`overlayScrollFrontRef`, declared above next to the camera rAF loop that
-    // writes them) whose
-    // `transform: translateX(...)` is written IMPERATIVELY every rAF frame by the SAME loop that already
-    // computes `cameraX` (see that effect's own comment), bypassing React/props entirely for the pan
-    // offset — exactly the pattern `SheetRpgLayer.jsx`'s `frozenScrollPxRef` already uses for its own
-    // scroll transform (§1050). Content placed INSIDE that wrapper positions itself with these LOCAL
-    // variants — `centerX + worldX*zoom`, i.e. the SAME formula with the `- cameraX` term dropped — which
-    // depend on `centerX`/`zoom` only, genuinely stable while only the camera (not the viewport size or
-    // zoom level) changes, so consumers wrapped this way keep a real `React.memo` hit while panning.
-    // Scoped to the plain DOM/2D-canvas layers only this round (`LdtkScenery`'s ground `CanvasLayer` —
-    // whose OWN header comment already says panning-via-CSS-`left` was the original intent —
-    // `WaterReflectionLayer`, `LdtkAnimatedTiles`): those position themselves with a single CSS
-    // `left`/`background-position` write, so wrapping them is a straightforward "drop the camera term,
-    // let the ancestor transform supply it" change. The WebGL INSTANCE layers (`LdtkLitGround`,
-    // `ForegroundFoliageLayer`) bake each instance's camera-aware `screenX` into per-frame draw-call data
-    // rather than a single CSS transform — giving THEM the same treatment needs a live camera-offset
-    // shader uniform instead, a separate, GLSL-touching follow-up, not done this round. Background
-    // parallax layers (factor <1, inside `LdtkScenery`'s own `backgroundLayers` loop) are few in number
-    // (a handful of hand-authored layers, not hundreds of placed tiles) and also left on the existing
-    // camera-dependent `leftPxForFactor` path for the same reason — lower cost, not worth the same
-    // wrapper machinery this round.
+    // #693 round 7 / Perf (#1162 Fase 1 → #1196 F1): world content positions itself with these
+    // camera-INDEPENDENT
+    // LOCAL variants — `centerX + worldX*zoom`, the same formula with the `- cameraX` term dropped —
+    // which depend on `centerX`/`zoom` only, genuinely stable while only the camera pans. The pan offset
+    // is then supplied by an ancestor's imperative `translateX` (the `panElsRef`/`entityScrollRef`
+    // wrappers written by the camera `useFrameLoop`), by `BgLayer`'s own per-frame transform, or by the
+    // `cameraOffsetRef` a WebGL layer adds inside its own draw loop (`LdtkLitGround`,
+    // `ForegroundFoliageLayer`). `localWorldToScreenXLocal` additionally folds in `LEVEL_MIN_X` for the
+    // LDtk tiles stored LEVEL-LOCAL (0..pxWid).
     const worldToScreenXLocal = useCallback((worldX) => centerX + worldX * zoom, [centerX, zoom]);
     const localWorldToScreenXLocal = useCallback((localX) => worldToScreenXLocal(LEVEL_MIN_X + localX), [worldToScreenXLocal]);
     const groundLeftPxLocal = useMemo(() => centerX + LEVEL_MIN_X * zoom, [centerX, zoom]);
@@ -1631,21 +2029,29 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // lets the hook convert water tiles' canvas-local worldX back to that same absolute space itself.
     envAudioRef.current = {
         listenerX: playerX, levelMinX: LEVEL_MIN_X, birdPositionsRef,
-        waterTiles: sceneryMode === 'LDtk' ? [...waterTilesBack, ...waterTilesFront] : [],
+        waterTiles: allWaterTiles,
+        // #wind §363 (Han 2026-09-01, "windgeluid uit de foliage"): the auto weather cycle's current
+        // wind level (0-3), the camera window in world px (screen split into thirds), and which
+        // ABSOLUTE-X world-chunks contain tree foliage — everything `useWorldAmbientMusic`'s rustle
+        // voices need to gate/pan themselves per screen-third.
+        windLevel: Math.round(wOut.windValue),
+        // Perf (#1196, F1): seed value only — the camera `useFrameLoop` writes `envAudioRef.current
+        // .cameraX` fresh every frame, since a pan no longer re-runs this render.
+        cameraX: cameraXRef.current,
+        viewportWorldWidth: zoom > 0 ? size.w / zoom : 0,
+        foliageChunkSet: world.foliageChunkSet,
     };
     useWorldAmbientMusic({ active: true, context, musicVolumeMultiplier: rpgMusicVolumeMultiplier, envAudioRef });
     // Hero/pet/Wisp/Slime always stand on this line, regardless of which scenery is showing underneath
-    // them — LDtk mode uses the hardcoded `STAND_HEIGHT_PX` (own comment above) scaled by the SAME dynamic
-    // zoom every other LDtk element uses; legacy mode keeps its own fixed `GROUND_ANCHOR`.
+    // them — the hardcoded `STAND_HEIGHT_PX` (own comment above) scaled by the SAME dynamic zoom every
+    // other element uses.
     // #1040 (Han 2026-08-17, collision-mask interview: "all ground-anchored entities... exclude flying and
     // on-water"): each entity now asks `groundHeightAt` for ITS OWN X — a single shared `standAnchor`
     // constant can't represent a sloped/stepped Collision_mask area, since different entities standing at
     // different X positions may be on different parts of a ramp. `groundHeightAt` takes a CANVAS-LOCAL X
     // (canonical conversion: absolute worldX - LEVEL_MIN_X, same as `ldtkLights` above) and already
     // falls back to flat STAND_HEIGHT_PX where no Collision_mask tile covers that X.
-    const standAnchorFor = (absoluteWorldX) => sceneryMode === 'LDtk'
-        ? groundHeightAt(absoluteWorldX - LEVEL_MIN_X) * zoom
-        : GROUND_ANCHOR;
+    const standAnchorFor = (absoluteWorldX) => groundHeightAt(absoluteWorldX - LEVEL_MIN_X) * zoom;
     // Perf (#1161): useCallback for the same reason as worldToScreenX/leftPxForFactor above — a stable
     // identity so useMemo below (the actual per-frame culled-instance arrays) can skip recomputing when
     // nothing it reads has genuinely changed.
@@ -1673,7 +2079,8 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         isWater: inst.isWater,
     }), [localWorldToScreenXLocal, size.h, zoom]);
     // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): builds the ATLAS-backed instance shape
-    // straight from the raw LDtk tiles (`world.foliageTilesBack/Front`) — deliberately NOT derived from the
+    // straight from the raw LDtk tiles (a shimmer pass's own `tiles`, see `ShimmerPass` above) —
+    // deliberately NOT derived from the
     // now-removed `useLdtkFoliageInstances` output above, since that hook's `diffuseUV` was in SHEET space
     // (fraction of the whole tileset image); this needs ATLAS space (fraction of `foliageAtlas`'s packed
     // canvas), looked up by the exact same `${tilesetUrl}|${src[0]},${src[1]}` key `useLdtkFoliageAtlas.js`
@@ -1693,6 +2100,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const [u0, v0, u1, v1] = uv;
         const localX = tile.worldX + world.gridSize / 2;
         const localBottomFromLevelBottom = LEVEL_PX_HEIGHT - tile.worldY - world.gridSize;
+        // §387 (#1222): #1221's per-tile `internalEdges` adjacency bitmask used to be computed here and
+        // packed into the instance buffer. Gone — the shader now tests the world silhouette mask in LEVEL
+        // space, where a canopy's internal tile boundaries simply are not edges, so there is nothing to
+        // suppress and no atlas-space flip mapping to get wrong.
         return {
             diffuseUV: [
                 tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
@@ -1709,154 +2120,77 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             wave: true, skew: true,
         };
     }, [foliageAtlas, world.gridSize, localWorldToScreenXLocal, size.h, zoom]);
-    const atlasFoliageInstancesBack = useMemo(
-        () => world.foliageTilesBack.map(atlasFoliageInstanceFor).filter(Boolean),
-        [world.foliageTilesBack, atlasFoliageInstanceFor],
+    // #1195 (Han 2026-09-05): `atlasFoliageInstanceFor`/`foliageInstanceProps` themselves stay HERE
+    // (shared, stable `useCallback`s every shimmer pass reuses) — but the PER-PASS instance lists these
+    // used to build (`atlasFoliageInstancesBack/Front`, `localFoliageInstancesBack/Front`) and the
+    // campfire cull (`culledAnimatedTilesBack/Front`, via `useCulledAnimatedTiles` — see its own header
+    // comment for the perf story behind it, unchanged) all moved INTO `ShimmerPass`/`CampfirePass`
+    // (declared above `RpgLevelPanel`) — one `useMemo`/hook call per pass now that the pass count is
+    // dynamic, instead of two fixed back/front calls here.
+
+    // #weather §362 (Han 2026-09-01, "de dag/nacht-cyclus werkt niet op de achtergrondlaag, wordt niet
+    // donker"): the LDtk-mode parallax background canvases have NO lit pipeline (unlike ground/foliage,
+    // which the WebGL shaders darken). (§372: the static theme backdrop — old CSS gradient + bgLayer5 —
+    // is gone, replaced by <SkyGradientBackdrop> which darkens itself.) This is a multiply toward
+    // the SAME night colour, faded on `globalIllumination` — same formula as the shader's own
+    // `mix(AMBIENT_DARK_COLOR, 1.0, globalIllumination)`. `null` (skip entirely) at full daylight so
+    // day frames pay nothing.
+    // #weather §370 r3: the bg darken/rim are BAKED into each bg canvas now (see LdtkScenery `BgLayer`),
+    // so a fresh value every weather tick would re-bake the canvas 12×/sec during a crossfade. Quantise
+    // to 0.05 steps → ~13 re-bakes over a 10 s fade, 0 at steady day/night.
+    const bgNight = Math.round(Math.max(0, 1 - foliageParams.globalIllumination) * 20) / 20;
+    const bgDarkenColor = bgNight > 0 ? rgbCss(AMBIENT_DARK_RGB, bgNight) : null;
+    // #weather §370 r4 (Han: moon "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor
+    // dawn"): the RIM (moon) is gated on the same night-only curve the shader uses (moonPresence) — 0 at
+    // dusk/dawn (illum 0.33), 1 only deep in night — NOT the general 1-illum darken. Quantised to match.
+    const gi = foliageParams.globalIllumination;
+    // §374 UAT r2: lower bound lifted 0.08 → 0.13 so the new 0.12 deep-night floor still reads as full
+    // presence (this curve was tuned for the old 0.05 floor).
+    const moonPresence = gi >= 0.20 ? 0 : gi <= 0.13 ? 1 : (0.20 - gi) / 0.07;
+    // §374 UAT r2 (Han: "maangloed enkel als de maan schrijnt"): gate the parallax-bg moon rim on the
+    // REAL moon too — `foliageParams.moonShine` (0 when the moon is down / new) — exactly as the WebGL
+    // layers now premultiply `uMoonStrength`. No rim on a moonless night.
+    const bgRimOpacity = Math.round(moonPresence * (foliageParams.moonShine ?? 1) * 20) / 20;
+    // §377 (#1193): the parallax-background twin of the shader sun glow — the same baked rim canvas
+    // LdtkScenery already uses for the moon, masked to a disc around the sun and tinted with the sun's
+    // colour. Everything handed to <SceneryBack>/<LdtkScenery>/<BgLayer> is a SCALAR or a STRING, never
+    // a fresh array/object: `bgDarkenColor` is deliberately a css string so those React.memo boundaries
+    // hold, and an array prop would break the memo on EVERY render.
+    // Opacity is the SAME quantised `sunGlow` the shaders read, so night/overcast switch it off for
+    // free. The POSITION gets its own, COARSER quantum: unlike a shader (which just reads a uniform), a
+    // BgLayer has to RE-BAKE its canvas whenever this changes — 4 gpx ⇒ ~0.5 re-bakes/s while the sun
+    // is up, instead of the shaders' ~2/s.
+    const bgSunRimOpacity = foliageParams.sunGlow ?? 0;
+    const sunGpxX = (foliageParams.sunScreenPos?.[0] ?? 0) * skyGeomWpx;
+    const sunGpxY = (foliageParams.sunScreenPos?.[1] ?? 0) * skyGeomWpx;
+    const bgSunLeftPx = Math.round(sunGpxX / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
+    const bgSunBottomPx = size.h - Math.round(sunGpxY / BG_SUN_POS_QUANT_GPX) * BG_SUN_POS_QUANT_GPX * zoom;
+    const bgSunRimColor = rgbCss(foliageParams.sunGlowColor ?? SUN_GLOW_RGB);
+    // #1220 (Han: "als de zon volledig achter de PARALLAX-lagen verdwenen is, stop met sheenen op alle
+    // lagen — NIET wanneer bedekt door de gewone [voorgrond] laag"). The sun is screen-fixed (celestial
+    // projection); the world scrolls under it, so this is CAMERA-aware. Reads `cameraXRef.current` live.
+    // Perf (#1196, F1): the render body no longer re-runs on every pan frame — but the hero's own
+    // `playerX` state still ticks at ~16 Hz while moving (and the camera only pans while the hero moves),
+    // so this recomputes at ~16 Hz during movement, which is ample for a 0.05-quantised "sun sinking
+    // behind the treeline" fraction. Sample the sun disc (centre + a ring at 0.85·R / 0.6·R) against the
+    // parallax BACKGROUND layers only (`bgOccluders`) — each with its own `factor`; the covered fraction
+    // drives a LINEAR shrink of the glow RADIUS, quantised to 0.05 so the memo below stays stable.
+    // #1220 DISABLED (Han: "als ik naar links ga, tegen de wereldrand, valt de sheen opeens weg —
+    // hangt samen met een ghost parallax-laag met dennebomen"). The parallax-occlusion radius shrink
+    // relied on the render body re-running each pan frame to read a fresh camera; #1196 F1 made the
+    // camera a pure ref and stopped that, so this fires stale (the "sudden drop" at the world edge).
+    // Doing it right needs the sample to run in the rAF loop where `cameraXRef.current` is fresh — a
+    // design revisit. Until then the sun sheen is consistent (no false occlusion). `bgOccluders` is
+    // kept for that redo.
+    const sunGlowVisFrac = 1;
+    // Scale the astronomy radius by the visible fraction, keeping the SAME object identity when nothing
+    // is occluded so the foliage/ground layers' React.memo never breaks on a clear-sky frame.
+    const foliageParamsRender = useMemo(
+        () => (sunGlowVisFrac >= 1
+            ? foliageParams
+            : { ...foliageParams, sunGlowRadius: (foliageParams.sunGlowRadius ?? 0) * sunGlowVisFrac }),
+        [foliageParams, sunGlowVisFrac],
     );
-    const atlasFoliageInstancesFront = useMemo(
-        () => world.foliageTilesFront.map(atlasFoliageInstanceFor).filter(Boolean),
-        [world.foliageTilesFront, atlasFoliageInstanceFor],
-    );
-    // #RAM-level (Han 2026-08-11, "de animatie is behoorlijk schokkerig... hoe is de performance?"):
-    // `ForegroundFoliageLayer` draws ONE `gl.drawArrays` call per instance, not batched (its own file
-    // header) — a level with ~1000 foliage tiles (Pine_forest_foliage2 alone has ~800) meant ~1000
-    // uncullled draw calls EVERY frame regardless of camera position, the dominant cost behind the choppy
-    // animation/scrolling Han measured (LCP 5.37s, INP 816ms). Foliage/animated tiles scattered across the
-    // whole level only need to draw the handful currently on-screen — filtered by projected `screenX` (a
-    // fixed pixel margin around the viewport) before reaching the shader, cutting the typical per-frame
-    // instance count from ~1000 to whatever's actually visible.
-    // #925 follow-up (Han 2026-08-16, "de watertiles zijn soms niet zichtbaar (despawn), vooral tijdens
-    // veel schermbeweging"): widened from 200 — a fast camera pan can move a tile from "just inside the
-    // old margin" to "just outside the viewport" across a couple of frames, and the reverse on re-entry;
-    // a bigger buffer gives more slack before a genuinely visible tile gets culled. Mitigation, not a
-    // structural fix — flag if this doesn't fully resolve it, since cull-margin size can only ever reduce
-    // the WINDOW where a fast-enough pan still outruns it, not eliminate it category.
-    //
-    // Perf (#1162, Fase 2b): the FOLIAGE culling this comment originally described moved into
-    // `ForegroundFoliageLayer`'s own draw loop (its own `cameraOffsetRef`-adjacent cull check, same
-    // 400px margin, kept in sync manually).
-    // Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): the animated-tiles
-    // (campfire) cull — the cheaper DOM-based `LdtkAnimatedTiles` path, which has no draw loop of its own
-    // — used to be a camera-aware `useMemo` that silently rebuilt every rAF frame during movement despite
-    // its own comment claiming otherwise (see `useCulledAnimatedTiles`'s own header comment for the full
-    // story). Moved onto that throttled hook, which uses the SAME `CULL_MARGIN_PX` and camera-independent
-    // positioning `ForegroundFoliageLayer`'s own culling already relies on.
-    const culledAnimatedTilesBack = useCulledAnimatedTiles(nonWaterAnimatedTilesBack, localWorldToScreenXLocal, cameraOffsetRef, sizeRef);
-    const culledAnimatedTilesFront = useCulledAnimatedTiles(nonWaterAnimatedTilesFront, localWorldToScreenXLocal, cameraOffsetRef, sizeRef);
-    // Perf (#1162, Fase 2b): no longer culled here — `ForegroundFoliageLayer`'s own draw loop culls
-    // against the LIVE camera offset every frame instead (see its `cameraOffsetRef` prop comment). These
-    // two stay `useMemo`'d so they're genuinely stable — and skip rebuilding entirely — while only the
-    // camera pans (only foliage/water CONTENT changes invalidate them now, not `cameraX`).
-    // Perf (#1162, Fase 10c): WATER-ONLY now — foliage moved to the atlas-backed instanced path above
-    // (`atlasFoliageInstancesBack/Front`). Water stays on this original per-instance-uniform path (see
-    // `useLdtkFoliageAtlas.js`'s own header comment for why it wasn't folded into the atlas too).
-    const localFoliageInstancesBack = useMemo(
-        () => waterInstancesBack.map((inst) => foliageInstanceProps(inst)),
-        [foliageInstanceProps, waterInstancesBack],
-    );
-    const localFoliageInstancesFront = useMemo(
-        () => waterInstancesFront.map((inst) => foliageInstanceProps(inst)),
-        [foliageInstanceProps, waterInstancesFront],
-    );
-
-    // #141 round 12: the CSS-approximated day/night tint for DOM elements (backgrounds, tent, trunk) —
-    // recomputed each render from the same `globalIllumination` value driving the WebGL shader, so both
-    // systems track the same debug-panel slider.
-    const domAmbientTint = rgbCss(mixRgb(AMBIENT_DARK_RGB, [255, 255, 255], foliageParams.globalIllumination));
-    // Split into "paint" (background/blend-mode, safe to spread) vs. a separate full-screen variant with
-    // `inset:0` — spreading `inset:0` into a styled div that ALSO sets explicit left/bottom/width/height
-    // (the trunk/tent overlays) would leave `top`/`right:0` fighting those, over-constraining the box.
-    const domDarkenPaint = { background: domAmbientTint, mixBlendMode: 'multiply', pointerEvents: 'none' };
-    const domDarkenOverlayStyle = { position: 'absolute', inset: 0, ...domDarkenPaint };
-
-    const floorTileIdx = useMemo(
-        () => Array.from({ length: LEVEL_TILES }, () => Math.floor(Math.random() * FLOOR_CELLS.length)),
-        [],
-    );
-    // #693 round 12 ("gebruik de grassprieten... royaal, dus bijna overal"): one tuft roughly every 3 world
-    // tiles across the WHOLE level span, each with a little jitter and a random cell pick, rolled once per
-    // mount (not every render — same convention as `floorTileIdx` above).
-    const grassTuftPositions = useMemo(() => {
-        const out = [];
-        for (let x = LEVEL_MIN_X; x <= LEVEL_MAX_X; x += GRASS_TUFT_SPACING) {
-            const jitter = (Math.random() - 0.5) * GRASS_TUFT_SPACING * 0.6;
-            const cell = GRASS_TUFT_CELLS[Math.floor(Math.random() * GRASS_TUFT_CELLS.length)];
-            out.push({ x: x + jitter, cell });
-        }
-        return out;
-    }, []);
-
-    // #141 round 14 (Han, NL: "ik blijf voor het licht een onderscheid zien tussen de grass tiles en de
-    // foliage/boomstam. Ik wil dat ALLE objecten zich hetzelfde gedragen t.o.v. licht (maar niet de
-    // achtergrond)" + "ik zie ook geen normal map op de tent en boomstam" + "Is het niet gewoon beter om een
-    // normal map ook op het gras te maken? Het level is statisch je kan die bij app-constructie eenmalig
-    // opbouwen" — "I keep seeing a difference between the grass tiles and the foliage/trunk regarding light.
-    // ALL objects should behave the same w.r.t. light except the background" + "I don't see a normal map on
-    // the tent/trunk either" + "isn't it better to build a normal map for the grass too? The level is
-    // static, build it once at construction"): the floor, trunk, and tent move from the DOM+CSS-approximation
-    // hybrid (§148) into ONE shared WebGL sprite pipeline, same as the tree/tufts/crates — genuinely
-    // identical lighting code, not a CSS lookalike. `runtimeTextures` holds the generated diffuse/normal
-    // canvases (as data URLs, so they slot into ForegroundFoliageLayer's existing texture-URL loading with
-    // zero changes there): a floor diffuse+normal PAIR stitched to match `floorTileIdx`'s EXACT random tile
-    // arrangement (not a "representative cell" approximation — the real thing), plus one normal map each
-    // for the trunk and tent crops. Built ONCE on mount (Han's own "build it once at construction" idea) via
-    // scripts/../utils/runtimeNormalMap.js's browser-side Sobel generator — no new asset files, computed
-    // live from the already-loaded source sheets.
-    const [runtimeTextures, setRuntimeTextures] = useState(null);
-    useEffect(() => {
-        // #RAM-level: this whole normal-map build is legacy-scenery-only art (floor/trunk/tent) — skip it
-        // entirely in the new LDtk scenery mode rather than doing the work and never using the result.
-        if (sceneryMode !== 'Legacy') return undefined;
-        let cancelled = false;
-        (async () => {
-            const [floorImg, treeImg, decorImg] = await Promise.all([
-                loadImageEl(floorTiles2Url), loadImageEl(treeSheetUrl), loadImageEl(decorUrl),
-            ]);
-            if (cancelled) return;
-
-            // Floor — stitch diffuse + normal side by side, one FLOOR_TILE-wide strip per slot, in the SAME
-            // order floorTileIdx already picked (so the WebGL sprite's diffuse matches the level exactly,
-            // not an approximation).
-            const floorW = floorTileIdx.length * FLOOR_TILE;
-            const floorDiffuseCv = document.createElement('canvas');
-            floorDiffuseCv.width = floorW; floorDiffuseCv.height = FLOOR_TILE;
-            const floorDiffuseCtx = floorDiffuseCv.getContext('2d');
-            const floorNormalCv = document.createElement('canvas');
-            floorNormalCv.width = floorW; floorNormalCv.height = FLOOR_TILE;
-            const floorNormalCtx = floorNormalCv.getContext('2d');
-            const normalCellCache = new Map();
-            floorTileIdx.forEach((idx, i) => {
-                const cell = FLOOR_CELLS[idx];
-                const sx = (cell.col - 1) * FLOOR_TILE, sy = (cell.row - 1) * FLOOR_TILE;
-                floorDiffuseCtx.drawImage(floorImg, sx, sy, FLOOR_TILE, FLOOR_TILE, i * FLOOR_TILE, 0, FLOOR_TILE, FLOOR_TILE);
-                const key = `${cell.row}-${cell.col}`;
-                let normalCellCv = normalCellCache.get(key);
-                if (!normalCellCv) {
-                    normalCellCv = normalMapCanvasFromCrop(floorImg, sx, sy, FLOOR_TILE, FLOOR_TILE);
-                    normalCellCache.set(key, normalCellCv);
-                }
-                floorNormalCtx.drawImage(normalCellCv, i * FLOOR_TILE, 0);
-            });
-
-            // Trunk + tent — single-crop normal maps (their diffuse stays the existing sheet URL + a crop
-            // rect, same convention every other sprite instance already uses).
-            const trunkNormalCv = normalMapCanvasFromCrop(
-                treeImg, (TRUNK_CELL.col - 1) * TREE_CELL.w, (TRUNK_CELL.row - 1) * TREE_CELL.h, TREE_CELL.w, TREE_CELL.h,
-            );
-            const tentW = TENT_W * TILE, tentH = TENT_H * TILE;
-            const tentNormalCv = normalMapCanvasFromCrop(
-                decorImg, (TENT_CELL.col - 1) * TILE, (TENT_CELL.row - 1) * TILE, tentW, tentH,
-            );
-
-            if (cancelled) return;
-            setRuntimeTextures({
-                floorDiffuseUrl: floorDiffuseCv.toDataURL(), floorNormalUrl: floorNormalCv.toDataURL(), floorWidth: floorW,
-                trunkNormalUrl: trunkNormalCv.toDataURL(),
-                tentNormalUrl: tentNormalCv.toDataURL(), tentW, tentH,
-            });
-        })();
-        return () => { cancelled = true; };
-    }, [floorTileIdx, sceneryMode]);
 
     return (
         <div ref={containerRef}
@@ -1867,7 +2201,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 // #UI-overhaul Stap 3 bug: was `/ ZOOM` (the fixed module constant) — wrong whenever the
                 // live `zoom` differs (LDtk `dynamicZoom`, or an explicit integer `worldScale`), same
                 // class of bug as the #1032-round-4 DebugGrid fix ("gebruik je universele schalingfactor?").
-                moveTo(cameraX + (e.clientX - rect.left - centerX) / zoom);
+                moveTo(cameraXRef.current + (e.clientX - rect.left - centerX) / zoom);
             }}
             style={{
                 position: 'relative', width: '100%', height: '100%', overflow: 'hidden',
@@ -1875,253 +2209,166 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             }}>
             {/* #141 round 27 (Han, NL: "wind wil ik als apart symbool linksbovenin beeld") — ALWAYS visible
                 (not gated on debugMode, unlike the rest of the foliage debug UI below), so Han can see the
-                current wind level during normal play too. One 💨 per WIND_LEVEL_PX step (1/2/3) — a simple,
-                immediately-readable intensity cue, no new art asset needed. pointerEvents: 'none' so it's
-                purely decorative and never intercepts the container's own tap-to-move handler. */}
-            <div
-                style={{
-                    position: 'absolute', top: 8, left: 8, zIndex: 5, display: 'flex', alignItems: 'center', gap: 2,
-                    padding: '3px 6px', background: 'rgba(0,0,0,0.5)', borderRadius: 4,
-                    fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 13, color: '#fff', pointerEvents: 'none',
-                }}
-            >
-                {'💨'.repeat(WIND_LEVEL_PX[foliageParams.windLevel] || 1)}
-            </div>
+                current wind level during normal play too. One 💨 per whole wind step. #weather (2026-09-01):
+                the range is now 0-3 and driven by the auto cycle — the animated `wOut.windValue` is rounded
+                to a whole number of puffs, and at wind 0 (windstil) the whole pill is hidden ("0 puffs").
+                pointerEvents: 'none' so it's purely decorative and never intercepts the container's own
+                tap-to-move handler. */}
+            {Math.round(wOut.windValue) > 0 && (
+                <div
+                    style={{
+                        position: 'absolute', top: 8, left: 8, zIndex: 5, display: 'flex', alignItems: 'center', gap: 2,
+                        padding: '3px 6px', background: 'rgba(0,0,0,0.5)', borderRadius: 4,
+                        fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 13, color: '#fff', pointerEvents: 'none',
+                    }}
+                >
+                    {'💨'.repeat(Math.round(wOut.windValue))}
+                </div>
+            )}
             {/* #693 round 7 — layer order BACK TO FRONT (Han's exact spec):
                 theme background (static) → background 4 (0.2) → background 3 (0.4) → background 2 (0.6)
                 → background 1 (0.8) → level (parallax 1: tiles → decoration → characters → pets →
                 foreground details). Each parallax layer's own background-position shifts by
                 `-cameraX * factor` — the SAME camera that drives every world object below, just scaled
                 down per layer so farther layers crawl and nearer ones sweep almost as fast as the level. */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, #8fd0d9, #dff3f5)' }} />
-            <img src={bgLayer5Url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
-            {/* #141 (Han 2026-08-05, "make all backgrounds the same scale as the rest of the level. There
-                should be 1 global scaling factor, that's it" — CORRECTS §693 round 12's deliberate
-                "backgrounds render at native res, not ZOOM" choice): every parallax layer now renders at
-                native × `ZOOM`, the SAME single scale factor every other sprite in the level uses — no
-                separate backdrop-scaling rule. Alignment rule (also Han, this round): "move all elements of
-                the background so that the background image 64px from the bottom is aligned with the bottom
-                of the level" — each layer's container `bottom` is solved so that the point `HORIZON_PX *
-                ZOOM` above the IMAGE's own bottom edge lands exactly at `GROUND_ANCHOR` (the level's floor
-                line), not the viewport's bottom edge. `bgBottomOffset` is commonly negative — the image's
-                own bottom edge sits BELOW the visible viewport, which is expected once the image is this
-                much bigger than before. No more per-layer `sinkPx` — one rule, no exceptions. */}
-            {/* #RAM-level: the LDtk scenery brings its OWN 5 background layers (ldtkWorld.js's
-                BACKGROUND_LAYERS, rendered via <LdtkScenery> below) — this hand-drawn 4-layer parallax
-                system is legacy-mode only, kept for Han's side-by-side comparison (see `sceneryMode`). */}
-            {sceneryMode === 'Legacy' && PARALLAX_LAYERS.map(({ url, factor }, i) => {
-                const bgW = BG_NATIVE.w * ZOOM, bgH = BG_NATIVE.h * ZOOM;
-                const offsetPx = -((cameraX * factor * ZOOM) % bgW);
-                // #141 round 4 (Han: "drop the backgrounds a further 32px"): additional fixed nudge below
-                // the HORIZON_PX/GROUND_ANCHOR alignment solved above — a flat adjustment, not a new rule.
-                const bgBottomOffset = GROUND_ANCHOR - HORIZON_PX * ZOOM - 32;
+            {/* §372 (Han: "vervang de achtergrond (verste parallax) door een gerenderde gradient"): the
+                static theme backdrop — a hard-coded CSS `linear-gradient` div + `Background layers_layer
+                5.png` — is now this one component: 5 stops sampled once from layer-5, night mix + dusk/
+                dawn horizon glow baked in from the auto weather cycle's `globalIllumination`. */}
+            {/* Perf (#1192-jank, Han 2026-09-04, "transitie van gradient loopt schokkerig"): `weatherRef`
+                is now passed directly — SkyGradientBackdrop reads `weatherOutputs(weatherRef.current)`
+                itself inside its own `useFrameLoop` callback and writes `style.background` imperatively,
+                the SAME pattern `<CelestialSky>` (§374) already uses. §375's `quantCloudCover` (still
+                used below for the OTHER `weather`-state gate) is no longer threaded through here — that
+                0.05 quantisation was exactly what made a 10s cloud-cover transition repaint only ~2x/sec
+                (architecture.md §381). §375 UAT r1 (Han: "de vlekken hoeven niet"): the procedural mottle
+                canvas is gone, so this is a plain gradient div again — no size/seed props. */}
+            <SkyGradientBackdrop weatherRef={weatherRef} />
+            {/* §374 (#1191, Han 2026-09-04): the celestial layer sits between the rendered sky gradient
+                and EVERY parallax layer below, so a setting sun/moon simply sinks behind the scenery
+                with no clipping code. It reads the cycle clock off `weatherRef` (not state) — see its
+                own header comment for why that is required, not an optimisation — and its star opacity
+                is a pure function of the same `globalIllumination` the shaders read. */}
+            <CelestialSky
+                weatherRef={weatherRef}
+                globalIllumination={foliageParams.globalIllumination}
+                sizePx={size}
+                zoom={zoom}
+                horizonGamePx={HORIZON_PX}
+                debugMode={debugMode}
+                showConstellationLines={showConstellationLines}
+                showConstellationNames={showConstellationNames}
+            />
+
+            {/* #1195 (Han 2026-09-05, "houd gewoon áltijd de volgorde van LDTK aan"): renders `world.passes`
+                (ldtkWorld.js) directly, in array order — back-to-front, exactly the real `.ldtk` file's own
+                paint order, `'entities'` included at its own natural position rather than a fixed "all back
+                content, then hero/pet, then all front content" split. Each pass kind gets the ONE renderer
+                that kind already used (`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`, defined
+                above `RpgLevelPanel`; all four internally no-op outside `sceneryMode==='LDtk'`) — this is
+                what makes e.g. `City_Walls` (a plain ground layer) correctly render BETWEEN
+                `Grass_decoration_fg` and `Grass_decoration_bg` instead of after ALL foliage, and what makes
+                a ground/foliage layer that sits in front of `Entities` in the file correctly draw on top of
+                the hero/pet/Wisp/Slime (architecture.md §382/#1195 — the bug this replaced the old fixed
+                `SceneryBack`/`EntityLayer`/`SceneryFront` trio to fix).
+                #RAM-level (Han 2026-08-11, "foliage laag flitst nogal bij bewegen; bij veel beweging is het
+                foliage effect toch te subtiel... Maar toon dan de default ongemodificeerde sprite, ipv
+                niets"): `ShimmerPass` still bakes its OWN tiles into a flat fallback canvas too — see its
+                own header comment. */}
+            {world.passes.map((pass, i) => {
+                const passKey = `pass-${i}`;
+                if (pass.kind === 'ground') {
+                    return (
+                        <GroundPass
+                            key={passKey} passKey={passKey} tiles={pass.tiles} edgeLitOnly={i > entitiesPassIndex}
+                            cameraOffsetRef={cameraOffsetRef} panElsRef={panElsRef}
+                            groundLeftPx={groundLeftPxLocal} zoom={zoom} size={size} ldtkLights={ldtkLights}
+                            foliageParams={foliageParamsRender} foliageDebugChannel={foliageDebugChannel} gridSize={world.gridSize}
+                            worldMask={worldMask} bgDarkenColor={bgDarkenColor}
+                        />
+                    );
+                }
+                if (pass.kind === 'background') {
+                    return (
+                        <BackgroundPass
+                            key={passKey} layers={pass.layers} cameraXRef={cameraXRef} bgLeftPx={groundLeftPxLocal} zoom={zoom}
+                            gridSize={world.gridSize}
+                            bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
+                            bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
+                            bgSunBottomPx={bgSunBottomPx} bgSunRimColor={bgSunRimColor}
+                            bgSunRadiusScale={sunGlowVisFrac}
+                        />
+                    );
+                }
+                if (pass.kind === 'shimmer') {
+                    return (
+                        <ShimmerPass
+                            key={passKey} passKey={passKey} tiles={pass.tiles}
+                            panElsRef={panElsRef} groundLeftPx={groundLeftPxLocal}
+                            zoom={zoom} size={size} cameraOffsetRef={cameraOffsetRef} foliageDebugChannel={foliageDebugChannel}
+                            ldtkLights={ldtkLights} foliageParams={foliageParamsRender} gridSize={world.gridSize}
+                            foliageAtlas={foliageAtlas} atlasFoliageInstanceFor={atlasFoliageInstanceFor}
+                            foliageInstanceProps={foliageInstanceProps}
+                            worldMask={worldMask} bgDarkenColor={bgDarkenColor}
+                        />
+                    );
+                }
+                if (pass.kind === 'campfire') {
+                    return (
+                        <CampfirePass
+                            key={passKey} passKey={passKey} tiles={pass.tiles}
+                            panElsRef={panElsRef} localWorldToScreenXLocal={localWorldToScreenXLocal}
+                            cameraOffsetRef={cameraOffsetRef} sizeRef={sizeRef} zoom={zoom} gridSize={world.gridSize}
+                        />
+                    );
+                }
+                // pass.kind === 'entities' — Perf (#1162, Fase 3): extracted into a memoized `EntityLayer`
+                // (defined above, before this component) — see its own header comment for why. All the
+                // props below are either already stable during a pure camera pan (Fase 1/2's own work),
+                // refs, or plain callbacks/booleans.
                 return (
-                    <div key={i} style={{
-                        position: 'absolute', left: 0, right: 0, bottom: bgBottomOffset, height: bgH,
-                        overflow: 'hidden', pointerEvents: 'none',
-                    }}>
-                        <div style={{
-                            position: 'absolute', bottom: 0, left: offsetPx - bgW, width: bgW * 3, height: bgH,
-                            backgroundImage: `url("${url}")`, backgroundRepeat: 'repeat-x',
-                            backgroundSize: `${bgW}px ${bgH}px`, imageRendering: 'pixelated',
-                        }} />
-                    </div>
+                    <EntityLayer
+                        key={passKey}
+                        entityScrollRef={entityScrollRef} wispVariant={wispVariant} wispFlying={wispFlying} debugMode={debugMode} clickNpc={clickNpc}
+                        worldToScreenXLocal={worldToScreenXLocal} standAnchorFor={standAnchorFor} petFrame={petFrame}
+                        zoom={zoom} EntityReflection={EntityReflection}
+                        clickSlime={clickSlime} clickWorkerNpc={clickWorkerNpc} workerNpcs={workerNpcs} timeSignature={WORLD_TIME_SIGNATURE}
+                        context={context} workerNpcAudio={workerNpcAudio} playerXRef={playerXRef}
+                        critterWanderers={critterWanderers} critterOpacity={wOut.critterOpacity} critterLightPosRef={critterLightPosRef} foliageParams={foliageParams}
+                        birdPositionsRef={birdPositionsRef} birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
+                        char={char} noPetChar={noPetChar} moving={moving} running={running}
+                        walkAnim={walkAnim} runAnim={runAnim} idleAnim={idleAnim} walkFrame={walkFrame}
+                        facing={facing} playerX={playerX} petUrl={petUrl} petVariant={petVariant}
+                        petX={petX} petMoving={petMoving} heroWrapperRef={heroWrapperRef} petWrapperRef={petWrapperRef}
+                        reflectionTarget={lastLayerEl}
+                    />
                 );
             })}
-            {/* #141 round 12 (Han, NL: "pas de illum ook toe op alle achtergronden") — one overlay covering
-                every background layer rendered so far (this div's own bottom edge sits right where they do,
-                and nothing else has been drawn yet at this point in the stack, so the multiply only ever
-                touches the backgrounds, never double-darkens anything drawn later).
-                Perf (#1162, Fase 5, Han 2026-08-27): gated to Legacy-mode only. This is a CSS
-                `mix-blend-mode: multiply` approximation of day/night tint predating the LDtk/RAM-level
-                scenery pipeline (§141 predates the #RAM-level tags below by months) — RAM-level has its OWN
-                proper WebGL-shader `globalIllumination` lighting (`ldtkLights`/`foliageParams`, consumed by
-                `LdtkLitGround`/`ForegroundFoliageLayer`/`SceneryBack`/`SceneryFront`), so this CSS overlay
-                was pure dead weight there: full-viewport, `pointerEvents:'none'`, `inset:0`, blending
-                nothing underneath in LDtk mode (Legacy's own background layers are the only thing it was
-                ever meant to darken — see this comment's own first line). `mix-blend-mode` forces the
-                browser to composite an isolated blending surface every frame regardless of whether its
-                content changed — a real per-frame paint/composite cost invisible to a JS CPU profile (a
-                #1162 profiling pass found >85% of frame time during movement falling outside JS execution
-                entirely, in the profiler's unattributed "(program)" bucket — this overlay was the first
-                concrete lead found there). Never mounting it at all outside Legacy mode removes that cost
-                for RAM-level without touching anything RAM-level actually uses for its own lighting. */}
-            {sceneryMode === 'Legacy' && <div style={domDarkenOverlayStyle} />}
-
-            {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
-                layer sits BEHIND the `Entities` layer in the .ldtk file's own paint order (ldtkWorld.js's
-                `isInFrontOfEntities`) — terrain/water/grass-bg/buildings/trees/backgrounds. Rendered here,
-                BEFORE the hero/pet/Wisp/Slime block below; whatever's genuinely in FRONT of Entities in
-                the source file (Grass_decoration_fg edge decor, Blacksmith/Alchemist, interior walls)
-                renders in its own second pass AFTER the entities instead (search "front-of-entities"). */}
-            {/* #RAM-level (Han 2026-08-11, "foliage laag flitst nogal bij bewegen; bij veel beweging is het
-                foliage effect toch te subtiel, dus is slim om dan af te zetten. Maar, toon dan de default
-                ongemodificeerde sprite, ipv niets"): foliage tiles are ALWAYS included in the flat ground
-                canvas too (merged into `groundTiles` here), not just the WebGL shimmer layer — so there is
-                always a plain, correctly-drawn fallback sprite underneath if the shimmer layer's textures
-                haven't resolved yet (see `runtimeTextures`/normal-map-generation gate elsewhere).
-                #925 follow-up (Han 2026-08-16, "shimmer ook actief als personage beweegt... blijkt niet
-                zoveel performance impact te hebben"): the shimmer layer used to unmount entirely while the
-                hero walked (a perf tradeoff from round 1 of this feature); Han re-measured and found the
-                impact small enough to keep shimmer running while moving too — the `!moving` gate is gone,
-                the flat DOM fallback above remains only as the pre-load/no-textures-yet fallback. */}
-            {/* Perf (#1162, Fase 4): extracted into a memoized `SceneryBack` (defined above, before
-                `RpgLevelPanel`) — same rationale as `EntityLayer`'s own header comment. Bundles
-                `LdtkScenery` + `LdtkLitGround` + the `LdtkAnimatedTiles`/`WaterReflectionLayer` wrapper +
-                `ForegroundFoliageLayer` for the back-of-entities pass. */}
-            <SceneryBack
-                sceneryMode={sceneryMode} groundAndFoliageBack={groundAndFoliageBack} world={world}
-                leftPxForFactor={leftPxForFactor} sceneryScrollBackRef={sceneryScrollBackRef}
-                groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesBack={litGroundTexturesBack}
-                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams}
-                foliageDebugChannel={foliageDebugChannel} overlayScrollBackRef={overlayScrollBackRef}
-                culledAnimatedTilesBack={culledAnimatedTilesBack} localWorldToScreenXLocal={localWorldToScreenXLocal}
-                reflectableTiles={reflectableTiles} waterPonds={waterPonds} worldToScreenXLocal={worldToScreenXLocal}
-                waterInstancesBack={waterInstancesBack}
-                localFoliageInstancesBack={localFoliageInstancesBack} cameraOffsetRef={cameraOffsetRef}
-                foliageAtlas={foliageAtlas} atlasFoliageInstancesBack={atlasFoliageInstancesBack}
-            />
-
-            {/* Decor layer — #141 round 15 (Han: "je hebt de trunk aan de foliage layer toegevoegd. ik wil
-                hem verlicht, maar geen onderdeel van foliage. Tent en trunk should be op de decor background
-                layer"): a SEPARATE WebGL canvas from the foreground foliage one below — same shared-context
-                reasoning (§141's own header comment), just a second stacking slot. This one renders BEFORE
-                the hero (floor/trunk/tent sit visually BEHIND the character, same z-order the old DOM blocks
-                had), the foreground one renders AFTER (tree canopy/grass tufts, which are meant to poke up
-                IN FRONT of the hero). Floor, trunk, and tent are all lit here; only floor and tent actually
-                shimmer (`wave` per-instance flag — see ForegroundFoliageLayer's own instance-shape comment):
-                trunk is rigid wood (Han: "ik wil hem verlicht, maar geen onderdeel van foliage"), tent
-                fabric flaps in the wind like a leaf (Han, after seeing it: "en het tentdoek wel! dat ziet er
-                echt fantastisch uit"). DOM fallback (old floor-tile loop + trunk/tent crops) renders ONLY
-                until `runtimeTextures` resolves, same brief-flash-on-mount pattern used everywhere else this
-                round. */}
-            {sceneryMode === 'Legacy' && !runtimeTextures && (
-                <div style={{ position: 'absolute', bottom: 0, left: worldToScreenX(LEVEL_MIN_X), display: 'flex' }}>
-                    {floorTileIdx.map((idx, i) => {
-                        const cell = FLOOR_CELLS[idx];
-                        return <SheetCrop key={i} url={floorTiles2Url} sheet={FLOOR_SHEET} tile={FLOOR_TILE} row={cell.row} col={cell.col} />;
-                    })}
-                </div>
-            )}
-            {sceneryMode === 'Legacy' && !runtimeTextures && (
-                <div style={{
-                    position: 'absolute', left: worldToScreenX(TREE_X), bottom: GROUND_ANCHOR,
-                    width: TREE_CELL.w * ZOOM, height: TREE_CELL.h * ZOOM, transform: 'translateX(-50%)',
-                    backgroundImage: `url("${treeSheetUrl}")`,
-                    backgroundPosition: `${-(TRUNK_CELL.col - 1) * TREE_CELL.w * ZOOM}px ${-(TRUNK_CELL.row - 1) * TREE_CELL.h * ZOOM}px`,
-                    backgroundSize: `${TREE_SHEET.w * ZOOM}px ${TREE_SHEET.h * ZOOM}px`,
-                    backgroundRepeat: 'no-repeat', imageRendering: 'pixelated', pointerEvents: 'none',
-                }} />
-            )}
-            {sceneryMode === 'Legacy' && !runtimeTextures && (
-                <SheetCrop
-                    url={decorUrl} sheet={DECOR_SHEET} row={TENT_CELL.row} col={TENT_CELL.col}
-                    wTiles={TENT_W} hTiles={TENT_H}
-                    style={{ position: 'absolute', left: worldToScreenX(TENT_X), bottom: GROUND_ANCHOR, transform: 'translateX(-50%)' }}
-                />
-            )}
-            {/* #141 round 22 CRITICAL BUG FIX (Han: "1 frame later zie ik alle elementen die geïmpacteerd
-                worden door de normal map verdwijnen" — deterministic, not network-flaky): this used to also
-                require `size.w > 0`. ResizeObserver-driven `size` starts at {w:0,h:0} and can genuinely
-                fire more than once as the level's layout settles (fonts/images finishing, parent flex/grid
-                recalculating) — every time that toggled `size.w > 0` false→true, THIS ELEMENT UNMOUNTED AND
-                REMOUNTED, tearing down and recreating a whole WebGL context each time WITHOUT ever
-                explicitly releasing the old one (`canvas.getContext('webgl')` was just abandoned to GC) —
-                a few churns after mount can exhaust the browser's ~8-16-context-per-page budget (worse now
-                that round 15 doubled this to TWO canvases per level), after which EVERY further mount
-                attempt gets `gl = null` and silently renders nothing, forever. Fix: never unmount this for a
-                mere size change — `widthPx`/`heightPx` safely accept 0 (an empty canvas draws nothing, no
-                error) and the component's own `useLayoutEffect` already resizes the backing store in place
-                without recreating the context. `runtimeTextures` still gates rendering (its own instances
-                reference `runtimeTextures.*` directly, which would be undefined before it resolves). */}
-            {sceneryMode === 'Legacy' && runtimeTextures && (
-                <ForegroundFoliageLayer
-                    widthPx={size.w}
-                    heightPx={size.h}
-                    instances={[
-                        {
-                            kind: 'floor',
-                            diffuseUrl: runtimeTextures.floorDiffuseUrl, normalUrl: runtimeTextures.floorNormalUrl,
-                            diffuseUV: [0, 0, 1, 1],
-                            screenX: worldToScreenX((LEVEL_MIN_X + LEVEL_MAX_X) / 2),
-                            screenY: size.h,
-                            widthPx: (LEVEL_MAX_X - LEVEL_MIN_X) * ZOOM, heightPx: FLOOR_T,
-                            worldX: (LEVEL_MIN_X + LEVEL_MAX_X) / 2, worldWidth: LEVEL_MAX_X - LEVEL_MIN_X,
-                            worldHeight: FLOOR_TILE,
-                        },
-                        {
-                            diffuseUrl: treeSheetUrl,
-                            diffuseUV: [
-                                (TRUNK_CELL.col - 1) * TREE_CELL.w / TREE_SHEET.w,
-                                (TRUNK_CELL.row - 1) * TREE_CELL.h / TREE_SHEET.h,
-                                TRUNK_CELL.col * TREE_CELL.w / TREE_SHEET.w,
-                                TRUNK_CELL.row * TREE_CELL.h / TREE_SHEET.h,
-                            ],
-                            normalUrl: runtimeTextures.trunkNormalUrl,
-                            screenX: worldToScreenX(TREE_X), screenY: size.h - GROUND_ANCHOR,
-                            widthPx: TREE_CELL.w * ZOOM, heightPx: TREE_CELL.h * ZOOM,
-                            worldX: TREE_X, worldWidth: TREE_CELL.w, worldHeight: TREE_CELL.h,
-                            wave: false,
-                        },
-                        {
-                            diffuseUrl: decorUrl,
-                            diffuseUV: [
-                                (TENT_CELL.col - 1) * TILE / DECOR_SHEET.w,
-                                (TENT_CELL.row - 1) * TILE / DECOR_SHEET.h,
-                                (TENT_CELL.col - 1) * TILE / DECOR_SHEET.w + runtimeTextures.tentW / DECOR_SHEET.w,
-                                (TENT_CELL.row - 1) * TILE / DECOR_SHEET.h + runtimeTextures.tentH / DECOR_SHEET.h,
-                            ],
-                            normalUrl: runtimeTextures.tentNormalUrl,
-                            screenX: worldToScreenX(TENT_X), screenY: size.h - GROUND_ANCHOR,
-                            widthPx: runtimeTextures.tentW * ZOOM, heightPx: runtimeTextures.tentH * ZOOM,
-                            worldX: TENT_X, worldWidth: runtimeTextures.tentW, worldHeight: runtimeTextures.tentH,
-                        },
-                    ]}
-                    debugChannel={foliageDebugChannel}
-                    lights={[
-                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
-                        // #141 round 19 (Han: "zet het lampje van de persona op 32px boven het anker") —
-                        // the hero's light now sits 32 native px above GROUND_ANCHOR, not at foot level.
-                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
-                    ]}
-                    params={foliageParams}
-                />
-            )}
-
-            {/* Perf (#1162, Fase 3): extracted into a memoized `EntityLayer` (defined above, before this
-                component) — see its own header comment for why. All the props below are either already
-                stable during a pure camera pan (Fase 1/2's own work), refs, or plain callbacks/booleans. */}
-            <EntityLayer
-                entityScrollRef={entityScrollRef} wispVariant={wispVariant} wispFlying={wispFlying} debugMode={debugMode} clickNpc={clickNpc}
-                worldToScreenXLocal={worldToScreenXLocal} standAnchorFor={standAnchorFor} petFrame={petFrame}
-                zoom={zoom} EntityReflection={EntityReflection} sceneryMode={sceneryMode}
-                clickSlime={clickSlime} workerNpcs={workerNpcs} timeSignature={timeSignature}
-                context={context} workerNpcAudio={workerNpcAudio} playerXRef={playerXRef}
-                critterWanderers={critterWanderers} foliageParams={foliageParams}
-                birdPositionsRef={birdPositionsRef} birdSlots={birdSlots} birdSlotClaimsRef={birdSlotClaimsRef}
-                char={char} noPetChar={noPetChar} moving={moving} running={running}
-                walkAnim={walkAnim} runAnim={runAnim} idleAnim={idleAnim} walkFrame={walkFrame}
-                facing={facing} playerX={playerX} petUrl={petUrl} petVariant={petVariant}
-                petX={petX} petMoving={petMoving}
-            />
-
-            {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
-                layer sits IN FRONT of the `Entities` layer in the .ldtk file's own paint order —
-                Grass_decoration_fg's edge decoration, Blacksmith/Alchemist buildings, interior walls.
-                Rendered AFTER hero/pet/Wisp/Slime so it correctly draws on top of them, mirroring the
-                source file exactly (see the back-of-entities pass earlier in this render for the rest). */}
-            {/* Perf (#1162, Fase 4): extracted into a memoized `SceneryFront` (defined above, before
-                `RpgLevelPanel`) — same rationale as `SceneryBack`/`EntityLayer`'s own header comments. */}
-            <SceneryFront
-                sceneryMode={sceneryMode} groundAndFoliageFront={groundAndFoliageFront} world={world}
-                leftPxForFactor={leftPxForFactor} sceneryScrollFrontRef={sceneryScrollFrontRef}
-                groundLeftPxLocal={groundLeftPxLocal} zoom={zoom} litGroundTexturesFront={litGroundTexturesFront}
-                size={size} ldtkLights={ldtkLights} foliageParams={foliageParams}
-                foliageDebugChannel={foliageDebugChannel} overlayScrollFrontRef={overlayScrollFrontRef}
-                culledAnimatedTilesFront={culledAnimatedTilesFront} localWorldToScreenXLocal={localWorldToScreenXLocal}
-                waterInstancesFront={waterInstancesFront}
-                localFoliageInstancesFront={localFoliageInstancesFront} cameraOffsetRef={cameraOffsetRef}
-                foliageAtlas={foliageAtlas} atlasFoliageInstancesFront={atlasFoliageInstancesFront}
+            {/* #1195 bugfix, rounds 2-3 (Han 2026-09-05: "top, ik zie de brug! Maar.. niet de eenden..!" —
+                verified via headless-browser DOM/pixel inspection, not guesswork). Round 2: rendering the
+                pond reflection right before the `'entities'` pass (round 1's fix) was STILL not late
+                enough. `Water_FG` (Han's new water layer) sits IN FRONT of Entities in real LDtk order, so
+                its own `ForegroundFoliageLayer` shimmer canvas — a FULL-VIEWPORT WebGL canvas, mostly
+                transparent but opaque exactly where its own instances are drawn — rendered AFTER the
+                reflection and painted directly over it at the pond. Pixel inspection confirmed the
+                reflection's own composited image and CSS transform math were already exactly correct;
+                hiding every WebGL canvas that rendered after it made the reflection visible immediately.
+                Round 3: the SAME risk turned out to apply to every entity's own reflection too (ducks,
+                then — by the same mechanism, just not yet visually tested — hero/pet/Wisp/Slime/worker-
+                NPCs), since `EntityReflection` and `WorldWanderer`'s duck mirror both used to render
+                INSIDE the `'entities'` pass. `LastLayerPass` (below) is now the ONE shared "always last"
+                layer both the pond reflection AND every entity reflection portal into (`lastLayerEl`,
+                threaded into `EntityLayer` above as `reflectionTarget`) — see its own header comment for
+                the full story. `WaterReflectionLayer` is a composite EFFECT drawn from MANY layers at once
+                (§1032: trees/decor/structures, not one single LDtk layer) — unlike a plain content pass,
+                it has no single "correct" position in the true layer order to begin with, so rendering it
+                LAST, after every LDtk-mode pass including front-of-Entities ones, is correct by
+                construction, not a workaround — guaranteed nothing can ever paint over it again regardless
+                of which layers become front/back of Entities in the future. */}
+            <LastLayerPass
+                panElsRef={panElsRef} reflectableTiles={reflectableTiles} waterPonds={waterPonds}
+                gridSize={world.gridSize} worldToScreenXLocal={worldToScreenXLocal} groundLeftPx={groundLeftPxLocal}
+                zoom={zoom} globalIllumination={foliageParams.globalIllumination} registerNode={setLastLayerEl}
             />
 
             {/* #141 round 12's CSS "reveal near a light" radial-gradient glow — gated behind debugMode in
@@ -2130,86 +2377,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 genuinely lit through the WebGL shader now (floor/trunk/tent/canopy/tufts/crates, rounds
                 10-15), so this CSS approximation adds nothing even as a debug aid — deleted, not just hidden. */}
 
-            {/* Foreground foliage — #141 (Han 2026-08-05): tree canopy + grass tufts + crates, drawn LAST
-                (highest z-order) so canopy/tufts sit in front of the hero, "direct boven de dirt". Floor/
-                trunk/tent moved OUT to the separate decor canvas above (round 15) — see its own comment for
-                why. Grass keeps the SAME scatter (§693 round 12) and bottom-center `GROUND_ANCHOR` anchor.
-                #141 round 15 (Han, NL: "let op! de kisten op de voorgrond moeten NIET shimmeren"): crates
-                pass `wave: false` — lit via the same normal-map/edge-lit pipeline as everything else, but
-                never run the wind-wave highlight (they're solid wood, not foliage). #141 round 22: no longer
-                gated on `size.w > 0` — see the decor canvas's own comment above for why that gate caused
-                repeated WebGL-context-destroying remounts as `size` settled. #RAM-level: legacy-scenery
-                only now — the LDtk scenery's own trees/foliage render flat via `LdtkScenery`'s canvas (no
-                shimmer yet, a known follow-up noted in docs/architecture.md). */}
-            {sceneryMode === 'Legacy' && (
-            <ForegroundFoliageLayer
-                widthPx={size.w}
-                heightPx={size.h}
-                instances={[
-                    {
-                        diffuseUrl: treeSheetUrl,
-                            diffuseUV: [
-                                (SUMMER_FOLIAGE_CELL.col - 1) * TREE_CELL.w / TREE_SHEET.w,
-                                (SUMMER_FOLIAGE_CELL.row - 1) * TREE_CELL.h / TREE_SHEET.h,
-                                SUMMER_FOLIAGE_CELL.col * TREE_CELL.w / TREE_SHEET.w,
-                                SUMMER_FOLIAGE_CELL.row * TREE_CELL.h / TREE_SHEET.h,
-                            ],
-                            normalUrl: treeFoliageSummerNormalUrl,
-                            screenX: worldToScreenX(TREE_X), screenY: size.h - GROUND_ANCHOR,
-                            widthPx: TREE_CELL.w * ZOOM, heightPx: TREE_CELL.h * ZOOM,
-                            worldX: TREE_X, worldWidth: TREE_CELL.w, worldHeight: TREE_CELL.h,
-                            // #141 round 16 (Han: "kun je iets proberen dat random skew en distort doet") —
-                            // wind-bend, scoped to canopy + grass tufts only per Han's own answer (not the
-                            // tent, which shimmers but stays taut on its poles).
-                            skew: true,
-                        },
-                        ...grassTuftPositions.map(({ x, cell }) => ({
-                            diffuseUrl: decorUrl,
-                            diffuseUV: [
-                                (cell.col - 1) * TILE / DECOR_SHEET.w, (cell.row - 1) * TILE / DECOR_SHEET.h,
-                                cell.col * TILE / DECOR_SHEET.w, cell.row * TILE / DECOR_SHEET.h,
-                            ],
-                            normalUrl: GRASS_NORMAL_BY_CELL[`${cell.row}-${cell.col}`],
-                            screenX: worldToScreenX(x), screenY: size.h - GROUND_ANCHOR,
-                            widthPx: TILE * ZOOM, heightPx: TILE * ZOOM,
-                            worldX: x, worldWidth: TILE, worldHeight: TILE,
-                            skew: true,
-                        })),
-                        // Crates — #141 round 10 (Han, NL: "om te testen, zet een paar kisten op de
-                        // voorgrond"), a lit foreground-object test case. edgeLitOnly: true — the solid
-                        // crate interior stays dark, only its outer rim catches wisp/hero light. wave: false
-                        // (round 15) — solid wood, doesn't shimmer like foliage.
-                        ...CRATE_POSITIONS.map((x) => ({
-                            diffuseUrl: decorUrl,
-                            diffuseUV: [
-                                (CRATE_CELL.col - 1) * CRATE_SIZE / DECOR_SHEET.w, (CRATE_CELL.row - 1) * CRATE_SIZE / DECOR_SHEET.h,
-                                CRATE_CELL.col * CRATE_SIZE / DECOR_SHEET.w, CRATE_CELL.row * CRATE_SIZE / DECOR_SHEET.h,
-                            ],
-                            normalUrl: crateNormalUrl,
-                            screenX: worldToScreenX(x), screenY: size.h - GROUND_ANCHOR,
-                            widthPx: CRATE_SIZE * ZOOM, heightPx: CRATE_SIZE * ZOOM,
-                            worldX: x, worldWidth: CRATE_SIZE, worldHeight: CRATE_SIZE,
-                            edgeLitOnly: true,
-                            wave: false,
-                        })),
-                    ]}
-                    debugChannel={foliageDebugChannel}
-                    lights={[
-                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
-                        // #141 round 19 (Han: "zet het lampje van de persona op 32px boven het anker") —
-                        // the hero's light now sits 32 native px above GROUND_ANCHOR, not at foot level.
-                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
-                    ]}
-                    params={foliageParams}
-                />
-            )}
-
             {/* #693 round 7 edge-hold zones — 15% of the viewport width on each side; press-and-hold keeps
                 the character (and camera, once it nears the deadzone edge) moving continuously. */}
             {size.w > 0 && <EdgeHoldZone side="left" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
             {size.w > 0 && <EdgeHoldZone side="right" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
 
-            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraX} zoom={zoom} />}
+            {/* Perf (#1196, F1): debug-only — `cameraXRef.current` is read at render time, so the grid
+                tracks the camera at whatever rate the panel re-renders (~16 Hz while the hero moves via
+                the throttled `playerX` state). Fine for a debug overlay. */}
+            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraXRef.current} zoom={zoom} />}
 
             {/* Perf (#1162, Fase 10a, docs/architecture.md §337): visual check for the new foliage texture
                 atlas, gated behind debugMode like every other debug affordance in this file (§3a) — this
@@ -2255,7 +2431,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 un-shimmered art is still visible instead of the whole layer vanishing. */}
             {debugMode && (
                 <button
-                    onClick={(e) => { e.stopPropagation(); setFoliageDebugChannel((c) => (c + 1) % 4); }}
+                    onClick={(e) => { e.stopPropagation(); setFoliageDebugChannel((c) => (c + 1) % 5); }}
                     style={{
                         position: 'absolute', top: 8, right: 8, zIndex: 6,
                         padding: '4px 8px', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 12,
@@ -2263,12 +2439,19 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         borderRadius: 4, cursor: 'pointer',
                     }}
                 >
-                    Foliage debug: {['Shimmer', 'Normal map', 'Wave band', 'Disabled'][foliageDebugChannel]}
+                    Foliage debug: {['Shimmer', 'Normal map', 'Wave band', 'Disabled', 'Edge mask'][foliageDebugChannel]}
                 </button>
             )}
 
             {debugMode && (
-                <FoliageParamsPanel params={foliageParams} onChange={setFoliageParam} onReset={() => setFoliageParams(DEFAULT_FOLIAGE_PARAMS)} />
+                <FoliageParamsPanel
+                    params={foliageParams}
+                    onChange={setFoliageParam}
+                    onReset={() => { setFoliageParams(DEFAULT_FOLIAGE_PARAMS); commitWeather(createWeatherState()); }}
+                    showConstellationLines={showConstellationLines}
+                    showConstellationNames={showConstellationNames}
+                    onToggleConstellation={(which, on) => (which === 'lines' ? setShowConstellationLines(on) : setShowConstellationNames(on))}
+                />
             )}
 
             {/* #RAM-level (Han 2026-08-10, "maak een tier selector in debug mode... season en city
@@ -2286,7 +2469,6 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 12, color: '#fff', marginBottom: 6 }}>
                         <strong>World</strong>
                     </div>
-                    <LevelPicker label="Scenery" levels={{ Legacy: 0, LDtk: 0 }} value={sceneryMode} onChange={setSceneryMode} />
                     <LevelPicker label="Season" levels={Object.fromEntries(SEASONS.map((s) => [s, 0]))} value={season} onChange={setSeason} />
                     <LevelPicker label="City" levels={Object.fromEntries(CITY_OPTIONS.map((c) => [c, 0]))} value={city} onChange={setCity} />
                     <LevelPicker label="Tavern tier" levels={Object.fromEntries(TAVERN_TIERS.map((t) => [t, 0]))} value={tavernTier} onChange={setTavernTier} />
@@ -2295,27 +2477,45 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         label="Metronome" levels={{ Off: 0, On: 0 }}
                         value={metronomeOn ? 'On' : 'Off'} onChange={(v) => setMetronomeOn(v === 'On')}
                     />
-                    {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
-                        settings"): moved out of FoliageParamsPanel (top-right) — same params/onChange, just
-                        relocated. */}
+                    {/* #RAM-level (Han 2026-08-11): moved out of FoliageParamsPanel (top-right).
+                        #weather (Han 2026-09-01): these no longer set foliageParams directly — they SEEK
+                        the auto weather cycle. Picking a value starts the same eased transition the cycle
+                        uses (10 s illumination / 3 s wind), resets that track's timer to full, and the
+                        cycle then carries on from there (weatherCycle.js `seekPhase` / `seekWind`). */}
                     <LevelPicker
                         label="Time of day"
-                        levels={TIME_OF_DAY_ILLUM}
-                        value={foliageParams.timeOfDay}
-                        onChange={(level) => {
-                            setFoliageParam('timeOfDay', level);
-                            setFoliageParam('globalIllumination', TIME_OF_DAY_ILLUM[level]);
-                        }}
+                        levels={Object.fromEntries(TIME_PHASES.map((p) => [p.name, p.illum]))}
+                        value={wOut.phaseName}
+                        onChange={(name) => commitWeather(seekPhase(weatherRef.current, name))}
                     />
                     <LevelPicker
                         label="Wind"
-                        levels={WIND_LEVEL_PX}
-                        value={foliageParams.windLevel}
-                        onChange={(level) => {
-                            setFoliageParam('windLevel', level);
-                            setFoliageParam('skewAmount', WIND_LEVEL_PX[level]);
-                            setFoliageParam('stretchAmount', WIND_LEVEL_PX[level]);
-                        }}
+                        levels={{ 0: 0, 1: 1, 2: 2, 3: 3 }}
+                        value={String(Math.round(wOut.windValue))}
+                        onChange={(n) => commitWeather(seekWind(weatherRef.current, Number(n)))}
+                    />
+                    {/* §375 (#1192, Han 2026-09-04): seeks the cloud-cover track. Same pattern as the
+                        Time-of-day / Wind pickers above — picking a type starts the same 10 s eased
+                        transition the auto-cycle uses, restarts that track's draw timer, and the
+                        cycle carries on from there (weatherCycle.js `seekCloud`). */}
+                    <LevelPicker
+                        label="Weather"
+                        levels={Object.fromEntries(CLOUD_TYPES.map((ty) => [CLOUD_PICK_LABELS[ty], 0]))}
+                        value={CLOUD_PICK_LABELS[wOut.cloudType]}
+                        onChange={(lbl) => commitWeather(seekCloud(
+                            weatherRef.current,
+                            CLOUD_TYPES.find((ty) => CLOUD_PICK_LABELS[ty] === lbl),
+                        ))}
+                    />
+                    {/* §374 UAT r2 (#1191, Han 2026-09-04, "kun je in debug een knop zetten die naar de
+                        4 maanfasen springt voor debugging?"): pins the lunation phase so the crescent +
+                        moon/sun/star positions can be eyeballed without waiting out the ~3.7 h real-time
+                        lunation. 'Auto' clears the override (weatherCycle.js `seekLunation`). */}
+                    <LevelPicker
+                        label="Moon phase"
+                        levels={Object.fromEntries(Object.keys(MOON_PHASE_PICKS).map((k) => [k, 0]))}
+                        value={moonPhasePickLabel(wOut.lunationOverride)}
+                        onChange={(k) => commitWeather(seekLunation(weatherRef.current, MOON_PHASE_PICKS[k]))}
                     />
                     {/* #RAM-level (Han 2026-08-11, "voeg twee knoppen toe: treble melody en bass melody...
                         genereert random melodieën, volgens de ingestelde settings... vergeet niet altijd
@@ -2426,6 +2626,17 @@ function ParamSelect({ label, value, onChange }) {
 // picker — used for Wind (skew/stretch px) and round 27's Time-of-day (global illumination). Picking a
 // level sets EVERY param key in `levels[level]` together, so a picker's displayed selection can never drift
 // out of sync with the underlying param(s) it controls.
+// §374 UAT r2 (#1191): the four quarter values a debug moon-phase pick maps to, plus 'Auto' = null
+// (resume the automatic 28-cycle progression). ¼ glyphs are display-only labels, never notation.
+const MOON_PHASE_PICKS = { Auto: null, New: 0, 'First ¼': 0.25, Full: 0.5, 'Last ¼': 0.75 };
+// §375 (#1192): display-only labels for the four cloud-cover types — short enough to fit four buttons
+// in the 160 px World panel ('Dark' rather than 'Dark overcast'). The TYPE keys stay canonical.
+const CLOUD_PICK_LABELS = { CLEAR: 'Clear', LIGHT: 'Light', OVERCAST: 'Overcast', DARK_OVERCAST: 'Dark' };
+function moonPhasePickLabel(override) {
+    if (override == null) return 'Auto';
+    return Object.keys(MOON_PHASE_PICKS).find((k) => MOON_PHASE_PICKS[k] === override) ?? 'Auto';
+}
+
 function LevelPicker({ label, levels, value, onChange }) {
     return (
         <label style={{ display: 'block', marginBottom: 6, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 11, color: '#fff' }}>
@@ -2449,11 +2660,11 @@ function LevelPicker({ label, levels, value, onChange }) {
         </label>
     );
 }
-const WIND_LEVEL_PX = { low: 1, med: 2, high: 3 };
-// #141 round 27 (Han, NL: "maak een tweede toggler: night: illum 0.1 / dusk-dawn 0.33, day global illum 1")
-// — a second LevelPicker, replacing the old continuous "Global illumination" slider with 3 named presets.
-const TIME_OF_DAY_ILLUM = { night: 0.1, 'dusk-dawn': 0.33, day: 1 };
-function FoliageParamsPanel({ params, onChange, onReset }) {
+// #141 round 26/27 had a 3-level Wind picker (WIND_LEVEL_PX low/med/high → 1/2/3 px) and a 3-level
+// Time-of-day picker (TIME_OF_DAY_ILLUM night/dusk-dawn/day → 0.1/0.33/1). #weather (Han 2026-09-01)
+// replaced both with seek-controls into the auto weather cycle — the phase list + illumination values
+// now live in weatherCycle.js `TIME_PHASES`, and wind is a plain 0-3 range.
+function FoliageParamsPanel({ params, onChange, onReset, showConstellationLines, showConstellationNames, onToggleConstellation }) {
     // #141 round 26 (Han, NL: "ik wil in debug het settings menu kunnen in- en uitklappen") — local, not
     // lifted to RpgLevelPanel state: purely a debug-UI display preference, nothing else reads it.
     // #RAM-level (Han 2026-08-11, "zet foliage params uit by default"): starts collapsed now.
@@ -2508,6 +2719,10 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
                 full relief (current look), 0.0 fully flat "from above". The floor ignores this entirely and
                 is ALWAYS flat (Han: "normal map van de floor tiles mag toch globaal 'van boven' zijn"). */}
             <ParamSlider label="Normal map strength" value={params.normalStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('normalStrength', v)} />
+            {/* #weather §362 (Han 2026-09-01, "een wit licht van linksboven op de wereld") — max strength
+                of the directional moonlight; the shader scales it by (1 - globalIllumination) so it only
+                shows as the auto weather cycle darkens. */}
+            <ParamSlider label="Moonlight strength" value={params.moonStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('moonStrength', v)} />
             {/* #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op
                 het water") — global params, see ForegroundFoliageLayer's own uWhiteCapThreshold/Strength
                 comment for why this isn't water-specific despite the water motivation. */}
@@ -2518,6 +2733,21 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
             {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
                 settings"): Wind and Time-of-day moved to the World debug panel (top-left) — see that
                 panel's own LevelPicker calls, driven by the SAME `foliageParams`/`setFoliageParam`. */}
+            <hr style={{ opacity: 0.3, margin: '8px 0' }} />
+            {/* §374 (#1191): the two sterrenhemel overlays. Reuse the existing `LevelPicker` Off/On row
+                (same pattern as the Metronome picker in the World panel) rather than hand-rolling a
+                checkbox (§6d). This whole panel is already gated on `debugMode`, so "debug-only,
+                default off" is satisfied structurally. */}
+            <LevelPicker
+                label="Constellation lines" levels={{ Off: 0, On: 0 }}
+                value={showConstellationLines ? 'On' : 'Off'}
+                onChange={(v) => onToggleConstellation('lines', v === 'On')}
+            />
+            <LevelPicker
+                label="Constellation names" levels={{ Off: 0, On: 0 }}
+                value={showConstellationNames ? 'On' : 'Off'}
+                onChange={(v) => onToggleConstellation('names', v === 'On')}
+            />
             </>)}
         </div>
     );

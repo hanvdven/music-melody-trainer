@@ -8,11 +8,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // #1038 (Han: "bij level sluiten; unload/stop alle geluid"): useWorldAmbientMusic's cleanup now calls
 // stop()/disconnect() on every instrument it creates — stub both so unmount() doesn't throw. `start`
-// stubbed too (#1091 round 7's wind gust voice calls `gustInstrument.start()` directly, unconditionally
-// reachable — a ~20% per-cycle chance, not gated by envAudioRef like the water voices' own direct
-// `.start()` calls are in these tests — so leaving it unstubbed would make every test flaky).
+// stubbed too (§363's four held wind-rustle voices call `instrument.start()` directly once loaded, and
+// the water voices' own direct `.start()` calls — so leaving it unstubbed would make every test flaky).
 vi.mock('../../audio/localInstruments', () => ({
-    createMelodicInstrument: vi.fn(() => ({ load: Promise.resolve(), start: vi.fn(), stop: vi.fn(), disconnect: vi.fn() })),
+    createMelodicInstrument: vi.fn(() => ({ load: Promise.resolve(), start: vi.fn(() => vi.fn()), stop: vi.fn(), disconnect: vi.fn() })),
 }));
 // #1091 follow-up (the level-wide `hh` loop voice): a real smplr Sampler tries to decode WAV
 // ArrayBuffers on construction, which throws "AudioBuffer is not defined" in jsdom — stubbed the same
@@ -86,44 +85,35 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
     });
 });
 
-// #1091 round 7 (Han 2026-08-20, "windvlaag" — level-wide, intermittent wind-gust voice using the
-// 'applause' sample under a fade-in/fade-out gain envelope, independent of water proximity).
-describe('useWorldAmbientMusic — wind gust (#1091 round 7)', () => {
+// #wind §363 (Han 2026-09-01, "windgeluid uit de foliage"): the #1091 random applause gust is replaced
+// by four held 'applause' voices — three screen-third rustle voices + one centre bed. The pure gain
+// math lives in windRustle.js (own test); this just checks the hook wires the four voices up.
+describe('useWorldAmbientMusic — foliage wind rustle (§363)', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it('starts the gust and ramps its own GainNode through a fade-in/sustain/fade-out envelope when the 20% roll hits', async () => {
-        vi.spyOn(Math, 'random').mockReturnValue(0);   // 0 < 0.2 -> always triggers
+    it('creates and starts four held "applause" voices (3 thirds + bed)', async () => {
+        vi.useFakeTimers();
         const context = makeAudioContext();
         const { unmount } = renderHook(() => useWorldAmbientMusic({ active: true, context }));
-        await flush();
+        await vi.runOnlyPendingTimersAsync();   // let the load promises + start() calls settle
 
-        // The gust effect is the only direct context.createGain() caller reachable in this minimal
-        // test setup that ALSO calls .start() unconditionally on Math.random alone (the water voices'
-        // own direct .start() calls are gated on envAudioRef/water tiles, absent here — see the mock
-        // context comment above) — so any GainNode with ramp calls on it must be the gust's own.
-        const gustGainNode = context.createGain.mock.results
+        const { createMelodicInstrument } = await import('../../audio/localInstruments');
+        const applauseCalls = createMelodicInstrument.mock.calls.filter(([, name]) => name === 'applause');
+        // 3 rustle + 1 bed from §363, plus the water-percussion voice (also 'applause') = 5.
+        expect(applauseCalls.length).toBeGreaterThanOrEqual(4);
+        // Every instrument the mock handed back that got .start()ed with a long held duration.
+        const held = createMelodicInstrument.mock.results
             .map((r) => r.value)
-            .find((node) => node.gain.setValueAtTime.mock.calls.length > 0);
-        expect(gustGainNode).toBeDefined();
-        expect(gustGainNode.gain.setValueAtTime).toHaveBeenCalledWith(0, expect.any(Number));
-        // #1094 (Han: "Wind mag 3 maten: 1 maat fade in, 1 maat sustain, 1 maat fade out"): 3 ramp calls —
-        // up to peak, held flat at peak (a ramp to the same value doubles as the sustain plateau), back to 0.
-        expect(gustGainNode.gain.linearRampToValueAtTime).toHaveBeenCalledTimes(3);
+            .filter((inst) => inst.start.mock.calls.some(([opts]) => opts && opts.duration === 3600));
+        expect(held.length).toBeGreaterThanOrEqual(4);
         unmount();
-        vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
-    it('does not ramp any gain or start a note when the roll misses', async () => {
-        vi.spyOn(Math, 'random').mockReturnValue(0.99);   // 0.99 >= 0.2 -> never triggers
+    it('tears the voices down on unmount without throwing', async () => {
         const context = makeAudioContext();
         const { unmount } = renderHook(() => useWorldAmbientMusic({ active: true, context }));
         await flush();
-
-        context.createGain.mock.results.forEach((r) => {
-            expect(r.value.gain.setValueAtTime).not.toHaveBeenCalled();
-            expect(r.value.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
-        });
-        unmount();
-        vi.restoreAllMocks();
+        expect(() => unmount()).not.toThrow();
     });
 });

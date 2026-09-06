@@ -1,4 +1,5 @@
 import { updateScaleWithMode } from '../theory/scaleHandler';
+import { densityOverrideFor } from './adaptiveLadder';
 
 /**
  * levelBlockPlan — the PURE per-level "what does block k look like?" policy.
@@ -58,6 +59,23 @@ import { updateScaleWithMode } from '../theory/scaleHandler';
  *     different `numMeasures` would silently lose its alternation/modulation period under
  *     the fall-through. `MIXED_BLOCK_MEASURES` / `blockTypeAt` stay regardless —
  *     SheetRpgLayer imports them.
+ *
+ * ── A FOURTH SHAPE: SONG-BACKED LEVELS (#1168, Han 2026-09-01) ─────────────────────────
+ * A level with a `songId` (ids 1, 2, 200-206) is the one shape where `numMeasures` does NOT
+ * mean "chunk size" at all: `songLevelDefaults` (levels.js, §871) back-fills it from the song
+ * JSON as the SONG'S LENGTH, because the song is the single source of truth for its own
+ * musical metadata. So the fall-through made one block the WHOLE song — `blockCountFor` = 1,
+ * and the adaptive decider (one call per block) fired exactly once: a seed, never a decision
+ * (§354 limitation 5, the bug #1168 fixes).
+ *
+ * `numMeasures` cannot simply be re-authored to 2 for those levels — three consumers read it
+ * AS the song's length and would break: `normalizeLevel`'s `totalMeasures = ... ?? numMeasures`,
+ * `applyLevelVariant`'s `callResponseOverrides` (`totalMeasures: lvl.numMeasures * 2`, the §1155
+ * "de akkoorden zijn op" fix) and `useLevel.applyConfig`'s `setNumMeasures`. Duplicating the song
+ * length into levels.json to free the field would break §871's SSOT (§6c). So the song's cadence
+ * is stated HERE, like the three shapes above: one named constant, one branch, no JSON edit.
+ * It is UNCONDITIONAL — every song level generates in 2-measure chunks, adaptive or not (Han
+ * Q1, 2026-09-01: "kleine gen-chunk voor ALLE song levels, niet alleen letter i").
  */
 
 // Han's own spec for both 2-measure musical periods (see the cadence note above). Kept as
@@ -65,6 +83,13 @@ import { updateScaleWithMode } from '../theory/scaleHandler';
 // musical decisions that happen to agree today — collapsing them would hide that.
 export const MIXED_BLOCK_MEASURES = 2;
 export const KEY_MODULATION_BLOCK_MEASURES = 2;
+
+// #1168: a song-backed level's own generation cadence — see the fourth bullet of the cadence
+// note above for why it cannot be `numMeasures` (which, for such a level, IS the song's length).
+// Kept as its own named constant rather than reusing MIXED_BLOCK_MEASURES for exactly the reason
+// stated just above: they are independent musical decisions that happen to agree at 2 today
+// (Han Q3, 2026-09-01: "2 maten flat", not the level's `visibleMeasures`).
+export const SONG_BLOCK_MEASURES = 2;
 
 /** The call/response GROUP size (#1101: `d` = 1 measure, `e` = 2; native Wizard levels omit it). */
 export const callGroupMeasuresFor = (lvl) => (lvl?.callResponseMeasures ?? 1);
@@ -88,6 +113,11 @@ export const blockMeasuresFor = (lvl) => {
     // A decorativeWizard level that call-response has NOT taken over (its Wizard branch above
     // already carries the alternation) modulates every 2 measures — see the cadence note.
     if (lvl?.decorativeWizard) return KEY_MODULATION_BLOCK_MEASURES;
+    // #1168: AFTER the three branches above and BEFORE the fall-through. ORDER IS LOAD-BEARING:
+    // a song level with letter d/e must keep the Wizard cadence (`callResponseMeasures * 2`),
+    // because `applyLevelVariant` also rewrites its `numMeasures` to the call GROUP size and
+    // doubles its `totalMeasures`. Pinned by a branch-order test in levels.test.js.
+    if (usesSongTreble(lvl)) return SONG_BLOCK_MEASURES;
     return lvl?.numMeasures || 2;
 };
 
@@ -142,6 +172,12 @@ export const resolveBlockScale = (lvl, scale, blockIndex) => (lvl?.decorativeWiz
  * `totalMeasures` for exactly this reason, §1155 UAT). So one division answers every shape.
  */
 export const blockCountFor = (lvl) => {
+    // ⚠ HARD INVARIANT (#1120): `Infinity` is bound to the AUTHORED `gatedScroll` FIELD alone. The
+    // adaptive difficulty ladder can put a PROCEDURAL level into gated PACING at its bpm floor, and it
+    // must never reach this line: a procedural level's `total` grows with the stream, so an infinite
+    // block count there means the level can never end (§289). A ladder-gated level keeps the finite
+    // count below and simply takes longer in real time. See useLevelContentStream.js's `loopForever`
+    // and docs/architecture.md §367.
     if (lvl?.gatedScroll) return Infinity;
     const total = lvl?.totalMeasures ?? lvl?.numMeasures ?? 0;
     return Math.max(1, Math.ceil(total / blockMeasuresFor(lvl)));
@@ -187,15 +223,41 @@ export const leadInSpecFor = (lvl) => {
  * Bass/percussion are always generated for a level, song or not: a level's cello is its own
  * generated backing line, never the song's bass (#871 — it plays through the dedicated
  * `celloRef`/`LEVEL_CELLO_SLOT`, so it can never bleed into a song that provides none).
+ *
+ * ── The optional DENSITY argument (#1121, Han 2026-09-01) ─────────────────────────────
+ * `density` is `{ densityStep, timeSignature }` or `null`. A non-zero rung of the adaptive
+ * difficulty ladder (adaptiveLadder.js) is projected — by FORMULA, never a table (§6c) — onto
+ * the two settings fields the shared generation pipeline already consumes
+ * (`notesPerMeasure`/`smallestNoteDenom`) and shallow-merged onto the treble/bass entries. It
+ * lands HERE, and nowhere else, so "what settings does a block get" stays ONE function rather
+ * than being half-assembled inside the content stream — half-merging in two places is exactly
+ * how the two would drift.
+ *
+ * `densityStep: 0` (and `null`) is provably the IDENTITY: `densityOverrideFor` returns `null`
+ * patches, so the returned object is byte-identical to the pre-#1121 one. That is what makes
+ * "a level that never leaves the authored density behaves exactly as before" assertable.
+ *
+ * ORDER: the song-treble `randomizationRule: 'fixed'` forcing stays the OUTERMOST wrapper, so a
+ * density patch can never accidentally unset it. (A song level never gets a patch anyway — the
+ * ladder scopes density to procedural levels — but the ordering makes that safe by construction.)
  */
-export const trackSpecsForLevel = (lvl, settings) => {
+export const trackSpecsForLevel = (lvl, settings, density = null) => {
     const songTreble = usesSongTreble(lvl);
+    const patches = density?.densityStep
+        ? densityOverrideFor(density.densityStep, {
+            trebleAuthored: settings.trebleSettings,
+            bassAuthored: settings.bassSettings,
+            timeSignature: density.timeSignature,
+        })
+        : null;
+    const treble = patches?.treble
+        ? { ...settings.trebleSettings, ...patches.treble }
+        : settings.trebleSettings;
+    const bass = patches?.bass ? { ...settings.bassSettings, ...patches.bass } : settings.bassSettings;
     return {
         instrumentSettings: {
-            treble: songTreble
-                ? { ...settings.trebleSettings, randomizationRule: 'fixed' }
-                : settings.trebleSettings,
-            bass: settings.bassSettings,
+            treble: songTreble ? { ...treble, randomizationRule: 'fixed' } : treble,
+            bass,
             percussion: settings.percussionSettings,
             chords: settings.chordSettings,
             metronome: settings.metronomeSettings,

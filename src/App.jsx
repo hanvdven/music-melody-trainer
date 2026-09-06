@@ -37,7 +37,7 @@ import { StatsTopPanel, StatsBottomPanel } from './components/character/Characte
 import { CHARACTER_CATEGORIES, catByKeyLabel } from './components/character/characterEditorShared';
 import { CATEGORIES as AVATAR_CATEGORIES } from './model/characterAssets';
 import AvatarSubHeader from './components/layout/AvatarSubHeader';
-import { computeAccuracyPercent } from './components/levels/LevelStatsCharts';
+import { computeAccuracyPercent, computePlayedNoteCount } from './components/levels/LevelStatsCharts';
 import TwoHandedKeyboardPanel from './components/levels/TwoHandedKeyboardPanel';
 import DialogueBox from './components/character/DialogueBox';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, SLIME_IDLE, WIZARD_URL, WIZARD_GREEN_URL, WIZARD_CROP, WIZARD_FRAME, WIZARD_IDLE_CELLS } from './model/enemyAssets';
@@ -51,7 +51,8 @@ import SubHeader from './components/layout/SubHeader';
 import WorldNavBar from './components/layout/WorldNavBar';
 import WorldBottomArea from './components/layout/WorldBottomArea';
 import WorldLayoutDebugFrames from './components/layout/WorldLayoutDebugFrames';
-import { computeWorldLayout, WORLD_ART_GPX_H } from './utils/worldLayout';
+import WorldHeightToggleButton from './components/layout/WorldHeightToggleButton';
+import { computeWorldLayout, computeWorldFullHeightLayout, WORLD_ART_GPX_H, WORLD_GPX_H_MAX } from './utils/worldLayout';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -71,10 +72,10 @@ import useTwoHandedBass from './hooks/useTwoHandedBass';
 // useLevelBackingStream / useLevelMixedStream / useLevelKeyModulationStream and the classic
 // regenerate()-per-wave path — see docs/architecture.md §350.
 import useLevelContentStream from './hooks/useLevelContentStream';
-import useAdaptiveTempo from './hooks/useAdaptiveTempo';
+import useAdaptiveDifficulty from './hooks/useAdaptiveDifficulty';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { DEFAULT_RPG_FX_VOLUME, DEFAULT_RPG_MUSIC_VOLUME, rpgVolumeMultiplier } from './audio/dynamics';
-import { LEVELS, wavesForLevel, applyLevelVariant, totalNotesForLevel } from './levels/levels';
+import { LEVELS, wavesForLevel, applyLevelVariant } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
@@ -1309,10 +1310,32 @@ const App = () => {
     }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode, setTonic, setSelectedMode, setTheme, setTimeSignature, setColorScheme, setColorScope, setCourtesyAccidentals, levelLoadSong]);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
 
+    // #1120 (the adaptive ladder's GATED PACING rung): the app-wide pacing flag, 'timed' | 'gated'.
+    // Plain state, NOT a `useRefState` like `bpm`: its only consumers are the three RENDERED props
+    // below (`gatedNow`), and the content stream deliberately does not read it at all — a block is
+    // generated a screenful before it sounds, so the stream asks the CONTROLLER what the pacing will
+    // be at that block instead (`blockSettingsFor`). It must therefore never enter that stream's
+    // dependency array, exactly as `bpm` never does; putting it there would tear the whole JIT
+    // schedule down mid-level (§289). `lvl.gatedScroll` is NEVER mutated and `level.current`'s
+    // identity never changes — a level that AUTHORS rubato is unaffected by this value entirely.
+    const [pacingMode, setPacingModeState] = useState('timed');
+    // #1120: the ring buffer of HIDDEN true-timing grades. App-owned, written imperatively per hit by
+    // SheetRpgLayer, read by the ladder at each block boundary — the same "a ref the caller owns,
+    // populated by the RPG layer, never React state" convention as `gatedElapsedMsRef` below.
+    const hiddenGradesRef = useRef([]);
+    // Clearing the buffer on EVERY pacing flip is what makes the exit rule mean "8 of the last 10
+    // notes SINCE gating" (design edge case c) rather than "…including notes played before the level
+    // ever gated", which would let a stretch of timed play satisfy the gated exit condition.
+    const setPacingMode = useCallback((next) => {
+        hiddenGradesRef.current = [];
+        setPacingModeState(next);
+    }, [setPacingModeState]);
     // #1102 (adaptive tempo, level-variant letter 'i'): decides/schedules/applies mid-level tempo
-    // changes. `bpmRef` stays the single source of truth for "the tempo now" — see useAdaptiveTempo.js
+    // changes. `bpmRef` stays the single source of truth for "the tempo now" — see useAdaptiveDifficulty.js
     // for why a decided-but-not-yet-due change still needs a one-element schedule of its own.
-    const adaptiveTempo = useAdaptiveTempo({ bpmRef, setBpm, context });
+    // #1120: `setPacingMode` rides the SAME armed commit as `setBpm`, so picture and sound flip
+    // together on one block boundary.
+    const adaptiveDifficulty = useAdaptiveDifficulty({ bpmRef, setBpm, setPacingMode, context });
     // #1165 (2026-08-29): the CLASSIC per-wave adaptive decider effect that used to live here — an
     // effect keyed on `level.wave`, excluded for levels whose treble streamed via JIT — is GONE
     // with the mechanism it served. There is no classic per-wave content path any more: every
@@ -1705,6 +1728,16 @@ const App = () => {
     // generating on its own and relies entirely on this gate — `level.active` stays true until the
     // player clicks Sluiten, so without `!done` the backing kept re-looping behind the result screen,
     // sounding like the level had restarted.
+    // #1120: "is the level gated RIGHT NOW?" — computed ONCE and used at all three render-time
+    // consumers below, never re-derived per site (§6c). A level is gated when it AUTHORS rubato
+    // (levels 1/2, variant 'a' — unchanged by this ticket) OR when the adaptive ladder has switched
+    // it into gated pacing at the bpm floor. The three consumers are SheetMusic's `gatedScroll` prop
+    // (→ SheetRpgLayer's `geomRef` → the scroll freeze), the due-piano-key glow (§1052 fourth
+    // follow-up — a ladder-gated level IS gated, and withholding the glow would make it feel like a
+    // different, worse mode than authored rubato), and the rubato cello/timpani hook's `active`.
+    // The FOURTH consumer, the content stream's fixed-schedule audio guards, deliberately does NOT
+    // read this value: see `pacingMode`'s own comment.
+    const gatedNow = level.active && (!!level.current?.gatedScroll || pacingMode === 'gated');
     const levelContentStream = useLevelContentStream({
         active: level.active && !level.done,
         lvl: level.current,
@@ -1743,8 +1776,11 @@ const App = () => {
         metronomeReady,
         levelMelodyReady,
         // #1102: with one cadence there is one decider — this stream, for every level.
-        adaptiveTempo,
+        adaptiveDifficulty,
         statsRef: level.statsRef,
+        // #1120: the gated rung's exit signal — SheetRpgLayer writes it, the ladder reads it at each
+        // block boundary. Excluded from the stream effect's dependency array, like `statsRef`.
+        hiddenGradesRef,
     });
     // #1096 (Han 2026-08-20, rubato cello/timpani synced to the gate): gated levels' cello/timpani AUDIO
     // is now triggered here instead of `useLevelContentStream`'s fixed-schedule blocks (excluded for
@@ -1752,13 +1788,18 @@ const App = () => {
     // exclusion) — reads the SAME growing `levelContentStream.bass` content, just changes WHEN each note
     // sounds. `!level.done` mirrors every other JIT stream's own gate (§867 rework round 5) so this never
     // keeps triggering notes behind the result screen.
+    // #1120: `gatedNow` (not `lvl.gatedScroll`) — the ladder can turn this hook on mid-level, at which
+    // point it takes the cello/timpani over from the stream's fixed schedule at the SAME block
+    // boundary the scroll starts waiting. `bpmRef` because a ladder-gated level's live tempo is the
+    // adaptive FLOOR, not `lvl.bpm`.
     useLevelGatedRubatoAudio({
-        active: level.active && !level.done && !!level.current?.gatedScroll && !!level.current?.sideScroll,
+        active: gatedNow && !level.done && !!level.current?.sideScroll,
         lvl: level.current,
         timeSignature,
         context,
         levelAudioStart,
         gatedElapsedMsRef,
+        bpmRef,
         bassMelody: levelContentStream.bass,
         bassInstrument: celloRef.current,
         timpaniInstrument: percussionSettings?.melodic ? timpaniRef.current : null,
@@ -1819,7 +1860,12 @@ const App = () => {
     // decorative-only wizard) is already fully determined by existing level data — SheetRpgLayer's OWN
     // in-level sprite pick uses this exact same decorativeWizard check (WIZARD_URL vs WIZARD_GREEN_URL,
     // §6d single source of truth) — no new level field needed for the Wizard case specifically.
-    const wizardColorName = level.current?.decorativeWizard ? 'Green' : 'Black';
+    // Green = Level 11's decorative-only wizard; Yellow = the "YellowWizard" blind-timing trainer
+    // (Han 2026-09-04, "nu enkel nog het portret van de tovenaar aan het einde van het level"); Black =
+    // every other real combat Wizard level. Matches SheetRpgLayer's own in-level sprite pick (§6d).
+    const wizardColorName = level.current?.decorativeWizard ? 'Green'
+        : level.current?.enemyType === 'YellowWizard' ? 'Yellow'
+        : 'Black';
     const levelResultSpeaker = useMemo(() => {
         const lv = level.current;
         const npcName = lv?.npc;
@@ -1829,7 +1875,7 @@ const App = () => {
             const variant = findCreatureByName(npcName, lv?.npcColorVariant || null);
             if (variant) return { kind: 'npc', entity: npcName, variant };
         }
-        if (lv?.decorativeWizard || lv?.enemyType === 'Wizard') return { kind: 'wizard', entity: 'wizard' };
+        if (lv?.decorativeWizard || lv?.enemyType === 'Wizard' || lv?.enemyType === 'YellowWizard') return { kind: 'wizard', entity: 'wizard' };
         return { kind: 'slime', entity: 'slime' };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [level.current?.id]);
@@ -1935,7 +1981,12 @@ const App = () => {
         const lvl = typeof n === 'object' ? n : applyLevelVariant(LEVELS[n] || LEVELS[1], variantLetter, anpm);
         // #1102: seeds the clamp base with the level's AUTHORED tempo and clears any decision left over
         // from a previous run (which also invalidates that run's pending `setBpm` timer).
-        adaptiveTempo.begin(lvl.adaptiveBaseBpm);
+        // #1121: the level object too — the ladder's DENSITY rungs are scoped to procedural levels
+        // (a song-backed treble is sliced with `randomizationRule: 'fixed'` and cannot take an override).
+        adaptiveDifficulty.begin(lvl.adaptiveBaseBpm, lvl);
+        // #1120: a fresh run always starts ON THE CLOCK — the ladder's pacing rung never carries over
+        // from the previous run (design edge case e), and this also clears the hidden-grade buffer.
+        setPacingMode('timed');
         // Bug fix (Han 2026-08-06, "audio-context mag niet starten met spelen voordat de melodie geladen
         // is... metronoom, cello, en melodie time checker zouden allemaal gebruik moeten maken van
         // dezelfde timer"): if the user was mid-playback (normal practice-mode Sequencer running) when
@@ -1960,7 +2011,7 @@ const App = () => {
         setCharacterScreen(null);
         setActiveTab('piano');
         level.start(lvl);
-    }, [context, level, closeAllEditModes, setCharacterScreen, setActiveTab, handleStopAllPlayback, stopAllBackingAudio, anpm, adaptiveTempo]);
+    }, [context, level, closeAllEditModes, setCharacterScreen, setActiveTab, handleStopAllPlayback, stopAllBackingAudio, anpm, adaptiveDifficulty, setPacingMode]);
     // #693 (round 7): the header Pause button opens LevelPausePopup instead of the old floating
     // "■ Stop" button. Quit ends the level exactly like the old Stop button did; Resume rewinds to
     // the start of the measure the player was in, plays a 1-measure metronome count-in, then
@@ -2096,10 +2147,12 @@ const App = () => {
         setLevelAudioStart(null);
         // #1102: a replay is a fresh run — clear the previous run's stats baseline and pending commit so
         // the new run starts from its own ANPM baseline again (`level.replay()` re-applies `lvl.bpm`).
-        adaptiveTempo.begin(level.current?.adaptiveBaseBpm);
+        adaptiveDifficulty.begin(level.current?.adaptiveBaseBpm, level.current);
+        // #1120: same reset as `startLevel` — a replay is a fresh run, always starting timed.
+        setPacingMode('timed');
         level.replay();
         setCharacterScreen(null);   // #863 — leave the level-result top-view panel, back to live gameplay
-    }, [stopAllBackingAudio, handleStopAllPlayback, level, adaptiveTempo]);
+    }, [stopAllBackingAudio, handleStopAllPlayback, level, adaptiveDifficulty, setPacingMode]);
     // #863 (Han 2026-08-10, "zet het splash screen in zijn volledigheid in de top view. sluit het level
     // af, en toon de statistieken"): the level-result panel now lives in the SAME top-view slot as the
     // avatar/stats/bestiary panels (characterScreen === 'levelResult') instead of a floating modal — auto-
@@ -2118,11 +2171,15 @@ const App = () => {
         if (!level.done) return;
         setCharacterScreen('levelResult');
         if (level.current) {
-            // #1099 (Han 2026-08-22, ANPM stat): "maten per minuut x noten per maat" — `totalNotesForLevel`
-            // (levels.js, #1102 follow-up: extracted so #1102's adaptive-tempo baseline reuses the SAME
-            // formula, CLAUDE.md §6c) is the level's own total note count.
+            // #1099 (Han 2026-08-22, ANPM stat): "maten per minuut x noten per maat".
+            // #1121 (Han 2026-09-01) changed the NUMERATOR only: it was `totalNotesForLevel(level.current)`
+            // — the level's AUTHORED note count — which under-reports any run where the adaptive
+            // difficulty ladder (§361) raised the note density above what the level authors, i.e. exactly
+            // the effort that feature exists to add. `computePlayedNoteCount` is the notes the player
+            // actually FACED (every note that reached a final verdict, minus `extraNote`, so mashing
+            // spurious keys cannot inflate the number). The DENOMINATOR is untouched.
             const elapsedMinutes = (Date.now() - (level.stats.startedAt ?? Date.now())) / 60000;
-            const totalNotes = totalNotesForLevel(level.current);
+            const totalNotes = computePlayedNoteCount(level.stats);
             recordLevelCompletion({
                 levelId: level.current.songId ? undefined : level.current.id,
                 songId: level.current.songId,
@@ -2166,9 +2223,12 @@ const App = () => {
             // #1102: drop any decided-but-unapplied tempo change too — its pending `setBpm` timer would
             // otherwise land AFTER `useLevel.restore()` put the player's own pre-level bpm back, silently
             // leaving the app at a level's adapted tempo.
-            adaptiveTempo.cancel();
+            adaptiveDifficulty.cancel();
+            // #1120: and drop the pacing rung with it — the app must never be left in gated pacing
+            // after a level closes, and the hidden-grade buffer must not leak into the next run.
+            setPacingMode('timed');
         }
-    }, [level.active, stopAllBackingAudio, adaptiveTempo]);
+    }, [level.active, stopAllBackingAudio, adaptiveDifficulty, setPacingMode]);
     // Watchdog + self-heal (Han 2026-08-10, "ik zit nu zelfs in de situatie dat de melodie helemaal nooit
     // komt... het is NIET robuust geïmplementeerd"): a structural safety net for the case where the
     // visual clock (SheetRpgLayer's own tick loop) never unfreezes at all despite `levelAudioStart`
@@ -2735,9 +2795,21 @@ const App = () => {
     // Computed always (cheap, pure); only consulted while `inWorld && characterScreen === 'rpg-level'`.
     // #347: `devicePixelRatio` gates the 1.5 half-step. A dpr change (browser zoom, monitor move)
     // fires `resize` in practice, so keying the memo on window size is enough to pick it up.
-    const worldLayout = useMemo(
+    const worldLayoutBase = useMemo(
         () => computeWorldLayout(windowSize.width, windowSize.height, window.devicePixelRatio || 1),
         [windowSize.width, windowSize.height],
+    );
+    // UI world-height toggle (Han 2026-09-04, "als het 'wereld' beeld lager is dan 320 GPX, wil ik een
+    // knopje ... om het volle hoogte te geven"): a manual, user-controlled override — NOT re-derived
+    // from the viewport, so it stays exactly where the player left it (see worldLayout.js
+    // `computeWorldFullHeightLayout` for the drop-priority mechanism: content2 → content1 → nav).
+    const [worldFullHeight, setWorldFullHeight] = useState(false);
+    const canExpandWorld = worldLayoutBase.world.gpxH < WORLD_GPX_H_MAX;
+    const worldLayout = useMemo(
+        () => (worldFullHeight
+            ? computeWorldFullHeightLayout(windowSize.width, windowSize.height, worldLayoutBase.scale)
+            : worldLayoutBase),
+        [worldFullHeight, worldLayoutBase, windowSize.width, windowSize.height],
     );
     const inWorldLevel = inWorld && characterScreen === 'rpg-level';
     // Top-section (world / sheet / avatar panel) CSS height. In world mode it's the pixel-perfect
@@ -3197,12 +3269,14 @@ const App = () => {
                         // sheet-music / avatar panels.
                         padding: inWorld ? 0 : '0 20px',
                         // #UI-overhaul Stap 3: the world block clips the level's cropped-off top sky
-                        // (and, when squeezed below 240 gpx, its bottom 16 gpx).
+                        // (and, while squeezed toward the 192-gpx floor, up to its bottom 16 gpx —
+                        // that bottom crop ramps 16→0 over gpxH 192→208, Han 2026-09-01, see worldLayout cropFor).
                         overflow: inWorldLevel ? 'hidden' : undefined,
-                        // #348: when the ladder grows the world block past the 272-gpx level art
-                        // (`world.skyPadGpx > 0`), the RpgLevelPanel layer still renders 272·N tall,
-                        // bottom-anchored — this fill shows through the exposed strip on top. `#8fd0d9`
-                        // is the top colour of RpgLevelPanel's own sky gradient, so the seam is invisible.
+                        // #348/#379 bugfix (Han 2026-09-05): `WORLD_ART_GPX_H` now equals `WORLD_GPX_H_MAX`
+                        // (320, up from 272 — see worldLayout.js), so `world.skyPadGpx` is always 0 and this
+                        // fill never actually shows through anymore. Left in place (harmless, `#8fd0d9` still
+                        // matches RpgLevelPanel's own sky gradient top colour) as a safety net in case the two
+                        // constants ever diverge again.
                         background: inWorldLevel ? '#8fd0d9' : undefined,
                         position: 'relative'
                     }}
@@ -3216,21 +3290,31 @@ const App = () => {
                     {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} context={context} worldScale={inWorld ? worldLayout.scale : undefined} />}
                     {characterScreen === 'scales' && <ScalesTopPanel debugMode={debugMode} worldScale={inWorld ? worldLayout.scale : undefined} selected={selectedScale} onSelect={setSelectedScale} />}
                     {characterScreen === 'rpg-level' && (inWorldLevel ? (
-                        // #UI-overhaul Stap 3: RpgLevelPanel always renders the FULL 272-gpx level at
-                        // scale N inside a 272*N-tall layer; this box (height = world.screenH, overflow
-                        // hidden) shows only `world.gpxH` gpx of it. `bottom: -(bottomCrop*N)` pushes the
-                        // level's bottom `bottomCropGpx` gpx below the box; the remaining overflow
-                        // (topCropGpx*N) clips off the top. `zoom` stays exactly N (272*N / 272).
+                        // #UI-overhaul Stap 3: RpgLevelPanel always renders the FULL WORLD_ART_GPX_H-gpx
+                        // level (320, since #348/#379 bugfix 2026-09-05 — was 272) at scale N inside a
+                        // WORLD_ART_GPX_H*N-tall layer; this box (height = world.screenH, overflow hidden)
+                        // shows only `world.gpxH` gpx of it. `bottom: -(bottomCrop*N)` pushes the level's
+                        // bottom `bottomCropGpx` gpx below the box; the remaining overflow (topCropGpx*N)
+                        // clips off the top. `zoom` stays exactly N (WORLD_ART_GPX_H*N / WORLD_ART_GPX_H).
                         <div style={{
                             position: 'absolute', left: 0, right: 0,
                             bottom: -(worldLayout.world.bottomCropGpx * worldLayout.scale),
                             height: WORLD_ART_GPX_H * worldLayout.scale,
                         }}>
-                            <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} worldScale={worldLayout.scale} />
+                            <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} worldScale={worldLayout.scale} />
                         </div>
                     ) : (
-                        <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />
+                        <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} context={context} instruments={instruments} setVolume={setVolume} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />
                     ))}
+                    {/* UI world-height toggle (Han 2026-09-04) — top-right of the world block. A sibling
+                        of the RpgLevelPanel wrapper above, NOT a child of it: that inner div is the
+                        full WORLD_ART_GPX_H*N-tall (uncropped) art layer, offset by `bottom: -(bottomCrop*N)` — a
+                        button anchored inside it would scroll off-screen with the crop. This outer
+                        container is the CLIPPED, correctly-sized (`world.screenH`) box the player
+                        actually sees, so `top-right` here means top-right of the visible world. */}
+                    {inWorldLevel && (canExpandWorld || worldFullHeight) && (
+                        <WorldHeightToggleButton active={worldFullHeight} onToggle={() => setWorldFullHeight((v) => !v)} />
+                    )}
                     {/* #867 (Han 2026-08-18, "de info op de plaats van de bladmuziek"): the old
                         <LevelSplash> sibling-swap is gone — SheetMusic now stays mounted for
                         `levelResult` too and renders the result view INSIDE its own SVG (levelResult
@@ -3279,7 +3363,11 @@ const App = () => {
                             // between notes, but freezes the instant a note reaches the hit window until
                             // the player defeats it. Same "explicit level field" convention as sideScroll
                             // above — only meaningful when sideScroll is also true.
-                            gatedScroll={level.active && !!level.current.gatedScroll}
+                            // #1120: the COMBINED value — authored rubato OR the adaptive ladder's
+                            // gated pacing rung. See `gatedNow`'s own comment above.
+                            gatedScroll={gatedNow}
+                            // #1120: the ladder's hidden true-timing ring buffer, written per hit.
+                            hiddenGradesRef={hiddenGradesRef}
                             // #867 rework (Han 2026-08-20): which wave of a multi-wave level (today: only
                             // Level 3) is currently showing — lets SheetMusic's scroll-barlines bundle skip
                             // the synthetic lead-in bars and continue measure numbering past wave 0.
@@ -3334,7 +3422,7 @@ const App = () => {
                             // natively — a black static wizard is always shown, and each note renders
                             // as a Slime or Projectile per its OWN block (Han: "de noten van de
                             // wizardmaten moeten geen slime hebben, maar een projectile krijgen").
-                            enemyType={level.active ? level.current.enemyType : 'Slime'}   // #679 Level 9 — Wizard/projectile combat
+                            enemyType={level.active ? level.current.enemyType : 'Slime'}   // #679 Level 9 — Wizard/projectile combat; also 'YellowWizard' (Han 2026-09-03)
                             wizardSpawnLeadMeasures={level.active ? (level.current.wizardSpawnLeadMeasures ?? 1) : 1}   // #686
                             // #1155 (Han 2026-08-24, "N . 2" labeling for call-response): only set for a
                             // call-response level (d/e) — null for every other level, so its measure
@@ -3599,6 +3687,15 @@ const App = () => {
                             dedicatedPortraitUrl={wizardDedicatedPortrait?.portraitUrl}
                             dedicatedPortraitCell={wizardDedicatedPortrait?.portraitCell}
                             dedicatedPortraitFrame={wizardDedicatedPortrait?.portraitFrame}
+                            /* #weather (Han 2026-09-04): name the post-combat speaker — the three wizards
+                               (black Antophon / yellow Prosperus / green Modulatus) and the plain slime
+                               (Blob). The named-NPC case keeps no plate (its own label isn't a name). */
+                            speakerName={
+                                levelResultSpeaker.kind === 'slime' ? 'Blob'
+                                    : levelResultSpeaker.kind === 'wizard'
+                                        ? ({ Black: 'Antophon', Yellow: 'Prosperus', Green: 'Modulatus' })[wizardColorName]
+                                        : null
+                            }
                             text={levelResultDialogue.visibleText}
                             onClick={levelResultDialogue.handleTextClick}
                             autoContinue={rpgLevel.autoContinue}
@@ -3638,7 +3735,10 @@ const App = () => {
                     // #1052 fourth follow-up (Han 2026-08-18, glow the due piano key on gated levels
                     // 1-3): same "explicit level field" convention as `gatedScroll` itself (App.jsx's
                     // SheetMusic prop) — only true while a gatedScroll level is actually running.
-                    showExpectedNoteGlow={level.active && !!level.current?.gatedScroll}
+                    // #1120: the COMBINED gated value — a ladder-gated level IS gated, and
+                    // withholding the glow there would make the rubato rescue feel like a
+                    // different, worse mode than authored rubato.
+                    showExpectedNoteGlow={gatedNow}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}

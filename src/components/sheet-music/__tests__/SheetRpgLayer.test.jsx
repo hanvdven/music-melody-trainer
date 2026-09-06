@@ -509,4 +509,53 @@ describe('SheetRpgLayer (#647)', () => {
         expect(realLayerProps.melody.notes[3]).toBe('F4');
         vi.useRealTimers();
     });
+
+    // "Yellow wizard" (Han 2026-09-03/04): its OWN mechanic. The level renders the NORMAL single
+    // notehead layer (NOT the black wizard's Rest+Real call-response split), a static YELLOW wizard
+    // sprite, and hides each notehead behind the `rpgYellowCastGate` mask — which MUST live on a
+    // NON-translated wrapper (a mask inside the per-frame translate would scroll the "stationary gate"
+    // away with the notes and hide everything, the v2 bug Han reported).
+    it('yellow wizard: ONE normal notehead layer + a non-translated rpgYellowCastGate mask wrapper + the yellow sprite', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        MelodyNotesLayer.mockClear();
+        const mls = 48;
+        const notation = {
+            melody: { notes: ['C4', 'E4', 'G4', 'C5'], offsets: [0, mls, 2 * mls, 3 * mls], durations: [mls, mls, mls, mls], ties: [null, null, null, null] },
+            numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: mls, timeSignature: [4, 4],
+            clef: 'treble', colorScheme: 'none', colorScope: 'all', tonic: 'C4', scaleNotes: [], processedChords: [],
+            theme: 'default', startMeasureIndex: 0, transpositionSemitones: 0, courtesyAccidentals: true,
+        };
+        const { container } = render(
+            <svg><SheetRpgLayer startX={20} pixelsPerTick={null} allOffsets={[0, mls, 2 * mls, 3 * mls]} noteWidth={20}
+                trebleStart={100} staffHeight={40} viewBottom={220} bpm={80} sideScroll viewRight={500}
+                enemyType="YellowWizard" wizardSpawnLeadMeasures={1} debugMode={false}
+                trebleMelody={notation.melody} scrollNotation={notation} /></svg>,
+        );
+
+        // Exactly ONE treble MelodyNotesLayer — the normal layer, NOT the Rest+Real pair.
+        const trebleCalls = MelodyNotesLayer.mock.calls.map(([p]) => p).filter((p) => p.staff === 'treble');
+        expect(trebleCalls).toHaveLength(1);
+        // Real generated pitches pass straight through (no call/response collapse to 'r'/'c').
+        expect(trebleCalls[0].melody.notes).toEqual(['C4', 'E4', 'G4', 'C5']);
+
+        // The mask def exists, and the element that references it is NOT inside a translate — its OWN
+        // transform is null, and the scrolling group sits INSIDE it.
+        expect(container.querySelector('mask#rpgYellowCastGate')).toBeTruthy();
+        const masked = container.querySelector('g[mask="url(#rpgYellowCastGate)"]');
+        expect(masked).toBeTruthy();
+        expect(masked.getAttribute('transform')).toBeNull();
+        const innerScroll = masked.querySelector('g[transform]');
+        expect(innerScroll).toBeTruthy();
+        expect(innerScroll.getAttribute('transform')).toContain('translate');
+        // No translate transform anywhere on the path from `masked` up to the SVG root.
+        for (let el = masked.parentElement; el && el.tagName.toLowerCase() !== 'svg'; el = el.parentElement) {
+            expect((el.getAttribute('transform') || '')).not.toContain('translate');
+        }
+
+        // The static wizard sprite is the YELLOW variant sheet, not the black one.
+        const wizHref = [...container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '')
+            .find((h) => /Yellow Wizard sheet|wizard-black/.test(h));
+        expect(wizHref).toMatch(/Yellow Wizard sheet/);
+        vi.useRealTimers();
+    });
 });

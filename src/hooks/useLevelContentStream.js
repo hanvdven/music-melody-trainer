@@ -5,9 +5,10 @@ import { generateMetronomeChunk } from '../generation/generateMetronomeChunk';
 import { doubleMelodyForCallResponse } from '../generation/sliceSongCallResponseBlock';
 import { sliceMelodyByRange } from '../utils/melodySlice';
 import buildTimpaniPattern from '../utils/timpaniPattern';
-import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, SCHEDULE_SAFETY_BUFFER_SECONDS } from '../constants/timing';
 import playMelodies from '../audio/playMelodies';
 import { outputLatencySeconds } from '../audio/audioOutputLatency';
+import logger from '../utils/logger';
 import {
     blockMeasuresFor, blockTypeForBlock, resolveBlockScale, blockCountFor,
     leadInSpecFor, trackSpecsForLevel, callGroupMeasuresFor,
@@ -56,14 +57,25 @@ import {
 // block that has been published is NEVER rewritten, re-offset or dropped. SheetRpgLayer's
 // slime/kill bookkeeping derives from these offsets and would desync the instant that broke.
 //
-// ── ADAPTIVE TEMPO (#1102) ──────────────────────────────────────────────────────────────
+// ── ADAPTIVE DIFFICULTY (#1102 tempo, #1121 density) ────────────────────────────────────
 // This stream is the SOLE decider for EVERY level — the classic per-wave decider effect in
 // App.jsx is gone with the mechanism it served. With one cadence, `commitIndexFor` is always
 // called with `units: [B]`, so Han's "force exact sync" between treble and bass/metronome is
 // now STRUCTURAL (they are the same block, generated and scheduled together at one bpm)
-// rather than arithmetic. `adaptiveTempo`/`statsRef` are deliberately NOT in this effect's
+// rather than arithmetic. `adaptiveDifficulty`/`statsRef` are deliberately NOT in this effect's
 // dependency array — subscribing to live stats would tear down and rebuild the whole JIT
 // schedule on every hit/miss, which is exactly why `useLevel.statsRef` exists.
+// #1121 adds a second per-block value on the SAME seam: the ladder's `densityStep`, projected
+// onto the treble/bass `notesPerMeasure`/`smallestNoteDenom` for THIS block only. It is read
+// ref-driven, exactly like the fresh bpm, and for exactly the same reason — see the hard
+// constraint spelled out at that read.
+// #1120 adds a THIRD on the same seam: the ladder's `pacing`. A block generated while the ladder
+// has gated the level skips the FIXED-SCHEDULE cello/metronome/timpani, because
+// `useLevelGatedRubatoAudio` triggers them off the gate's own clock instead. `pacingMode` is app
+// state, but this stream reads the per-BLOCK value from the controller and NEVER subscribes to it
+// (it is not in the dependency array, exactly as the bpm is not) — content is generated ahead of
+// when it sounds, so "is the level gated right now" is the wrong question here; "will it be gated
+// when THIS block sounds" is the right one, and that is what `blockSettingsFor` answers.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 export default function useLevelContentStream({
     active,            // level.active (see App.jsx — ONE activation condition for every level now)
@@ -102,8 +114,12 @@ export default function useLevelContentStream({
     bassReady,
     metronomeReady,
     levelMelodyReady,
-    adaptiveTempo = null,
+    adaptiveDifficulty = null,
     statsRef = null,
+    // #1120: the App-owned ring buffer of HIDDEN true-timing grades SheetRpgLayer writes per hit. Read
+    // ONLY at the decider call below and, like `statsRef`/`adaptiveDifficulty`, deliberately excluded
+    // from this effect's dependency array — see this file's header.
+    hiddenGradesRef = null,
 }) {
     const [treble, setTreble] = useState(() => Melody.defaultTrebleMelody());
     const [bass, setBass] = useState(() => Melody.defaultBassMelody());
@@ -129,11 +145,18 @@ export default function useLevelContentStream({
             if (!levelMelodyReady) return;
         }
         // Only a level whose blocks can actually BE Wizard-type needs the cast instrument ready.
+        // (`enemyType: 'YellowWizard'` is a normal-generation level with a SILENT cast — it never
+        // produces Wizard-type blocks, so it neither needs nor waits on `wizardInstrument`.)
         const mayCast = lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed';
         if (mayCast && sideScroll && !wizardInstrument) return;
-        const specs = trackSpecsForLevel(lvl, {
+        // #1121: hoisted into a named bundle because a block whose ladder rung is non-zero
+        // re-derives its OWN specs from the same authored settings (see `blockSpecs` below).
+        // `specs` itself stays the AUTHORED-density bundle: the song gate right below and the
+        // lead-in both want it, and neither is density-varying.
+        const levelSettings = {
             trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,
-        });
+        };
+        const specs = trackSpecsForLevel(lvl, levelSettings);
         // A song-backed level slices the song's own measures; there is nothing to publish until
         // `handleLoadSong` has actually finished (mirrors the wizard-instrument gate above).
         if (specs.songTreble && !songMelody?.notes?.length) return;
@@ -165,9 +188,30 @@ export default function useLevelContentStream({
         const { leadInBars, metronomeBars } = leadInSpecFor(lvl);
         const groupMeasures = callGroupMeasuresFor(lvl);
         const totalContentMeasures = lvl.totalMeasures ?? lvl.numMeasures ?? B;
+        // #1168: the UN-multiplied content PERIOD, and how many passes of it the level's timeline is.
+        // An adaptive level's `totalMeasures` has already been multiplied by ADAPTIVE_LEVEL_REPEATS
+        // (`applyLevelVariant`), and `contentPeriodMeasures` is the original value it was multiplied
+        // FROM. It is `undefined` for EVERY non-adaptive level, so `contentPeriod` is exactly
+        // `totalContentMeasures` and `contentRepeats` is exactly 1 there — no new branch, byte-identical.
+        const contentPeriod = Math.max(1, lvl.contentPeriodMeasures ?? totalContentMeasures);
+        const contentRepeats = Math.max(1, Math.round(totalContentMeasures / contentPeriod));
         // §867/§1052: a gated level's content NEVER runs out — the player may stay frozen on one
         // note for an arbitrary real-time duration, so a fixed block count would eventually leave
         // the level with nothing left to generate (the cello simply going silent mid-level).
+        //
+        // ⚠ HARD INVARIANT (#1120): this stays bound to the AUTHORED `lvl.gatedScroll` field ALONE.
+        // The adaptive ladder's gated PACING rung must NEVER set it. A ladder-gated level is
+        // PROCEDURAL, and a procedural level's `total` (SheetRpgLayer's `slimeData.length`) grows with
+        // the stream — so an infinite stream there means `killedCount >= total` can never fire and the
+        // level can NEVER end: §289, whose bug class has already bitten this codebase three times.
+        // It is safe for the SHIPPED gated levels (1/2) only because they are SONG levels whose treble
+        // slice is unwrapped and therefore stops growing at the song's true end.
+        // A ladder-gated level instead keeps its ordinary FINITE block plan (totalMeasures × repeats)
+        // and simply takes longer in real time: generation is DEADLINE-driven (see the timer at the
+        // bottom of `generateAndScheduleBlock`), so while the scroll is frozen the deadlines still
+        // pass and the level's finite content is merely generated early, then waits. Asserted by a
+        // regression test (adaptiveMode.integration.test.js), not reasoned about once and forgotten.
+        // See also `blockCountFor` (levelBlockPlan.js) and docs/architecture.md §367.
         const loopForever = !!lvl.gatedScroll;
         // Without a clock there is nothing to stream against, so a static level builds its whole
         // (always finite — `gatedScroll` implies `sideScroll`) content in one synchronous pass.
@@ -211,6 +255,11 @@ export default function useLevelContentStream({
         // never start ahead of / independent from the treble melody. It used to need its own explicit
         // `levelMelodyReady` gate in App.jsx for that; here it is structural — this effect returns
         // early until `levelMelodyReady`, so timpani cannot exist before the melody does.
+        // #1120: this BUILD-time condition keeps `!lvl.gatedScroll` — an AUTHORED gated level builds no
+        // pattern at all, exactly as before. A ladder-gated level DOES build one (it started timed and
+        // may return to timed), and simply stops SCHEDULING it from the flip block onward: the
+        // per-block `fixedSchedule` guard below is what decides that, so the two timpani sources can
+        // never sound at once. §356's "the pattern stays FINITE" property is untouched either way.
         const timpaniEnabled = !!timpaniInstrument && sideScroll && !lvl.gatedScroll;
         const timpaniPattern = timpaniEnabled
             ? buildTimpaniPattern(leadInBars + totalContentMeasures, timeSignature)
@@ -221,6 +270,33 @@ export default function useLevelContentStream({
             return slice.notes.length ? slice : null;
         };
         const timpaniGains = { treble: 0, bass: 0, percussion: timpaniVolume, chords: 0, metronome: 0 };
+
+        // ── THE SONG SOURCE (#1168, Han 2026-09-01) ────────────────────────────────────────
+        // An adaptive song level's timeline is `contentRepeats` passes of the song (Han Q2: a flat
+        // ×3 for every song, no per-song budget), so the SOURCE the blocks slice from is
+        // materialised that many times, at exactly `contentPeriod * measureLengthTicks` per pass —
+        // SEAMLESS, repeat-sign style: no bar of rest, no padding measure, no new notation (Han Q5).
+        // Concatenation reuses `appendChunk`, the SAME helper every track's publish path below
+        // already uses (§6c: no third melody slicer/concatenator), so the seam carries exactly the
+        // arrays the 1× path carries today.
+        //
+        // WHY THE WRAP IS MATERIALISED IN THE SOURCE, not in the slicer — this IS the §289 guard:
+        // `songSlice` below keeps its UNWRAPPED `sliceMelodyByRange` call, so "past the source's
+        // last measure the slice is empty" stays LITERALLY true, now against a source that really
+        // is 3× long. Content therefore stops at the level's true (3×) end, `slimeData.length`
+        // stops growing, and cumulative kills can catch up to it (`wavesForLevel` is 1). A modulo
+        // slicer here would INVERT that guard into "never empty" — the very property that makes the
+        // level's end provable. A block straddling a repeat seam gets both halves for free.
+        //
+        // `contentRepeats === 1` for every non-adaptive level, so `songSource` is then literally the
+        // same object reference as `songMelody`: no allocation, no array copying, provably identical.
+        let songSource = songMelody;
+        if (songMelody && contentRepeats > 1) {
+            songSource = new Melody([], [], [], []);
+            for (let pass = 0; pass < contentRepeats; pass++) {
+                songSource = appendChunk(songSource, songMelody, pass * contentPeriod * measureLengthTicks);
+            }
+        }
 
         let growingTreble = new Melody([], [], [], []);
         let growingBass = new Melody([], [], [], []);
@@ -234,6 +310,40 @@ export default function useLevelContentStream({
         const timers = [];
         const ownWizardStopFns = [];   // THIS run's scheduled cast StopFns
         const ownBackingStopFns = [];  // THIS run's scheduled cello/metronome StopFns
+
+        // ── PAST-DUE GUARD (#1168 UAT round 2, Han 2026-09-03) ─────────────────────────────────
+        // Han: *"bij sommige maten gaat het helemaal bad: ik hoor 4 metronomen/cello's op net andere
+        // tempo's. Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."* See §369.
+        //
+        // "Has this material's own moment already gone by?" — the ONE question every schedule below
+        // must answer before it reaches `playMelodies`, because `playMelodies` does NOT skip a start
+        // time that has passed: it CLAMPS it forward to `now + SCHEDULE_SAFETY_BUFFER_SECONDS` (its
+        // own `adjustedStart`). That clamp is right for the Sequencer's short-horizon per-measure
+        // scheduling; for a level, which hands over whole blocks many bars ahead, it turns "this
+        // block is history" into "play this entire block RIGHT NOW, on top of whatever is sounding".
+        //
+        // That is exactly what Han heard. If this effect is torn down and re-run after the level's
+        // audio has started (ANY dependency change — a late `songMelody`/`chordProgression`/
+        // instrument/settings identity), the chain restarts from the lead-in and block 0 against the
+        // ORIGINAL, long-elapsed `contentStartTime`. Measured in a real browser at content measure
+        // ~26: eleven schedules (lead-in + blocks 0-9) all past-due, all clamped to the same instant,
+        // each still carrying the bpm ITS OWN block was generated at — several cello and metronome
+        // tracks sounding at once at slightly different tempos. It is a #1168 regression only in
+        // BLAST RADIUS: a song level used to be ONE block (`blockMeasuresFor` fell through to the
+        // song's length), so the same latent restart re-scheduled exactly one block at one tempo and
+        // was inaudible; with `SONG_BLOCK_MEASURES` it re-schedules every elapsed block at every
+        // tempo the ladder has visited.
+        //
+        // Threshold imported from the timing SSOT (`constants/timing.js`), never re-typed (§6c): the
+        // guard must fire on exactly the condition `playMelodies`'s own clamp fires on, or it would
+        // leave a sliver of the bug behind.
+        // Read FRESH per call, like `outputLatencySeconds` itself — see `scheduleInto`.
+        const isPastDue = (heardAt) => (heardAt - outputLatencySeconds(context))
+            < context.currentTime + SCHEDULE_SAFETY_BUFFER_SECONDS;
+        // Logged ONCE per effect run: a level whose audio has already started must never re-enter
+        // this effect, so a single drop is a real anomaly worth a grep-able trace (§7a) rather than a
+        // silent recovery. Not fatal — dropping is the CORRECT behaviour once the moment has passed.
+        let pastDueLogged = false;
         // #1186 (Han 2026-08-29, "de noot valt niet EXACT tegelijk met de metronoom klik op de perfect
         // hit mark"): `scheduledStart` is the moment this material must be HEARD — the same instant the
         // visual clock (SheetRpgLayer, whose t=0 IS `levelAudioStart`) puts it on the strike line. A
@@ -246,6 +356,20 @@ export default function useLevelContentStream({
         // device mid-level, and this is the same "re-read the live value at the top of each scheduling
         // unit" pattern the per-block bpm read below already uses.
         const scheduleInto = (ref, own, melodies, instruments, scheduledStart, namedInstruments, trackGains, bpm) => {
+            // ⚠ #1168 UAT round 2 — THE guard, at the ONE seam every level schedule passes through, so
+            // no call site can forget it and no future track can reintroduce the pile-up. See the
+            // `isPastDue` comment above for the full mechanism.
+            if (isPastDue(scheduledStart)) {
+                if (!pastDueLogged) {
+                    pastDueLogged = true;
+                    logger.error('useLevelContentStream', 'E035-LEVEL-AUDIO-PAST-DUE',
+                        new Error('level audio schedule dropped: its moment had already passed'), {
+                            level: lvl.id, scheduledStart, now: context.currentTime, bpm,
+                            outputLatencyS: outputLatencySeconds(context),
+                        });
+                }
+                return;
+            }
             const before = ref.current.length;
             playMelodies(
                 melodies, instruments, context, bpm, scheduledStart - outputLatencySeconds(context), null, null,
@@ -270,7 +394,10 @@ export default function useLevelContentStream({
                 // — it reuses the FIRST content measure's harmony, the same "reuse the nearest real
                 // content" principle the retired metronomeLeadIn.js used.
                 chordProgression: chordContextFor(0, leadInBars),
-                seriesArgs: seriesArgsFor(scale),
+                // The lead-in is always generated at the level's AUTHORED density, for exactly the
+                // reason it is always generated at `startBpm`: no ladder commit can exist before the
+                // first block has been graded.
+                seriesArgs: seriesArgsFor(scale, specs),
             });
             // Only BASS is taken from the lead-in block: the level's treble starts at content
             // measure 0, and the lead-in's percussion is Han's authorized hardcoded timpani pattern
@@ -294,6 +421,11 @@ export default function useLevelContentStream({
             // geen metronoom") — there is no fixed tempo to click to when the scroll waits for
             // the player. Both tracks' CONTENT is still generated above, only the fixed-schedule
             // AUDIO trigger is skipped, which keeps this function uniform per block.
+            // #1120: these three lead-in guards stay bound to the AUTHORED `lvl.gatedScroll` and are
+            // deliberately NOT made per-block like the content blocks' below. The lead-in is always at
+            // the level's very start, where the ladder's pacing is always 'timed' (`begin()` resets it
+            // and no commit can exist before the first block has been graded) — so a per-block read
+            // here could only ever return the same answer. Do not "fix" this later.
             if (leadIn.bass?.notes?.length && !lvl.gatedScroll) {
                 scheduleInto(backingStopFnsRef, ownBackingStopFns, [leadIn.bass], [bassInstrument],
                     levelAudioStart, { bass: bassInstrument },
@@ -336,7 +468,10 @@ export default function useLevelContentStream({
         // difficulty targets, and there is no `currentMelodyContext` reference melody — a song's
         // material reaches the pipeline through `fixedOstinato` instead, so the block gets the
         // song's notes VERBATIM rather than re-spelled through `modulateMelody`.
-        function seriesArgsFor(blockScale) {
+        // #1121: `blockSpecs` is a PARAMETER rather than the effect-level `specs`, because the
+        // adaptive ladder can hand THIS block a different `instrumentSettings.treble/bass`
+        // (a density rung). Callers that are not density-varying — the LEAD-IN — pass `specs`.
+        function seriesArgsFor(blockScale, blockSpecs) {
             return {
                 oldTonic: blockScale.tonic,
                 oldMode: blockScale.name,
@@ -345,7 +480,7 @@ export default function useLevelContentStream({
                 oldDisplayScale: blockScale.displayNotes,
                 randConfig: { melody: true },
                 currentMelodies: {},
-                instrumentSettings: specs.instrumentSettings,
+                instrumentSettings: blockSpecs.instrumentSettings,
                 currentMelodyContext: {},
                 targetTrebleDifficulty: null,
                 targetBassDifficulty: null,
@@ -359,12 +494,51 @@ export default function useLevelContentStream({
         // measures × ITS OWN bar duration`. Byte-identical placement at a constant tempo.
         const generateAndScheduleBlock = (blockIndex, blockStartTime) => {
             const contentMeasure = blockIndex * B;
-            // The tempo THIS block is generated and scheduled at, read FRESH here rather than
-            // captured once for the whole effect — the same "re-read the live bpm at the top of
-            // each scheduling unit" pattern `Sequencer.scheduleBlock` already uses per measure.
-            const bpm = (sideScroll && lvl.adaptive && adaptiveTempo)
-                ? adaptiveTempo.bpmForMeasure(contentMeasure, blockStartTime)
-                : startBpm;
+            // The ladder position THIS block is generated and scheduled at, read FRESH here rather
+            // than captured once for the whole effect — the same "re-read the live value at the top
+            // of each scheduling unit" pattern `Sequencer.scheduleBlock` already uses per measure.
+            // ONE reader for all three values (#1121): the armed app-wide `setBpm` is a side effect
+            // of reading a due commit, so splitting this into per-value readers would make the
+            // arming depend on which one the stream happened to call first.
+            //
+            // ⚠ HARD CONSTRAINT — this value must NEVER travel through `setTrebleSettings` or any
+            // other member of this effect's dependency array (bottom of the file). Doing so tears
+            // the whole JIT effect down mid-level: every published Melody is reset to its default
+            // (the four `setX(Melody.defaultX())` calls above), every pending generation timer is
+            // cleared and every already-scheduled note is stopped — i.e. the §289 "level never
+            // ends" bug class, re-opened. Ref-driven, read fresh, per block. This is exactly why
+            // the density is a per-block GENERATION INPUT and not app state.
+            //
+            // #1168 UAT round 2: a block whose own moment has already passed is still GENERATED and
+            // PUBLISHED — append-only (see this file's header): the staff and SheetRpgLayer's
+            // slime/kill bookkeeping need every block of the timeline to exist, and after a mid-level
+            // effect restart the elapsed blocks are how the growing Melodies are rebuilt. What such a
+            // block must NOT do is take part in the LIVE machinery: no audio (dropped by
+            // `scheduleInto`'s guard), no ladder read (which would arm the app-wide `setBpm` with
+            // `delayMs` 0 and land a tempo change instantly — measured, see §369) and no `evaluate`
+            // (which would hand the decider a burst of fake block boundaries in a single tick and
+            // corrupt its snapshot diffing).
+            const alreadySounded = sideScroll && isPastDue(blockStartTime);
+            const ladder = (!alreadySounded && sideScroll && lvl.adaptive && adaptiveDifficulty)
+                ? adaptiveDifficulty.blockSettingsFor(contentMeasure, blockStartTime)
+                : null;
+            const bpm = ladder ? ladder.bpm : startBpm;
+            // #1121: rung 0 reuses the effect-level `specs` OBJECT, so a level that never leaves the
+            // authored density passes literally the same reference it did before this ticket.
+            const densityStep = ladder ? ladder.densityStep : 0;
+            const blockSpecs = densityStep
+                ? trackSpecsForLevel(lvl, levelSettings, { densityStep, timeSignature })
+                : specs;
+            // #1120: "does THIS block's backing go on the clock?" — ONE boolean, computed once and used
+            // at all three fixed-schedule sites below (cello, metronome, timpani), never re-derived per
+            // site (§6c). False for an AUTHORED gated level (as before) AND for any block the ladder
+            // has switched to gated pacing: `useLevelGatedRubatoAudio` triggers cello and timpani off
+            // the gate's own frozen-aware clock instead, and Han's §867 rule holds unchanged — "wel
+            // timpanen, geen metronoom": there is no tempo to click to while the scroll waits for you.
+            // Per BLOCK, not per render: a block is generated a screenful before it sounds, so the
+            // question is what the pacing will be when this block sounds — which is exactly what
+            // `blockSettingsFor` answers, and why the flip needs nothing already scheduled cancelled.
+            const fixedSchedule = !lvl.gatedScroll && (ladder ? ladder.pacing !== 'gated' : true);
             const barSec = barSecAt(bpm);
             const type = blockTypeForBlock(lvl, blockIndex);
             const isWizardBlock = type === 'Wizard';
@@ -385,8 +559,11 @@ export default function useLevelContentStream({
             // UNWRAPPED absolute window even for a gated level: past the song's last measure the
             // slice is empty, so a gated song level's treble stops growing at the song's true end
             // (no endless repeat) while its cello keeps flowing for as long as the gate holds.
-            const songSlice = (specs.songTreble && songMelody)
-                ? sliceMelodyByRange(songMelody, measureLengthTicks, genMeasures, blockIndex * genMeasures)
+            // #1168: the SOURCE is `songSource` — the song repeated `contentRepeats` times for an
+            // adaptive level, and `songMelody` itself otherwise. The window arithmetic is untouched,
+            // so "empty past the end" now means "empty past the level's true (3×) end".
+            const songSlice = (blockSpecs.songTreble && songSource)
+                ? sliceMelodyByRange(songSource, measureLengthTicks, genMeasures, blockIndex * genMeasures)
                 : null;
 
             const block = generateBlock({
@@ -394,11 +571,18 @@ export default function useLevelContentStream({
                 timeSignature,
                 numMeasures: genMeasures,
                 chordProgression: chordContextFor(chordWindowStart, genMeasures),
-                seriesArgs: seriesArgsFor(blockScale),
-                ...(specs.chordStrategy === 'song' ? {
+                seriesArgs: seriesArgsFor(blockScale, blockSpecs),
+                ...(blockSpecs.chordStrategy === 'song' ? {
                     chordStrategy: 'song',
                     songChords: chordProgression,
-                    songMeasureCount: Math.max(1, totalContentMeasures),
+                    // #1168: the modulo must be the song's OWN period, never the ×3 total — otherwise
+                    // the per-measure wrap inside `sliceSongChordsModulo` never wraps and the chords
+                    // (and with them the cello, which follows them via `force_chord_roots`) run dry
+                    // after pass 1. That is literally the §1155 "Sakura d/e: de akkoorden zijn op" bug
+                    // shape. For a d/e song `contentPeriodMeasures` is undefined and this is the
+                    // DOUBLED total — which is correct, because `handleLoadSong` doubles the chord
+                    // progression to match.
+                    songMeasureCount: contentPeriod,
                     blockStartMeasure: blockIndex * B,
                 } : {}),
                 // Fixed material for this block: block 0's remembered chunk for an authored
@@ -459,12 +643,12 @@ export default function useLevelContentStream({
                         blockStartTime - leadOffsetSeconds, null,
                         { treble: wizardVolume, bass: 0, percussion: 0, chords: 0, metronome: 0 }, bpm);
                 }
-                if (block.bass?.notes?.length && !lvl.gatedScroll) {
+                if (block.bass?.notes?.length && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [block.bass], [bassInstrument],
                         blockStartTime, { bass: bassInstrument },
                         { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 }, bpm);
                 }
-                if (metronomeChunk.notes.length && !lvl.gatedScroll) {
+                if (metronomeChunk.notes.length && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [metronomeChunk], [metronomeInstrument],
                         blockStartTime, { metronome: metronomeInstrument },
                         { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 }, bpm);
@@ -474,17 +658,26 @@ export default function useLevelContentStream({
                 // adaptive tempo change instead of drifting away from the music it plays under. The
                 // pattern lives on the LEAD-IN tick timeline (its measure 0 is the first lead-in
                 // measure), hence the `leadInBars +` in the slice window, exactly like `backingBaseTicks`.
+                // #1120: `fixedSchedule` gates the timpani too — the THIRD fixed-schedule track, and
+                // the one that would otherwise DOUBLE (this schedule plus useLevelGatedRubatoAudio's
+                // gate-clock trigger, drifting apart) from the flip block onward.
                 const blockTimpani = timpaniSlice(leadInBars + blockIndex * B, B);
-                if (blockTimpani) {
+                if (blockTimpani && fixedSchedule) {
                     scheduleInto(backingStopFnsRef, ownBackingStopFns, [blockTimpani], [timpaniInstrument],
                         blockStartTime, { percussion: timpaniInstrument }, timpaniGains, bpm);
                 }
                 // #1102: THIS stream is the sole DECIDER, now for every level — one boundary, one
                 // adjustment. `units: [B]` because there IS only one cadence: treble and
                 // bass/metronome are the same block, so "force exact sync" is structural.
-                if (lvl.adaptive && adaptiveTempo && statsRef) {
-                    adaptiveTempo.evaluate({
+                // #1168 UAT round 2: `!alreadySounded` — see the `alreadySounded` comment above. A block
+                // being rebuilt after the fact has no graded stretch of play behind it to decide on.
+                if (lvl.adaptive && adaptiveDifficulty && statsRef && !alreadySounded) {
+                    adaptiveDifficulty.evaluate({
                         stats: statsRef.current,
+                        // #1120: the gated rung's exit signal. Meaningless (and ignored) while the
+                        // ladder is timed; while gated it is the ONLY input, because the block
+                        // accuracy is ~100% by construction there.
+                        hiddenGrades: hiddenGradesRef?.current,
                         fromMeasure: (blockIndex + 1) * B,
                         units: [B],
                     });
@@ -532,7 +725,8 @@ export default function useLevelContentStream({
             ownWizardStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
             ownBackingStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
         };
-        // `adaptiveTempo`/`statsRef` are deliberately excluded — see this file's header.
+        // `adaptiveDifficulty`/`statsRef`/`hiddenGradesRef` are deliberately excluded — see this
+        // file's header.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, lvl, levelAudioStart, context, scale, timeSignature,
         trebleSettings, bassSettings, percussionSettings, chordSettings, metronomeSettings,

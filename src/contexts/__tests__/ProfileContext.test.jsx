@@ -179,7 +179,9 @@ describe('ProfileContext schema (v2)', () => {
         expect(result.current.levelMastery.playCounts.arirang).toBe(1);
     });
 
-    // #1099 (Han 2026-08-22, ANPM stat): recordLevelCompletion's EWMA smoke tests.
+    // #1099 (Han 2026-08-22, ANPM stat) + #1122 (Han 2026-09-01, asymmetric gated smoothing):
+    // recordLevelCompletion's anpm smoke tests. The blend law itself lives in gamification.js
+    // nextAnpm() and has its own unit suite; these check the ProfileContext wiring end to end.
     it('recordLevelCompletion sets anpm directly on the FIRST qualifying (>=90%) completion', () => {
         const { result } = renderHook(() => useProfile(), { wrapper });
         expect(result.current.anpm).toBeNull();
@@ -191,7 +193,15 @@ describe('ProfileContext schema (v2)', () => {
         expect(saved.anpm).toBe(40);
     });
 
-    it('recordLevelCompletion leaves anpm unchanged on a <90%-accuracy completion', () => {
+    it('recordLevelCompletion leaves anpm null on a FIRST completion below 90% accuracy', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 80, notesPerMinute: 40 });
+        });
+        expect(result.current.anpm).toBeNull();   // a first sloppy run must not become the anchor
+    });
+
+    it('recordLevelCompletion HOLDS anpm on a fast-but-sloppy run (branch 2, accuracy < 90)', () => {
         const { result } = renderHook(() => useProfile(), { wrapper });
         act(() => {
             result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 40 });
@@ -199,10 +209,10 @@ describe('ProfileContext schema (v2)', () => {
         act(() => {
             result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 70, notesPerMinute: 100 });
         });
-        expect(result.current.anpm).toBe(40);   // the 70%-accuracy run's rate must not pull it up OR down
+        expect(result.current.anpm).toBe(40);   // faster than anpm but sloppy — evidence of neither
     });
 
-    it('recordLevelCompletion blends a SECOND qualifying completion via the EWMA alpha', () => {
+    it('recordLevelCompletion blends a second clean FAST completion via ANPM_ALPHA_UP', () => {
         const { result } = renderHook(() => useProfile(), { wrapper });
         act(() => {
             result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 40 });
@@ -210,8 +220,31 @@ describe('ProfileContext schema (v2)', () => {
         act(() => {
             result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 100, notesPerMinute: 60 });
         });
-        // ANPM_EWMA_ALPHA = 0.3: 0.3*60 + 0.7*40 = 46
-        expect(result.current.anpm).toBeCloseTo(46, 5);
+        // ANPM_ALPHA_UP = 0.15: 40 + 0.15*(60-40) = 43
+        expect(result.current.anpm).toBeCloseTo(43, 5);
+    });
+
+    it('recordLevelCompletion HOLDS anpm on a slow-but-accurate run (#1122 — the whole point)', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 60 });
+        });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 85, notesPerMinute: 30 });
+        });
+        expect(result.current.anpm).toBe(60);   // slow piece, still accurate — no skill regression
+    });
+
+    it('recordLevelCompletion lowers anpm GENTLY on a slow-and-struggling run (ANPM_ALPHA_DOWN)', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 95, notesPerMinute: 60 });
+        });
+        act(() => {
+            result.current.recordLevelCompletion({ levelId: 1, tonic: 'C4', mode: 'Major', accuracyPercent: 50, notesPerMinute: 30 });
+        });
+        // ANPM_ALPHA_DOWN = 0.05: 60 + 0.05*(30-60) = 58.5
+        expect(result.current.anpm).toBeCloseTo(58.5, 5);
     });
 
     it('accumulates stats but no XP when gamification is off', () => {

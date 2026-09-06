@@ -2,7 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import useLevelContentStream from '../useLevelContentStream';
 import { LEVELS, LEVEL_BASS_SIMPLE } from '../../levels/levels';
-import { blockMeasuresFor, blockTypeAt } from '../../levels/levelBlockPlan';
+import { blockMeasuresFor, blockTypeAt, blockTypeForBlock, blockCountFor, SONG_BLOCK_MEASURES } from '../../levels/levelBlockPlan';
 import Scale from '../../model/Scale';
 import InstrumentSettings from '../../model/InstrumentSettings';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../../constants/timing';
@@ -10,6 +10,15 @@ import buildTimpaniPattern from '../../utils/timpaniPattern';
 
 vi.mock('../../audio/playMelodies', () => ({ default: vi.fn(() => 0) }));
 import playMelodies from '../../audio/playMelodies';
+
+// #1168: a PASS-THROUGH spy — the real generator still runs (every note assertion below depends on
+// real material), but each block's `songMeasureCount` is recorded so the song chord modulo can be
+// asserted on the argument generation actually received, not inferred from the audible result.
+vi.mock('../../generation/generateBlock', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, generateBlock: vi.fn((args) => actual.generateBlock(args)) };
+});
+import { generateBlock } from '../../generation/generateBlock';
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // #1165 — PER-MECHANISM MIGRATION GUARDS.
@@ -241,6 +250,52 @@ describe('#1165 guard — Wizard call-response (was useLevelTrebleStream)', () =
         expect(inResponseHalf.length).toBeGreaterThan(0);
         unmount();
     });
+
+    // "Yellow wizard" (Han 2026-09-03): Level 16 / mode-variant 'j' — its OWN `enemyType: 'YellowWizard'`,
+    // deliberately NOT grafted onto the black wizard. It generates like a NORMAL side-scroll level: normal
+    // block cadence, NO call/response collapse, NO cast audio at all. The "hide 1 measure ahead + swap to
+    // projectile" is purely a SheetRpgLayer render concern (`isYellowWizard`), nothing the stream does.
+    describe('yellow wizard (enemyType: YellowWizard)', () => {
+        const yellow = LEVELS[16];
+
+        it('is NOT a Wizard level and does NOT use the call-response block cadence', () => {
+            expect(yellow.enemyType).toBe('YellowWizard');
+            expect(yellow.wizardSilent).toBeUndefined();
+            // normal cadence = the level's own numMeasures (the Slime fall-through), not the black
+            // wizard's `callGroupMeasuresFor * 2`, and every block is a plain Slime-type block (no
+            // call/response `shape` handed to generateBlock).
+            expect(blockMeasuresFor(yellow)).toBe(yellow.numMeasures);
+            expect(blockTypeForBlock(yellow, 0)).toBe('Slime');
+            expect(blockTypeForBlock(yellow, 3)).toBe('Slime');
+        });
+
+        it('schedules ZERO wizard-cast audio, but still the cello + metronome', () => {
+            const { unmount } = renderStream(yellow);
+            expect(castCalls().length).toBe(0);
+            expect(bassCalls().length).toBeGreaterThan(0);
+            expect(metronomeCalls().length).toBeGreaterThan(0);
+            unmount();
+        });
+
+        it('generates a NORMAL melody — real notes in the first measure too (no call-half rest collapse)', () => {
+            const { result, unmount } = renderStream(yellow);
+            const t = result.current.treble;
+            const firstMeasure = t.offsets
+                .map((o, i) => ({ o, n: t.notes[i] }))
+                .filter((e) => e.o != null && e.o < MLT);
+            expect(firstMeasure.length).toBeGreaterThan(0);
+            // NOT all rests — unlike the black wizard's collapsed "call" measure.
+            expect(firstMeasure.some((e) => e.n !== 'r' && e.n !== 'c')).toBe(true);
+            unmount();
+        });
+
+        it('starts streaming even when no wizard-cast instrument is provided', () => {
+            const { result, unmount } = renderStream(yellow, { wizardInstrument: null });
+            expect(result.current.treble.offsets.some((o) => o != null)).toBe(true);
+            expect(castCalls().length).toBe(0);
+            unmount();
+        });
+    });
 });
 
 // ── RETIRED: useLevelMixedStream ────────────────────────────────────────────────────────────
@@ -324,6 +379,9 @@ describe('#1165 guard — a NON-sideScroll (static combat) level runs the same p
 });
 
 // ── #1102 re-fit ────────────────────────────────────────────────────────────────────────────
+// #1121 renamed the controller prop to `adaptiveDifficulty` and collapsed its three would-be readers
+// into ONE `blockSettingsFor(measure, startTime) -> { bpm, densityStep, pacing }`.
+const RUNG_0 = { bpm: 80, densityStep: 0, pacing: 'timed' };
 describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => {
     // 4/4 → a bar is exactly 3.0s at 80bpm and 2.4s at 100bpm: round numbers, so the accumulated
     // cursor can be asserted exactly.
@@ -337,11 +395,14 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
 
     it('reads the bpm FRESH per block and accumulates each block start at its OWN bar duration', () => {
         const seen = [];
-        const adaptiveTempo = {
-            bpmForMeasure: (measure, startTime) => { seen.push([measure, startTime]); return measure >= 2 ? 100 : 80; },
+        const adaptiveDifficulty = {
+            blockSettingsFor: (measure, startTime) => {
+                seen.push([measure, startTime]);
+                return { bpm: measure >= 2 ? 100 : 80, densityStep: 0, pacing: 'timed' };
+            },
             evaluate: vi.fn(),
         };
-        const { unmount } = renderStream(adaptiveLvl, { adaptiveTempo, statsRef: { current: {} } });
+        const { unmount } = renderStream(adaptiveLvl, { adaptiveDifficulty, statsRef: { current: {} } });
         // contentStart = 10 + 2 * 3.0 = 16 (the LEAD-IN is pinned to the level's own starting tempo and
         // never consults the controller); block 1's cursor = 16 + 2 * 3.0 = 22.
         expect(seen).toEqual([[0, 16], [2, 22]]);
@@ -359,7 +420,7 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
         const evaluate = vi.fn();
         const statsRef = { current: { defeated: 1 } };
         const { unmount } = renderStream(adaptiveLvl, {
-            adaptiveTempo: { bpmForMeasure: () => 80, evaluate }, statsRef,
+            adaptiveDifficulty: { blockSettingsFor: () => RUNG_0, evaluate }, statsRef,
         });
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(evaluate.mock.calls[0][0]).toEqual({ stats: statsRef.current, fromMeasure: 2, units: [2] });
@@ -368,32 +429,82 @@ describe('#1165/#1102 — adaptive tempo re-fitted onto the ONE cadence', () => 
     });
 
     it('never consults the controller for a NON-adaptive level (byte-identical old behaviour)', () => {
-        const bpmForMeasure = vi.fn(() => 999);
+        const blockSettingsFor = vi.fn(() => ({ bpm: 999, densityStep: 3, pacing: 'timed' }));
         const evaluate = vi.fn();
         const { unmount } = renderStream({ ...adaptiveLvl, adaptive: false }, {
-            adaptiveTempo: { bpmForMeasure, evaluate }, statsRef: { current: {} },
+            adaptiveDifficulty: { blockSettingsFor, evaluate }, statsRef: { current: {} },
         });
-        expect(bpmForMeasure).not.toHaveBeenCalled();
+        expect(blockSettingsFor).not.toHaveBeenCalled();
         expect(evaluate).not.toHaveBeenCalled();
         expect(playMelodies.mock.calls.every((c) => c[3] === 80)).toBe(true);
         unmount();
+    });
+
+    // ── #1121: the DENSITY read, on the SAME per-block seam as the fresh bpm ───────────────
+    it('a non-zero densityStep changes THIS block\'s notesPerMeasure, and only this block\'s', () => {
+        // The ladder commits at a measure; every block from there on reads the new rung, and every
+        // block before it keeps the authored one. `generateBlock` is REAL here, so this asserts on
+        // the notes that actually reach the published treble Melody.
+        const dense = {
+            ...adaptiveLvl, id: 902, totalMeasures: 6,
+            // A high, unambiguous target so the count difference cannot be a rounding coincidence.
+            notesPerMeasure: 2,
+        };
+        const counts = (densityStepFor) => {
+            vi.clearAllMocks();
+            const { result, unmount } = renderStream(dense, {
+                adaptiveDifficulty: {
+                    blockSettingsFor: (measure) => ({ bpm: 80, densityStep: densityStepFor(measure), pacing: 'timed' }),
+                    evaluate: vi.fn(),
+                },
+                statsRef: { current: {} },
+                trebleSettings: { ...trebleSettings, notesPerMeasure: 2, smallestNoteDenom: 8 },
+            });
+            // SOUNDING notes only: `Melody.notes` also carries `null` tie/duration-continuation
+            // placeholders and `'r'` rests, and their COUNT is fixed by the grid — so counting raw
+            // entries would show no difference at all no matter how dense the line got.
+            const notes = result.current.treble.notes.filter((n) => n && n !== 'r').length;
+            unmount();
+            return notes;
+        };
+        const authored = counts(() => 0);
+        const densified = counts(() => 3);
+        expect(densified).toBeGreaterThan(authored);
+        // Only from the commit measure onwards: block 0 (measures 0-1) stays authored, so the total
+        // lands strictly between the two extremes.
+        const partial = counts((measure) => (measure >= 2 ? 3 : 0));
+        expect(partial).toBeGreaterThan(authored);
+        expect(partial).toBeLessThan(densified);
     });
 });
 
 // ── Side-effect (b): song treble published incrementally ────────────────────────────────────
 describe('#1165 side-effect (b) — a song\'s treble is published per block, same notes, same offsets', () => {
-    const MEASURES = 4;
+    // #1168 widened this fake song from 4 to 6 measures: with the song cadence now a flat 2 measures
+    // (SONG_BLOCK_MEASURES) the two SYNCHRONOUS opening blocks would otherwise already be the whole
+    // 4-measure song, and the "grows one block at a time" case below would assert nothing.
+    const MEASURES = 6;
     const songMelody = {
-        notes: ['C4', 'D4', 'E4', 'F4'],
-        durations: [MLT, MLT, MLT, MLT],
-        offsets: [0, MLT, 2 * MLT, 3 * MLT],
-        displayNotes: ['C4', 'D4', 'E4', 'F4'],
+        notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'],
+        durations: [MLT, MLT, MLT, MLT, MLT, MLT],
+        offsets: [0, MLT, 2 * MLT, 3 * MLT, 4 * MLT, 5 * MLT],
+        displayNotes: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'],
     };
+    // `numMeasures` is the SONG'S LENGTH for a song level (songLevelDefaults back-fills it, §871) —
+    // authored that way here so this fixture matches the real shape #1168 reasons about.
     const songLvl = {
         id: 902, sideScroll: true, enemyType: 'Slime', songId: 'fake-song', bpm: 80,
-        numMeasures: 1, numRepeats: 1, totalMeasures: MEASURES, leadInBars: 2, metronomeBars: 1,
+        numMeasures: MEASURES, numRepeats: 1, totalMeasures: MEASURES, leadInBars: 2, metronomeBars: 1,
         visibleMeasures: 2,
     };
+    /** The `songMeasureCount` (the chord modulo period) block k was generated with. 0 is the lead-in. */
+    const songMeasureCountFor = (k) => generateBlock.mock.calls[k + 1][0].songMeasureCount;
+
+    // #1168: asserted DIRECTLY rather than implied by a note count — the cadence is the whole ticket.
+    it('generates in flat 2-measure chunks, never one block for the whole song (#1168)', () => {
+        expect(blockMeasuresFor(songLvl)).toBe(SONG_BLOCK_MEASURES);
+        expect(blockCountFor(songLvl)).toBe(MEASURES / SONG_BLOCK_MEASURES);
+    });
 
     it('reassembles the song EXACTLY — verbatim notes and absolute offsets, never re-spelled', () => {
         vi.useFakeTimers();
@@ -411,9 +522,9 @@ describe('#1165 side-effect (b) — a song\'s treble is published per block, sam
     it('grows one block at a time (block 0 alone is NOT the whole song)', () => {
         vi.useFakeTimers();
         const { result, unmount } = renderStream(songLvl, { songMelody, chordProgression: null });
-        // Blocks 0 and 1 are generated synchronously (B = numMeasures = 1) → 2 of 4 measures.
+        // Blocks 0 and 1 are generated synchronously (B = SONG_BLOCK_MEASURES = 2) → 4 of 6 measures.
         const afterSync = result.current.treble;
-        expect(afterSync.notes).toEqual(['C4', 'D4']);
+        expect(afterSync.notes).toEqual(['C4', 'D4', 'E4', 'F4']);
         act(() => { vi.advanceTimersByTime(60_000); });
         expect(isAppendOnly(afterSync, result.current.treble)).toBe(true);
         expect(result.current.treble.notes.length).toBe(MEASURES);
@@ -425,6 +536,100 @@ describe('#1165 side-effect (b) — a song\'s treble is published per block, sam
         const { result, unmount } = renderStream(songLvl, { songMelody, chordProgression: null });
         expect(result.current.bass.notes.length).toBeGreaterThan(0);
         unmount();
+    });
+
+    // ── #1168: the 3x adaptive runway, materialised in the SOURCE ────────────────────────────
+    // `applyLevelVariant` stamps `totalMeasures = songLen * ADAPTIVE_LEVEL_REPEATS` and keeps the
+    // un-multiplied period in `contentPeriodMeasures`. The stream repeats the SOURCE that many times
+    // and keeps its slicer unwrapped — which is what makes both properties below assertable at once.
+    describe('an adaptive song level plays the song 3x, seamlessly, and then stops (#1168)', () => {
+        const REPEATS = 3;
+        const adaptiveSongLvl = {
+            ...songLvl, id: 904, adaptive: true,
+            totalMeasures: MEASURES * REPEATS, contentPeriodMeasures: MEASURES,
+        };
+
+        it('replays the song VERBATIM on every pass, with no gap at the seams', () => {
+            vi.useFakeTimers();
+            const { result, unmount } = renderStream(adaptiveSongLvl, { songMelody, chordProgression: null });
+            act(() => { vi.advanceTimersByTime(300_000); });
+            const t = result.current.treble;
+            const expectedNotes = [...songMelody.notes, ...songMelody.notes, ...songMelody.notes];
+            // Every pass is the song's OWN composed notes, in order — never regenerated, never re-spelled.
+            expect(t.notes).toEqual(expectedNotes);
+            expect(t.displayNotes).toEqual(expectedNotes);
+            // Seamless (Han Q5): one continuous ladder of measure offsets, pass 2 starting on the very
+            // next bar. A bar of rest or a padding measure would show up as a gap here.
+            expect(t.offsets).toEqual(
+                Array.from({ length: MEASURES * REPEATS }, (_, i) => i * MLT),
+            );
+            unmount();
+            vi.useRealTimers();
+        });
+
+        it('…and STOPS there (§289): content never grows past the 3x end, and generation is FINITE', () => {
+            vi.useFakeTimers();
+            const { result, unmount } = renderStream(adaptiveSongLvl, { songMelody, chordProgression: null });
+            expect(Number.isFinite(blockCountFor(adaptiveSongLvl))).toBe(true);
+            act(() => { vi.advanceTimersByTime(300_000); });
+            const settled = result.current.treble.notes.length;
+            expect(settled).toBe(songMelody.notes.length * REPEATS);
+            act(() => { vi.advanceTimersByTime(300_000); });
+            expect(result.current.treble.notes.length).toBe(settled);
+            unmount();
+            vi.useRealTimers();
+        });
+
+        // The guard for consistency requirement 7: a 1x run must not materialise anything at all, so no
+        // array handling can get worse than today (`appendChunk`'s pre-existing triplets/fermatas drop
+        // is verified inert and deliberately NOT fixed here — the concat is simply never reached).
+        it('a 1x song run does NOT materialise a repeated source — byte-identical arrays', () => {
+            vi.useFakeTimers();
+            const plain = renderStream(songLvl, { songMelody, chordProgression: null });
+            act(() => { vi.advanceTimersByTime(300_000); });
+            const t = plain.result.current.treble;
+            expect(t.notes).toEqual(songMelody.notes);
+            expect(t.offsets).toEqual(songMelody.offsets);
+            expect(t.durations).toEqual(songMelody.durations);
+            expect(t.displayNotes).toEqual(songMelody.displayNotes);
+            expect(t.notes.length).toBe(MEASURES);   // one pass only, never repeated
+            plain.unmount();
+            vi.useRealTimers();
+        });
+
+        // The §1155 "Sakura d/e: de akkoorden zijn op" bug shape: the chord modulo must be the song's
+        // OWN period, or the wrap inside `sliceSongChordsModulo` never wraps and the chords (and with
+        // them the cello, which follows them via `force_chord_roots`) run dry after pass 1.
+        it('passes the song\'s OWN period as songMeasureCount, never the tripled total', () => {
+            vi.useFakeTimers();
+            const a = renderStream(adaptiveSongLvl, { songMelody, chordProgression: null });
+            act(() => { vi.advanceTimersByTime(300_000); });
+            const seen = generateBlock.mock.calls.slice(1).map((c) => c[0].songMeasureCount);
+            expect(seen.length).toBeGreaterThan(1);
+            seen.forEach((v) => expect(v).toBe(MEASURES));
+            expect(seen).not.toContain(MEASURES * REPEATS);
+            a.unmount();
+            vi.useRealTimers();
+
+            vi.clearAllMocks();
+            const p = renderStream(songLvl, { songMelody, chordProgression: null });
+            expect(songMeasureCountFor(0)).toBe(MEASURES);   // a plain run: its own total, as before
+            p.unmount();
+        });
+
+        it('a d/e call-response song keeps its DOUBLED length as the chord period (unchanged)', () => {
+            // `callResponseOverrides` doubles a song's totalMeasures and `handleLoadSong` doubles the
+            // chord progression to match; `contentPeriodMeasures` is undefined here, so the period is
+            // that doubled total — exactly what it was before #1168.
+            const callResponse = {
+                ...songLvl, id: 905, enemyType: 'Wizard', callResponseMeasures: 2,
+                numMeasures: 2, numRepeats: 2, totalMeasures: MEASURES * 2, wizardSpawnLeadMeasures: 2,
+            };
+            expect(blockMeasuresFor(callResponse)).toBe(4);   // the Wizard branch still wins
+            const { unmount } = renderStream(callResponse, { songMelody, chordProgression: null });
+            expect(songMeasureCountFor(0)).toBe(MEASURES * 2);
+            unmount();
+        });
     });
 });
 

@@ -27,13 +27,13 @@ const cancelIdle = (typeof cancelIdleCallback === 'function') ? cancelIdleCallba
 // WebGL textures and relights them with ONE per-frame shader pass sized to the viewport (cost scales with
 // screen pixels, not tile count — see docs/architecture.md's §925 lighting section for why this differs
 // from the per-instance shimmer pipeline foliage/water use).
-export default function useLdtkLitGroundTextures(tiles, gridSize, levelPxWidth, levelPxHeight, sceneryMode) {
+export default function useLdtkLitGroundTextures(tiles, gridSize, levelPxWidth, levelPxHeight) {
     const [textures, setTextures] = useState(null);
     const diffuseCanvasRef = useRef(null);
     const normalCanvasRef = useRef(null);
 
     useEffect(() => {
-        if (sceneryMode !== 'LDtk' || tiles.length === 0 || levelPxWidth <= 0 || levelPxHeight <= 0) {
+        if (tiles.length === 0 || levelPxWidth <= 0 || levelPxHeight <= 0) {
             setTextures(null);
             return undefined;
         }
@@ -89,7 +89,7 @@ export default function useLdtkLitGroundTextures(tiles, gridSize, levelPxWidth, 
             }
         })();
         return () => { cancelled = true; if (idleHandle != null) cancelIdle(idleHandle); };
-    }, [tiles, gridSize, levelPxWidth, levelPxHeight, sceneryMode]);
+    }, [tiles, gridSize, levelPxWidth, levelPxHeight]);
 
     return textures;
 }

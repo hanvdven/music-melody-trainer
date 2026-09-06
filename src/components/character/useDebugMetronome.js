@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveNotePitch } from '../../audio/playSound';
 import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
+import { outputLatencySeconds } from '../../audio/audioOutputLatency';
 import { VOL_STEPS } from '../sheet-music/overlays/SettingsOverlay';
 
 // Han 2026-08-20 ("zet metronoom op ff in rpg-world" / "ik kan de metronoom niet horen"): loudest
@@ -43,6 +44,8 @@ export default function useDebugMetronome({ enabled, bpm = WORLD_BPM, timeSignat
     const [beat, setBeat] = useState(1);   // 1..beatsPerMeasure, for display
     const [pulseTick, setPulseTick] = useState(0);   // increments on every beat edge, drives the swing animation
     const lastBeatIndexRef = useRef(-1);
+    // Highest absolute beat number whose click has already been scheduled (sync fix, Han 2026-09-01).
+    const lastScheduledBeatRef = useRef(-1);
     const bpmRef = useRef(bpm); bpmRef.current = bpm;
     const beatsPerMeasureRef = useRef(4); beatsPerMeasureRef.current = timeSignature?.[0] || 4;
     const instrumentsRef = useRef(instruments); instrumentsRef.current = instruments;
@@ -70,25 +73,46 @@ export default function useDebugMetronome({ enabled, bpm = WORLD_BPM, timeSignat
         // fader at (App.jsx's LEVEL_METRONOME_VOLUME/rpgMusicMultiplier can leave it lower than forte).
         if (setVolumeRef.current) setVolumeRef.current('metronome', DEBUG_METRONOME_VOLUME);
         lastBeatIndexRef.current = -1;
+        lastScheduledBeatRef.current = Math.floor(context.currentTime / (60 / (bpmRef.current || 120)));
         let raf;
         const tick = () => {
             const secondsPerBeat = 60 / (bpmRef.current || 120);
             const beatsPerMeasure = beatsPerMeasureRef.current;
-            const beatIndex = Math.floor(context.currentTime / secondsPerBeat) % beatsPerMeasure;
+            const nowBeat = Math.floor(context.currentTime / secondsPerBeat);
+
+            // Sync fix (Han 2026-09-01, "de metronoom en de muziek klinken niet in sync"): schedule each
+            // click AHEAD, at its exact beat-boundary time on the world-clock grid, minus the audio
+            // output latency (§355/§357) — so it is HEARD precisely on the grid, exactly like the
+            // ambient music (which schedules on `nextMeasureStartTime`). The old code edge-detected a
+            // boundary that `context.currentTime` had ALREADY crossed (rAF fires up to a frame late) and
+            // then scheduled the click at that stale "now" — 0-16 ms of jitter against a rock-steady
+            // music grid. `nowBeat + 1` is at most one beat (0.6 s at WORLD_BPM) ahead, comfortably
+            // enough runway for the ~48 ms compensation to still land in the future ⇒ sample-accurate.
+            const targetBeat = nowBeat + 1;
+            if (targetBeat > lastScheduledBeatRef.current) {
+                lastScheduledBeatRef.current = targetBeat;
+                const metronomeInstrument = instrumentsRef.current?.metronome;
+                if (metronomeInstrument) {
+                    const noteId = (targetBeat % beatsPerMeasure) === 0 ? ACCENT_NOTE : CLICK_NOTE;
+                    const pitch = resolveNotePitch(noteId, null);
+                    if (pitch !== null) {
+                        const heardAt = targetBeat * secondsPerBeat;
+                        metronomeInstrument.start({
+                            note: pitch,
+                            time: Math.max(context.currentTime, heardAt - outputLatencySeconds(context)),
+                            duration: 0.15,
+                        });
+                    }
+                }
+            }
+
+            // On-screen counter / pendulum: still an edge trigger on the audible grid crossing (same
+            // cadence as before) — it flips within a frame of the click being heard.
+            const beatIndex = nowBeat % beatsPerMeasure;
             if (beatIndex !== lastBeatIndexRef.current) {
                 lastBeatIndexRef.current = beatIndex;
                 setBeat(beatIndex + 1);
                 setPulseTick((t) => t + 1);
-                const metronomeInstrument = instrumentsRef.current?.metronome;
-                if (metronomeInstrument) {
-                    const noteId = beatIndex === 0 ? ACCENT_NOTE : CLICK_NOTE;
-                    const pitch = resolveNotePitch(noteId, null);
-                    if (pitch !== null) {
-                        // Fire-and-forget at "now" — this is a debug click track, not a scored part, so it
-                        // doesn't need the lookahead-scheduling precision the real Sequencer uses.
-                        metronomeInstrument.start({ note: pitch, time: context.currentTime, duration: 0.15 });
-                    }
-                }
             }
             raf = requestAnimationFrame(tick);
         };

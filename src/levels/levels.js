@@ -171,6 +171,15 @@
 //                          drives the `numRepeats` default above (Wizard/Mixed → 2, else → 1).
 //   wizardSpawnLeadMeasures  number, Wizard/Mixed only — how many measures ahead a projectile/cast
 //                            becomes visible/audible.
+//   "YellowWizard"        enemyType value (Level 16 + mode-variant 'j', Han 2026-09-03). A blind
+//                          perfect-timing trainer, built as its OWN mechanic — NOT grafted onto the
+//                          black-wizard call-response logic. The level GENERATES normally (every measure
+//                          has its notes, no call/response collapse) and the notation renders normally,
+//                          BUT each notehead is HIDDEN `wizardSpawnLeadMeasures` measures before its own
+//                          beat and replaced by the blue projectile (the combat target), while a static
+//                          YELLOW wizard (bestiary "Wizard (Portrait)" / "Yellow" — sprite + cast anims)
+//                          plays a SILENT cast. Shares only the low-level projectile/spawn-glow/cast-sync
+//                          pieces with the black wizard, never its block cadence or note-layer split.
 //   decorativeWizard       OPTIONAL boolean (Level 11, Han 2026-08-06). A non-combat, green-tinted
 //                          idle Wizard shown alongside Slime enemies, purely visual — pairs with the
 //                          forward-only Major/Minor scale alternation every 2 measures
@@ -664,6 +673,15 @@ export const LEVEL_MODE_VARIANTS = {
     // `adaptiveOverrides` below and docs/architecture.md §354 (which supersedes §346/§298; an earlier
     // version of this comment pointed at §344, which is a different feature entirely).
     i: { label: 'Adaptive speed', iconKey: 'adaptiveSpeed', adaptive: true },
+    // "Yellow wizard" (Han 2026-09-03, chat interview): a blind perfect-timing trainer, built as its OWN
+    // mechanic — NOT grafted onto the black-wizard call-response logic. `yellowWizard: true` (see
+    // `applyLevelVariant`'s `yellowWizardOverrides`) forces `enemyType: 'YellowWizard'` on whatever level
+    // it's applied to. That level GENERATES normally (every measure has its notes) and RENDERS its notation
+    // normally, but each notehead is hidden `wizardSpawnLeadMeasures` measures before its beat and swapped
+    // for the blue projectile, while a static YELLOW wizard casts SILENTLY (SheetRpgLayer.jsx
+    // `isYellowWizard` branch). Immediately selectable — no `notYetImplemented`. Also shipped as a
+    // standalone numbered level (Level 16, levels.json).
+    j: { label: 'Gele wizard', iconKey: 'yellowWizard', yellowWizard: true },
 };
 
 // Applies a chosen LEVEL_MODE_VARIANTS letter on top of an already-normalized level object, returning a
@@ -730,6 +748,11 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
     // (§6c — one shared value, fixing it here fixes bass "for free", matching Han's own "de akkoorden (en
     // dus de bas)"). Scoped to songs only — a procedural level's `totalMeasures` semantics (already
     // folding in its own `numRepeats`/`numBlocks`) aren't touched here; no report of them being wrong.
+    // #1168 TRIPWIRE: `lvl.numMeasures` below still means "the SONG'S LENGTH", and #1168 deliberately kept
+    // it that way — that is precisely why the song's 2-measure generation cadence lives in
+    // `blockMeasuresFor` (`SONG_BLOCK_MEASURES`) and NOT in levels.json / `songLevelDefaults`. Re-authoring
+    // `numMeasures` as a chunk size would silently halve/wreck this line. Pinned by levels.test.js — "a
+    // song + letter e keeps the Wizard cadence AND the doubled length".
     const callResponseOverrides = variant.callResponseMeasures != null ? {
         enemyType: variant.enemyType,
         callResponseMeasures: variant.callResponseMeasures,
@@ -779,25 +802,43 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
     // structurally an ordinary longer level and ENDS through exactly the paths that already exist (§6c).
     // `callResponseOverrides` above already does this same scoped-`totalMeasures` trick for songs.
     //
-    // SCOPED to PROCEDURAL side-scroll levels (`songId == null`), and this exclusion is load-bearing, not
-    // caution: a song-backed level's per-block treble slice is deliberately UNWRAPPED (see
-    // `useLevelContentStream`'s `songSlice` — past the song's last measure the slice is empty, so a song
-    // never silently repeats), while `wavesForLevel` would demand 3x the wave clears. Its slimes would run
-    // out one third of the way in and `pendingSongEndRef` would never be set — the §289 "level never ends"
-    // bug class, reintroduced. `!sideScroll` is excluded for a different reason: the stream only evaluates
-    // the controller for a side-scroll level, so a longer static level would be pure padding.
+    // SCOPED to PROCEDURAL side-scroll levels (`songId == null`) UNTIL #1168 — kept here because it is
+    // the trace of a real bug, not caution. The reasoning was: a song-backed level's per-block treble
+    // slice is deliberately UNWRAPPED (see `useLevelContentStream`'s `songSlice` — past the song's last
+    // measure the slice is empty, so a song never silently repeats), while `wavesForLevel` would demand
+    // 3x the wave clears. Its slimes would run out one third of the way in and `pendingSongEndRef` would
+    // never be set — the §289 "level never ends" bug class, reintroduced.
+    //
+    // #1168 (Han 2026-09-01) removed the PREMISE instead of the guard, so the exclusion is gone: the song
+    // SOURCE is now genuinely materialised `ADAPTIVE_LEVEL_REPEATS` times inside `useLevelContentStream`
+    // (seamlessly, at `contentPeriodMeasures × measureLengthTicks` per pass), so the content really IS as
+    // long as `totalMeasures` claims. The slice stays UNWRAPPED against that longer source — "empty past
+    // the end" is still literally true, now at the 3x end — and `wavesForLevel` is 1 either way, so there
+    // is nothing left to strand. See §366.
+    //
+    // `!sideScroll` STAYS excluded, for its own separate reason: the stream only evaluates the controller
+    // for a side-scroll level, so a longer static level would be pure padding.
     // `totalNotesForLevel` scales with it, which is CORRECT: the player really does play 3x the notes over
     // ~3x the time, so #1099's post-completion ANPM (notes / elapsed minutes) is unchanged by the repeat.
     // `baselineAdaptiveBpm` is computed above from the UN-multiplied level and is invariant anyway —
     // `totalMeasures` appears in both its numerator (beats) and its denominator (notes) and cancels out.
     // `lvl.totalMeasures > 0` also guards the Level-0 draft object this function can be handed before
     // `normalizeLevel` has derived a length for it.
-    const adaptiveRepeats = (lvl.sideScroll && lvl.songId == null && lvl.totalMeasures > 0)
-        ? ADAPTIVE_LEVEL_REPEATS : 1;
+    const adaptiveRepeats = (lvl.sideScroll && lvl.totalMeasures > 0) ? ADAPTIVE_LEVEL_REPEATS : 1;
+    // #1168: `contentPeriodMeasures` is the UN-multiplied content period — exactly the same "the original
+    // value must survive the override" pattern `adaptiveBaseBpm` uses one line above for the authored
+    // tempo. ONE field, written in the ONE place that does the multiplication and read in the ONE place
+    // that has to undo it (`useLevelContentStream`: the song's chord modulo, and how many passes of the
+    // song source to materialise). Deliberately NOT a second `songMeasures` field on the level: this one
+    // is `undefined` for every non-adaptive level, so the repeat count there collapses to 1 BY
+    // CONSTRUCTION rather than by coincidence — including for a d/e call-response song, whose content
+    // period is its DOUBLED length, not the song's own.
     const adaptiveOverrides = variant.adaptive ? {
         adaptive: true,
         adaptiveBaseBpm: lvl.bpm,
-        ...(adaptiveRepeats > 1 ? { totalMeasures: lvl.totalMeasures * adaptiveRepeats } : {}),
+        ...(adaptiveRepeats > 1
+            ? { totalMeasures: lvl.totalMeasures * adaptiveRepeats, contentPeriodMeasures: lvl.totalMeasures }
+            : {}),
     } : {};
     const randomizeSongOverrides = (variant.randomizedNotes && lvl.songId != null) ? {
         randomizeSongMelody: true,
@@ -806,6 +847,17 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
             variability: 30,
             randomizationRule: 'arp_group',
         },
+    } : {};
+    // "Yellow wizard" (Han 2026-09-03): its OWN enemyType, deliberately NOT `'Wizard'` — a YellowWizard
+    // level generates and renders like a NORMAL side-scroll level (no call/response block cadence, no
+    // odd/even note-layer split), it just hides each notehead `wizardSpawnLeadMeasures` measures ahead of
+    // its beat and swaps in the blue projectile (SheetRpgLayer's `isYellowWizard` branch). Forces the
+    // type onto whatever level the letter is applied to — same "any level becomes X" pattern as d/e's
+    // `callResponseOverrides` — and defaults the cast lead to 1 measure only if the level didn't author
+    // its own.
+    const yellowWizardOverrides = variant.yellowWizard ? {
+        enemyType: 'YellowWizard',
+        wizardSpawnLeadMeasures: lvl.wizardSpawnLeadMeasures ?? 1,
     } : {};
     return {
         ...lvl,
@@ -822,6 +874,7 @@ export const applyLevelVariant = (lvl, letter, anpm = null) => {
         ...modulatedOverrides,
         ...randomizeSongOverrides,
         ...adaptiveOverrides,
+        ...yellowWizardOverrides,
     };
 };
 
@@ -860,6 +913,10 @@ export const availableVariantLetters = (lvl, letters) => letters.filter((letter)
     // generation now DOES the modulating itself when `decorativeWizard` is set (one stream, two jobs) —
     // no exclusion needed here any more. See that hook's `blockScale` for the merged mechanism.
     if (variant.gatedScroll && (lvl.enemyType === 'Wizard' || lvl.enemyType === 'Mixed')) return false;
+    // 'j' (yellow wizard, `enemyType: 'YellowWizard'`) is NOT excluded on gatedScroll levels: the
+    // audio/visual desync the clause above guards against is the wizard-CAST AUDIO firing on a fixed
+    // schedule while the gate freezes the visuals — and the yellow wizard's cast is SILENT, so that
+    // failure mode does not exist for it (Han 2026-09-03).
     // #1154 (Han: "de al reeds random nummers hebben geen variant H"): only a FIXED song benefits from
     // "keep the chords, generate a new melody" — a procedural level is already fresh content every
     // playthrough, offering 'h' there would be a visible no-op choice.

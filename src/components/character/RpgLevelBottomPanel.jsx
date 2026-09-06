@@ -4,7 +4,8 @@ import DialogueBox from './DialogueBox';
 import useConversationDialogue from '../../hooks/useConversationDialogue';
 import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, SLIME_IDLE } from '../../model/enemyAssets';
-import { findVariantByUrl } from '../../model/bestiaryAssets';
+import { findVariantByUrl, findCreatureByName } from '../../model/bestiaryAssets';
+import { NPC_DIALOGUE, entityDisplayName } from '../../model/npcDialogue';
 // #955 (boot-slowness initiative, Han 2026-08-13): this file moved to public/ASSORTED (a plain
 // static-file server, not part of Vite's module graph) — a static `import` is no longer possible;
 // public/ URLs are just fixed strings, fetched only when the browser actually renders the <img>.
@@ -67,9 +68,18 @@ export default function RpgLevelBottomPanel({ rpgLevel, context, getConversation
             </div>
         );
     }
+    // #weather (Han 2026-09-04): the open-world speakers are now the Wisp, the decorative Slime, AND the
+    // 6 worker NPCs (npcDialogue.js, keyed by bestiary base name). A worker's portrait is its OWN
+    // classified sprite (findCreatureByName — same variant `RpgLevelPanel`'s `workerNpcs` renders),
+    // handed straight to the canonical CreatureSprite renderer just like the Wisp (§6d).
+    const isWorker = !!NPC_DIALOGUE[dialogue.entity];
+    const workerVariant = isWorker ? findCreatureByName(dialogue.entity) : null;
     const portraitVariant = dialogue.entity === 'wisp'
         ? (wispVariant || WISP_FALLBACK_VARIANT)
-        : SLIME_PORTRAIT_VARIANT;
+        : isWorker
+            ? (workerVariant || WISP_FALLBACK_VARIANT)
+            : SLIME_PORTRAIT_VARIANT;
+    const speakerName = entityDisplayName(dialogue.entity);
     // #UI-overhaul (Han 2026-08-27, "portret 64, tekst 192, met 0 padding/marge"): world mode renders
     // DialogueBox in `compact` mode at the level scale `N` — the box is EXACTLY 256 game px wide
     // (64 portrait + 192 text) × 64 game px tall, no padding/margin, inset frame. Fits content block 1
@@ -82,6 +92,7 @@ export default function RpgLevelBottomPanel({ rpgLevel, context, getConversation
                     scale={scaled ? worldScale : undefined}
                     textCols={scaled ? 192 : undefined}
                     compact={scaled}
+                    speakerName={speakerName}
                     portraitVariant={portraitVariant}
                     text={visibleText}
                     onClick={handleTextClick}

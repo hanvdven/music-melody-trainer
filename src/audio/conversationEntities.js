@@ -22,6 +22,14 @@ export const ENTITY_AUDIO_PROFILE = {
     slime: { instrument: 'marimba', tonePool: DEFAULT_TONE_POOL },
     wizard: { instrument: 'xylophone', tonePool: DEFAULT_TONE_POOL },
     'Japanese Musician': { instrument: 'shamisen', tonePool: IN_SCALE_TONE_POOL },
+    // RPG-world worker NPCs (Han 2026-09-04, npcDialogue.js) — keyed by the SAME bestiary base name.
+    // One instrument each, chosen to fit the character; the tone pool is the shared default.
+    Blacksmith: { instrument: 'vibraphone', tonePool: DEFAULT_TONE_POOL },        // Tambo — slow, warm
+    'Blacksmith Woman': { instrument: 'glockenspiel', tonePool: DEFAULT_TONE_POOL }, // Sonia — bright, quick
+    'Town crier': { instrument: 'trumpet', tonePool: DEFAULT_TONE_POOL },         // Campano — herald
+    Lumberjack: { instrument: 'piccolo', tonePool: DEFAULT_TONE_POOL },           // Piccolo — seeks a flute
+    'Lady Potions': { instrument: 'orchestral_harp', tonePool: DEFAULT_TONE_POOL }, // Dominica — glissando/scales
+    Steampunker: { instrument: 'accordion', tonePool: DEFAULT_TONE_POOL },        // Wavie — bellows/steam
 };
 export const DEFAULT_AUDIO_PROFILE = { instrument: 'marimba', tonePool: DEFAULT_TONE_POOL };
 

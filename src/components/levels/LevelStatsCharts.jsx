@@ -74,6 +74,24 @@ export function computeTotalNotes(stats) {
         + (stats.wrongUncorrected || 0) + (stats.missed || 0);
 }
 
+// #1121 (Han 2026-09-01): the ANPM NUMERATOR — the notes the player actually FACED this run, i.e. every
+// note that reached a final verdict, MINUS `extraNote`. A spurious keypress with nothing due is not a
+// note the level presented, so it must not inflate notes-per-minute (that would let mashing raise your
+// ANPM). = correct + secondAttemptCorrected + wrongUncorrected + missed.
+//
+// WHY it replaced `totalNotesForLevel(lvl)` as #1099's numerator: the adaptive difficulty ladder (§361)
+// can raise a run's note density above the level's AUTHORED `notesPerMeasure`, so the authored count
+// under-reports exactly the extra effort the ladder adds — the feature would have been invisible in the
+// very number it exists to raise. It lives HERE, beside the two counts it is built from, rather than as
+// a parallel formula in App.jsx (§6c/§6d).
+//
+// NOT the same thing as `baselineAdaptiveBpm`'s use of `totalNotesForLevel` (adaptiveTempo.js), which
+// deliberately still reads the AUTHORED structure — it runs before a single note has been played, where
+// a played-note count does not exist. The two are different questions; do not "unify" them.
+export function computePlayedNoteCount(stats) {
+    return Math.max(0, computeTotalNotes(stats) - (stats.extraNote || 0));
+}
+
 // Han 2026-08-10 — weighted accuracy, replaces the old `defeated/(defeated+misses)` formula:
 //   score = perfect + (muchTooEarly + tooEarly + wrongCorrected + tooLate + muchTooLate) / 2
 //   total = noteWhenNoneDue + correct + wrongCorrected + wrongNotCorrected + missed

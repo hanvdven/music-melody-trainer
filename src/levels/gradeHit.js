@@ -21,6 +21,35 @@ export function gradeHit(deltaMs, beatMs) {
     return null;
 }
 
+// ── #1120: THE HIDDEN TRUE GRADE (the adaptive ladder's gated-exit signal) ───────────────────────
+// On a GATED level every correct hit is RECORDED as 'perfect' (§1052 — a gated level teaches note
+// recognition, not rhythm), so the recorded grade cannot answer "is this player ready to go back to
+// timed pacing?". The exit needs a SECOND, hidden reading of the SAME hit — and it cannot simply be
+// `gradeHit(deltaMs, beatMs)` either, because the gate does not merely relabel the grade: it FREEZES
+// THE CLOCK. SheetRpgLayer pins `tRawMs` at the instant the due note arrives, so the `deltaMs` the
+// combat effect measures is ~0 (at most one frame) for every gated hit NO MATTER how long the player
+// actually sat there — a naive re-grade would return 'perfect' 100% of the time and the exit
+// condition would be trivially true.
+//
+// `frozenExtraMs` is the real time the gate spent frozen on THIS note — the value SheetRpgLayer
+// already computes one branch further down (`rawTRawMs - gatedFreezeStartRawMs`, off the
+// never-frozen raw clock) to fold into `gatedPauseAccumMsRef`. Adding it back reconstructs the delta
+// the player WOULD have been graded on if the level had never waited. Zero when not frozen, so on a
+// timed level this is exactly `gradeHit`'s own category.
+//
+// SECOND ATTEMPT (design edge case d): a corrected second attempt counts as NOT perfect here even
+// when the correction itself landed dead on the beat — the player needed two tries. This is the ONE
+// place the hidden and the recorded grade differ in KIND rather than merely in strictness (the
+// recorded one still reports `secondAttemptCorrected` to stats exactly as before).
+//
+// Lives here rather than inline in the 3000-line RPG layer so the rule has a direct unit test
+// (gradeHit.test.js), the same rationale tempoScrollAnchor.js was extracted for. `gradeHit` stays
+// the ONE timing grader — this wraps it, never re-implements it (§6c).
+export const hiddenTimingGrade = ({ deltaMs, frozenExtraMs = 0, beatMs, secondAttempt = false }) => {
+    if (secondAttempt) return 'secondAttempt';
+    return gradeHit(deltaMs + frozenExtraMs, beatMs)?.category ?? null;
+};
+
 // Display labels for the floating judgment text ("zeg dan 'wrong note'" — Han) + the stat rows.
 // Han 2026-08-02 (well-done breakdown): 4 distinct final outcomes for a slime, plus 2 LIVE (in-the-moment)
 // labels shown immediately on a keypress whose fate is still pending (see SheetRpgLayer's combat effect):

@@ -29,13 +29,20 @@ import playSound from '../audio/playSound';
 // content exists. Timpani's pitch sequence is the same deterministic, Han-authorized hardcoded pattern
 // (`timpaniPattern.js`) every other level already uses — looked up per-beat here instead of pre-built into
 // a whole-piece Melody object, since gate-driven triggering has no fixed "whole piece" to pre-generate.
+//
+// #1120: this hook is no longer only for levels that AUTHOR `gatedScroll`. The adaptive ladder can
+// switch a PROCEDURAL level into gated pacing at its bpm floor, at which point App.jsx turns this
+// hook's `active` on mid-level (see its combined `gatedNow` value). Two consequences, both handled
+// below: the tempo is then the ladder's FLOOR rather than `lvl.bpm`, and the elapsed clock this reads
+// has already crossed several tempo changes — see `bpmRef` and SheetRpgLayer's `gateTempoAnchorRef`.
 export default function useLevelGatedRubatoAudio({
-  active,             // level.active && !level.done && !!lvl?.gatedScroll && !!lvl?.sideScroll
+  active,             // level.active && !level.done && gatedNow && !!lvl?.sideScroll
   lvl,                // level.current
   timeSignature,
   context,
   levelAudioStart,
-  gatedElapsedMsRef,  // SheetRpgLayer's frozen-aware elapsed-ms ref (App.jsx owns it)
+  gatedElapsedMsRef,  // SheetRpgLayer's frozen-aware, tempo-normalized elapsed-ms ref (App.jsx owns it)
+  bpmRef,             // #1120: App's live tempo ref — the SINGLE source of truth for "the bpm now"
   bassMelody,         // useLevelBackingStream's growing `bass` Melody (cello content)
   bassInstrument,     // celloRef.current
   timpaniInstrument,  // timpaniRef.current — null/undefined when percussion isn't melodic
@@ -69,21 +76,30 @@ export default function useLevelGatedRubatoAudio({
 
     rubatoStateRef.current = { measureSlot: -1, beatKey: null };
 
-    const bpm = lvl.bpm || 80;
     const barBeats = timeSignature[0] || 4;
+    // Tempo-INDEPENDENT, so it stays here at effect level: a measure is the same number of ticks at
+    // every bpm.
     const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
+    // #1120: `barMs`/`beatMs` are NO LONGER computed once from a captured `lvl.bpm` — they are derived
+    // from the LIVE bpm inside the rAF loop below (`msPerBar`/`msPerBeat`). WHY: a ladder-gated level
+    // reaches this hook at the adaptive FLOOR tempo, not at `lvl.bpm`, so the captured value would put
+    // the cello on a measure of the wrong length and it would sing a different bar than the one on
+    // screen. This is the same "re-read the live value at the top of each scheduling unit" pattern
+    // `useLevelContentStream` already uses per block and `Sequencer.scheduleBlock` per measure.
+    // `bpmRef` is a REF on purpose and is NOT in the dependency array: adding the bpm STATE would
+    // restart this effect on every tempo change, which is precisely the #1096 "extra cello" bug.
+    //
     // Bug fix (Han 2026-08-06, "de 6/8 maatsoort zorgt dat alles misloopt") — see
-    // useLevelBackingStream.js for the full explanation: bar duration must derive from ticks
+    // useLevelContentStream.js for the full explanation: bar duration must derive from ticks
     // (denominator-correct), not a beats×denominator-agnostic quarter-seconds shortcut.
-    const barSec = measureLengthTicks * secondsPerTick(bpm);
-    const barMs = barSec * 1000;
+    const msPerBar = (b) => measureLengthTicks * secondsPerTick(b) * 1000;
     // `TIMPANI_BEAT_PATTERN` is indexed by QUARTER-note position within the measure (`timpaniPattern.js`'s
     // own `QUARTER = TICKS_PER_WHOLE/4`), independent of the meter's own counted beat unit — e.g. for 6/8
     // (denominator 8) `timeSignature[0]` counts EIGHTH notes, but the pattern still steps in quarters. Using
     // `barBeats`-based division here would silently desync from `buildTimpaniPattern`'s own indexing for any
     // non-quarter-beat meter (exactly the #1044 bug class) — so beat length is derived from a quarter note
     // directly, matching that function's own math, not re-derived from `timeSignature[0]`.
-    const beatMs = (TICKS_PER_WHOLE / 4) * secondsPerTick(bpm) * 1000;
+    const msPerBeat = (b) => (TICKS_PER_WHOLE / 4) * secondsPerTick(b) * 1000;
 
     // The cello note whose absolute tick range [measureSlot*measureLengthTicks, +measureLengthTicks)
     // contains this measure's content — mirrors `sliceMelodyByRange`'s own range-membership test
@@ -104,6 +120,13 @@ export default function useLevelGatedRubatoAudio({
       const elapsedMs = gatedElapsedMsRef?.current;
       if (typeof elapsedMs === 'number' && elapsedMs >= 0) {
         const st = rubatoStateRef.current;
+        // #1120: the LIVE tempo, re-read every frame. Paired with SheetRpgLayer's tempo-NORMALIZED
+        // `gatedElapsedMsRef` (whose contract is "divide me by the CURRENT beat length to get the true
+        // beats elapsed"), so the measure index stays continuous across a tempo change BY
+        // CONSTRUCTION rather than by arithmetic that has to be kept in step by hand.
+        const bpmNow = bpmRef?.current || lvl.bpm || 80;
+        const barMs = msPerBar(bpmNow);
+        const beatMs = msPerBeat(bpmNow);
         const measureSlot = Math.floor(elapsedMs / barMs);
         if (measureSlot !== st.measureSlot) {
           // Bug fix (Han 2026-08-21, the REAL root cause behind "elke maat komt er een cello bij" /
@@ -161,6 +184,10 @@ export default function useLevelGatedRubatoAudio({
     // own comment above for why depending on it directly caused the "extra cello" stacking bug. The
     // effect's initial-mount check above (`!bassMelodyRef.current`) still guards against ever starting the
     // loop before any content exists.
-  }, [active, lvl, levelAudioStart, context, gatedElapsedMsRef, bassInstrument,
+    // #1120: `bpmRef` IS listed, but only because it is a stable ref OBJECT (App's `useRefState`) —
+    // its identity never changes, so it can never restart this loop. What must never appear here is
+    // the bpm STATE itself: that would restart the effect on every adaptive tempo commit and re-open
+    // exactly the "extra cello" stacking bug documented above. The live value is read INSIDE the loop.
+  }, [active, lvl, levelAudioStart, context, gatedElapsedMsRef, bpmRef, bassInstrument,
     timpaniInstrument, bassVolume, percussionVolume, timeSignature]);
 }

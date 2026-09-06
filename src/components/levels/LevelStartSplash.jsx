@@ -18,6 +18,7 @@ import iconFullTempo from '../../assets/ASSET DROP/Icons/Status_effect2_1_11.png
 import iconModulated from '../../assets/ASSET DROP/Icons/Status_effect1_1_323.png';     // Spiral
 import iconRandomizedNotes from '../../assets/ASSET DROP/Icons/Status_effect1_1_462.png'; // Dice
 import iconAdaptiveSpeed from '../../assets/ASSET DROP/Icons/Status_effect1_1_23.png';  // Arrow
+import iconYellowWizard from '../../assets/ASSET DROP/Icons/Status_effect1_1_32.png';   // Han's pick for the yellow wizard
 
 const ICON_BY_KEY = {
     rubato: iconRubato,
@@ -29,6 +30,7 @@ const ICON_BY_KEY = {
     modulated: iconModulated,
     randomizedNotes: iconRandomizedNotes,
     adaptiveSpeed: iconAdaptiveSpeed,
+    yellowWizard: iconYellowWizard,
 };
 
 // #1100 (split from #1087, Han 2026-08-22): the picker's own display order — an explicit array rather
@@ -41,7 +43,8 @@ const ICON_BY_KEY = {
 // #1153/#1154 (Han 2026-08-25): g (Modulated) and h (Randomized Notes) are now IMPLEMENTED —
 // `notYetImplemented` removed from their levels.js entries, so they're no longer disabled here. Only i
 // (Adaptive speed) remains reserved.
-const VARIANT_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'];
+// "Yellow wizard" (Han 2026-09-03): j (Gele wizard) added — implemented, immediately selectable.
+const VARIANT_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
 
 // #679 (Han 2026-08-03, Level 9): derived from LEVELS itself (§6c — no hardcoded list to fall out of sync
 // with levels.json again) instead of a literal array that silently excludes any newly-added level.

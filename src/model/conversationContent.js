@@ -10,24 +10,24 @@ export const LOREM_IPSUM_PARAGRAPHS = [
 ];
 
 // #922: the wizard's short post-combat line — placeholder content (Han: propose defaults, flag for UAT
-// correction if he wants different wording).
+// correction if he wants different wording). *asterisk* runs render in Bitfantasy (rest SandyForest).
 export const WIZARD_VICTORY_LINES = [
-    'Woah, you beat me...!',
-    'Impressive. Truly impressive.',
+    'Woah, you *beat* me...!',
+    '*Impressive.* Truly impressive.',
 ];
 
 // #922 round 2 (Han 2026-08-12, "zelfde bij levels met echte vijanden, toon portret of sprite" — a level's
 // named decorative NPC, e.g. Sakura's "Japanese Musician"): generic short post-combat lines, since Han
 // didn't specify per-NPC wording — placeholder content, flag for UAT correction.
 export const NPC_GREETING_LINES = [
-    'Well played!',
-    'You have a good ear for this.',
-    'Not bad at all.',
+    '*Well played!*',
+    'You have *a good ear* for this.',
+    'Not bad *at all*.',
 ];
 
 // #922 round 2: the DEFAULT post-combat case (no real or decorative NPC at all — just a plain slime).
 export const SLIME_DEFEAT_LINES = [
-    'Splat...',
-    'You got me!',
-    'Ooze... ooze everywhere.',
+    '*Splat...*',
+    'You *got* me!',
+    'Ooze... *ooze everywhere.*',
 ];

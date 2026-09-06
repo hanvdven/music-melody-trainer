@@ -41,38 +41,47 @@ export default function WorldBottomArea({
         );
     };
 
+    // UI world-height toggle (Han 2026-09-04): in full-height mode `computeWorldFullHeightLayout` can
+    // hand back `nav`/`content.block1`/`content.block2` as `null` (dropped to make room for the world
+    // block) — skip that block's DOM entirely rather than rendering it at a zero/negative rect.
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-            <div style={place(nav)}>
-                <WorldNavBar
-                    screen={screen} setScreen={setScreen} onStartLevel={onStartLevel}
-                    debugMode={debugMode} setDebugMode={setDebugMode} onExitToClassic={onExitToClassic}
-                    scale={scale} cols={nav.cols} rows={nav.rows}
-                />
-            </div>
+            {nav && (
+                <div style={place(nav)}>
+                    <WorldNavBar
+                        screen={screen} setScreen={setScreen} onStartLevel={onStartLevel}
+                        debugMode={debugMode} setDebugMode={setDebugMode} onExitToClassic={onExitToClassic}
+                        scale={scale} cols={nav.cols} rows={nav.rows}
+                    />
+                </div>
+            )}
 
-            <div style={place(content.block1)}>
-                {padFrame(content.block1, CONTENT1_GPX_W_MIN)}
-                <RpgLevelBottomPanel
-                    rpgLevel={rpgLevel} context={context} getConversationProfile={getConversationProfile}
-                    worldScale={scale}
-                />
-            </div>
+            {content.block1 && (
+                <div style={place(content.block1)}>
+                    {padFrame(content.block1, CONTENT1_GPX_W_MIN)}
+                    <RpgLevelBottomPanel
+                        rpgLevel={rpgLevel} context={context} getConversationProfile={getConversationProfile}
+                        worldScale={scale}
+                    />
+                </div>
+            )}
 
-            <div style={place(content.block2)}>
-                {padFrame(content.block2, CONTENT2_GPX_W_MIN)}
-                <WorldPiano
-                    instrument={pianoInstrument}
-                    onNoteDown={(note) => onPianoNote?.(note, true)}
-                    debugMode={debugMode}
-                    scale={scale}
-                    keyScale={keyScale}
-                    rangeMin={pianoRangeMin}
-                    rangeMax={pianoRangeMax}
-                    midiHeld={midiHeld}
-                    qwertyActive={qwertyActive}
-                />
-            </div>
+            {content.block2 && (
+                <div style={place(content.block2)}>
+                    {padFrame(content.block2, CONTENT2_GPX_W_MIN)}
+                    <WorldPiano
+                        instrument={pianoInstrument}
+                        onNoteDown={(note) => onPianoNote?.(note, true)}
+                        debugMode={debugMode}
+                        scale={scale}
+                        keyScale={keyScale}
+                        rangeMin={pianoRangeMin}
+                        rangeMax={pianoRangeMax}
+                        midiHeld={midiHeld}
+                        qwertyActive={qwertyActive}
+                    />
+                </div>
+            )}
         </div>
     );
 }

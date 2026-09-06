@@ -21,6 +21,20 @@
 
 Deel deze features in bij de juiste categorie.
 
+### Yellow wizard — level type + mode-variant (Han 2026-09-03)
+
+Ik wil een nieuw level type: yellow wizard. De yellow wizard verdoezelt noten maat voor 'perfect timing'; De noten zijn onzichtbaar. Vervang de noten voor een wizard projectile (zelfde blauwe projectiel van de zwarte tovenaar).
+Gebruik hetzelfde principe: 1 maat (instelbaar) voordat noten gespeeld moeten worden: speel een 'cast' animatie. Het verschil: geen geluid bij de gele wizard, en voordat de gele wizard cast zijn de noten wel zichtbaar, ze moeten tewijl de projectile verschijnt, verdijwnen.
+
+[Claude 2026-09-03]: Interview afgerond + geïmplementeerd (v2, na één afgekeurde v1).
+Eindmodel: eigen `enemyType: 'YellowWizard'` (NIET geënt op de zwarte wizard). Level
+genereert + toont noten volledig normaal; elke noot wordt ~1 maat (instelbaar via
+`wizardSpawnLeadMeasures`) voor z'n tel weggemaskeerd en vervangen door het blauwe projectiel
+(het doel), terwijl een statische GELE wizard (bestiary "Wizard (Portrait)" / "Yellow") stil
+cast. Twee ingangen: **Level 16** + mode-variant **`j`** ("Gele wizard", icoon
+`Status_effect1_1_32.png`). Details + code-aanhaakpunten in `IMPLEMENTATION_PLAN.md`, arch §371.
+Status: wacht op Han UAT.
+
 ### ✅ 🔴 P0 — Kanban-board opzetten (cyanluna.skills) (Han 2026-06-22)
 
 Maak een kanban-board volgens de instructies op https://github.com/cyanluna-git/cyanluna.skills
@@ -2567,6 +2581,123 @@ Verzameling van voorgestelde presets (combinaties van instellingen). Nog niet ge
 ---
 
 ## CODE & ARCHITECTUUR
+
+### Performance: hakkelige rendering (sterren, hero, muziek-levels) (Han 2026-09-04)
+
+ik vind de rpg-wereld soms hakkelig. De sterren bewegen hakkelig, en de hero, als hij rent
+ook. Soms wat in horten en stoten (variabele framerate), soms echt met artifacts (ik zie het
+ventje dubbel). Ik zie dit soort problemen ook in de muzieklevels.
+
+Ik denk: er is een sprite animatie-framerate - die is gebonden aan de metronoom. Maar
+bijvoorbeeld lineaire beweging zou gewoon aan 60+ fps moeten kunnen draaien. Uitdaging is
+natuurlijk dat ik de beweing pixel perfect zou willen houden, of is dat onzinnig eigenlijk?
+
+Ga grondig door de rendering, doe diagnostische tests, en zoek perf optimalisaties.
+
+[Claude 2026-09-04]: Diagnose afgerond (3 parallelle code-audits: RpgLevelPanel/
+useRpgLevelState, CelestialSky, SheetRpgLayer). Samenvatting — zie chat voor volledige
+onderbouwing met file:line-referenties:
+1. **Hero-stutter/"dubbel"**: `useRpgLevelState.js:266` roept `setPlayerX()` élke rAF-frame
+   aan zónder diff-check (in tegenstelling tot de andere flags in dat bestand) → volledige
+   React-re-render van de entity-subtree elke frame tijdens bewegen. Camera-pan is al eerder
+   naar directe `ref.style.transform`-writes gemigreerd (`RpgLevelPanel.jsx:1687-1691`), de
+   hero/pet/NPC-positie nog niet. Bovendien snapt de camera wél naar hele device-pixels
+   (`RpgLevelPanel.jsx:1685`), de hero-positie niet (`:1915`) — dat mismatch tussen
+   React-commit-latency en synchrone camera-writes is de meest waarschijnlijke oorzaak van het
+   "dubbele ventje". Han's BPM-hypothese klopt gedeeltelijk: het LOOP-cycle is al wall-clock
+   (dus niet de oorzaak), maar de IDLE/pet-animatie is wel BPM-gekoppeld
+   (`RpgLevelPanel.jsx:1498`, `frameMsForBpm`).
+2. **Sterren-hakkel**: `CelestialSky.jsx` tekent elke frame opnieuw (60fps), maar de
+   onderliggende hemelklok (`cycleT`) wordt maar ~12×/sec bijgewerkt (`tickWeather` via 80ms
+   throttle in `RpgLevelPanel.jsx:1200-1206`) — sterren "trappen" dus in zichtbare stapjes i.p.v.
+   continu te bewegen. Daarnaast: volledige canvas-clear + trig over 611 sterren + een nieuwe
+   `Map()`-allocatie per frame (`CelestialSky.jsx:343`) — GC-druk. CelestialSky draait bovendien
+   als laatste (throttled-na-critical) in de gedeelde rAF-ticker, dus erft precies het frame-budget
+   dat de andere lagen overlaten.
+3. **Muziek-levels**: de staaf/notenbalk-scroll in `SheetRpgLayer.jsx` is zelf al correct
+   (AudioContext-tijd-gedreven, directe ref-writes, geen React-state-churn — voorbeeldig). Maar
+   slime/critter/projectile-posities zijn hard getrold op 33ms (~30fps,
+   `RPG_ENTITY_THROTTLE_MS`) terwijl de achtergrond ongethrottled op 60fps meebeweegt → zichtbare
+   snelheids-mismatch tussen vloeiende achtergrond en "springende" vijanden, erger naarmate er
+   meer entities zijn (ongebudgetteerd O(n) werk binnen dezelfde gedeelde rAF-tick).
+   `useFrameLoop.js` zelf doet geen tijd-budgettering: één trage 'critical' subscriber vertraagt
+   alle andere + de paint.
+
+**Aanbeveling (prioriteit, na Han's beslissing welke eerst):**
+1. Hero/pet/NPC-positie van React-state naar directe ref/style-writes (zelfde patroon als
+   camera-pan), consistent pixel-snappen met de camera in dezelfde rAF-tick. Pixel-perfect is
+   an sich geen onzinnig doel — het moet alleen consequent op elke bewegende laag in dezelfde
+   tick worden toegepast, dat is nu de bug, niet het concept.
+2. CelestialSky's `cycleT` loskoppelen van de 80ms weer-throttle (eigen continue accumulator),
+   plus de per-frame `Map()`-allocatie wegcachen.
+3. SheetRpgLayer entity-throttle vs. scroll-desync oplossen — ofwel entities interpoleren
+   tussen throttled updates (lerp), ofwel throttle verhogen indien perf het toelaat. Let op:
+   de "hop gait" van slimes is deels bewust BPM-gekoppeld ontwerp — bevestigen bij Han of dat
+   moet blijven.
+
+Interview per CLAUDE.md §4b nog niet afgerond — vragen gesteld in chat vóór implementatie.
+
+[Claude 2026-09-05]: ✅ Alle drie de fixes geïmplementeerd, in de voorgestelde volgorde (Han
+koos "alle drie"). `npm run test:run`/`build`/`lint` groen na elke stap; gedocumenteerd in
+`docs/architecture.md` §376 (hero/pet), §378 (sterren), §380 (muziek-levels).
+1. **Hero/pet**: `playerXRef`/`petXRef` komen nu rechtstreeks uit `useRpgLevelState` (dezelfde
+   ref die de physics-loop al elke frame schreef) i.p.v. via React-state; hero/pet-DOM-positie
+   wordt imperatief geschreven in dezelfde rAF-tick als de camera-pan, met dezelfde
+   device-pixel-snap. `setPlayerX`/`setPetX` zijn nu gethrottled (60ms) i.p.v. elke frame.
+2. **Sterren**: root cause was NIET CelestialSky.jsx zelf — de onderliggende weer-klok
+   (`RpgLevelPanel.jsx`'s `useFrameLoop` voor `tickWeather`) liep op `throttleMs: 80` (~12fps),
+   dus `cycleT` (en dus elke ster/maan/zon-positie) advanceerde maar 12×/sec terwijl
+   CelestialSky 60×/sec tekende. Naar `priority: 'critical'` gezet (elke frame) — `tickWeather`/
+   `weatherOutputs` zijn pure, goedkope arithmetic, dus dit kost niets extra's; de bestaande
+   gating die bepaalt wanneer er daadwerkelijk her-render't wordt is ongewijzigd. Losstaand ook
+   de per-frame `Map()`-allocatie in CelestialSky.jsx naar een hergebruikte ref verplaatst.
+3. **Muziek-levels**: bevestigd dat `RPG_ENTITY_THROTTLE_MS=33` een bewuste eerdere perf-fix is
+   (#1050, "the performance sucks") — NIET verlaagd (risico op regressie, niet verifieerbaar
+   zonder browser/GPU in deze omgeving). In plaats daarvan: X-positie van
+   slime/bass-slime/critter/projectiel/switch wordt tussen throttle-ticks lineair
+   geïnterpoleerd (vorige→huidige tick-waarde), zodat ze meeglijden met de ongethrottelde
+   scroll i.p.v. te springen. Y/frame/animatie/oscillatie blijven ongewijzigd op de throttled
+   cadans — expliciet buiten scope, inclusief de bewuste "hop gait" van slimes (Han: bewuste
+   keuze, laten staan).
+
+Nog open (niet aangepakt, laagste prioriteit): `useFrameLoop.js` zelf doet geen
+tijd-budgettering tussen 'critical' subscribers — een trage subscriber kan nog steeds de paint
+van andere subscribers vertragen. Geen concrete klacht hierover, dus niet proactief aangepakt.
+
+[Han 2026-09-05]: "Nice! Zie je nog meer opportuniteiten? Transitie van gradient loopt ook nog
+wat schokkerig naar mijn gevoel" (verduidelijkt: de achtergrond-gradient).
+
+[Claude 2026-09-05]: ✅ Zelfde bug-familie als de sterren (§378 in architecture.md), nu in
+`SkyGradientBackdrop.jsx`: `cloudCoverT` werd afgerond naar stappen van 0,05 vóór doorgifte als
+prop, wat over een 10-seconden weer-overgang maar ~20 keer her-rendert (~2×/sec) — zichtbaar
+schokkerig voor een full-screen kleurverloop. Fix: `SkyGradientBackdrop` krijgt nu `weatherRef`
+rechtstreeks (zelfde ref als `CelestialSky`) en tekent de gradient elke frame imperatief via
+`useFrameLoop`, i.p.v. via een gequantiseerde React-prop. `npm run test:run`/`build`/`lint`
+groen; gedocumenteerd in architecture.md §381.
+Verder geen nieuwe grote hakkel-bronnen gevonden bij deze ronde — alleen de al genoemde
+`useFrameLoop`-tijdbudgettering staat nog open, zonder concrete klacht.
+
+[Han 2026-09-05]: "Om het loopt echt heel soepel nu! hulde! zie je nog opportuniteiten voor
+soepeler renderen?"
+
+[Claude 2026-09-05]: 🐞 Gevonden: `setCameraX` in de camera-volg-loop
+(`RpgLevelPanel.jsx`) vuurde nog onvoorwaardelijk elke frame tijdens het lopen — de 5e
+instantie van hetzelfde bug-patroon. Han koos "nu al fixen". **Poging mislukte**: na het
+invoeren van een `cameraXRef` + gethrottelde `setCameraX`-snapshot (zelfde patroon als
+hero/pet) meldde Han meteen "nu bibbert de wereld als een gek, ik zie dubbele entiteiten bij
+camera pan" — een regressie. **Direct teruggedraaid** naar de originele, werkende
+`setCameraX((cam) => {...})`-vorm (dezelfde die Han net "heel soepel" noemde). Root cause van
+de regressie is niet verder onderzocht (revert had voorrang boven doorgraven met een kapotte
+wereld) — vermoeden: iets in de PRIMAIRE LDtk-modus leunt toch nog op `cameraX`-state die om
+de 16ms i.p.v. elke frame moest updaten (bv. de achtergrond-parallaxlagen via
+`leftPxForFactor`, of iets dat ik niet volledig in kaart had), waardoor voorgrond
+(imperatief, elke frame) en die laag/lagen (throttled) zichtbaar uit sync liepen. Niet
+opnieuw geprobeerd zonder een concreet reproduceerbaar diagnoseplan.
+`npm run test:run`/`build`/`lint` groen na de revert. Geen architecture.md-sectie (er is
+niets blijvends om te documenteren — de poging is volledig teruggedraaid).
+❓ Han: als je hier nog een keer induikt (of ik), graag eerst reproduceren met devtools React
+Profiler open tijdens het lopen, zodat we zien WELKE component precies dubbel tekent, in
+plaats van opnieuw blind te gokken.
 
 ### Refactor: parallel arrays → events (Han 2026-05-27)
 

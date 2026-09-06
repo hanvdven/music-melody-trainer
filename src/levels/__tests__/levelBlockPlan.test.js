@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
     blockMeasuresFor, blockTypeAt, blockTypeForBlock, resolveBlockScale, blockCountFor,
     leadInSpecFor, trackSpecsForLevel, callGroupMeasuresFor,
-    MIXED_BLOCK_MEASURES, KEY_MODULATION_BLOCK_MEASURES,
+    MIXED_BLOCK_MEASURES, KEY_MODULATION_BLOCK_MEASURES, SONG_BLOCK_MEASURES,
 } from '../levelBlockPlan';
+import { MAX_TREBLE_DENSITY_STEP } from '../adaptiveLadder';
 import { LEVELS } from '../levels';
 import Scale from '../../model/Scale';
 import InstrumentSettings from '../../model/InstrumentSettings';
@@ -35,6 +36,48 @@ describe('levelBlockPlan — blockMeasuresFor (THE one cadence)', () => {
         expect(blockMeasuresFor(LEVELS[13])).toBe(2);                      // native call-response
         expect(blockMeasuresFor(LEVELS[14])).toBe(2);                      // Mixed alternation period
         expect(blockMeasuresFor(LEVELS[15])).toBe(2);                      // decorativeWizard modulation period
+    });
+
+    // #1168 (Han 2026-09-01): a song-backed level's `numMeasures` is the SONG'S LENGTH (back-filled by
+    // songLevelDefaults, §871), so the fall-through made one block the whole song — `blockCountFor` 1,
+    // and the adaptive decider fired exactly once (§354 limitation 5). It now has its own cadence.
+    describe('a SONG-backed level generates in flat 2-measure chunks (#1168)', () => {
+        const SONG_LEVEL_IDS = [1, 2, 200, 201, 202, 203, 204, 205, 206];
+
+        it('overrides the numMeasures fall-through, whatever the song\'s length is', () => {
+            expect(blockMeasuresFor({ songId: 'x', numMeasures: 27 })).toBe(SONG_BLOCK_MEASURES);
+            expect(blockMeasuresFor({ songId: 'x', numMeasures: 5 })).toBe(SONG_BLOCK_MEASURES);
+            expect(SONG_BLOCK_MEASURES).toBe(2);
+        });
+
+        it('is UNCONDITIONAL — never gated on a variant letter (Han Q1: ALL song levels)', () => {
+            // No `adaptive` flag anywhere in the input: a plain 1x song run gets the same cadence.
+            expect(blockMeasuresFor({ songId: 'sakura', numMeasures: 14 })).toBe(SONG_BLOCK_MEASURES);
+            expect(blockMeasuresFor({ songId: 'sakura', numMeasures: 14, adaptive: true })).toBe(SONG_BLOCK_MEASURES);
+        });
+
+        // BRANCH ORDER IS LOAD-BEARING: the Wizard branch must keep winning, because for a d/e song
+        // `applyLevelVariant` rewrites `numMeasures` to the call GROUP size and doubles `totalMeasures`.
+        it('LOSES to the Wizard/Mixed/decorativeWizard branches above it (branch-order guard)', () => {
+            expect(blockMeasuresFor({ songId: 'x', enemyType: 'Wizard', callResponseMeasures: 2, numMeasures: 2 })).toBe(4);
+            expect(blockMeasuresFor({ songId: 'x', enemyType: 'Wizard', callResponseMeasures: 1, numMeasures: 1 })).toBe(2);
+            expect(blockMeasuresFor({ songId: 'x', enemyType: 'Mixed', numMeasures: 14 })).toBe(MIXED_BLOCK_MEASURES);
+            expect(blockMeasuresFor({ songId: 'x', decorativeWizard: true, numMeasures: 14 })).toBe(KEY_MODULATION_BLOCK_MEASURES);
+        });
+
+        it('every shipped song level (1, 2, 200-206) now has real block boundaries for the decider', () => {
+            SONG_LEVEL_IDS.forEach((id) => {
+                const lvl = LEVELS[id];
+                expect(lvl.songId, `level ${id} should be song-backed`).toBeTruthy();
+                expect(blockMeasuresFor(lvl), `level ${id} cadence`).toBe(SONG_BLOCK_MEASURES);
+                // Levels 1/2 are gatedScroll → Infinity by design (§867); the rest get ceil(total/2),
+                // which is >= 2 for every shipped song, i.e. the decider gets a real decision at last.
+                const expected = lvl.gatedScroll
+                    ? Infinity : Math.ceil(lvl.totalMeasures / SONG_BLOCK_MEASURES);
+                expect(blockCountFor(lvl), `level ${id} block count`).toBe(expected);
+                if (!lvl.gatedScroll) expect(blockCountFor(lvl)).toBeGreaterThan(1);
+            });
+        });
     });
 });
 
@@ -181,5 +224,58 @@ describe('levelBlockPlan — trackSpecsForLevel', () => {
     it('callGroupMeasuresFor defaults to 1 for a level that authors no call-response group size', () => {
         expect(callGroupMeasuresFor({})).toBe(1);
         expect(callGroupMeasuresFor({ callResponseMeasures: 2 })).toBe(2);
+    });
+
+    // ── #1121: the optional DENSITY argument ────────────────────────────────────────────────
+    // The projection itself is exhaustively tested in adaptiveLadder.test.js; what matters HERE is
+    // that this one function is the ONLY place a rung reaches a block's settings, and that rung 0 is
+    // the identity.
+    it('a treble rung reaches instrumentSettings.treble, and only the two density fields', () => {
+        const lvl = { numMeasures: 2 };
+        const plain = trackSpecsForLevel(lvl, settings);
+        const dense = trackSpecsForLevel(lvl, settings, { densityStep: 2, timeSignature: [4, 4] });
+        expect(dense.instrumentSettings.treble.notesPerMeasure)
+            .toBeGreaterThan(plain.instrumentSettings.treble.notesPerMeasure);
+        // Everything else about the track survives the shallow merge.
+        const { notesPerMeasure: _a, smallestNoteDenom: _b, ...restDense } = dense.instrumentSettings.treble;
+        const { notesPerMeasure: _c, smallestNoteDenom: _d, ...restPlain } = plain.instrumentSettings.treble;
+        expect(restDense).toEqual(restPlain);
+        // The AUTHORED settings object is never mutated — the patch is a copy.
+        expect(settings.trebleSettings.notesPerMeasure).toBe(plain.instrumentSettings.treble.notesPerMeasure);
+    });
+
+    it('a BASS rung only appears above the treble cap, and never before it', () => {
+        const lvl = { numMeasures: 2 };
+        const authoredBass = settings.bassSettings.notesPerMeasure;
+        for (let s = 1; s <= MAX_TREBLE_DENSITY_STEP; s++) {
+            expect(trackSpecsForLevel(lvl, settings, { densityStep: s, timeSignature: [4, 4] })
+                .instrumentSettings.bass.notesPerMeasure).toBe(authoredBass);
+        }
+        expect(trackSpecsForLevel(lvl, settings,
+            { densityStep: MAX_TREBLE_DENSITY_STEP + 1, timeSignature: [4, 4] })
+            .instrumentSettings.bass.notesPerMeasure).toBeGreaterThan(authoredBass);
+    });
+
+    it('a NEGATIVE rung thins the treble toward a skeleton and leaves the bass alone', () => {
+        const lvl = { numMeasures: 2 };
+        const thin = trackSpecsForLevel(lvl, settings, { densityStep: -2, timeSignature: [4, 4] });
+        expect(thin.instrumentSettings.treble.notesPerMeasure)
+            .toBeLessThan(settings.trebleSettings.notesPerMeasure);
+        expect(thin.instrumentSettings.treble.notesPerMeasure).toBeGreaterThanOrEqual(1);
+        expect(thin.instrumentSettings.bass).toBe(settings.bassSettings);
+    });
+
+    it('a song level keeps randomizationRule "fixed" even under a density patch', () => {
+        const specs = trackSpecsForLevel({ songId: 'sakura', numMeasures: 8 }, settings,
+            { densityStep: 3, timeSignature: [4, 4] });
+        expect(specs.instrumentSettings.treble.randomizationRule).toBe('fixed');
+    });
+
+    it('rung 0 / null is the IDENTITY — a level that never leaves the authored density is unchanged', () => {
+        for (const lvl of [{ numMeasures: 2 }, { songId: 'sakura', numMeasures: 8 }]) {
+            const plain = trackSpecsForLevel(lvl, settings);
+            expect(trackSpecsForLevel(lvl, settings, null)).toEqual(plain);
+            expect(trackSpecsForLevel(lvl, settings, { densityStep: 0, timeSignature: [4, 4] })).toEqual(plain);
+        }
     });
 });

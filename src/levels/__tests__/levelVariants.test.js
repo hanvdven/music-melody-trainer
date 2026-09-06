@@ -134,11 +134,12 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
     // of their own (applyLevelVariant's `?? lvl.colorScheme` fallback keeps whatever the level already
     // had, same as omitting the field on any other variant would). Only 'i' (still unimplemented) and a-f
     // (color presets by design) are checked against that requirement.
+    // Yellow wizard (j, Han 2026-09-03): same category as g/h/i — a mechanic variant, no colour of its own.
     it('every LEVEL_MODE_VARIANTS entry has a label and an iconKey; color-preset ones also have a colorScheme/colorScope', () => {
         Object.values(LEVEL_MODE_VARIANTS).forEach((variant) => {
             expect(typeof variant.label).toBe('string');
             expect(typeof variant.iconKey).toBe('string');
-            if (!variant.notYetImplemented && !variant.modulated && !variant.randomizedNotes && !variant.adaptive) {
+            if (!variant.notYetImplemented && !variant.modulated && !variant.randomizedNotes && !variant.adaptive && !variant.yellowWizard) {
                 expect(typeof variant.colorScheme).toBe('string');
                 expect(typeof variant.colorScope).toBe('string');
             }
@@ -198,15 +199,34 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
             expect(applyLevelVariant(base, 'i', 60).bpm).toBe(baselineAdaptiveBpm(base, 60));
         });
 
-        it('does NOT repeat a SONG level — its slices never wrap, so 3x waves could never be cleared', () => {
-            // A song-backed level's per-block treble slice is deliberately unwrapped (empty past the
-            // song's last measure, useLevelContentStream's `songSlice`). Tripling its wave target while
-            // its slimes stop at the song's true end is the §289 "level never ends" bug class.
+        // #1168 (Han 2026-09-01) — THIS CASE IS THE INVERSION of the old "does NOT repeat a SONG level"
+        // guard, kept (never deleted) with its reasoning. That exclusion existed because a song-backed
+        // level's per-block treble slice is deliberately unwrapped (empty past the song's last measure,
+        // useLevelContentStream's `songSlice`), so tripling its wave target while its slimes stopped at
+        // the song's true end was the §289 "level never ends" bug class. #1168 removed the PREMISE
+        // rather than the guard: the song SOURCE is now genuinely materialised 3x in the stream, so the
+        // content really is as long as `totalMeasures` claims and the ONE wave is reachable. See §366.
+        it('DOES repeat a song level (#1168) — the source is materialised 3x, so the one wave is reachable', () => {
             const sakura = LEVELS[205];
             expect(sakura.songId).toBe('sakura');
             const v = applyLevelVariant(sakura, 'i', 60);
             expect(v.adaptive).toBe(true);
-            expect(v.totalMeasures).toBe(sakura.totalMeasures);
+            expect(v.totalMeasures).toBe(sakura.totalMeasures * ADAPTIVE_LEVEL_REPEATS);
+            // The un-multiplied period survives the override — the stream needs it to know how long one
+            // pass of the song is (the chord modulo, and how many passes of the source to materialise).
+            expect(v.contentPeriodMeasures).toBe(sakura.totalMeasures);
+            // Half 1 of "the level must still end": generation is FINITE, so `total` stops growing.
+            expect(Number.isFinite(blockCountFor(v))).toBe(true);
+            expect(blockCountFor(v)).toBe(blockCountFor(sakura) * ADAPTIVE_LEVEL_REPEATS);
+            // Half 2: the wave target never scales with the runway — one cumulative clear, at 1x and 3x.
+            expect(wavesForLevel(v)).toBe(1);
+        });
+
+        it('stamps contentPeriodMeasures ONLY for an adaptive letter (undefined everywhere else)', () => {
+            const sakura = LEVELS[205];
+            expect(applyLevelVariant(sakura, 'e').contentPeriodMeasures).toBeUndefined();
+            expect(applyLevelVariant(sakura, null).contentPeriodMeasures).toBeUndefined();
+            expect(applyLevelVariant(base, 'f').contentPeriodMeasures).toBeUndefined();
         });
 
         it('does NOT repeat a non-sideScroll level — the stream never evaluates the controller there', () => {
@@ -339,6 +359,37 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         });
     });
 
+    describe('variant j (Yellow wizard, Han 2026-09-03)', () => {
+        it('forces enemyType YellowWizard onto any level, defaulting the cast lead to 1 measure', () => {
+            const v = applyLevelVariant(base, 'j');
+            expect(v.enemyType).toBe('YellowWizard');
+            expect(v.wizardSilent).toBeUndefined();   // NOT the black-wizard grafted approach
+            expect(v.wizardSpawnLeadMeasures).toBe(1);
+            expect(v).not.toBe(base);   // never mutates the shared object
+        });
+
+        it('does NOT turn the level into a call-response level (no callResponseMeasures)', () => {
+            expect(applyLevelVariant(base, 'j').callResponseMeasures).toBeUndefined();
+        });
+
+        it('keeps a level\'s own authored wizardSpawnLeadMeasures if it has one', () => {
+            const withLead = { ...base, wizardSpawnLeadMeasures: 2 };
+            expect(applyLevelVariant(withLead, 'j').wizardSpawnLeadMeasures).toBe(2);
+        });
+
+        it('is offered for every sideScroll level shape — including gated ones (no cast audio → no desync)', () => {
+            const gated = { ...base, gatedScroll: true };
+            expect(availableVariantLetters(gated, ['j'])).toEqual(['j']);
+            expect(availableVariantLetters(LEVELS[13], ['j'])).toEqual(['j']);   // even on the black-wizard level
+        });
+
+        it('carries no colour of its own — the level keeps whatever it already had', () => {
+            const v = applyLevelVariant(base, 'j');
+            expect(v.colorScheme).toBe(base.colorScheme);
+            expect(v.colorScope).toBe(base.colorScope);
+        });
+    });
+
     // #1100 acceptance criterion ("colorMode per variant reuses the existing NoteColoringStaffOverlay
     // SCHEMES enum values"): levels.js's own comment on LEVEL_MODE_VARIANTS says values "must match
     // NoteColoringStaffOverlay.jsx's COLOR_SCHEMES/COLOR_SCOPES" but nothing enforced it — exactly the
@@ -348,7 +399,7 @@ describe('levels.js — applyLevelVariant (#1100/#1103)', () => {
         const schemeValues = COLOR_SCHEMES.map((s) => s.value);
         const scopeValues = COLOR_SCOPES.map((s) => s.value);
         Object.entries(LEVEL_MODE_VARIANTS).forEach(([letter, variant]) => {
-            if (variant.notYetImplemented || variant.modulated || variant.randomizedNotes || variant.adaptive) return;   // no color config of their own — nothing to check
+            if (variant.notYetImplemented || variant.modulated || variant.randomizedNotes || variant.adaptive || variant.yellowWizard) return;   // no color config of their own — nothing to check
             expect(schemeValues, `letter ${letter} colorScheme`).toContain(variant.colorScheme);
             expect(scopeValues, `letter ${letter} colorScope`).toContain(variant.colorScope);
         });

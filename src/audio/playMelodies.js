@@ -1,6 +1,6 @@
 import { resolvePercussionPitch } from './playSound';
 import { PERCUSSION_INTERRUPT_GROUP, METRONOME_NOTE_IDS } from './drumKits';
-import { secondsPerTick } from '../constants/timing.js';
+import { secondsPerTick, SCHEDULE_SAFETY_BUFFER_SECONDS } from '../constants/timing.js';
 import { LET_RING_INSTRUMENTS } from '../constants/instruments.jsx';
 
 const playMelodies = (
@@ -42,7 +42,7 @@ const playMelodies = (
 
   // Single source of truth for the tick→seconds conversion (Han 2026-06-19); === 5/bpm.
   const timeFactor = secondsPerTick(bpm);
-  const safetyBuffer = 0.05;
+  const safetyBuffer = SCHEDULE_SAFETY_BUFFER_SECONDS;
   const adjustedStart = Math.max(scheduledStart, context.currentTime + safetyBuffer);
 
   const queue = [];

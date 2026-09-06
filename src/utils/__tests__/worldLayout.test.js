@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    computeWorldLayout,
+    computeWorldLayout, computeWorldFullHeightLayout,
     WORLD_GPX_W_MIN, WORLD_GPX_H_MIN, WORLD_GPX_H_MAX, WORLD_ART_GPX_H, WORLD_SQUEEZE_BOTTOM_BELOW,
     WORLD_BOTTOM_CROP_GPX, CONTENT_GPX_H_MIN, CONTENT1_GPX_W_MIN, CONTENT2_GPX_W_MIN,
     NAV_GPX, NAV_ICON_COUNT,
@@ -30,7 +30,11 @@ describe('computeWorldLayout — invariants', () => {
             // topCrop + (visible art = gpxH − skyPad) + bottomCrop === 272 (the art is always ≤ 272).
             expect(world.topCropGpx + (world.gpxH - world.skyPadGpx) + world.bottomCropGpx).toBe(WORLD_ART_GPX_H);
             expect(world.skyPadGpx).toBe(Math.max(0, world.gpxH - WORLD_ART_GPX_H));
-            expect(world.bottomCropGpx).toBe(Math.min(world.gpxH, WORLD_ART_GPX_H) < WORLD_SQUEEZE_BOTTOM_BELOW ? WORLD_BOTTOM_CROP_GPX : 0);
+            // Bottom crop ramps 16→0 over artGpxH 192→208 (Han 2026-09-01), then stays 0.
+            const artGpxH = Math.min(world.gpxH, WORLD_ART_GPX_H);
+            const expectedBottomCrop = Math.max(0, Math.min(
+                WORLD_BOTTOM_CROP_GPX, (WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) - artGpxH));
+            expect(world.bottomCropGpx).toBe(expectedBottomCrop);
             expect(world.x).toBe(0);
             expect(world.y).toBe(0);
 
@@ -83,15 +87,20 @@ describe('computeWorldLayout — scale selection', () => {
         expect(L.world.screenH).toBeGreaterThan(272 + 2 * NAV_GPX);
     });
 
-    it('1366x768 → world reaches full 272 gpx (ladder phase 2)', () => {
-        expect(computeWorldLayout(1366, 768).world.gpxH).toBe(WORLD_ART_GPX_H);
+    it('1366x768 → world reaches the ladder\'s 272-gpx phase-2 plateau', () => {
+        // #348/#379 bugfix (2026-09-05): this plateau (272, `distributeHeight`'s own P1/P2) is a
+        // SEPARATE design value from `WORLD_ART_GPX_H` (now 320, bumped to match the LDtk levels'
+        // real height) — the two used to coincide at 272, which is why this test used to assert
+        // against `WORLD_ART_GPX_H` directly. They no longer do, so assert the ladder's own number.
+        expect(computeWorldLayout(1366, 768).world.gpxH).toBe(272);
     });
 
-    it('very short 1280x300 → world squeezes (below 240 ⇒ bottom crop)', () => {
-        const L = computeWorldLayout(1280, 300);
-        expect(L.world.gpxH).toBeLessThan(WORLD_ART_GPX_H);
-        expect(L.world.gpxH).toBeGreaterThanOrEqual(WORLD_GPX_H_MIN);
+    it('very short 1280x256 → world squeezed to the 192-gpx floor ⇒ full 16-gpx bottom crop', () => {
+        const L = computeWorldLayout(1280, 256);
+        expect(L.world.gpxH).toBe(WORLD_GPX_H_MIN);
         expect(L.world.bottomCropGpx).toBe(WORLD_BOTTOM_CROP_GPX);
+        // the 16 gpx come off the BOTTOM; the top sky crop is whatever is left to reach 272.
+        expect(L.world.topCropGpx).toBe(WORLD_ART_GPX_H - WORLD_GPX_H_MIN - WORLD_BOTTOM_CROP_GPX);
     });
 
     it('very narrow 500x900 → N=1 (304 gpx width rule)', () => {
@@ -100,11 +109,13 @@ describe('computeWorldLayout — scale selection', () => {
 });
 
 describe('computeWorldLayout — the world/content ladder (#348, Han 2026-08-29)', () => {
-    it('a very tall viewport pushes the world to its 320-gpx max, with a sky pad above the 272-gpx art', () => {
+    it('a very tall viewport pushes the world to its 320-gpx max, fully uncropped, no sky pad', () => {
         const L = computeWorldLayout(560, 1400);      // narrow + very tall → N=1, deep into the ladder
         expect(L.scale).toBe(1);
         expect(L.world.gpxH).toBe(WORLD_GPX_H_MAX);
-        expect(L.world.skyPadGpx).toBe(WORLD_GPX_H_MAX - WORLD_ART_GPX_H);   // 48
+        // #348/#379 bugfix (2026-09-05): `WORLD_ART_GPX_H` now equals `WORLD_GPX_H_MAX` (both 320), so
+        // this is always 0 — there's no ladder height the art can't natively reach anymore.
+        expect(L.world.skyPadGpx).toBe(WORLD_GPX_H_MAX - WORLD_ART_GPX_H);   // 0
         expect(L.world.topCropGpx).toBe(0);
         expect(L.world.bottomCropGpx).toBe(0);
     });
@@ -130,6 +141,32 @@ describe('computeWorldLayout — the world/content ladder (#348, Han 2026-08-29)
             expect(gpxH).toBeLessThanOrEqual(WORLD_GPX_H_MAX);
             prev = gpxH;
         }
+    });
+
+    // Han 2026-09-01: the first 16 gpx of world growth above the 192 floor un-crop the BOTTOM of the
+    // art (bottomCrop 16→0, one row per gpx); the top sky crop only starts shrinking after that.
+    it('bottom crop ramps 16→0 as the world grows 192→208 gpx, and the top crop holds meanwhile', () => {
+        let prevBottom = Infinity;
+        let sawRampMiddle = false;
+        // 1280-wide → N=1 with the o=0 (v-row) arrangement; heights 256→316 walk the squeeze floor,
+        // the 16-gpx ramp, and out the top of it.
+        for (let h = 256; h <= 316; h += 2) {
+            const { gpxH, bottomCropGpx, topCropGpx, skyPadGpx } = computeWorldLayout(1280, h).world;
+            const artGpxH = Math.min(gpxH, WORLD_ART_GPX_H);
+            // monotonic non-increasing bottom crop as the world grows
+            expect(bottomCropGpx).toBeLessThanOrEqual(prevBottom + 0.001);
+            prevBottom = bottomCropGpx;
+            if (artGpxH <= WORLD_GPX_H_MIN) expect(bottomCropGpx).toBe(WORLD_BOTTOM_CROP_GPX);
+            if (artGpxH >= WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) expect(bottomCropGpx).toBe(0);
+            if (artGpxH > WORLD_GPX_H_MIN && artGpxH < WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) {
+                sawRampMiddle = true;
+                // while the bottom is still un-cropping, the visible top crop stays at its floor value
+                expect(topCropGpx).toBe(WORLD_ART_GPX_H - (WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX));
+            }
+            // invariant still exact
+            expect(topCropGpx + (gpxH - skyPadGpx) + bottomCropGpx).toBe(WORLD_ART_GPX_H);
+        }
+        expect(sawRampMiddle).toBe(true);
     });
 });
 
@@ -173,6 +210,82 @@ describe('computeWorldLayout — portrait stacks the content blocks (Han 2026-08
     it('landscape (w > h) keeps a side-by-side arrangement — the portrait rule does not fire', () => {
         for (const [w, h] of [[1920, 1080], [1366, 768], [1600, 900]]) {
             expect(['v-row', 'h-row']).toContain(computeWorldLayout(w, h).arrangement);
+        }
+    });
+});
+
+// UI world-height toggle (Han 2026-09-04): "als het 'wereld' beeld lager is dan 320 GPX, wil ik een
+// knopje ... om het volle hoogte te geven. Als content 1 en 2 niet meer passen, render die dan niet.
+// als het nog wel past, render ze dan wel." Drop priority: content2 first, then content1, then nav.
+describe('computeWorldFullHeightLayout — the manual full-height override', () => {
+    it('pins the world block to WORLD_GPX_H_MAX and keeps the scale the caller passed in', () => {
+        for (const [w, h] of VIEWPORTS) {
+            const n = computeWorldLayout(w, h).scale;
+            const L = computeWorldFullHeightLayout(w, h, n);
+            expect(L.scale).toBe(n);
+            expect(L.world.x).toBe(0);
+            expect(L.world.y).toBe(0);
+            expect(L.world.screenW).toBe(w);
+            // Clamped only when the viewport itself can't reach 320 gpx at this scale.
+            expect(L.world.gpxH).toBe(Math.min(WORLD_GPX_H_MAX, Math.round(h / n)));
+        }
+    });
+
+    it('when everything comfortably fits, all three blocks survive full-width, filling the viewport', () => {
+        const n = 1;
+        const L = computeWorldFullHeightLayout(2000, 2000, n);   // world 320 + plenty left over
+        expect(L.nav).not.toBeNull();
+        expect(L.content.block1).not.toBeNull();
+        expect(L.content.block2).not.toBeNull();
+        for (const r of [L.nav, L.content.block1, L.content.block2]) {
+            expect(r.x).toBe(0);
+            expect(r.screenW).toBe(2000);
+        }
+        // stacked top-to-bottom with no gap, filling to the viewport bottom.
+        expect(L.content.block1.y).toBe(L.world.screenH);
+        expect(L.content.block2.y).toBe(L.content.block1.y + L.content.block1.screenH);
+        expect(L.nav.y).toBe(L.content.block2.y + L.content.block2.screenH);
+        expect(L.nav.y + L.nav.screenH).toBe(2000);
+    });
+
+    it('drops content2 FIRST when there is only room for content1 + nav (ac: priority order)', () => {
+        const n = 1;
+        // world 320 + content1 min (64) + nav (16) = 400; leave a bit of slack but not enough for content2 too.
+        const h = 320 + CONTENT_GPX_H_MIN + NAV_GPX + 10;
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.content.block2).toBeNull();
+        expect(L.content.block1).not.toBeNull();
+        expect(L.nav).not.toBeNull();
+        // the survivors still fill exactly to the viewport bottom.
+        expect(L.nav.y + L.nav.screenH).toBe(h);
+    });
+
+    it('drops content1 too when even that does not fit, keeping nav (kept longest)', () => {
+        const n = 1;
+        const h = 320 + NAV_GPX + 5;   // room for world + nav only
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.content.block1).toBeNull();
+        expect(L.content.block2).toBeNull();
+        expect(L.nav).not.toBeNull();
+        expect(L.nav.y + L.nav.screenH).toBe(h);
+    });
+
+    it('drops everything but the world when even nav does not fit — world alone fills the viewport', () => {
+        const n = 1;
+        const h = 320;   // exactly the world, nothing left for nav
+        const L = computeWorldFullHeightLayout(2000, h, n);
+        expect(L.nav).toBeNull();
+        expect(L.content.block1).toBeNull();
+        expect(L.content.block2).toBeNull();
+        expect(L.world.screenH).toBe(h);
+    });
+
+    it('never renders a surviving block below its own minimum size', () => {
+        for (const h of [340, 360, 400, 420, 450, 500, 600]) {
+            const L = computeWorldFullHeightLayout(2000, h, 1);
+            if (L.content.block1) expect(L.content.block1.screenH).toBeGreaterThanOrEqual(CONTENT_GPX_H_MIN - 0.5);
+            if (L.content.block2) expect(L.content.block2.screenH).toBeGreaterThanOrEqual(CONTENT_GPX_H_MIN - 0.5);
+            if (L.nav) expect(L.nav.screenH).toBeGreaterThanOrEqual(NAV_GPX - 0.5);
         }
     });
 });

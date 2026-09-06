@@ -13,6 +13,12 @@
  * - v1 ships ONLY the difficulty multiplier; tempo/blind/note-streak multipliers deferred.
  */
 
+// #1122: nextAnpm() shares the SAME "clean run" / "genuinely struggling" accuracy gates as the
+// in-level adaptive-tempo controller, so the app has ONE definition of each rather than a second
+// literal here (Han 2026-09-01, locked answer). adaptiveTempo.js is a pure module; it does pull in
+// LevelStatsCharts + levels transitively, but none of those import this file, so there is no cycle.
+import { SPEED_UP_ACCURACY, SLOW_DOWN_ACCURACY } from '../levels/adaptiveTempo';
+
 // Base XP per event type (docs/gamification.md §3.1).
 // Active events (input test) are scaled by xpMultiplier(); passive events
 // (melodyListened, seriesComplete) and novelty bonuses are flat.
@@ -140,6 +146,51 @@ export function updateRating(rating, difficulty, outcome, scoredNotes) {
     const lengthWeight = Math.min(1, scoredNotes / 8);
     const next = rating + RATING_K * lengthWeight * (outcome - expectedOutcome(rating, difficulty));
     return Math.min(100, Math.max(0, next));
+}
+
+// ─── ANPM smoothing (#1122) ────────────────────────────────────────────────
+
+// #1122 (Han 2026-09-01): asymmetric, gated blend factors for the profile's ANPM (Adjusted Notes Per
+// Minute) — "ANPM verandert maar traag". Both are roughly half / one-sixth of the old single
+// symmetric EWMA alpha (0.30) that ANPM_EWMA_ALPHA used to carry in ProfileContext.
+export const ANPM_ALPHA_UP = 0.15;   // a clean fast run raises ANPM by 15% of the gap
+export const ANPM_ALPHA_DOWN = 0.05; // "en ook niet zo hard" — a bad slow run lowers it by only 5%
+
+/**
+ * One ANPM update after a completed level. ANPM is the player's *current sustainable reading speed*
+ * (notes/min they can handle AT accuracy — see #1099); it can rise OR fall, but only slowly, and it
+ * must NOT fall just because a piece was slow. The law is deliberately asymmetric and gated:
+ *
+ *   - no measurement (notesPerMinute not finite / ≤ 0)  → unchanged
+ *   - first ever reading (anpm == null)                 → seed, but only from a clean run (≥ 90%)
+ *   - FAST sample (notesPerMinute ≥ anpm):
+ *       clean (≥ SPEED_UP_ACCURACY)  → blend up by ANPM_ALPHA_UP
+ *       sloppy                       → HOLD (fast-but-sloppy is evidence of overreach, not speed)
+ *   - SLOW sample (notesPerMinute < anpm):
+ *       accuracy ≥ SLOW_DOWN_ACCURACY → HOLD  ← the whole point: a slow accurate run (a Langzaam
+ *                                               variant, a new range/scale) must not look like
+ *                                               skill regression. Covers Han's ">80% never lowers"
+ *                                               and the 70–80% deadband in one predicate.
+ *       genuinely struggling (< 70%)  → blend down GENTLY by ANPM_ALPHA_DOWN
+ *
+ * #1102's in-level adaptive bpm is intentionally NOT smoothed this way — Han wants it to keep
+ * fluctuating faster than the lifetime stat.
+ */
+export function nextAnpm({ anpm, notesPerMinute, accuracyPercent }) {
+    // No usable measurement this run — leave the stat exactly where it was.
+    if (!Number.isFinite(notesPerMinute) || notesPerMinute <= 0) return anpm;
+    // First ever reading: a first sloppy run must not become the anchor everything else smooths against.
+    if (anpm == null) return accuracyPercent >= SPEED_UP_ACCURACY ? notesPerMinute : null;
+    if (notesPerMinute >= anpm) {
+        // FAST sample: only a clean run is evidence the player got faster.
+        return accuracyPercent >= SPEED_UP_ACCURACY
+            ? anpm + ANPM_ALPHA_UP * (notesPerMinute - anpm)
+            : anpm;
+    }
+    // SLOW sample: hold unless the player was genuinely struggling at that slower tempo.
+    return accuracyPercent >= SLOW_DOWN_ACCURACY
+        ? anpm
+        : anpm + ANPM_ALPHA_DOWN * (notesPerMinute - anpm);
 }
 
 /**

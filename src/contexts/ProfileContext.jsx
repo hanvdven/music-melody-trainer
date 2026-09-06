@@ -17,6 +17,7 @@ import {
     difficultyToRating,
     gradedOutcome,
     updateRating,
+    nextAnpm,
 } from '../utils/gamification';
 
 const STORAGE_KEY = 'music-trainer-profile';
@@ -26,15 +27,15 @@ const STORAGE_KEY = 'music-trainer-profile';
 // scales/songs, play/perfect counts), independent of skillRatings/consistencyXP (docs/architecture.md
 // §43) and the on-hold 11-dimension profile-schema.md design. Additive, like v3.
 // v5 (#1099): + anpm — a single scalar (accurate notes per minute), NOT part of levelMastery: unlike
-// every levelMastery field (all ratchets, only ever grow), anpm is an EWMA that can rise OR fall — it
-// estimates the player's CURRENT sustainable reading speed, not a lifetime best. Additive, like v3/v4.
+// every levelMastery field (all ratchets, only ever grow), anpm can rise OR fall — it estimates the
+// player's CURRENT sustainable reading speed, not a lifetime best. Additive, like v3/v4.
 const PROFILE_VERSION = 5;
 
-// #1099 (Han 2026-08-22, "dit is een getal dat steeds aanpast" — confirmed via chat interview: an
-// exponential moving average, not a ratchet, so it can track a player getting slower again, not just
-// their all-time peak). ALPHA is the EWMA smoothing weight given to the LATEST qualifying sample — named
-// and exported so recordLevelCompletion's math is self-documenting instead of a bare literal.
-export const ANPM_EWMA_ALPHA = 0.3;
+// #1099/#1122: anpm smoothing lives in gamification.js `nextAnpm()` now — an asymmetric, gated law
+// (a clean fast run rises by 15% of the gap, a slow-but-accurate run HOLDS so it never looks like
+// skill regression, a genuinely-struggling slow run falls gently by 5%). The old single symmetric
+// EWMA (ANPM_EWMA_ALPHA = 0.3, same weight up and down) was removed with #1122 — it dragged the stat
+// ~30% toward one slow reading in a single completion, which is the bug #1122 fixes.
 
 // #1054 (Han 2026-08-20): the level-mastery axis's empty shape — its own function (not inlined in
 // defaultProfile) so `recordLevelCompletion` can fall back to it for a pre-v4 save that predates the
@@ -405,10 +406,11 @@ export function ProfileProvider({ children }) {
     // a procedural one — the two id spaces never collide (`levels.json` ids are small integers, `songId`s
     // are strings).
     // #1099 (Han 2026-08-22): `notesPerMinute` is OPTIONAL (the caller may not always have a valid
-    // elapsed-time measurement) and, when present, updates `anpm` via EWMA — but ONLY on a >=90%-accuracy
-    // completion (Han: ANPM measures "how many notes/minute can the player handle AT that accuracy", so a
-    // sloppy run doesn't drag the estimate down artificially). This is a SEPARATE gate from levelMastery's
-    // own >=80% ratchet threshold above — the two axes are independent (v5 profile comment).
+    // elapsed-time measurement). #1122 (Han 2026-09-01): when present it feeds `nextAnpm()`, whose
+    // asymmetric gated law owns the finite/seed/gate/blend decisions — a clean fast run raises anpm,
+    // a slow-but-accurate run HOLDS it (a Langzaam variant or a new range/scale must not read as
+    // regression), a genuinely-struggling slow run lowers it gently. This is a SEPARATE gate from
+    // levelMastery's own >=80% ratchet threshold above — the two axes are independent (v5 comment).
     const recordLevelCompletion = useCallback(({ levelId, songId, tonic, mode, accuracyPercent, notesPerMinute }) => {
         const p = profileRef.current;
         const key = songId ?? levelId;
@@ -438,10 +440,7 @@ export function ProfileProvider({ children }) {
             }
         }
 
-        let anpm = p.anpm;
-        if (accuracyPercent >= 90 && Number.isFinite(notesPerMinute)) {
-            anpm = anpm == null ? notesPerMinute : ANPM_EWMA_ALPHA * notesPerMinute + (1 - ANPM_EWMA_ALPHA) * anpm;
-        }
+        const anpm = nextAnpm({ anpm: p.anpm, notesPerMinute, accuracyPercent });
 
         profileRef.current = {
             ...p,

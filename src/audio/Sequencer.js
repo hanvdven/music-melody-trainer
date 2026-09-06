@@ -1,4 +1,5 @@
 import playMelodies from './playMelodies';
+import { outputLatencySeconds } from './audioOutputLatency';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing.js';
 import { transposeMelodyToScale } from '../theory/musicUtils';
 import Melody from '../model/Melody';
@@ -241,7 +242,17 @@ class Sequencer {
       }
     }
 
-    let nextStartTime = this.context.currentTime + 0.1;
+    // #1187 (arch §355 follow-up to #1186): the classic playhead/highlight (useSheetMusicHighlight rAF)
+    // reads `context.currentTime` raw, but a sound scheduled at AudioContext time T is only HEARD at
+    // T + outputLatency (~48 ms in this Chromium — see audioOutputLatency.js). So the whole VISUAL
+    // timeline of this session — every `scheduledNotes` / `scheduledMeasures` audioTime and every
+    // setTimeout trigger below is derived from `nextStartTime` — is anchored `outputLatency` LATER, and
+    // the two `playMelodies` audio emissions (anacrusis lead-in + per-measure) are then issued that much
+    // EARLIER (subtracting it back off), so sound reaches the speakers exactly as the playhead crosses
+    // the note. Same convention as level audio: visual clock literal, audio issued early. Folding the
+    // latency into the base lead here (rather than only subtracting at the playMelodies calls) keeps the
+    // real audio scheduling lead at the full 0.1 s so playMelodies' safetyBuffer never clamps bar 1.
+    let nextStartTime = this.context.currentTime + 0.1 + outputLatencySeconds(this.context);
 
     // Anacrusis repeat: sound the leading pickup ONCE as a lead-in, then begin the loop on the
     // downbeat. tickRange = [pickupStart, ml] means only the pickup notes play; advancing
@@ -251,7 +262,8 @@ class Sequencer {
       const introTf = 5 / introBpm;
       playMelodies(
         anacrusisIntro.melodies, anacrusisIntro.instruments, this.context, introBpm,
-        nextStartTime, { current: sessionController },
+        // #1187: issue the audio outputLatency earlier so it is HEARD at the visual `nextStartTime`.
+        nextStartTime - outputLatencySeconds(this.context), { current: sessionController },
         [anacrusisIntro.pickupStart, anacrusisIntro.measureLen],
         this.instruments,
         this.refs.percussionCustomMappingRef?.current ?? null,
@@ -779,7 +791,9 @@ class Sequencer {
               instrumentsToPlay,
               this.context,
               currentBpm,
-              nextStartTime,
+              // #1187: audio issued outputLatency earlier than the visual `nextStartTime` so it is HEARD
+              // exactly as the rAF playhead/highlight (which reads raw context.currentTime) reaches it.
+              nextStartTime - outputLatencySeconds(this.context),
               { current: sessionController },
               [m * measureLengthTicks, (m + 1) * measureLengthTicks],
               this.instruments,

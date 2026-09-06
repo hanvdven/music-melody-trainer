@@ -449,6 +449,32 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   never stop `requestAnimationFrame` from being re-requested for the OTHER subscribers sharing the same
   ticker — same "one bad frame doesn't permanently freeze everything" pattern as E023-FOLIAGE-DRAW-FRAME
   and E028-SHEETRPG-IMPERATIVE-FRAME, generalized across every subsystem now sharing one rAF loop
+- **E035-LEVEL-AUDIO-PAST-DUE** — a level audio schedule (`useLevelContentStream`'s `scheduleInto`)
+  was DROPPED because its "heard at" moment had already passed. Dropping is the correct behaviour —
+  `playMelodies` would otherwise CLAMP it forward and replay a whole elapsed block at "now" (the
+  #1168 UAT "4 metronomen/cello's op net andere tempo's" pile-up) — but a level whose audio has
+  started should never re-enter that effect at all, so a single drop is a real anomaly worth a
+  grep-able trace. Logged once per effect run. See docs/architecture.md §369
+- **E036-SKY-SAMPLE** — `SkyGradientBackdrop.jsx` (§372) failed to load / read `Background layers_layer
+  5.png` for its one-time 5-stop colour sample; the component keeps its `FALLBACK_STOPS` (an
+  `#8fd0d9 → #dff3f5` blue→white sky) instead of blanking the RPG world's backdrop
+- **E037-CELESTIAL-SKY-DRAW-FRAME** — an unexpected error during one `CelestialSky.jsx` (§374) draw
+  frame (stars / constellations / sun / moon / debug orbit paths); caught so the shared `useFrameLoop`
+  ticker always reschedules and the OTHER subscribers keep running — same pattern as
+  E023-FOLIAGE-DRAW-FRAME / E028 / E031, with the per-layer attribution E034 alone cannot give
+- **E038-CELESTIAL-FONT-LOAD** — `document.fonts.load()` for `PixelNewspaperIII` (the constellation-name
+  label face) rejected; the debug-only names pass is skipped rather than rendering the labels in a
+  wrong fallback font (`CelestialSky.jsx`). An `@font-face` no DOM node uses is never fetched and
+  `ctx.font` does not trigger a load, hence the explicit request
+- **E039-SKY-MOTTLE-PAINT** — *RETIRED (§375 UAT r1, Han "de vlekken hoeven niet").* Was: building or
+  painting the procedural cloud-mottle noise layer in `SkyGradientBackdrop.jsx` threw. The mottle
+  layer was removed when the overcast sky became a plain white/grey subtle gradient; the code no
+  longer emits this. Left listed so old logs still resolve — do not reuse the number.
+- **E040-WORLD-MASK-COMPOSITE** — compositing the RPG world's silhouette mask (`useWorldSilhouetteMask.js`,
+  architecture.md §387 — the ONE level-space alpha mask every edge/rim/sun-glow lighting term tests
+  against) threw. The mask stays `null`; both WebGL lighting layers then bind a 1×1 fully-opaque
+  placeholder, which reports "solid everywhere", so every rim/glow term simply reads 0 and the world
+  renders lit but with no edge highlights — a quiet degradation rather than a world outlined at random
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

@@ -29,7 +29,13 @@ import LyricsLayer from './LyricsLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { freshTempoAnchor, tempoNormalizedMs } from './tempoScrollAnchor';
 import { StaffQuarterNote } from './staffNoteGlyph';
-import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
+import {
+    gradeHit, hiddenTimingGrade, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS,
+} from '../../levels/gradeHit';
+// #1120: the adaptive ladder's gated-exit ring buffer. Only the BUFFER helper is imported — the
+// policy that reads it (`shouldExitGated`) stays entirely in the ladder module; this component just
+// records the signal.
+import { pushHiddenGrade } from '../../levels/adaptiveLadder';
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 // #1165: moved verbatim (same signature, same 2-measure period) out of the retired
@@ -650,6 +656,21 @@ const movingProgress = (ff) => {
 // #693 (Han round 3): moved to `src/utils/oscillate.js` so the bestiary portrait panels can reuse the SAME
 // wobble instead of a second hand-copied version — imported below, this local definition is gone.
 
+// Perf (#1192-jank, Han 2026-09-04): two tiny pure helpers for the entity X-position interpolation
+// described at `RPG_ENTITY_THROTTLE_MS`'s own comment below. `entry` is whichever per-entity object the
+// caller already tracks (a `slimeRefsMap`/`critterRefsMap` Map value, or a parallel interpolation-state
+// slot for the plain-array `switchRefsArr`) — these never touch Y, frame, or oscillation, only the final
+// X that was actually written to the DOM at the last throttle tick.
+function tickInterpX(entry, freshX) {
+    entry.prevX = entry.currX != null ? entry.currX : freshX;
+    entry.currX = freshX;
+}
+function interpX(entry, frac) {
+    if (entry == null || entry.currX == null) return null;
+    if (entry.prevX == null) return entry.currX;
+    return entry.prevX + (entry.currX - entry.prevX) * frac;
+}
+
 // Ensure the hero has at least a skin so it is never invisible.
 function ensureVisible(char) {
     if (char.layers?.skin) return char;
@@ -682,6 +703,13 @@ export default function SheetRpgLayer({
     // without a second, independent freeze-tracking mechanism (§6c — reuses `gatedPauseAccumMsRef`'s own
     // math, does not duplicate it).
     gatedElapsedMsRef = null,
+    // #1120 (the adaptive ladder's GATED PACING rung): an App-owned ring buffer this component pushes
+    // the HIDDEN TRUE timing grade of every side-scroll kill into, imperatively, exactly like
+    // `gatedElapsedMsRef` above (never React state — this runs per keypress inside an effect that
+    // must not re-render the RPG layer). The RECORDED grade is untouched; see the combat effect below
+    // and `hiddenTimingGrade` (gradeHit.js) for why the recorded one cannot answer the ladder's
+    // "is this player ready for timed pacing again?" question.
+    hiddenGradesRef = null,
     // #990 (Han 2026-08-14, RPG-level wrong-note feedback): a ref this component populates with a
     // FUNCTION returning "which note name(s) would currently count as a hit" — the exact same
     // inWindow/next-slime logic the combatNote effect below already uses to judge a played note,
@@ -792,9 +820,19 @@ export default function SheetRpgLayer({
     // Wizard-block note) via `blockTypeAt` (useLevelMixedStream.js) instead of the single level-wide
     // `isWizard` flag every other branch in this file still uses.
     const isMixed = enemyType === 'Mixed';
+    // "Yellow wizard" (Han 2026-09-03): its OWN mechanic, NOT grafted onto the black wizard. The level
+    // generates + renders like a NORMAL Slime level (`noteStaffContent`, no call/response split), but
+    // every note is combat-rendered as a blue PROJECTILE that appears — and whose notehead is
+    // simultaneously HIDDEN (`rpgYellowCastGate` mask) — `wizardSpawnLeadMeasures` measures before its
+    // beat, with a static YELLOW wizard casting silently on the right. Shares the black wizard's
+    // low-level projectile/spawn-glow/cast-sync helpers only, never its block cadence or note layers.
+    const isYellowWizard = enemyType === 'YellowWizard';
+    // "notes are projectiles for this whole level" — true for a black Wizard level AND a YellowWizard
+    // level. (Mixed decides this per-note via `blockTypeAt`, so it stays a separate check.)
+    const projectileCombat = isWizard || isYellowWizard;
     // both happen to be 5 today, but kept as a named derived value (not the Slime constant) so a future
     // change to either death animation's length can never silently desync the other (§6c: no hardcoding).
-    const DEATH_FRAMES = (isWizard || isMixed) ? PROJECTILE_DEATH.frames : SLIME_DEATH.frames;
+    const DEATH_FRAMES = (projectileCombat || isMixed) ? PROJECTILE_DEATH.frames : SLIME_DEATH.frames;
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
     const hero = useMemo(() => ensureVisible(savedChar), [savedChar]);
@@ -1007,6 +1045,26 @@ export default function SheetRpgLayer({
     // exact op de noot landen" — throttling that specific scan previously caused an audible desync bug).
     const RPG_ENTITY_THROTTLE_MS = 33;   // ~30fps ceiling for entities; note scroll itself is never throttled
     const lastRpgEntityUpdateMsRef = useRef(0);
+    // Perf (#1192-jank, Han 2026-09-04, "ik zie dit soort problemen ook in de muzieklevels"): the
+    // scroll-transform above runs every rAF frame (60fps) but entity positions only get a fresh
+    // `sideScrollX` call every `RPG_ENTITY_THROTTLE_MS` — a real, deliberate perf fix (#1050, see this
+    // section's own header comment) that must NOT be undone (an unthrottled full recompute of
+    // frame/animation-selection + oscillation for every slime/critter/projectile is exactly what made
+    // "the performance sucks" in the first place). The visible symptom Han reported is narrower than
+    // that: entities visibly JUMP relative to the smoothly-scrolling staff, because their on-screen X
+    // only updates in ~33ms steps while the background glides continuously. Fix: keep the throttle for
+    // all the EXPENSIVE per-entity work exactly as before, but on the frames IN BETWEEN throttle ticks,
+    // cheaply interpolate just the already-known X from the previous tick's value toward the current
+    // tick's value (standard "hold last two snapshots, ease between them" — like client-side netcode
+    // interpolation) — a ~33ms display lag, imperceptible, in exchange for a smooth glide instead of a
+    // jump. Y/frame/oscillation are NOT touched here (still only refreshed at the throttled rate,
+    // unchanged) — narrowly scoped to the one thing Han actually reported.
+    // `entityTickIntervalMsRef` holds the OBSERVED gap between the last two throttle ticks (rAF timing
+    // jitters, so this is measured, not assumed to be exactly RPG_ENTITY_THROTTLE_MS).
+    const entityTickIntervalMsRef = useRef(RPG_ENTITY_THROTTLE_MS);
+    // `switchRefsArr` below holds the imperative handles directly (no per-entry wrapper object to attach
+    // interpolation state to, unlike the Maps) — a parallel same-length array carries it instead.
+    const switchInterpRef = useRef([]);
     const [killedCount, setKilledCount] = useState(0);     // static: killed count; side-scroll: RESOLVED count
     // dying is a LIST (Han 2026-08-02): with the ±1/2-beat graded window two kills can overlap one death
     // animation (notes a beat apart, played fast) — a single `dying` slot would swallow the second kill.
@@ -1046,6 +1104,9 @@ export default function SheetRpgLayer({
     // a fixed-length, fixed-order constant, so no Map/key bookkeeping is needed for it).
     const barlineScrollRef = useRef(null);
     const noteScrollRef = useRef(null);
+    // Yellow wizard only: chord labels / lyrics get their OWN scrolling group when the noteheads are
+    // pulled into a separately-masked group (see the render block). Null / unused for every other level.
+    const chordLyricScrollRef = useRef(null);
     const restScrollRef = useRef(null);
     const realScrollRef = useRef(null);
     const bassScrollRef = useRef(null);
@@ -1189,6 +1250,22 @@ export default function SheetRpgLayer({
         rawSinceAnchorMs - waveStartRef.current * INTERVAL_MS,
         geomRef.current.beatMs,
     );
+    // #1120: a SECOND, independent anchor for the value written into `gatedElapsedMsRef`.
+    //
+    // WHY IT MUST BE TEMPO-NORMALIZED AT ALL: `useLevelGatedRubatoAudio` derives the measure the
+    // cello should be singing as `elapsedMs / barMs`. For an AUTHORED gated level (1/2/3) the tempo
+    // never changes, so raw ms and one constant `barMs` agree exactly. For a LADDER-gated level the
+    // bpm has already walked from `lvl.bpm` down to the floor across many blocks BEFORE gating, so
+    // the accumulated RAW elapsed corresponds to no single `barMs` at all and that division would
+    // name a different measure than the one on screen.
+    //
+    // WHY ITS OWN ANCHOR, and not `tempoAnchorRef` above: `tempoScrollMs` also subtracts
+    // `waveStartRef.current * INTERVAL_MS`, and reusing it would change Level 3's (multi-wave,
+    // authored-gated) cello behaviour. With a separate anchor the value is byte-identical to the
+    // plain `tRawMs` this used to write for EVERY constant-tempo level — `tempoNormalizedMs` returns
+    // `rawMs` unchanged while `anchor.beats`/`anchor.rawMs` are both still 0 — so levels 1/2/3 are
+    // provably untouched by this ticket.
+    const gateTempoAnchorRef = useRef(freshTempoAnchor());
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
     // (which needs the full {sl, idx, delta} shape for grading/resolution bookkeeping) AND
@@ -1235,7 +1312,9 @@ export default function SheetRpgLayer({
         dist: viewRight - effectiveStartX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
         // #863 round 2: isMixed/spawnLeadBeats added so `computeWizardCast` (below) can run from the rAF
         // loop's mount-time-only closure without stale-closure-capturing these render-scoped values.
-        isMixed, spawnLeadBeats,
+        // `isYellowWizard`/`projectileCombat` (Han 2026-09-03) added for the same reason — the cast-sync
+        // scan and the per-frame projectile updates both run from that closure.
+        isMixed, spawnLeadBeats, isYellowWizard, projectileCombat,
         // #863 round 2: staff-position inputs `judgmentY`/`hitFrameMs` (below) need for the SAME reason.
         // `DEATH_FRAMES` — the dying-entity rAF-loop update (below) needs it too.
         bassStart, staffHeight, trebleStart, hitFrameMs: frameMs / 2, DEATH_FRAMES,
@@ -1481,7 +1560,15 @@ export default function SheetRpgLayer({
             // #1096: imperative ref write (never React state — this runs every rAF frame) so
             // useLevelGatedRubatoAudio.js can trigger cello/timpani off the SAME frozen-aware clock the
             // visual scroll already uses, instead of a fixed AudioContext-time schedule.
-            if (gatedElapsedMsRef) gatedElapsedMsRef.current = tRawMs;
+            // #1120: TEMPO-NORMALIZED (its own anchor — see `gateTempoAnchorRef`'s declaration), so a
+            // ladder-gated level's cello/timpani measure index stays continuous across the tempo
+            // changes that happened on the way DOWN to the floor. Byte-identical to the plain
+            // `tRawMs` this wrote before, for every level whose tempo never changes.
+            if (gatedElapsedMsRef) {
+                gatedElapsedMsRef.current = tempoNormalizedMs(
+                    gateTempoAnchorRef.current, tRawMs, geomRef.current.beatMs,
+                );
+            }
             const t = Math.round(tRawMs / INTERVAL_MS);
             // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost"): logs the FIRST tick this loop
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
@@ -1549,7 +1636,14 @@ export default function SheetRpgLayer({
             // one consistent frame) read the identical value. The scroll-transform push itself is NOT
             // gated by this — seebelow.
             const runRpgEntityUpdates = nowMs - lastRpgEntityUpdateMsRef.current >= RPG_ENTITY_THROTTLE_MS;
-            if (runRpgEntityUpdates) lastRpgEntityUpdateMsRef.current = nowMs;
+            // Perf (#1192-jank): capture the PREVIOUS tick's timestamp before it's overwritten below, so
+            // the interpolation pass (in the `else` branch further down) knows the real observed gap
+            // between the last two ticks — rAF timing jitters, so this is measured each time, not assumed.
+            const prevRpgEntityTickMs = lastRpgEntityUpdateMsRef.current;
+            if (runRpgEntityUpdates) {
+                entityTickIntervalMsRef.current = prevRpgEntityTickMs ? Math.max(1, nowMs - prevRpgEntityTickMs) : RPG_ENTITY_THROTTLE_MS;
+                lastRpgEntityUpdateMsRef.current = nowMs;
+            }
             try {
             if (g.sideScroll && g.dist > 0 && g.beatMs > 0) {
                 // Scroll transform — mirrors the render body's own scrollPx/scrollPPT formula exactly
@@ -1567,6 +1661,7 @@ export default function SheetRpgLayer({
                 const noteTransform = `translate(${NOTE_STAFF_DX - framePx}, 0)`;
                 if (barlineScrollRef.current) barlineScrollRef.current.setAttribute('transform', barlineTransform);
                 if (noteScrollRef.current) noteScrollRef.current.setAttribute('transform', noteTransform);
+                if (chordLyricScrollRef.current) chordLyricScrollRef.current.setAttribute('transform', noteTransform);   // yellow wizard split-out chord/lyric group
                 if (restScrollRef.current) restScrollRef.current.setAttribute('transform', noteTransform);
                 if (realScrollRef.current) realScrollRef.current.setAttribute('transform', noteTransform);
                 if (bassScrollRef.current) bassScrollRef.current.setAttribute('transform', noteTransform);
@@ -1587,16 +1682,27 @@ export default function SheetRpgLayer({
                     if (entry.kind === 'projectile') {
                         const oscX = oscillate(sl.key, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
                         const oscY = oscillate(sl.key + 1000, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
-                        entry.el.setPosition(p.noteX + oscX, g.projectileCenterY + oscY);
+                        const finalX = p.noteX + oscX;
+                        const finalY = g.projectileCenterY + oscY;
+                        entry.el.setPosition(finalX, finalY);
                         entry.el.setFrame(Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES);
+                        // perf (#1192-jank): `lastY` must be the OSCILLATING value actually written, not a
+                        // fresh `g.projectileCenterY` recompute — `oscY` is itself continuous/time-varying
+                        // (unlike `g.slimeY`/`g.bassSlimeY` below, which are fixed layout lanes), so holding
+                        // it at the last tick's sample (not silently dropping it) avoids a NEW Y jitter.
+                        entry.lastY = finalY;
+                        tickInterpX(entry, finalX);
                     } else {
                         // point 8: add the (frameTick-cadence-refreshed) wiggle shake for the ONE slime
                         // currently wiggling, exactly as the old declarative `wdx` addition did.
                         const wig = wiggleRef.current;
                         const wdx = wig && wig.index === entry.idx ? wig.wdx : 0;
-                        entry.el.setPosition(p.slimeX + wdx, g.slimeY);
+                        const finalX = p.slimeX + wdx;
+                        entry.el.setPosition(finalX, g.slimeY);
                         const wf = slimeWalkOrIdleFrame(p);
                         entry.el.setFrame(wf.row, wf.frame);
+                        entry.lastY = g.slimeY;
+                        tickInterpX(entry, finalX);   // perf (#1192-jank): see RPG_ENTITY_THROTTLE_MS comment
                     }
                 });
                 // Live bass-slimes (Level 15 twoHanded) — same pattern, no wizard/wiggle branch (§862).
@@ -1607,6 +1713,8 @@ export default function SheetRpgLayer({
                     entry.el.setPosition(p.slimeX, g.bassSlimeY);
                     const bwf = slimeWalkOrIdleFrame(p);
                     entry.el.setFrame(bwf.row, bwf.frame);
+                    entry.lastY = g.bassSlimeY;
+                    tickInterpX(entry, p.slimeX);   // perf (#1192-jank): see RPG_ENTITY_THROTTLE_MS comment
                 });
                 // Live critters (under rests) — position+frame update together (critterDraw ties them via
                 // the flying-anim oscillation, see the Critter component above).
@@ -1625,7 +1733,14 @@ export default function SheetRpgLayer({
                     const gF = gatedFrozenRef.current
                         ? Math.floor(rawTRawMsRef.current / (g.frameMs || 1)) % 1000
                         : Math.floor(p.ff) % 1000;
-                    entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF, gatedFrozenRef.current);
+                    const finalX = p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2;
+                    entry.el.update(finalX, g.slimeY, gF, gatedFrozenRef.current);
+                    // perf (#1192-jank): interpolating between ticks replays this SAME (Y, gF, frozen) —
+                    // see RPG_ENTITY_THROTTLE_MS's own comment and the `else` branch below.
+                    entry.lastY = g.slimeY;
+                    entry.lastGF = gF;
+                    entry.lastFrozen = gatedFrozenRef.current;
+                    tickInterpX(entry, finalX);
                 });
                 // Level 11 switch-flourish (StaticProjectile2) — fixed SWITCH_LOOKAHEAD array, plain index.
                 SWITCH_LOOKAHEAD.forEach((k, i) => {
@@ -1635,8 +1750,49 @@ export default function SheetRpgLayer({
                     const p = sideScrollX(switchBeat, t, tRawMs);
                     el.setCenter(p.noteX, g.projectileCenterY);
                     el.setFrame(Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES);
+                    // perf (#1192-jank): `switchInterpRef` is a parallel array — `el` itself (the
+                    // imperative handle) has no per-entry object of its own to attach interpolation state to.
+                    if (!switchInterpRef.current[i]) switchInterpRef.current[i] = {};
+                    switchInterpRef.current[i].lastY = g.projectileCenterY;
+                    tickInterpX(switchInterpRef.current[i], p.noteX);
                 });
                 }   // runRpgEntityUpdates
+                else {
+                    // Perf (#1192-jank): the throttle-skipped frames — glide each entity's X from its
+                    // previous tick's value toward its current tick's value instead of leaving it frozen
+                    // until the next full recompute (see RPG_ENTITY_THROTTLE_MS's own comment for why this
+                    // exists and what it deliberately does NOT touch: Y, frame, and oscillation all stay
+                    // exactly as they were at the last throttle tick).
+                    const frac = Math.min(1, (nowMs - lastRpgEntityUpdateMsRef.current) / entityTickIntervalMsRef.current);
+                    slimeRefsMap.current.forEach((entry, key) => {
+                        const sl = slimesRef.current[entry.idx];
+                        if (!sl || sl.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        // `ix`/`entry.lastY` already carry whatever oscillation/wiggle offset was baked
+                        // into `finalX`/`finalY` at the last throttle tick (see the `tickInterpX` calls
+                        // above) — nothing to re-add, and Y must NOT be freshly recomputed here (a
+                        // projectile's Y includes a continuous `oscY` term this branch never evaluates).
+                        if (ix != null && entry.lastY != null) entry.el.setPosition(ix, entry.lastY);
+                    });
+                    bassSlimeRefsMap.current.forEach((entry, key) => {
+                        const sl = bassSlimesRef.current[entry.idx];
+                        if (!sl || sl.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        if (ix != null && entry.lastY != null) entry.el.setPosition(ix, entry.lastY);
+                    });
+                    critterRefsMap.current.forEach((entry, key) => {
+                        const c = crittersRef.current[entry.idx];
+                        if (!c || c.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        if (ix != null) entry.el.update(ix, entry.lastY ?? g.slimeY, entry.lastGF ?? 0, entry.lastFrozen ?? false);
+                    });
+                    SWITCH_LOOKAHEAD.forEach((k, i) => {
+                        const el = switchRefsArr.current[i];
+                        const slot = switchInterpRef.current[i];
+                        const ix = interpX(slot, frac);
+                        if (el && ix != null && slot.lastY != null) el.setCenter(ix, slot.lastY);
+                    });
+                }
             }
 
             // #863 round 2 (Han 2026-08-10 follow-up: INP still "needs improvement" after round 1) — the
@@ -1893,6 +2049,10 @@ export default function SheetRpgLayer({
             // change that already happened must keep its accrued beats.
             if (scrollStartTime == null || isFirstAnchoredWave) {
                 tempoAnchorRef.current = freshTempoAnchor();
+                // #1120: the gate clock's own anchor resets on exactly the same occasions, so a
+                // replay starts it clean too. (It is never re-anchored on a LATER wave, for the same
+                // reason the scroll anchor is not.)
+                gateTempoAnchorRef.current = freshTempoAnchor();
             }
             const g = geomRef.current;
             const scrollElapsedMs = tempoScrollMs(tickRef.current * INTERVAL_MS);
@@ -1957,6 +2117,27 @@ export default function SheetRpgLayer({
                 const grade = wrongAttemptRef.current.has(target.idx)
                     ? { category: 'secondAttemptCorrected', points: 0.5, timingTier: geomRef.current.gatedScroll ? 'perfect' : gradeHit(target.delta, bMs).category }
                     : (geomRef.current.gatedScroll ? { category: 'perfect', points: 1 } : gradeHit(target.delta, bMs));
+                // #1120 (the adaptive ladder's GATED PACING rung): alongside — never instead of — the
+                // RECORDED grade above, record the HIDDEN TRUE timing grade of this same hit. Nothing
+                // about scoring changes: `grade` is untouched, and so are stats, the judgment popup,
+                // the result screen, the L/R split charts and the ANPM sample.
+                //
+                // ORDER MATTERS: `frozenExtraMs` is read HERE, BEFORE the unfreeze branch just below
+                // mutates `gatedFrozenRef`/`gatedPauseAccumMsRef` and arms the catch-up ramp — it is
+                // the real time the gate has spent frozen on THIS note, off the never-frozen raw
+                // clock, i.e. exactly the lateness that branch is about to absorb. Without adding it
+                // back, `target.delta` is ~0 for every gated hit (the gate FREEZES the clock, it does
+                // not merely relabel the grade) and the exit condition would be true 100% of the time.
+                if (hiddenGradesRef) {
+                    const frozenExtraMs = (geomRef.current.gatedScroll && gatedFrozenRef.current)
+                        ? (rawTRawMsRef.current - gatedFreezeStartRawMsRef.current) : 0;
+                    pushHiddenGrade(hiddenGradesRef.current, hiddenTimingGrade({
+                        deltaMs: target.delta,
+                        frozenExtraMs,
+                        beatMs: bMs,
+                        secondAttempt: wrongAttemptRef.current.has(target.idx),
+                    }));
+                }
                 resolvedRef.current.add(target.idx);
                 // #1052: a correct hit while gated-frozen unfreezes the scroll clock, resuming EXACTLY
                 // where it froze — the real time just spent frozen is folded into `gatedPauseAccumMsRef`
@@ -2134,7 +2315,7 @@ export default function SheetRpgLayer({
         // 1 sprite FRAME before the projectile's own visibility gate so the flourish's grow+fade-in (first
         // half of SPAWN_GLOW_FRAMES) completes exactly as the projectile appears (Han: "maximum opacity als
         // projectiel er is").
-        if (isWizard || isMixed) {
+        if (projectileCombat || isMixed) {
             const visibleSinceMs = (beatsOnScreen - spawnLeadBeats) * beatMs;
             const glowTriggerMs = visibleSinceMs - frameMs;
             slimesRef.current.forEach((sl) => {
@@ -2273,15 +2454,26 @@ export default function SheetRpgLayer({
     // `preferIdle` path uses, so the wrap length always matches the animation actually drawn.
     const npcIdleLen = npcVariant ? ((findIdleAnim(npcVariant) || findMoveAnim(npcVariant))?.cells.length || 1) : 1;
     // #790 (Han 2026-08-09, SSOT): the song-timed attack cells/flash-indices used to be hardcoded in
-    // enemyAssets.js — now read from the SAME "Wizard (Portrait)"/Black bestiary entry the generator writes
+    // enemyAssets.js — now read from the SAME "Wizard (Portrait)" bestiary entry the generator writes
     // `song_attack_single/double/triple` onto (§6c), via the shared `findCreatureVariantByName`/`findAnim`
     // helpers (bestiaryAssets.js) every other creature lookup in this file already uses.
-    const wizardBlackVariant = useMemo(() => findCreatureVariantByName('Wizard (Portrait)', 'Black'), []);
+    // Yellow wizard (Han 2026-09-03): the SAME lookup, just the "Yellow" colour variant — its sprite
+    // sheet AND its `song_attack_*` cells/flashIndices come straight from the bestiary manifest (NOT a
+    // hand-copied kebab file), so re-classifying it in the Bestiary editor needs no code change here.
+    const wizardVariant = useMemo(
+        () => findCreatureVariantByName('Wizard (Portrait)', isYellowWizard ? 'Yellow' : 'Black'),
+        [isYellowWizard],
+    );
     const wizardSongAttack = useMemo(() => ({
-        single: findAnim(wizardBlackVariant, 'song_attack_single'),
-        double: findAnim(wizardBlackVariant, 'song_attack_double'),
-        triple: findAnim(wizardBlackVariant, 'song_attack_triple'),
-    }), [wizardBlackVariant]);
+        single: findAnim(wizardVariant, 'song_attack_single'),
+        double: findAnim(wizardVariant, 'song_attack_double'),
+        triple: findAnim(wizardVariant, 'song_attack_triple'),
+    }), [wizardVariant]);
+    // The wizard sprite sheet URL: black from enemyAssets' curated kebab file (unchanged), yellow from
+    // the manifest variant's own `url` (the variant-level sheet — `bestiaryAssets.js` puts it on the
+    // variant object, NOT on each animation; per-animation `url` only exists for the handful of
+    // creatures whose animations live in separate files). `?? WIZARD_URL` is a defensive fallback.
+    const wizardSheetUrl = isYellowWizard ? (wizardVariant?.url ?? WIZARD_URL) : WIZARD_URL;
     // #863 round 2 perf fix: factored into a function (not inlined here) so BOTH this render body's initial
     // paint AND the rAF loop's per-frame update (below) run the EXACT SAME cast-sync scan (§6c) — reads
     // `slimesRef.current`/`geomRef.current` (kept fresh every render, see their declarations above) rather
@@ -2292,7 +2484,7 @@ export default function SheetRpgLayer({
     // whose OWN block is Wizard-type, so the wizard never winds up to cast on a Slime-block note.
     const computeWizardCast = (atTick) => {
         const g = geomRef.current;
-        if (!((g.isWizard || g.isMixed) && g.sideScroll)) return { cells: WIZARD_IDLE_CELLS, frame: -1 };
+        if (!((g.isWizard || g.isMixed || g.isYellowWizard) && g.sideScroll)) return { cells: WIZARD_IDLE_CELLS, frame: -1 };
         const visibleGateMs = (g.beatsOnScreen - g.spawnLeadBeats) * g.beatMs;
         const oneBeatLater = (a, b) => a && b && Math.abs(b.beat - a.beat - 1) < 0.01;
         const data = slimesRef.current;
@@ -2331,6 +2523,18 @@ export default function SheetRpgLayer({
     // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
     const dist = viewRight - effectiveStartX;
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
+    // "Yellow wizard" (Han 2026-09-03): the screen-X where the yellow wizard "conjures a note away" —
+    // the SAME instant its blue projectile crosses the visibility gate (`msSinceSpawn === (beatsOnScreen
+    // - spawnLeadBeats) * beatMs` = `wizardSpawnLeadMeasures` measures before the beat, see the
+    // projectile's own `visibleSinceMs` check below), mapped back through the linear `noteX` glide. The
+    // NORMAL notehead layer (`noteStaffContent`) is shown while a note is to the RIGHT of this line and
+    // cut once it scrolls past to the LEFT — exactly as the projectile appears in its place. `castFadePx`
+    // softens the cut over ~100 ms of scroll travel (Han: "harde cut op de flash, dan snelle 100 ms
+    // fade"). Constant per render — notes scroll past a stationary gate — so it drives a static
+    // `userSpaceOnUse` mask, no per-frame work. Only used when `isYellowWizard`.
+    const castGateVisibleMs = Math.max(0, (beatsOnScreen - spawnLeadBeats) * beatMs);
+    const castGateX = viewRight - (beatsOnScreen > 0 ? (castGateVisibleMs / (beatsOnScreen * beatMs)) * dist : 0);
+    const castFadePx = beatsOnScreen > 0 ? (100 / (beatsOnScreen * beatMs)) * dist : 0;
     // #863: `tick` state is gone — this is only the INITIAL/first-paint value (used as the JSX
     // `<g>` wrappers' initial `transform` attribute below); every subsequent frame the SAME formula is
     // re-evaluated imperatively in the rAF loop (see the `framePx` computation there) and pushed straight
@@ -2646,6 +2850,26 @@ export default function SheetRpgLayer({
                         <mask id="rpgLaneFade" maskUnits="userSpaceOnUse" x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)}>
                             <rect x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)} fill="url(#rpgLaneFadeGrad)" />
                         </mask>
+                        {/* "Yellow wizard" (Han 2026-09-03): masks the NORMAL notehead layer so each notehead is
+                            visible while it sits to the RIGHT of its cast line (`castGateX`) and cut once it
+                            scrolls past — the exact instant the yellow wizard conjures it away and its blue
+                            projectile appears. Opaque (white) from `castGateX` rightward, a ~100 ms (`castFadePx`)
+                            ramp to transparent, black to the left. Same userSpaceOnUse pattern as `rpgLaneFade`
+                            above so the inner per-frame translate never disturbs it. Only built for a
+                            YellowWizard level. */}
+                        {isYellowWizard && (
+                            <>
+                                <linearGradient id="rpgYellowCastGateGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
+                                    <stop offset={0} stopColor="#000" />
+                                    <stop offset={Math.max(0, Math.min(1, (castGateX - castFadePx) / viewRight))} stopColor="#000" />
+                                    <stop offset={Math.max(0, Math.min(1, castGateX / viewRight))} stopColor="#fff" />
+                                    <stop offset={1} stopColor="#fff" />
+                                </linearGradient>
+                                <mask id="rpgYellowCastGate" maskUnits="userSpaceOnUse" x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)}>
+                                    <rect x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)} fill="url(#rpgYellowCastGateGrad)" />
+                                </mask>
+                            </>
+                        )}
                     </defs>
                     {/* #863 perf fix: each translate `<g>` below now carries a ref — the INITIAL `transform`
                         (computed from `tickRef.current`, correct for first paint) is still set declaratively
@@ -2664,9 +2888,32 @@ export default function SheetRpgLayer({
                                 )}
                             </g>
                         )}
-                        {(noteStaffContent || chordStaffContent || lyricsStaffContent) && (
+                        {/* Normal (non-yellow-wizard, or debug): notes + chords + lyrics share ONE scrolling
+                            group. */}
+                        {!(isYellowWizard && !debugMode) && (noteStaffContent || chordStaffContent || lyricsStaffContent) && (
                             <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
                                 {noteStaffContent}
+                                {chordStaffContent}
+                                {lyricsStaffContent}
+                            </g>
+                        )}
+                        {/* Yellow wizard: the noteheads are "conjured away" by the wizard `wizardSpawnLeadMeasures`
+                            measures before their beat. The `rpgYellowCastGate` mask MUST sit on a NON-translated
+                            wrapper — `maskUnits="userSpaceOnUse"` resolves in the referencing element's user
+                            space, so putting it inside the per-frame `translate(-scrollPx)` would make the gate
+                            scroll WITH the notes instead of standing still. So: a static masked wrapper, with the
+                            notes' OWN scrolling group (its own ref, transform pushed by the rAF loop just like
+                            `noteScrollRef`) inside it. Chord labels / lyrics keep scrolling unmasked in their own
+                            group. Debug mode takes the normal branch above (every notehead visible). */}
+                        {isYellowWizard && !debugMode && noteStaffContent && (
+                            <g mask="url(#rpgYellowCastGate)">
+                                <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
+                                    {noteStaffContent}
+                                </g>
+                            </g>
+                        )}
+                        {isYellowWizard && !debugMode && (chordStaffContent || lyricsStaffContent) && (
+                            <g ref={chordLyricScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
                                 {chordStaffContent}
                                 {lyricsStaffContent}
                             </g>
@@ -2706,8 +2953,9 @@ export default function SheetRpgLayer({
                 // Projectile when ITS OWN beat falls in a Wizard-type block, Slime otherwise. Every
                 // `isWizard` check below this point uses `itemIsWizard` instead, so a real Wizard level
                 // (all notes Wizard) and a Slime level (all notes Slime) are both special cases of this
-                // same per-item decision.
-                const itemIsWizard = isWizard || (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) === 'Wizard');
+                // same per-item decision. Yellow wizard (Han 2026-09-03): also all-projectile, so it
+                // rides the SAME branch — `projectileCombat` folds in `isWizard || isYellowWizard`.
+                const itemIsWizard = projectileCombat || (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) === 'Wizard');
                 // #863 perf fix: a live (on-screen, not dying) entity registers itself in `slimeRefsMap` via
                 // this callback ref so the bucket-A rAF loop can push its position/frame every frame without
                 // going through React. Any branch below that returns null/switches to a non-live render
@@ -2972,7 +3220,7 @@ export default function SheetRpgLayer({
             {/* #686 spawn-glow flourishes — rendered AFTER the Projectiles above (so the flash sits IN
                 FRONT of a projectile it coincides with) but BEFORE the Wizard below (so it renders
                 BEHIND the wizard sprite — Han: "achter de wizard, en voor het projectiel"). */}
-            {(isWizard || isMixed) && spawnGlows.map((g) => {
+            {(projectileCombat || isMixed) && spawnGlows.map((g) => {
                 // #863 round 2: registers this spawn-glow's imperative handle for the rAF loop.
                 const liveSpawnGlowRef = (el) => {
                     if (el) spawnGlowRefsMap.current.set(g.key, { el, startTick: g.startTick });
@@ -2987,8 +3235,13 @@ export default function SheetRpgLayer({
                 Wizard renderer + the hue-rotate/filter approach already used for Level 11's green
                 variant, rather than new art) — its cast animation is the SAME `wizardCells`/`wizardFrame`
                 computed above, now gated on Wizard-type NOTES specifically instead of the whole level. */}
-            {(isWizard || isMixed) && sideScroll && (
-                <Wizard ref={wizardRef} x={wizardX} y={wizardY} cells={wizardCells} frame={wizardFrame} />
+            {(isWizard || isMixed || isYellowWizard) && sideScroll && (
+                // "Yellow wizard" (Han 2026-09-03): identical renderer + cast choreography (`wizardCells`/
+                // `wizardFrame` are computed the same way) — the sprite sheet AND its `song_attack_*`
+                // cells come from the bestiary "Wizard (Portrait)" / "Yellow" variant (`wizardSheetUrl` /
+                // `wizardVariant`), sourced from the manifest like every other creature (§6c).
+                <Wizard ref={wizardRef} x={wizardX} y={wizardY} cells={wizardCells} frame={wizardFrame}
+                    url={wizardSheetUrl} />
             )}
             {/* Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard. die doet elke 2 maten een
                 spell en wisselt dan van toonladder"): a PURELY DECORATIVE wizard, same sprite/position as

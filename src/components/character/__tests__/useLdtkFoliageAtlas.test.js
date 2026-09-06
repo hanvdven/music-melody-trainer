@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import useLdtkFoliageAtlas from '../useLdtkFoliageAtlas';
 
-// jsdom has no real <canvas> 2D context or image decoding (the same reason the sibling hooks
-// `useLdtkFoliageInstances`/`useLdtkWaterInstances` have no tests) — mock just enough of
-// `runtimeNormalMap.js` and `document.createElement('canvas')` to exercise this hook's own logic
-// (dedup, batching, UV-rect computation, incremental publish) without needing real rendering.
+// jsdom has no real <canvas> 2D context or image decoding (the same reason the sibling hook
+// `useLdtkWaterInstances` has no tests) — mock just enough of `runtimeNormalMap.js` and
+// `document.createElement('canvas')` to exercise this hook's own logic (dedup, batching, UV-rect
+// computation, incremental publish) without needing real rendering.
 vi.mock('../../../utils/runtimeNormalMap', () => ({
     loadImageEl: vi.fn((url) => Promise.resolve({ src: url })),
     normalMapCanvasFromCrop: vi.fn(() => ({ width: 32, height: 32 })),
@@ -16,13 +16,11 @@ function makeTile(tilesetUrl, srcX, srcY) {
 }
 
 describe('useLdtkFoliageAtlas', () => {
-    it('returns null when not in LDtk mode or given no tiles', () => {
-        const { result, rerender } = renderHook(
-            ({ tiles, mode }) => useLdtkFoliageAtlas(tiles, 32, mode),
-            { initialProps: { tiles: [], mode: 'LDtk' } },
+    it('returns null when given no tiles', () => {
+        const { result } = renderHook(
+            ({ tiles }) => useLdtkFoliageAtlas(tiles, 32),
+            { initialProps: { tiles: [] } },
         );
-        expect(result.current).toBeNull();
-        rerender({ tiles: [makeTile('a.png', 0, 0)], mode: 'Legacy' });
         expect(result.current).toBeNull();
     });
 
@@ -42,7 +40,7 @@ describe('useLdtkFoliageAtlas', () => {
             makeTile('trees.png', 32, 0),
             makeTile('trees.png', 0, 0),
         ];
-        const { result } = renderHook(() => useLdtkFoliageAtlas(tiles, 32, 'LDtk'));
+        const { result } = renderHook(() => useLdtkFoliageAtlas(tiles, 32));
 
         await waitFor(() => expect(result.current).not.toBeNull());
         expect(result.current.uvByKey.size).toBe(2);

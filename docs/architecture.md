@@ -249,7 +249,15 @@ Walks the ranked array and assigns notes to active slots:
 - **Beat rest insertion:** when `InstrumentSettings.insertBeatRests` is `true`, `insertRestsAtBeats` turns every beat-aligned null slot into an explicit rest `'r'` (so the sheet renderer never shows a beat-length empty gap). This is gated on the `insertBeatRests` settings field — **not** on `instrumentType === 'percussion'` — so the pipeline stays identical for all instrument types per §6b of `CLAUDE.md`; only `defaultPercussionInstrumentSettings()` enables the field. Any instrument whose settings set `insertBeatRests = true` gets the same behaviour.
 - **Note-length cap (§314, always active):** `capNoteLengthAtGroupBoundaries` runs unconditionally (not gated by `insertBeatRests`) right after the step above — a hard invariant, not a per-instrument setting. It stops any active note's duration extension at the first point it would cross a SECOND rhythmic-group boundary or a second measure boundary, whichever is stricter. See §314 for the full rule and worked example.
 - **`Melody.fromFlattenedNotes`:** converts the flat slot array into `(notes, durations, offsets)` triplets. Consecutive null slots after an active note extend that note's duration (`timeScale × count`). The `timeScale` is derived from `notes.length` and `numMeasures`, so it matches the actual slot resolution.
+- **Display-note spelling (mode-aware):** `generateMelody()` passes a scale context `{ notes: Scale.notes, displayNotes: Scale.displayNotes, tonic: Scale.tonic }` into `fromFlattenedNotes`. `Scale.notes` is the **audio** spelling from `allNotesArray.js` (pitch-class 6 is *always* `F♯`, never `G♭`); `Scale.displayNotes` is the **mode-aware** spelling from `generateDisplayScale` (delta-from-major: `F♯` for C Lydian's raised 4th, `G♭` for C Locrian's lowered 5th). `fromFlattenedNotes` re-spells each generated note by index-matching `notes → displayNotes`, falling back to `getRelativeNoteName` for out-of-scale chromatics. **Invariant:** `MelodyGenerator` must copy `Scale.displayNotes` into `this.displayNotes` in its constructor, or the re-spelling silently no-ops (the step is gated on all three of notes/displayNotes/tonic being present) and `melody.displayNotes` falls back to the raw audio spelling. See §-bug below.
 - **Metadata attachment:** `melody.rhythmicGrouping = rhythmicGrouping`, `melody.rhythmicDNA = dnaMeasureForDebug` — used by the renderer for beaming and debug display.
+
+##### Bug — Level 8 "Modulated" → C Locrian rendered G♭ as F♯ (Han 2026-09-03)
+
+**Symptom:** Level 8 with mode variant `g` ("Modulated") resolves to C Locrian; the treble melody's 5th degree (G♭) showed as `F♯` on the staff. Pitch was correct — spelling only.
+**Root cause:** `MelodyGenerator`'s constructor captured `Scale.notes`/`Scale.tonic`/`Scale.numAccidentals` but **never `Scale.displayNotes`**. So `generateMelody()` passed `displayNotes: undefined` into `Melody.fromFlattenedNotes`, whose scale-context re-spelling is gated on `scaleNotes && scaleDisplayNotes && scaleTonic` — the melody's `displayNotes` fell back to `notes`, i.e. the `allNotesArray.js` audio spelling where pitch-class 6 is always `F♯`. Every flat mode containing pc-6 (C Locrian, F Phrygian, G♭/C♭ major, …) was affected; sharp modes (C Lydian) were coincidentally fine because their audio and display spellings of pc-6 agree.
+**Fix:** `this.displayNotes = Array.isArray(Scale?.displayNotes) ? Scale.displayNotes : this.scale;` in the constructor. Mode-aware — defers to `Scale.displayNotes`, so C Lydian keeps `F♯` and C Locrian gets `G♭`; no enharmonic flip.
+**Files:** `src/generation/melodyGenerator.js`, test `src/generation/__tests__/melodyGeneratorDisplayNotes.test.js`.
 
 #### 4g — Tuplet post-processing (`melodyGenerator.js`)
 After `fromFlattenedNotes`, when `rhythmVariability > 0`, each active note has independent probabilistic chances of becoming a tuplet group (triplet, quintuplet, etc.). See §22 for the full tuplet specification.
@@ -10763,6 +10771,24 @@ offsets from `duv` after this fix already runs).
 **Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`duv`/`normalUV` computation in `main()`
 rewritten to snap to an explicit clamped native-pixel index before any UV conversion).
 
+**Bug follow-up — the `clamp` itself smeared bright specks outside the silhouette (#1219, Han 2026-09-05).**
+*Symptom:* scattered BRIGHT green/yellow pixels along the OUTSIDE of tree-canopy silhouettes in the
+world at night, brightest on the tall upper canopies, not darkening with global illumination like the
+rest of the foliage. *Root cause:* `shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, W - 1.0)`. A
+wind bend (`totalShiftPx`, skew + stretch, up to ±4 native px, saturated to max on every tile above the
+bottom one because `heightRatio²` clamps to 1) can push `nativeX + totalShiftPx` OUTSIDE `[0, W-1]` —
+fragments that after the bend belong OUTSIDE the deformed silhouette. `clamp` made them sample (and
+render **opaque**) the sprite's EDGE texel column instead of being transparent. Foliage edge columns
+are often bright leaf-tip pixels in the art; smeared vertically (each screen row samples the same
+clamped column at its own `nativeY`) with a per-row-varying shift, they read as a ragged band of bright
+specks beyond the canopy outline. Uniform ambient darkening cannot hide them — they are the brightest
+source texels, sitting where only sky should be. *Fix:* for alpha-cutout sprites (kind 0) `discard`
+when the PRE-clamp `shiftedNativeXraw` is `< 0` or `> W - 1`, instead of clamping onto the edge column.
+The opaque floor (kind 1) keeps the clamp (it wants edge extension, has no cutout). Applied in all
+three foliage fragment shaders — `ForegroundFoliageLayer` instanced + non-instanced, and
+`FoliageInstancingTest` (kept in sync per its own header). Files:
+`src/components/character/{ForegroundFoliageLayer,FoliageInstancingTest}.jsx`.
+
 ### §157. Floor pinned to a flat "from above" normal; tunable normal-map strength; 5 new composite blend modes; hero light raised to 32px (Han 2026-08-06, round 19)
 
 **1. Floor lighting pinned flat (Han, NL: "normal map van de floor tiles mag toch globaal 'van boven' zijn;
@@ -19770,6 +19796,11 @@ slimes/hero, and that any flying critter's hover wobble still looks like before 
 
 ### §291. ANPM (accurate notes per minute) — a fifth, EWMA-based profile axis (#1099, split from #1087, Han 2026-08-22)
 
+> **SUPERSEDED for the smoothing law by §358 (#1122, Han 2026-09-01).** The symmetric EWMA
+> (`ANPM_EWMA_ALPHA = 0.3`, same weight up and down) described below was replaced by an asymmetric,
+> gated law in `gamification.js` `nextAnpm()`. Everything else in this section — what ANPM is, the
+> ≥90% qualifying gate, the profile axis, the single writer — still stands.
+
 **Purpose.** Han wants a running estimate of the player's current sight-reading speed: how many notes per
 minute they can play at ≥90% accuracy. Unlike every existing progress axis (§43's skillRatings/
 consistencyXP, §281's levelMastery — all of which either ratchet upward or move via an ELO match), Han was
@@ -23073,8 +23104,19 @@ px / N):
 | foot → 1 | 240 → 272 (linear) | 64 → 92 (linear, together) |
 | 1 → 2 | 272 (fixed) | 92 → 128 (linear) |
 | 2 → 3 | 272 → 320 (linear) | 128 (fixed) |
-| below foot | squeeze 240 → 192 (+16-gpx bottom crop) | 64 (pinned) |
+| below foot | squeeze 240 → 192 (bottom crop ramps in — see below) | 64 (pinned) |
 | above top | 320 (fixed) | 128 + (rest) — blocks absorb everything further |
+
+**Bottom-first crop ramp (Han 2026-09-01).** `cropFor` used to switch the 16-gpx bottom crop on as a
+hard step the instant `artGpxH < 240`. Now it **ramps 16 → 0 linearly over `artGpxH` 192 → 208** —
+Han: *"vanaf 192gpx hoogte: de volgende 16 gpx extra beschikbare hoogte worden toegevoegd aan de
+ónderkant van het level, daarna mag je weer gpx aan de bovenkant toevoegen."* So as the world block
+grows up from its 192-gpx floor, the first 16 gpx un-crop the **bottom** of the art one row at a time
+(`bottomCropGpx = clamp((192 + 16) − artGpxH, 0, 16)`), the top sky crop holding at its floor value
+(`272 − 208 = 64`) throughout; only past `artGpxH` 208 does further height un-crop the **top**
+(`topCropGpx` 64 → 0 at 272). `distributeHeight`'s world-squeeze band (240 → 192) is unchanged — this
+is purely where `cropFor` puts the crop. `WORLD_SQUEEZE_BOTTOM_BELOW` (240) is no longer read by
+`cropFor`; it still bounds the squeeze clamp in `distributeHeight`.
 
 `o` = the arrangement's *vertical* nav overhead (16 for a strip, 0 for a beside-column); `k` = how
 many content blocks stack vertically (1 for a row, 2 for `h-col`/`split`). By construction
@@ -23104,6 +23146,48 @@ regression.
 `o`/`k`, `build` rewrite, scale loop, header), `src/App.jsx` (`topSection` sky background),
 `src/utils/__tests__/worldLayout.test.js` (ladder describe block + updated invariant/scale-selection
 assertions), `docs/architecture.md` §334 + this section, `IMPLEMENTATION_PLAN.md`.
+
+#### Bug: level top (sky/celestial layer) permanently clipped after the LDtk levels grew to 320px (Han 2026-09-05)
+
+**Symptom.** Han resized every `RAM level.ldtk` level's `pxHei` from 272 to 320 (adding more
+mountain/background art above the old horizon) and rebuilt the walkable-world content (§25's
+`ldtkWorld.js` `LEVEL_PX_HEIGHT`, now correctly 320, derived live from the file). But in-game the new
+top strip never appeared: `<SkyGradientBackdrop>`/`<CelestialSky>` (§372/§374) showed a flat solid
+`#8fd0d9` band above the real gradient, and it always started at whatever height the world block
+ladder (this section) happened to be at that viewport (Han: *"de lucht stopt op 288 gpx"*).
+
+**Root cause.** `WORLD_ART_GPX_H` (this file's own constant, used by `cropFor` for the crop/pad split
+and by `App.jsx` to size the `<RpgLevelPanel>` wrapper) was still hardcoded to **272** — the level
+height at the time §348 was written (2026-08-29), a full week before Han's 2026-09-05 LDtk resize.
+`RpgLevelPanel` (and everything inside it — ground, water, foliage, the sky gradient, the celestial
+layer) was therefore always rendered at a fixed **272·N** px tall, bottom-anchored, regardless of the
+level's real (now 320 gpx) height or the world block's own current height. Any world-block height
+above 272 was filled with a flat `#8fd0d9` div (`App.jsx`'s `topSection` background) standing in for
+real content — this is what "the sky stops early" actually was: not a crop, but real rendered content
+capped at 272 with a flat-colour stand-in above it that never became real art again, even once the
+block grew past 272 toward its 320-gpx max.
+
+**Fix.** `WORLD_ART_GPX_H` → **320**, matching `WORLD_GPX_H_MAX` and `ldtkWorld.js`'s
+`LEVEL_PX_HEIGHT`. Since the two constants are now equal, `cropFor`'s `skyPadGpx` (the flat-colour pad)
+is always 0 — the art now fills the world block at whatever height the ladder gives it, with only a
+real top/bottom CROP (never a flat-colour substitute) when the block is shorter than 320. The
+ladder's own phase-2 plateau (`distributeHeight`'s literal 272 in `P1`/`P2`) is a SEPARATE, deliberate
+UI-layout design value (Han 2026-08-29) and was deliberately left untouched — it still makes the world
+block pause at 272 gpx on many viewports; the art itself just correctly renders that much of the real
+320-tall level now, instead of 272 real + a fake pad.
+
+**Invariant going forward.** `WORLD_ART_GPX_H` MUST track the LDtk levels' own native height
+(`ldtkWorld.js`'s `LEVEL_PX_HEIGHT`) — if the two constants ever diverge again (either file resized
+independently), the level's top clips behind a flat colour again with no visible error, since nothing
+enforces this relationship across the two modules. No test currently cross-checks them (`worldLayout.js`
+has no import of `ldtkWorld.js`, deliberately — the world-height ladder is level-content-agnostic by
+design); this must be checked BY HAND whenever either the ladder or the LDtk level geometry changes.
+
+**Files:** `src/utils/worldLayout.js` (`WORLD_ART_GPX_H` 272→320, header + `cropFor` comments),
+`src/App.jsx` (updated comments only — `topSection` background, the `<RpgLevelPanel>` crop wrapper, the
+world-height-toggle button anchor comment), `src/utils/__tests__/worldLayout.test.js` (the "ladder
+phase 2" test now asserts the literal 272 plateau instead of `WORLD_ART_GPX_H`; the "sky pad" test
+comment updated to note it's now always 0).
 
 ### §349. `generateBlock.js` — the ONE shared per-block generator (#1164 / #1163a, Han 2026-08-29)
 
@@ -23228,6 +23312,8 @@ to `generateMetronomeChunk.js`, its bass half is now `generateBlock`), and
 - **`Infinity` blocks for a gated level** (`loopForever`, §867/§1052): the player may freeze on one
   note for an arbitrary real-time duration, so content must never run out. The chord LOOKUP wraps
   back into the level's own range; the block's tick position and start time keep increasing linearly.
+  ⚠ **Bound to the AUTHORED `lvl.gatedScroll` field ALONE** — the adaptive ladder's gated PACING rung
+  must never set it, or a procedural level can never end (§289). See §367's HARD INVARIANT.
 
 **Per-level policy is DATA, not branches** — `src/levels/levelBlockPlan.js` is pure (no React, no
 audio) and therefore directly unit-testable: `blockMeasuresFor`, `blockTypeForBlock` / `blockTypeAt`,
@@ -23281,7 +23367,9 @@ something the player guesses by ear (that is the melody's job), it is the contin
 underneath BOTH halves, so the same content is simply repeated for each.
 
 **#1102 (adaptive tempo) — the seam.** *(This paragraph is the re-fit only; the finished feature it
-seams onto is documented in **§354**, which supersedes it together with §346.)*
+seams onto is documented in **§354**, which supersedes it together with §346. #1121 later widened this
+same one seam into the whole difficulty LADDER — the block's DENSITY is read there too, from the same
+single `blockSettingsFor` call, and the controller is now `useAdaptiveDifficulty.js`. See **§361**.)*
 `adaptiveTempo.js`, `useAdaptiveTempo.js`, level-mode variant
 `'i'`, `tempoScrollAnchor.js`, SheetRpgLayer's `tempoScrollMs` and `useLevel.statsRef` are all
 **unchanged**. Only the WIRING was re-fitted: the per-block `bpmForMeasure` read and the accumulated
@@ -23744,7 +23832,8 @@ units: [B] })`. There is exactly one decider and one cadence, so a stretch of pl
 double-adjusted and no second mechanism can disagree about when a change takes effect. §346's
 separate App.jsx per-wave decider effect is gone with the classic path it served.
 
-**Why a one-element tempo SCHEDULE is still needed (`useAdaptiveTempo.js`).** A level's audio is
+**Why a one-element tempo SCHEDULE is still needed (`useAdaptiveDifficulty.js`, `useAdaptiveTempo.js`
+until #1121).** A level's audio is
 generated and scheduled up to one screenful AHEAD of when it sounds, so when the stream builds the
 block that begins at measure M it must ALREADY know M's tempo — whereas the app-wide `bpm` (which
 drives SheetRpgLayer's scroll rate and the sprite frame rate) may only change when M actually
@@ -23826,29 +23915,45 @@ test) — one formula, not copies that could drift (§6c/§6d). It resets only o
    is worth confirming it feels right. (Round 2 raised the `deriveLevelSpan` floor to 2 visible
    measures so the *baseline* itself is never narrower than that; a screen-width cap is still a
    follow-up.)
-5. **Song-backed levels get the baseline but effectively no live adaptation.** Their
-   `blockMeasuresFor` is the whole song (`numMeasures` was never migrated to the #1163 "chunk size"
-   model for songs), so `blockCountFor` is 1 and the decider runs once — a seed, never a decision.
-   They also do not repeat (see the scoping note above). Migrating song levels to a real chunk
-   cadence is the same work #1166 did for the ramp levels and belongs in its own ticket.
+5. ~~**Song-backed levels get the baseline but effectively no live adaptation.**~~ **FIXED by
+   #1168 — see §366.** Their `blockMeasuresFor` was the whole song (`numMeasures` was never migrated
+   to the #1163 "chunk size" model for songs), so `blockCountFor` was 1 and the decider ran once — a
+   seed, never a decision. They also did not repeat (see the scoping note above). #1168 did exactly
+   the migration this limitation asked for: a song level now has its own `SONG_BLOCK_MEASURES = 2`
+   cadence in `blockMeasuresFor` (**no `levels.json` edit** — a song's `numMeasures` must keep meaning
+   "the song's length"), and the `songId` exclusion on `adaptiveRepeats` is gone because the song
+   SOURCE is now genuinely materialised ×3 inside `useLevelContentStream`, so the unwrapped slice
+   still stops at the level's true end and the §289 guard survives intact. See §366 for the full
+   argument, Han's six locked answers, and the one accepted side effect (the cello on levels
+   1/2/200-206 regenerates per 2 bars). Compare §350 (the one content pipeline it lives in) and §353
+   (the same migration, for the ramp levels).
 6. Blocks past the first draw an EMPTY chord window on a procedural level, because the level's chord
    progression is generated once at `numMeasures` length while the block window advances linearly.
    This is **pre-existing** (every multi-block level since #1166 behaves this way) and is neither
    caused nor worsened by adaptive mode — recorded here because the ×3 repeat makes it more visible.
 
-**Out of scope, by Han's own split:** #1120 (what happens when the tempo would need to drop BELOW
-the floor — switch to rubato/gated pacing) and #1121 (what happens at the CEILING — grow difficulty
-via note density instead of more tempo).
+**No longer out of scope — the two clamp bounds now continue into a LADDER (#1121, §361).** What used
+to be a silent no-op at either bound is now the next rung of one monotone difficulty scale: at the
+CEILING, difficulty grows through NOTE DENSITY at the same tempo; at the FLOOR the content thins toward
+a skeleton, and #1120 hangs gated pacing off the very bottom (**§367**). The tempo rung documented in this section
+is byte-identical inside that ladder — `evaluateAdaptiveBpm` MOVED into `evaluateLadder`
+(`src/levels/adaptiveLadder.js`) rather than being wrapped, and the controller was renamed to
+`useAdaptiveDifficulty`. Read §361 alongside this section.
 
-**Files.** `src/levels/adaptiveTempo.js` (the two locked formulas, `NO_ANPM_BASELINE_FACTOR`,
-`ADAPTIVE_LEVEL_REPEATS`, `lcmOf`/`commitIndexFor`), `src/levels/levels.js`
+**Files.** `src/levels/adaptiveTempo.js` (`baselineAdaptiveBpm` + `NO_ANPM_BASELINE_FACTOR`,
+`ADAPTIVE_STEP`, the two accuracy thresholds, `ADAPTIVE_LEVEL_REPEATS`, `diffStats`,
+`lcmOf`/`commitIndexFor` — the live per-block policy moved to `src/levels/adaptiveLadder.js`, §361),
+`src/levels/levels.js`
 (`LEVEL_MODE_VARIANTS.i`, `applyLevelVariant`'s `anpm` param + `adaptiveOverrides` incl. the repeat),
-`src/hooks/useAdaptiveTempo.js` (the decide/schedule/apply controller),
+`src/hooks/useAdaptiveDifficulty.js` (the decide/schedule/apply controller; named
+`useAdaptiveTempo.js` until #1121),
 `src/hooks/useLevelContentStream.js` (per-block fresh bpm read, accumulated cursor, sole decider),
 `src/components/sheet-music/tempoScrollAnchor.js` + `src/components/sheet-music/SheetRpgLayer.jsx`
 (`tempoScrollMs` and its eight call sites), `src/App.jsx` (controller wiring, `anpm` into
 `applyLevelVariant`, `begin` on start/replay, `cancel` on level end). Tests:
-`src/levels/__tests__/adaptiveTempo.test.js`, `src/hooks/__tests__/useAdaptiveTempo.test.js`,
+`src/levels/__tests__/adaptiveTempo.test.js`,
+`src/levels/__tests__/adaptiveLadder.test.js` (where the ±5%/clamp cases moved under
+ticket #1121, as the ladder's tempo rung), `src/hooks/__tests__/useAdaptiveDifficulty.test.js`,
 `src/components/sheet-music/__tests__/tempoScrollAnchor.test.js`,
 `src/levels/__tests__/levelVariants.test.js`, `src/hooks/__tests__/useLevelContentStream.test.js`,
 and `src/hooks/__tests__/adaptiveMode.integration.test.js` (NEW — the real controller + the real
@@ -23998,6 +24103,9 @@ union of the slices IS the old one-shot's array (asserted directly).
   block past the level's end slices to nothing and the timpani falls silent with the music. It can
   never loop forever — including on a `gatedScroll` level, which takes no timpani from this schedule
   at all (`useLevelGatedRubatoAudio` triggers it off the gate's own frozen-aware clock, #1096).
+  #1120 gained a SECOND reader of that exclusion: a ladder-gated level BUILDS the pattern (it started
+  timed) and merely stops SCHEDULING it per block from the flip onward, so this finiteness property is
+  untouched while the double-timpani it would otherwise cause is avoided. See §367.
 - **Byte-identical notes.** Han's hardcoded C2-C2-C3-rest pattern is untouched; only *when* each
   chunk is scheduled, and at which bpm, changed.
 - **Never starts ahead of the melody** (Han 2026-08-10, *"die twee mogen nooit onafhankelijk
@@ -24017,6 +24125,12 @@ What Han heard alongside the timpani drift was almost certainly the timpani itse
 48 ms output-latency offset, which applied to every track equally. **Cello was therefore not
 changed.**
 
+**#1121 note.** The timpani pattern is deliberately NOT a ladder rung. It is built once for the
+level's declared span and sliced per block, so it stays finite by construction; the adaptive
+difficulty ladder (§361) changes only the GENERATED tracks' `notesPerMeasure`/`smallestNoteDenom` and
+never touches `buildTimpaniPattern`, `totalMeasures` or the block count. A densified block's timpani
+therefore sounds exactly as it always did, on the same accumulated cursor at the same tempo.
+
 **Files.** `src/hooks/useLevelContentStream.js` (the `timpaniInstrument`/`timpaniVolume` props, the
 pattern + `timpaniSlice` helper, and the two schedule sites — lead-in and per block; it also carries
 the full history comment that moved with the code); `src/App.jsx` (the one-shot `playMelodies` call
@@ -24029,3 +24143,3506 @@ than being handed a different one. Tests: `src/hooks/__tests__/useLevelContentSt
 reassembling into the whole-level pattern, finiteness, the gated exclusion, and no-melodic-percussion
 scheduling nothing) and `src/hooks/__tests__/adaptiveMode.integration.test.js` (timpani adopts the
 committed tempo at the same block as cello).
+
+---
+
+### §357. Frame-perfect CLASSIC playback — the same output-latency compensation (#1187, Han 2026-09-01)
+
+**Why.** §355 fixed the ~48 ms `AudioContext.outputLatency` audio-vs-visual offset for **side-scroll
+levels only**, at `useLevelContentStream`'s one seam, and explicitly left classic (non-level) playback
+— the `Sequencer` driving `useSheetMusicHighlight` in pagination / scroll / wipe mode — for a
+follow-up. That path has the identical defect: every note is scheduled at a raw AudioContext time
+while the rAF playhead/highlight reads the same `context.currentTime`, so the moving cursor,
+note-active highlight and `setCurrentMeasureIndex` all run `outputLatency` **ahead** of what is heard.
+
+**Fix — same convention as §355 (visual clock literal, audio issued early), applied at the
+`Sequencer`'s scheduling seam, reusing `audioOutputLatency.js` (the latency read is NOT re-derived).**
+
+The `Sequencer`'s entire visual timeline is anchored to one local, `nextStartTime` (measure clock):
+every `scheduledNotes[].audioTime`, every `scheduledMeasures[].audioTime`, every `scheduleTimeout`
+delay for label/visibility/round/overlay changes, and the pagination scheduler's `baseAudioTime` are
+all derived from it, and the rAF loop compares those against raw `context.currentTime`.
+
+- **`start()`'s base lead becomes `context.currentTime + 0.1 + outputLatencySeconds(this.context)`.**
+  This pushes the *whole* visual timeline `outputLatency` later in one place — nothing downstream has
+  to know.
+- **The two — and only two — `playMelodies` calls** (anacrusis lead-in; the per-measure call inside
+  `scheduleBlock`) are handed `nextStartTime − outputLatencySeconds(this.context)`, so the audio is
+  emitted early and *heard* exactly at the (shifted) visual `nextStartTime`.
+- Folding the latency into the **base lead** (rather than only subtracting at the `playMelodies`
+  calls) keeps the real audio scheduling lead at the full 0.1 s, so `playMelodies`'s
+  `safetyBuffer` (0.05 s) never clamps bar 1 into "now".
+- The pagination scheduler's `baseAudioTime` (`_armPaginationSequence`) is a *visual* anchor despite
+  the name — it only drives `setNextLayer` / `setStartMeasureIndex` / transition refs, never audio —
+  so it correctly rides the shifted `nextStartTime` with everything else.
+
+**Invariants.**
+- **`playMelodies` is still not touched** — the compensation lives entirely at the `Sequencer` call
+  sites, so the world's ambient music, instrument previews and scale playback (which have no visual
+  clock to sync to) are unaffected, exactly as §355 requires.
+- **All three animation modes** (pagination, scroll, wipe) are driven off the same `nextStartTime`, so
+  one shift covers them all; the scroll-mode `scrollTransitionRef` anchors move with it.
+- **The §6 timing invariants hold** — `setCurrentMeasureIndex` is still driven by an rAF loop reading
+  `scheduledMeasures` against `context.currentTime` (no `setTimeout`), just on a timeline shifted by a
+  constant.
+- A **residual of ≤ 1 display frame** remains (rAF result presented at next vsync), same honest
+  limit as §355; not compensated.
+
+**Files.** `src/audio/Sequencer.js` — `import { outputLatencySeconds }`, the base-lead line in
+`start()`, and the start-time argument of both `playMelodies` calls. No new module, no test changes
+(the existing `Sequencer` timing suite is unchanged in behaviour; the shift is a constant offset of
+the whole clock). Reuses `src/audio/audioOutputLatency.js` from §355 verbatim.
+
+---
+
+### §358. ANPM smoothing — asymmetric, gated, slow (#1122, Han 2026-09-01)
+
+**Purpose / Symptom.** The ANPM number on the stats screen (§291) moved too fast and symmetrically:
+one clean-but-slow run — a `b`/`c` *Langzaam* variant, or a level in a new range/scale with a lower
+authored note density — dragged it ~30% of the way toward that low reading in a **single**
+completion, so an afternoon on easy pieces looked like skill regression. Han: *"als ik boven de 80%
+accuracy speel 'onder mijn huidige ANPM' mag deze niet naar beneden bijgesteld worden … Stel enkel
+bij als accuracy op trager tempo laag is, en ook niet zo hard. Ik wil dat de ANPM stat maar traag
+verandert, BPM in een adaptive level mag harder fluctueren."*
+
+Part (b) of the ticket — normalising the metric on scale / accidental count (Adjusted vs Effective
+NPM) — is split to **#1188** and not touched here.
+
+**How it works.** The blend moves from an inline symmetric EWMA in `recordLevelCompletion` into one
+pure, exported function, `nextAnpm({ anpm, notesPerMinute, accuracyPercent })` in
+`src/utils/gamification.js` (beside `updateRating` / `gradedOutcome` — the established home for pure
+profile math). The law, in order:
+
+| sample | condition | result |
+| --- | --- | --- |
+| no measurement | `notesPerMinute` not finite or ≤ 0 | `anpm` unchanged |
+| first ever (`anpm == null`) | accuracy ≥ `SPEED_UP_ACCURACY` (90) | seed with `notesPerMinute` |
+| first ever | accuracy < 90 | stays `null` (a first sloppy run is not an anchor) |
+| FAST (`notesPerMinute ≥ anpm`) | accuracy ≥ 90 | `anpm + ANPM_ALPHA_UP · (npm − anpm)` |
+| FAST | accuracy < 90 | **HOLD** — fast-but-sloppy is evidence of overreach, not speed |
+| SLOW (`notesPerMinute < anpm`) | accuracy ≥ `SLOW_DOWN_ACCURACY` (70) | **HOLD** — the whole point |
+| SLOW | accuracy < 70 | `anpm + ANPM_ALPHA_DOWN · (npm − anpm)` (gentle) |
+
+`ANPM_ALPHA_UP = 0.15`, `ANPM_ALPHA_DOWN = 0.05` (was one symmetric `0.30`). Han's "> 80% never
+lowers" and the "70–80% held" band **collapse into the single `accuracy ≥ SLOW_DOWN_ACCURACY → hold`
+predicate** — 80 needs no constant of its own. `SPEED_UP_ACCURACY` / `SLOW_DOWN_ACCURACY` are
+`adaptiveTempo.js`'s own constants, promoted from module-private to exports and imported here, so
+"the player was genuinely struggling" has ONE definition shared with #1102's in-level bpm controller
+(§6c). That export changes no behaviour inside `adaptiveTempo.js`.
+
+**Invariants / What must not change.**
+
+- `recordLevelCompletion` stays the **sole writer** of `profile.anpm`, called once per completion
+  from App.jsx's single `level.done` effect. No per-block ANPM updates.
+- `PROFILE_VERSION` stays **5** — the field is still one scalar `anpm`; no migration. (Shape change
+  is #1188.)
+- `computeAccuracyPercent` / `totalNotesForLevel` are reused via the existing App.jsx call — no
+  second scoring or note-counting formula.
+- **#1102's in-level adaptive bpm is deliberately NOT smoothed this way** — Han wants it to keep
+  fluctuating faster than the lifetime stat. `baselineAdaptiveBpm` reads the same scalar as before.
+- `CharacterStatsPanels.jsx`'s ANPM row is unchanged (same rounding, same dash-when-empty). No new
+  UI in this ticket (a "held" hint was considered and deferred — it is its own interview).
+
+**Edge cases.** Rubato / gated levels (variant `a`, levels 1–2) grade every hit `perfect`
+(`SheetRpgLayer.jsx` ~line 1959) and are player-paced, so a slow rubato run now **HOLDS** instead of
+dragging ANPM down — the desired outcome. Adaptive (`i`) levels derive their bpm *from* ANPM, so
+their measured npm is near-self-fulfilling — a sample equal to `anpm` is a no-op under either branch,
+not a feedback-loop bug. `elapsedMinutes` includes the lead-in bars, any mid-level pause and the
+walk to the result screen, so the measured npm is systematically a little low — pre-existing
+(#1099), not fixed here, and a second reason the down direction is deliberately conservative.
+
+**Cross-ticket note — RESOLVED (#1121 landed second, 2026-09-01, §361).** The unified difficulty
+ladder changed the *numerator* that feeds `notesPerMinute` (App.jsx) from the authored note count
+(`totalNotesForLevel`) to the notes the player actually faced (`computePlayedNoteCount`,
+`LevelStatsCharts.jsx`). Different file, different value — no code conflict with this ticket, which
+only changes how the resulting sample is smoothed. But this ticket's UAT numbers were measured
+against the OLD numerator, so **re-check the ANPM figure once now that both have landed.**
+
+**Files.** `src/utils/gamification.js` (`nextAnpm` + `ANPM_ALPHA_UP` / `ANPM_ALPHA_DOWN` + the
+`adaptiveTempo` import); `src/levels/adaptiveTempo.js` (two `const` → `export const`);
+`src/contexts/ProfileContext.jsx` (`recordLevelCompletion` calls `nextAnpm`; `ANPM_EWMA_ALPHA`
+deleted, its comment rewritten). Tests: `src/utils/__tests__/gamification.test.js` (new `nextAnpm`
+suite), `src/contexts/__tests__/ProfileContext.test.jsx` (the wiring cases), `src/levels/__tests__/adaptiveTempo.test.js`
+(constant-lock asserts).
+
+---
+
+### §359. World-view sync pass — one clock, one tempo, one phase for the open world (Han 2026-09-01)
+
+**Symptom.** Han, on the walkable RPG world: *"Het klinkt niet alsof de metronoom, de NPC's/vogels,
+en de muziek allemaal perfect in sync zijn. Doe een grondige controle."* §924 had already put the
+ambient music, bird songs, the debug metronome and the conversation typewriter on the one shared
+`worldClock.js` grid (`WORLD_BPM 100` / `[4,4]`, anchored to `context.currentTime`). The audit found
+the *beat-synced sprite animation* and the *worker-NPC bells* had never joined it, plus two
+schedule-at-"now" bugs and the app-wide `outputLatency` gap.
+
+**A — `petFrame` was on neither the right tempo nor the right phase.** `RpgLevelPanel`'s beat-synced
+sprite clock (`petFrame`, drives wisp/pet/slime/worker idle loops *and* the worker-NPC hit rolls via
+`useWorkerHitState`'s `petFrame % windowFrames === 0`) read the **live song** `bpm`/`timeSignature`
+props (`DEFAULT_BPM` 90, or whatever the last level left behind) — a different tempo from the
+`WORLD_BPM` everything audible in the world runs at, so it could never lock. And its frame index was
+measured from a **local anchor** (`petFrameStartMsRef`, latched on the first frame after mount) — the
+exact "its own phase, drifts on every re-anchor" anti-pattern `worldClock.js` and `useDebugMetronome`
+§924-r4 were fixed to avoid. **Fix:** `petFrame = floor(context.currentTime / frameMsForBpm(WORLD_BPM,
+WORLD_TIME_SIGNATURE))` — WORLD tempo, **no local anchor** (frame 0 == world-clock t=0). The
+`petFrameStartMsRef` + its reset effect are gone. `RpgLevelPanel` no longer takes `bpm`/`timeSignature`
+props at all (removed at both `App.jsx` call sites); the worker slots get `WORLD_TIME_SIGNATURE`
+directly. Now `petFrame % (FRAMES_PER_BEAT·k)` boundaries coincide to the sample with the metronome's
+beat grid and the ambient music's `nextMeasureStartTime` measure grid.
+
+**B — worker-NPC bells fired at a stale "now".** `useWorkerHitState` reacted to a `petFrame` change
+in a React effect (rAF jitter + commit latency), decided "this frame is a hit", then
+`triggerBell(note, context.currentTime, …)` → `instrument.start({ time: context.currentTime })` — a
+sound scheduled 0–120 ms *after* the beat it belongs to, against ambient music scheduled exactly
+ahead on the grid. **Fix:** the hit is detected **one sprite frame early** and scheduled for that
+frame's exact world-clock time, `hitFrame · frameSec − outputLatencySeconds(context)`, clamped to
+never land in the past. `getListenerX()` is still read at scheduling time (~one frame / ~120 ms before
+the hit) so the #1094 distance pan/gain stays essentially current. `useWorkerNpcAudio.triggerBell`
+already took an explicit `time` and set the panner/gain at it — no change there.
+
+**C — debug-metronome click fired at a stale "now".** `useDebugMetronome`'s rAF tick edge-detected a
+beat boundary `context.currentTime` had *already crossed*, then `start({ time: context.currentTime })`
+— 0–16 ms of jitter against a rock-steady music grid. **Fix:** each tick schedules the click for the
+**next** beat boundary (`(floor(now/spb) + 1) · spb`), once, deduped by absolute beat number, at that
+time minus `outputLatencySeconds` — sample-accurate, HEARD on the grid. The on-screen 1-2-3-4 counter
+and pendulum stay an edge trigger on the audible grid crossing (they flip within a frame of the click
+being heard).
+
+**D — `outputLatency` (~48 ms, §355) was uncompensated for the whole world.** §355/§357 deliberately
+left `playMelodies` and the world's ambient music alone because they had "no visual clock to stay in
+step with". After A, the world *does*: the `petFrame` sprite bob and the metronome counter/pendulum
+both read `context.currentTime` directly. So every **grid-aligned** world voice is now scheduled
+`outputLatencySeconds(context)` **earlier**, to be *heard* on the world-clock grid rather than ~48 ms
+behind the visuals — at each system's own seam, **not** inside `playMelodies` (still shared with
+non-world callers): `useWorldAmbientMusic`'s `heardAt(startTime)` on the ambient piano, the hh
+backbeat, the wind-gust envelope+note, the bird phrases and the water glockenspiel; the metronome
+click (C); the worker bells (B). The two **held water drones** (hum, percussion — no beat alignment,
+scheduled at `context.currentTime + 3600`) are left as-is. Reuses `audioOutputLatency.js` verbatim
+(read fresh per schedule, per §355's guidance).
+
+**Invariants.**
+- One clock (`worldClock.js` `context.currentTime`), one tempo (`WORLD_BPM`), one phase (no local
+  anchors) for **every** open-world beat-locked system: ambient music, hh backbeat, bird/glockenspiel
+  phrases, debug metronome, `petFrame` sprite animation, worker-NPC hit rolls and bells.
+- A grid instant's metronome click, its ambient-music note and (if any) its worker-NPC bell are all
+  *heard* at the same `context.currentTime`, coincident with the `petFrame` bob for that frame (which
+  is painted ≤ 1 display frame later — the same honest residual §355/§357 accept, audio ≤ 1 frame
+  early rather than ~3 frames late).
+- `playMelodies` still untouched — instrument previews / scale playback (no visual clock) unaffected.
+- Gated (rubato) world? N/A — the walkable world is never a gated level; this is all non-gated.
+
+**Files.** `src/components/character/RpgLevelPanel.jsx` (petFrame loop rewrite, `bpm`/`timeSignature`
+props removed, `WORLD_BPM`/`WORLD_TIME_SIGNATURE` import, worker slot `timeSignature`);
+`src/App.jsx` (drop `bpm`/`timeSignature` from both `RpgLevelPanel` renders; stale crop comment);
+`src/components/character/useDebugMetronome.js` (look-ahead scheduling + latency, `lastScheduledBeatRef`);
+`src/hooks/useWorkerHitState.js` (one-frame look-ahead, grid time − latency, `frameSec`);
+`src/hooks/useWorldAmbientMusic.js` (`heardAt` helper on the 5 grid-aligned voices);
+`src/audio/audioOutputLatency.js` (header note — the world now compensates too).
+Tests: `src/hooks/__tests__/useWorkerHitState.test.js` (look-ahead frame numbers + a future-grid-time
+assertion); existing `useWorldAmbientMusic` / `useDebugMetronome` behaviour unchanged.
+
+### §360. Auto weer-cyclus — wind 0–3 + day/dusk/night/dawn, both eased (Han 2026-09-01)
+
+**Purpose.** The walkable RPG world varies its own "weather" instead of Han poking the debug pickers.
+Two independent tracks, both with *gradual* transitions so nothing jump-cuts:
+
+> **See also §374** — the celestial sky (stars / sun / 28-cycle moon) is driven entirely by THIS clock:
+> `weatherOutputs()` also derives `cycleT` and `lunationPhase` from the phase state below.
+
+- **Wind** — every 30 s a new random speed **0–3**, drawn from the weighted bag `[0,1,1,1,2,2,3]`
+  (uniform *with replacement* — repeats allowed; distribution 0→1/7, 1→3/7, 2→2/7, 3→1/7), then
+  eased toward over **3 s**. 0 = windstil (skew/stretch 0 px). Feeds `foliageParams.skewAmount` /
+  `stretchAmount` unchanged (§141 round 26's shader uniforms).
+- **Time of day** — a fixed loop `day → dusk → night → dawn → (repeat)` with durations
+  **240 / 60 / 120 / 60 s**. `globalIllumination` eased over **10 s** at every phase edge
+  (day 1.0 · dusk/dawn 0.33 · night 0.12 — night floor lifted from 0.1 in §362). dusk and dawn share an illumination but are DISTINCT
+  phases: dusk = day→night, dawn = night→day.
+
+**How it works.** `src/components/character/weatherCycle.js` is a pure reducer:
+`tickWeather(state, dtSeconds, rand) → nextState` (dt clamped to ≤ 0.25 s so a backgrounded tab or a
+paused music LEVEL never "catches up" in one lurch). `weatherOutputs(state)` derives the render-facing
+view (`globalIllumination`, `windValue`, `timeOfDay` string, `phaseName`, `critterKind`,
+`critterOpacity`). `seekPhase` / `seekWind` are the picker actions — jump to the chosen value, reset
+that track's timer to full, start the same eased transition, then the cycle carries on from there.
+
+`RpgLevelPanel` owns the clock: `weather` state + a `weatherRef` live copy driven by one **throttled
+`useFrameLoop` subscriber (~12 fps)**. The loop always advances `weatherRef`, but only calls
+`setWeather` / `setFoliageParams` when a visible value actually moved (illum ≥ 0.004, wind ≥ 0.02,
+critterOpacity ≥ 0.01, or a phase/kind flip) — so a steady phase (e.g. the 120 s of night) costs
+**0 re-renders**. The derived illum/skew/stretch/timeOfDay are written **into `foliageParams`** so
+every existing consumer (WebGL shader, DOM `brightness()` tint, `domAmbientTint`) keeps reading them
+from the same place. A `useLayoutEffect` pushes the (possibly persisted) clock into `foliageParams`
+before first paint — no 1-frame flash of default daylight when re-entering the world mid-cycle.
+
+**Freeze during a music LEVEL.** `RpgLevelPanel` unmounts whenever a LEVEL takes over
+(`App.jsx` nulls `characterScreen`). `src/components/character/weatherCycleStore.js` is a module
+singleton: the panel `saveWeatherState` on unmount, `loadWeatherState() ?? createWeatherState()` on
+mount, and resets the frame-loop `lastMs` baseline — so the LEVEL's duration is **skipped, not
+integrated**, and the cycle resumes exactly where it froze. Not persisted to `localStorage` (a full
+page reload legitimately starts a fresh day).
+
+**Critter day↔night swap.** When the phase turns to dusk or dawn, the whole critter layer crossfades
+on `critterOpacity`: fade out over `CRITTER_FADE_S` (5 s), re-roll the pool at the midpoint (the
+`critterWanderers` memo now keys on `weatherOutputs(weather).critterKind` — `'day'` | `'night'` — not
+`foliageParams.timeOfDay`), fade back in over 5 s. `randomTaggedVariant` is called with that
+`'day'`/`'night'` kind directly (its existing `=== 'day'` / `=== 'night'` branches). The layer is a
+single `position:absolute inset:0` wrapper (same containing block as `entityScrollRef`, so the
+WorldWanderers' own left/bottom math is unchanged; `pointerEvents:none` — critters have no hit target).
+
+**Debug pickers.** The §141 round 26/27 Wind (`low/med/high`) and Time-of-day (`night/dusk-dawn/day`)
+`LevelPicker`s are replaced by **seek controls** into the cycle: Wind is now `0/1/2/3`, Time of day is
+`day/dusk/night/dawn` (from `TIME_PHASES`). `WIND_LEVEL_PX` / `TIME_OF_DAY_ILLUM` deleted.
+`FoliageParamsPanel`'s Reset also resets the weather clock. The 💨 indicator repeats one puff per
+`Math.round(windValue)` and is hidden entirely at wind 0.
+
+**Invariants.**
+- `weatherCycle.js` is pure; `tickWeather` never mutates its input. All timing lives there, not in the
+  component. dt is always clamped — the cycle never integrates real wall-time lost to a LEVEL.
+- The eased outputs flow through `foliageParams` — there is exactly one place the shader/tint read
+  illumination and wind, as before.
+- The cycle only ticks while `RpgLevelPanel` is mounted (the walkable world). During a LEVEL it is
+  frozen in the module singleton, not advancing.
+- Fixed phase order and durations; dusk ≠ dawn for critter purposes (dusk swaps to night, dawn to day).
+
+**Files.** `src/components/character/weatherCycle.js` (new, pure reducer + selectors),
+`src/components/character/weatherCycleStore.js` (new, unmount-surviving singleton),
+`src/components/character/RpgLevelPanel.jsx` (clock state + `useFrameLoop` driver + `useLayoutEffect`
+seed + unmount persist; pickers → seek; 💨 indicator; `critterWanderers` memo keys on `critterKind`;
+`critterOpacity` wrapper; `EntityLayer` gains `critterOpacity`; `WIND_LEVEL_PX`/`TIME_OF_DAY_ILLUM`
+removed), `src/components/character/ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS` comments +
+`windLevel` key removed).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (phase order/durations, eased
+monotonic illumination, wind interval + weighting, `seekPhase`/`seekWind` timer resets, critter
+crossfade timing, dt clamp, purity, store round-trip).
+
+---
+
+### §361. The adaptive DIFFICULTY LADDER — one monotone scale (density + tempo) (#1121, Han 2026-09-01)
+
+**Purpose.** §354 gave adaptive mode (level-variant letter `i`) a live tempo that tracks the player,
+clamped to `[lvl.bpm/2, lvl.bpm]`. Hitting either bound was a silent no-op: a player who maxed the
+tempo out could not be challenged further, and one who bottomed out could not be helped further.
+Han's answer (chat interview 2026-08-23, re-confirmed 2026-09-01) is that difficulty must keep going
+past both bounds — through **note density** rather than tempo: *"als lvl bpm perfect is:
+ornamentaties/bas toevoegen … dat betekent dat we de anpm gaan verhogen door extra noten toe te
+voegen ipv bpm te verhogen."* He then explicitly **collapsed #1121 and #1120 into ONE ladder**:
+*"density UP → tempo UP → ceiling; density DOWN → tempo DOWN → floor → gated."*
+
+So this is not a tempo controller with a density feature bolted on. It is **one monotone, totally
+ordered, finite difficulty scale**, and the tempo is one rung of it.
+
+#### The ladder
+
+State is three fields that move under a **strict precedence**, so the scale is totally ordered and
+never moves two knobs at once:
+
+```
+state = { bpm, densityStep, pacing }
+  densityStep : SIGNED integer. 0 = the level exactly as AUTHORED.
+                positive = denser than authored (harder); negative = thinner (easier).
+  bpm         : the existing continuous value, clamped to [baseBpm/2, baseBpm].
+  pacing      : 'timed' | 'gated'.  #1120 owns this rung (LANDED — §367); #1121 left it always 'timed'.
+```
+
+*(#1120 also added `blocksSinceGatedExit` — anti-flap bookkeeping owned by `useAdaptiveDifficulty`,
+read by the ladder but never a rung. See §367.)*
+
+EASIEST → HARDEST:
+
+| # | rung | knob |
+|---|---|---|
+| 1 | gated pacing @ skeleton density @ floor bpm | `pacing` (#1120) |
+| 2 | floor bpm, density climbing skeleton → authored | `densityStep` −2 → 0 |
+| 3 | authored density, bpm climbing floor → ceiling | `bpm`, the existing ±5% |
+| 4 | ceiling bpm, density climbing above authored | `densityStep` 0 → +5 |
+
+`evaluateLadder` (`src/levels/adaptiveLadder.js`), **first matching rule wins**:
+
+| direction | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| HARDER (accuracy ≥ `SPEED_UP_ACCURACY` 90) | `densityStep < 0` → +1 (restore content FIRST) | `bpm < ceiling` → ×1.05, clamped | `densityStep < MAX_DENSITY_STEP` → +1 | else hold (silent no-op) | — |
+| EASIER (accuracy < `SLOW_DOWN_ACCURACY` 70) | `densityStep > 0` → −1 (remove ADDED density FIRST) | `bpm > floor` → ×0.95, clamped | `densityStep > MIN_DENSITY_STEP` → −1 (thin toward the skeleton) | `gatingAllowed(lvl)` + cooldown → `pacing='gated'` (#1120) | else hold (park) |
+| HOLD (70 ≤ accuracy < 90) | nothing moves — the #1102 deadband is untouched | | | | |
+
+**#1120 corrected where the gated rule sits.** `pacing === 'gated'` is decided **BEFORE either
+accuracy branch**, not as HARDER rule 1 as this table originally showed: while gated, the block
+accuracy is ~100% by construction (every hit is RECORDED `'perfect'`, §1052) and carries no
+information at all, so it must never reach the rules above in EITHER direction. The gated boundary's
+only question is the EXIT, answered off the hidden true-timing buffer — see §367.
+
+Because every branch returns immediately, **exactly one of `{bpm, densityStep, pacing}` differs from
+the input state on any single call** — "one decider, one boundary, one change in flight" (§354) is a
+property of the control flow, not a convention. A test asserts it generically over a table of
+(accuracy × state) inputs.
+
+**ORDERING — tempo first, density at the ceiling.** This was the design's one resolved ambiguity. The
+coordinator's shorthand read "density up → tempo up"; the implementation is tempo in the MIDDLE of the
+scale and content at both ENDS, because that is (a) what #1102 already ships, (b) Han's own literal
+#1121 answer ("when the adaptive bpm has reached the level's full authored bpm AND the player is still
+at/above threshold, tempo holds and difficulty growth instead raises effective ANPM by adding note
+density"), and (c) the exact mirror of his #1120 answer ("the ladder continues past the bpm floor").
+
+**Why a SIGNED integer** rather than flags: it makes the ladder a totally ordered, finite scale, so
+"the back-off unwinds in exactly the reverse order it was added" is a property of the data type rather
+than of the code remembering to be careful — and termination is then provable (both drive directions
+reach a fixed point in a bounded number of calls; asserted directly).
+
+*Caveat, asserted rather than glossed:* the ±5% tempo rung is **multiplicative**, so the climb
+floor→ceiling takes `ceil(ln2/ln1.05)=15` notches while the descent takes `ceil(ln2/−ln0.95)=14` (the
+clamp absorbs the remainder at each end). That asymmetry is pre-existing #1102 behaviour. What the
+tests pin is the symmetry Han's requirement is actually about: the **knob order** mirrors exactly, and
+the **density rungs** mirror notch for notch.
+
+#### Density → settings: a FORMULA, never a table (§6c)
+
+Han's locked answer to the "what is ornamentation?" interview question: it is **the existing density
+settings, per block, ref-driven** — *not* a new generation stage, *not* an ornament-insertion pass.
+There is no per-instrument branch anywhere (§6b): one helper `projectDensity(authored, steps, ts)` is
+called twice, once per track, with different arguments.
+
+```
+slotsPerMeasure(ts, denom) = ts[0] * denom / ts[1]
+
+POSITIVE rungs: npm += 1 per notch; when npm+1 would exceed slotsPerMeasure, first REFINE the grid
+                (denom 1→2→4→8→16, bounded by GLOBAL_RESOLUTION from generatorDefaults.js) and
+                continue. At GLOBAL_RESOLUTION a further notch is a SILENT NO-OP — the same
+                convention the bpm clamp already uses at its bounds.
+NEGATIVE rungs: npm -= 1 per notch, hard floor of 1 note/measure (a skeleton line). The grid is
+                deliberately NOT coarsened on the way down: coarsening would move surviving notes
+                onto different beats, whereas removing notes leaves the rest where the player
+                already learned them.
+Identity:       the projection returns `null` when nothing changed, so rung 0 is provably the
+                level exactly as authored.
+```
+
+Worked example, **7/8** (a meter no lookup table would have covered): authored `notesPerMeasure 3`,
+`smallestNoteDenom 4`. `slotsPerMeasure([7,8],4) = 3.5`, so rung 1 (npm 4) does not fit → the grid
+refines to 8 (`slotsPerMeasure = 7`) and npm becomes 4. Rungs 2 and 3 give npm 5 and 6, still ≤ 7.
+Everything derives from `timeSignature` plus the level's own authored fields, so 5/4, 6/8 and 11/8 are
+correct with no per-value branch — asserted over a table of meters.
+
+**Bounds** (Han q2, `[DESIGN DEFAULT]`): `MIN_DENSITY_STEP = −2`, `MAX_TREBLE_DENSITY_STEP = +3`,
+`MAX_DENSITY_STEP = +5`. +3 on the treble doubles the played note count at a level authoring 3/measure;
+unbounded, the grid would fill to sixteenths, unreadable at ceiling tempo. A bound is also what makes
+the symmetric back-off provably terminating.
+
+**The BASS rungs** (Han q3, verbatim: *"just make the CELLO busier (I do not have to play it)"*): rungs
+4 and 5 raise `tracks.bass.notesPerMeasure` through the SAME projection. **`lvl.twoHanded` is NEVER
+flipped by the ladder** — flipping it mid-level would pull in a second keyboard panel, bass slimes and
+the L/R stats split all at once. Honest consequence, stated because it matters: a busier cello adds
+audible difficulty but not PLAYED notes, so only the treble rungs move measured ANPM.
+
+**Back-off granularity** (Han q5, `[DESIGN DEFAULT]`): one notch per block boundary, symmetric with the
+way it was added. The ±5% tempo rung already sets that cadence; dropping everything on one unlucky
+block would undo a minute of earned progress.
+
+**Visible signal** (Han q6, `[DESIGN DEFAULT]`): **none**. The music simply gets denser. The ladder
+should feel like the game meeting you, not like a mode change; a signal is a new UI surface with its
+own copy/placement interview. Recorded as a candidate follow-up, deliberately not filed as a ticket.
+
+#### The module split, and the one-way import
+
+| module | what it owns |
+|---|---|
+| `src/levels/adaptiveTempo.js` | LEVEL-START and CROSS-STREAM primitives: `baselineAdaptiveBpm` + `NO_ANPM_BASELINE_FACTOR`, `ADAPTIVE_STEP`, `SPEED_UP_ACCURACY`/`SLOW_DOWN_ACCURACY`, `ADAPTIVE_LEVEL_REPEATS`, `diffStats`, `lcmOf`/`commitIndexFor`. |
+| `src/levels/adaptiveLadder.js` (NEW) | The live per-block POLICY: `evaluateLadder`, `densityOverrideFor`, `slotsPerMeasure`, the three bounds. Pure — no React, no audio, no `this`. |
+| `src/hooks/useAdaptiveDifficulty.js` (RENAMED from `useAdaptiveTempo.js`) | The state and the side effects: decide, schedule, apply. |
+
+`evaluateAdaptiveBpm` **moved** into `evaluateLadder` as its tempo rung. It is NOT left behind as a
+wrapper or a re-export (§7: no compat shims); its tests moved with it, into
+`src/levels/__tests__/adaptiveLadder.test.js`, where they now prove the tempo rung is byte-identical to
+what #1102 shipped. `diffStats` is now **exported** so the ladder scores a block off the SAME single
+diff — there is never a second diff of one snapshot pair, and no third scoring formula: block accuracy
+still comes from `computeAccuracyPercent`/`computeTotalNotes` (`LevelStatsCharts.jsx`).
+
+**Import direction is one-way: `adaptiveLadder` → `adaptiveTempo`.** `adaptiveTempo.js` imports
+`levels.js`, which imports `adaptiveTempo.js` back; an edge from `adaptiveTempo` into the ladder would
+close that cycle. ESLint's `import/no-cycle` is not configured in this project, so the rule is asserted
+by a test that reads `adaptiveTempo.js`'s own source.
+
+**Why the hook was renamed:** it now decides and schedules three things, so `useAdaptiveTempo` would
+name a third of what it does — and a lying name is exactly how the §6d drift starts. Pure rename, zero
+behaviour change. *(Not to be confused with the unrelated pre-existing `src/utils/adaptiveDifficulty.js`,
+which holds `stepAdaptiveTargets` for classic practice-mode difficulty targets.)*
+
+**ONE reader, not three.** The controller exposes a single
+`blockSettingsFor(measure, startTime) → { bpm, densityStep, pacing }`, replacing what would otherwise
+have been `bpmForMeasure`/`densityForMeasure`/`pacingForMeasure`. This is a safety decision, not a taste
+one: the armed app-wide `setBpm` timeout is created as a SIDE EFFECT of reading a due commit, so with
+three readers the arming would become order-dependent on whichever the stream called first — the kind of
+implicit coupling that produces a commit which is read but never applied. One reader = one commit read,
+one arming point. The commit object likewise carries the FULL next state
+(`{ bpm, densityStep, pacing, fromMeasure, scheduled }`), so two knobs can never be half-applied.
+
+**Density needs no second commit moment.** The bpm has a "two moments" problem (the stream must generate
+a block early at the tempo it will play at, while the app-wide `bpm` may only switch when that block
+actually sounds — §354). Density does not: the notes are baked into the block at generation time, so
+nothing app-wide has to switch later. A density-only commit therefore never calls `setBpm` at all; the
+armed callback only writes the landed rung back into the controller's own state so "where the ladder is"
+and "what the app adopted" can never disagree. (#1120's pacing rung DOES need that moment, and reuses
+the same single timeout.)
+
+#### Where the density is read — and the hard constraint
+
+`useLevelContentStream.js` reads the ladder at the **existing per-block fresh-bpm seam**, inside
+`generateAndScheduleBlock`, and threads the rung into
+`trackSpecsForLevel(lvl, levelSettings, { densityStep, timeSignature })` — so "what settings does a
+block get" stays ONE function (`levelBlockPlan.js`) instead of being half-assembled in the hook. At
+rung 0 the stream passes the effect-level `specs` object through unchanged, by reference.
+
+> ⚠ **The density must NEVER travel through `setTrebleSettings`, or any other member of that effect's
+> dependency array.** `trebleSettings` IS in the array. Changing it tears the whole JIT effect down
+> mid-level: every published Melody is reset to its default, every pending generation timer is cleared
+> and every already-scheduled note is stopped — i.e. the §289 "level never ends" bug class, re-opened.
+> Ref-driven, read fresh, per block. This is precisely why the density is a per-block **generation
+> input** and not app state.
+
+One structural edit was needed: `specs` used to be computed once ABOVE the block recursion, and
+`seriesArgsFor` closed over it. `seriesArgsFor` now takes the block's own specs as a parameter. The
+LEAD-IN passes the authored `specs`, for exactly the reason it always uses `startBpm`: no ladder commit
+can exist before the first block has been graded.
+
+#### The ANPM numerator changed with it (Han q4)
+
+`App.jsx`'s #1099 ANPM sample used `totalNotesForLevel(level.current)` — the level's **authored** note
+count. A densified run plays more notes than that counts, so this feature would have been invisible in
+the very number it exists to raise. The numerator is now `computePlayedNoteCount(level.stats)` — a new
+helper in `LevelStatsCharts.jsx`, beside the two counts it is built from (§6c/§6d, not a parallel
+formula in App.jsx). It is every note that reached a final verdict **minus `extraNote`**: a spurious
+keypress with nothing due is not a note the level presented, and must not let mashing raise your
+notes-per-minute. The **denominator** (`elapsedMinutes`) is untouched, and `totalNotesForLevel` itself is
+unchanged (`levels.test.js` pins its per-level values).
+
+**`baselineAdaptiveBpm` deliberately did NOT change with it** and still reads `totalNotesForLevel`. It is
+the level-START algebraic inverse over the level's authored structure, computed before a single note has
+been played, where a played-note count does not exist. The two formulas now differ on purpose; comments
+in both files say so, so a future reader does not "unify" them.
+
+**Cross-ticket:** this is a different file and a different value from #1122 (§358), which only smooths
+the resulting sample in `gamification.js`. There is no code conflict, but whichever of the two landed
+second invalidates the other's UAT numbers — re-check the ANPM figure once, after both.
+
+#### Invariants
+
+* The **bpm rung is byte-identical** to what #1102 ships: ±5%, clamp `[baseBpm/2, baseBpm]`, the 90/70
+  thresholds, the accumulated audio-time cursor, `tempoScrollAnchor`'s re-anchoring.
+* **SPATIAL LAYOUT IS FIXED** for the whole level (§354): `beatsOnScreen`, `dist`, `scrollPPT`,
+  `noteWidth` and every already-rendered note's X. More notes means TIGHTER spacing inside the same
+  window — never a re-flow of what is already on screen, and never a change of scroll speed.
+* **APPEND-ONLY**: a block that has been generated or scheduled is never regenerated at a new density.
+* **The level still ENDS**: the ladder never touches `totalMeasures`, `blockCountFor`, `wavesForLevel`
+  or `loopForever`. Only the CONTENT of a not-yet-generated block changes, never the timeline.
+* **ONE decider, ONE stats diff, ONE evaluation per block boundary, one change in flight.**
+* A non-adaptive level, and an adaptive level that never leaves rung 0, are **provably** unchanged —
+  asserted by test, not merely observed (`trackSpecsForLevel` rung-0 identity, and every block of a
+  non-adaptive run being generated with the same settings OBJECT).
+* Scoped exactly like the ×3 repeat: **procedural (`songId == null`) side-scroll levels**. A song-backed
+  level's treble is sliced with `randomizationRule: 'fixed'` and cannot take a density override, so its
+  `densityStep` never leaves 0 in either direction — while its tempo rung still works.
+
+#### Edge cases and documented limitations
+
+a. **Grid/cap ceiling** — a further notch past `GLOBAL_RESOLUTION` (or past `MAX_DENSITY_STEP`) is a
+   SILENT NO-OP, the same convention as the bpm clamp.
+b. **`insertBeatRests: true` swallows the first notch(es) — MEASURED, not assumed.** Levels 4 and 15
+   author it, and it makes the generator fill every beat regardless of `notesPerMeasure`. Counting the
+   real generator's sounding notes over 8 seeds per rung (2 measures, 4/4):
+
+   | level | `insertBeatRests` | authored | rung 0 | 1 | 2 | 3 |
+   |---|---|---|---|---|---|---|
+   | 4  | true  | npm 3 / denom 4 | 8.00 | **8.00** | 10.63 | 12.00 |
+   | 15 | true  | npm 2 / denom 4 | 8.00 | **8.00** | **8.00** | 10.25 |
+   | 7  | false | npm 3 / denom 4 | 6.00 | 8.00 | 10.13 | 12.00 |
+   | 11 | false | npm 4 / denom 8 | 8.00 | 10.00 | 12.00 | 14.00 |
+
+   So on an `insertBeatRests` level the ladder's first notch (Level 15: its first two) changes nothing
+   audible; the count only rises once a notch REFINES `smallestNoteDenom`. This is **not** patched and
+   **not** special-cased — doing either is exactly the mistake §6b was written about. It is a property of
+   `insertBeatRests`, recorded here as a limitation: on levels 4 and 15 the ladder simply has one or two
+   "wasted" notches before it bites. If Han wants those levels to respond on the first notch, the right
+   fix is to `insertBeatRests` itself, in its own ticket.
+   The BASS rungs were measured the same way and DO bite: with the level cello (`LEVEL_BASS_SIMPLE`,
+   `force_chord_roots`, 1 whole note/measure) and a real chord progression, rung 4 doubles the cello
+   (2 → 4 sounding notes per 2 measures) and rung 5 triples it (6). Note the grid must double
+   (denom 1 → 2 → 4) before a second note can fit at all — a formula handles that; a table would not.
+c. **Call-response / Wizard blocks** (`shape: 'call-response'`): only the RESPONSE half is played, so
+   effective density grows at half the rate there. Not a bug.
+d. A **negative** `densityStep` is reachable in this ticket only once the level is already at the bpm
+   floor; without #1120 the ladder then parks at (floor, `MIN_DENSITY_STEP`) instead of gating. That is a
+   correct, shippable intermediate state — #1121 is independently useful without #1120.
+e. **#1120** hangs the gated-pacing rung off the bottom of this same ladder (EASIER rule 4, with the
+   gated EXIT decided before either accuracy branch), reusing this ticket's signed `densityStep`,
+   full-state commit and single `blockSettingsFor` reader. **LANDED — see §367.**
+
+**Files.** NEW `src/levels/adaptiveLadder.js`. EDIT `src/levels/adaptiveTempo.js` (export `diffStats`;
+`evaluateAdaptiveBpm` removed; header rewritten). RENAME `src/hooks/useAdaptiveTempo.js` →
+`src/hooks/useAdaptiveDifficulty.js` (+ widened state, `blockSettingsFor`, `begin(baseBpm, lvl)`). EDIT
+`src/hooks/useLevelContentStream.js` (prop renamed to `adaptiveDifficulty`; per-block ladder read at the
+existing bpm seam; `seriesArgsFor` takes the block's specs). EDIT `src/levels/levelBlockPlan.js`
+(`trackSpecsForLevel`'s optional third `density` argument). EDIT
+`src/components/levels/LevelStatsCharts.jsx` (`computePlayedNoteCount`). EDIT `src/App.jsx` (renamed
+controller, `begin` gains the level, ANPM numerator). Tests: NEW
+`src/levels/__tests__/adaptiveLadder.test.js` (31), `src/levels/__tests__/adaptiveTempo.test.js`
+(the `evaluateAdaptiveBpm` block replaced by `diffStats` coverage), renamed
+`src/hooks/__tests__/useAdaptiveDifficulty.test.js` (+ the density-commit cases),
+`src/levels/__tests__/levelBlockPlan.test.js` (the density argument),
+`src/hooks/__tests__/useLevelContentStream.test.js` (`blockSettingsFor` mocks + the per-block density
+read), `src/hooks/__tests__/adaptiveMode.integration.test.js` (a pass-through `generateBlock` spy, then
+the ceiling→density climb, the one-notch cadence, the density-before-tempo back-off, and the level still
+terminating on a run where the ladder moved).
+
+### §362. Night look — blue-white "moonlight" + the background layers finally darken (Han 2026-09-01)
+
+**Follow-up to §360.** Three complaints about the auto weather cycle's night:
+
+**A — the background layers never got dark.** In LDtk/RAM mode the day/night darkening is done by the
+WebGL shaders (`LdtkLitGround` for ground/buildings/decor, `ForegroundFoliageLayer` for foliage/water),
+which multiply `trueColor` by `mix(AMBIENT_DARK_COLOR, 1.0, uGlobalIllumination)`. The parallax
+background canvases (`LdtkScenery`'s `CanvasLayer`), the hard-coded sky-gradient div and `bgLayer5` have
+**no lit pipeline** — and the old `domDarkenOverlay` CSS multiply was gated to Legacy mode only (#1162
+Fase 5 removed it from LDtk mode as dead weight). So the sky stayed bright blue at midnight.
+**Fix:** `LdtkScenery` takes a `bgDarkenColor` prop (`rgbCss(AMBIENT_DARK_RGB, 1 - globalIllumination)`,
+computed in `RpgLevelPanel`, `null` at full daylight so day frames pay nothing) and renders ONE
+`mixBlendMode:'multiply'` overlay **between its background canvases and its ground layer** — so it only
+ever multiplies the backgrounds (and the sky gradient / `bgLayer5` painted behind them), never the
+ground/foliage the shaders already handle. Same `mix(AMBIENT_DARK, 1, illum)` math as the shader, so the
+horizon seam stays consistent. Only mounted while `backgroundLayers.length > 0` (the back pass) and
+`globalIllumination < 1`. This re-introduces the small per-frame `mix-blend-mode` composite cost #1162
+Fase 5 removed — an accepted trade (Han's explicit choice), and only while it's actually dark.
+
+**B — night was too dark; wanted a blue-white "moonlight" tone.** `AMBIENT_DARK_COLOR` lifted from the
+near-black `vec3(0.05,0.08,0.18)` to `vec3(0.11,0.15,0.25)` (lighter, bluer-whiter). Its CSS twin
+`AMBIENT_DARK_RGB` in `RpgLevelPanel.jsx` moved in lock-step to `[28,38,64]` (drives the DOM tint +
+the new background overlay). Night-floor illumination raised `0.1 → 0.12` (`weatherCycle.js`
+`TIME_PHASES`).
+
+**C — "alles globaal donkerblauw, en een wit licht van linksboven op de wereld".** A new DIRECTIONAL
+"moonlight" term in the shared `foliageLightingGLSL.js`: `applyMoonLight(trueColor, currentColor,
+normal, edgeFactor)` — no position, no falloff, one fixed world direction `MOON_DIR = normalize(vec3(
+-0.55, 0.5, 0.65))` (mirrors the existing sky `ambientLight` vector with a negative X so it comes from
+the LEFT), colour `MOON_COLOR = vec3(0.85,0.9,1.0)` (blue-white). Same "reveal `trueColor` back out of
+the ambient dark" mechanic as `applyPointLight`, gated by `max(dot(normalize(normal), MOON_DIR), 0.0)`
+so only faces turned toward the top-left catch it. Strength = `uMoonStrength * (1.0 -
+uGlobalIllumination)` — **absent by day, full at night**, one coherent system with the cycle rather
+than a separate toggle. Called in all three shader `main()`s right after `applyPointLights` (the two
+`ForegroundFoliageLayer` shaders + `LdtkLitGround`; the `FoliageInstancingTest` dev harness too).
+`uMoonStrength` added to the shared `LIGHTING_PARAM_UNIFORMS_GLSL` block, driven by
+`foliageParams.moonStrength` (default `0.5`, debug slider "Moonlight strength" in `FoliageParamsPanel`).
+
+**Deliberately out of scope (Han's call).** The walking sprites — hero, pet, wisp, slime, worker NPCs,
+critters — do NOT darken at night (only their reflections do). Han: *"laat de NPC sprites buiten scope,
+zodat die goed zichtbaar zijn 's nachts"* — full-brightness sprites pop against the dark world. They're
+DOM `<img>`/`CharacterDoll`, not in the WebGL layers, so they also can't catch the moonlight relief.
+
+**Invariants.**
+- `AMBIENT_DARK_COLOR` (GLSL) and `AMBIENT_DARK_RGB` (JS) are the same colour in two encodings — change
+  both together.
+- Moonlight strength is ALWAYS `uMoonStrength * (1 - uGlobalIllumination)` — it can never show in
+  daylight, and it shares the cycle's single `globalIllumination` knob.
+- The background overlay sits between the bg canvases and the ground layer in `LdtkScenery`'s own DOM
+  order — it must never move after the ground/foliage, or it would double-darken the shader-lit layers.
+- All four shaders that `#include` the shared lighting block declare `uMoonStrength` and set it — a
+  consumer that forgets simply gets 0 (no moon), never a compile error.
+
+**Files.** `src/components/character/foliageLightingGLSL.js` (`AMBIENT_DARK_COLOR`, `uMoonStrength`
+uniform, `MOON_DIR`/`MOON_COLOR` consts, `applyMoonLight`); `src/components/character/ForegroundFoliageLayer.jsx`
+(both shaders' `main()` + `DEFAULT_FOLIAGE_PARAMS.moonStrength` + uniform wiring, non-instanced +
+instanced); `src/components/character/LdtkLitGround.jsx` (`main()` + uniform wiring);
+`src/components/character/FoliageInstancingTest.jsx` (dev harness, same); `src/components/character/LdtkScenery.jsx`
+(`bgDarkenColor` prop + overlay); `src/components/character/RpgLevelPanel.jsx` (`AMBIENT_DARK_RGB`,
+`bgDarkenColor` computed + threaded through `SceneryBack`, "Moonlight strength" slider);
+`src/components/character/weatherCycle.js` (night `illum` 0.1 → 0.12).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (night-floor asserts updated to 0.12).
+
+### §363. Foliage-sourced ambient wind — three screen-thirds, a left→right gust, a centre bed (Han 2026-09-01)
+
+**Replaces #1091's placeholder wind.** #1091 played the 'applause' sample as wind noise, random-
+triggered (20% chance per 3-measure cycle, one fade-in/hold/fade-out gust, level-wide, no panning).
+Han: *"ik wil dat de wind 'uit de foliage' komt... verdeel het scherm in 3"* — and *"volledig
+vervangen"*.
+
+**The model** (`src/audio/windRustle.js`, pure + unit-tested). The visible viewport is split into three
+equal screen-thirds (left / mid / right). Four held 'applause' voices, each holding ONE long note
+(`duration: 3600`, riding the sample's own loop points — the same "hele lange noot" trick the water
+hum/percussion use), shaped only by retargeting its bus gain every 120 ms via `rampParam`
+(`setTargetAtTime`):
+
+- **Three RUSTLE voices**, panned `WIND_THIRD_PANS` = `[-0.5, 0, +0.5]` (`createSpatialBus`). A third
+  sounds only while it overlaps a tree-foliage world-chunk **and** the wind level is ≥ 2. A gust sweeps
+  **left → mid → right**, `WIND_SWEEP_STEP_SEC` per third, looping every `WIND_SWEEP_PERIOD_SEC`
+  (`sweepState`): the third it is on swells (`sin` envelope, 0→1→0) above a low base (`WIND_BASE_LEVEL`
+  0.35); the other two sit at the base. A third with **no foliage stays silent even under the gust**.
+- **One BED voice**, pan 0, a steady centre wash whenever wind ≥ 2 — **not** foliage-gated (Han: *"ook
+  al zijn er geen bomen in beeld"*). `bedFraction`: ½ the rustle peak at wind 3, ¼ at wind 2.
+
+Level mapping (`windLevel` = `Math.round` of the §360 weather cycle's `windValue`, 0–3):
+`windLevelMult` → wind 3 = 1 ("zelfde geluid als nu", peak = `WIND_GUST_PEAK_GAIN` 'mp'), wind 2 = ½,
+wind 0–1 = 0 (total silence — no rustle, no bed).
+
+**Tuning follow-ups (Han 2026-09-01, same day).** `WIND_SWEEP_PERIOD_SEC` / `WIND_SWEEP_STEP_SEC`
+doubled `6 s / 2 s → 12 s / 4 s` (*"maak de oscillatie 100% trager"*). `WIND_MASTER_GAIN` = `0.5` — a
+single trim applied to every wind voice (all three rustle thirds AND the bed) at the two `rampParam`
+call sites (*"verlaag het volume van álle wind met 50%"*).
+
+**Foliage detection — precomputed per world** (Han's choice: *"per level vooraf bepaald"*).
+`buildWorld` (`ldtkWorld.js`) now returns `foliageChunkSet: Set<number>` — the `CHUNK_PX` (256 px)
+world-chunks, in ABSOLUTE X, that contain at least one **tree** foliage tile (`FOLIAGE_LAYERS` =
+Pine/Willow/Main_tree; the `Grass_decoration_*` layers are excluded — Han: *"geen gras"*). At runtime
+`thirdHasFoliage(set, cameraX, viewportWorldWidth, k)` maps screen-third `k`'s world-X span to chunk
+indices and checks membership. `RpgLevelPanel` feeds `windLevel` / `cameraX` / `viewportWorldWidth`
+(`size.w / zoom`) / `foliageChunkSet` into `envAudioRef.current`, which `useWorldAmbientMusic`'s tick
+reads live (same "live ref, no resubscribe on camera move" pattern as the bird/water voices).
+
+**Invariants.**
+- `windRustle.js` is pure — all gain/pan math is there and tested; `useWorldAmbientMusic` only owns the
+  AudioNodes and the 120 ms retarget loop.
+- The sweep is free-running wall-clock (`context.currentTime`), NOT grid-aligned — nothing visible is
+  synced to it, so unlike §359's grid voices it needs no `heardAt`/latency compensation.
+- Wind 0–1 is silent, full stop. The bed is the ONLY wind voice that ignores foliage.
+- `foliageChunkSet` is tree-foliage only; grass never rustles.
+- New import direction `levels/ldtk/ldtkWorld` → `audio/spatialPan` (just the `CHUNK_PX` constant;
+  `spatialPan.js` imports nothing, so no cycle).
+
+**Files.** `src/audio/windRustle.js` (new, pure); `src/hooks/useWorldAmbientMusic.js` (the #1091 gust
+`useEffect` replaced by the four-voice rustle effect; `WIND_GUST_BLOCK_MEASURES`/
+`WIND_GUST_TRIGGER_CHANCE` removed, `WIND_GUST_PEAK_GAIN`/`WIND_GUST_NOTE` kept);
+`src/levels/ldtk/ldtkWorld.js` (`foliageChunkSet` in the `buildWorld` return);
+`src/components/character/RpgLevelPanel.jsx` (`envAudioRef.current` gains `windLevel` / `cameraX` /
+`viewportWorldWidth` / `foliageChunkSet`).
+Tests: `src/audio/__tests__/windRustle.test.js` (level mapping, sweep timing + envelope bounds,
+foliage-gating, third-span geometry); `src/hooks/__tests__/useWorldAmbientMusic.test.js` (#1091 gust
+tests replaced with the four-voice wiring check).
+
+### §364. Night look — UAT round 2: darker, subtler white moon, point lights at sprite centre, firefly glow (Han 2026-09-01)
+
+Five items of feedback on §362/§363. (#5 — visible tile seams — is investigated below but not yet fixed.)
+
+**1 — night a touch darker.** `TIME_PHASES` night `illum` 0.12 → **0.10** (`weatherCycle.js`; §362 had
+lifted it 0.10 → 0.12). Still reads blue, not black, thanks to the lifted `AMBIENT_DARK_COLOR`.
+
+**2 — the moon reveal was too harsh, not white, and looked bottom-lit.** In `foliageLightingGLSL.js`
+`applyMoonLight`:
+- `MOON_DIR.y` flipped **+0.5 → −0.5**. §362 copied the sky `ambientLight` vector's sign, but this
+  shader's decoded-normal space effectively has Y pointing down (the point lights already assume that),
+  so +Y read as "from below". Now genuinely top-left.
+- Hard `max(dot(n, MOON_DIR), 0.0)` terminator → **squared half-Lambert** `wrap = dot*0.5+0.5; wrap*wrap`.
+  Smooth quadratic lit→unlit falloff, no sharp shadow edge ("minder harde schaduwen").
+- `MOON_COLOR` `vec3(0.85,0.9,1.0)` → **`vec3(1.0)`** (pure white); `DEFAULT_FOLIAGE_PARAMS.moonStrength`
+  **0.5 → 0.3** ("iets subtieler"). Debug slider unchanged.
+
+**3 — wisp & hero point lights sat at the sprite's feet.** `ldtkLights` (now `baseLights`) put the wisp
+light at `worldHeight: 0` (level floor) and the hero light at `groundHeightAt(...)` (its stand line).
+The #1032-r8 comment had already asked for "altijd in het midden van de sprite" and only the campfire
+ever got it. Now: wisp `worldHeight = groundHeightAt(NPC_X) + (wispFlying ? TILE : 0) + wispVariant.crop.h/2`;
+hero `worldHeight = groundHeightAt(playerX) + HERO_CROP.h/2`. (The two `wispVariant`/`wispFlying`
+`useMemo`s moved above `baseLights` so it can read them.)
+
+**4 — the firefly is a moving light source.** Han: *"ik zie nooit de vuurvlieg! ... Ze zijn ook een
+lightsource, sample voor de kleur eenmalig het limoengroen van de sprite."* (He's handling spawn
+himself — `bestiaryMetadata.json` `Firefly.tagsAdd = ["night","critter"]` — so this only covers the
+light.) `RpgLevelPanel`:
+- `fireflyVariant = findCreatureByName('Firefly')`; a mount effect loads its sprite sheet, crops the
+  first `fly` frame (16×16), and picks the **most green-dominant, brightest opaque pixel** (`g*2−r−b`)
+  as `fireflyLightColor` — the glow, not the muddy average. Lime `[0.7,1,0.2]` fallback.
+- `WorldWanderer` gains `emitLightPos` / `lightPosRef`: a firefly critter publishes its live `{x,y}`
+  into `critterLightPosRef` each frame (y is native px from the level top, same convention as
+  `campfireLight`), cleaned up on unmount — a separate registry from `birdPositionsRef` (which stays
+  x-only for the bird audio).
+- `critterWanderers` entries are tagged `isFirefly` (variant URL match). `ldtkLights` merges
+  `baseLights` with up to **4** firefly lights (nearest the hero, capped so wisp+hero+campfire+fireflies
+  ≤ `MAX_LIGHTS` 10), each at the tracked position, colour `fireflyLightColor * (1 - globalIllumination)`,
+  and the whole firefly set is skipped when `globalIllumination > 0.65` (daytime). Rebuilds on
+  `petFrame` (~10/s) so the glow follows the drifting sprite without a per-rAF re-render.
+
+**Invariants.**
+- `AMBIENT_DARK_COLOR` (GLSL) / `AMBIENT_DARK_RGB` (JS) still one colour in two encodings.
+- Moon strength is always `uMoonStrength * (1 - uGlobalIllumination)` — never visible by day.
+- Firefly lights never exceed 4, are night-only, and vanish cleanly when a firefly despawns
+  (registry delete) — a level with no fireflies placed adds zero lights.
+- The wisp/hero light-height formulas are "stand line + half crop height" — the same "sprite centre"
+  rule the campfire already used.
+
+**Files.** `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` half-Lambert, `MOON_DIR`,
+`MOON_COLOR`); `src/components/character/ForegroundFoliageLayer.jsx` (`moonStrength` default);
+`src/components/character/weatherCycle.js` (night illum); `src/components/character/RpgLevelPanel.jsx`
+(`baseLights` + merged `ldtkLights`, `wispVariant`/`wispFlying` moved up, `fireflyVariant` +
+`fireflyLightColor` sample effect + `critterLightPosRef`, `WorldWanderer` `emitLightPos`/`lightPosRef`,
+`critterWanderers` `isFirefly`, `EntityLayer` prop pass-through).
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (night-floor asserts 0.12 → 0.10).
+
+**#5 — visible seams / grid stripes on tiles, "vooral in de tiles met animatie" — FIXED.** Investigation
+(Han: *"is dat niet al zo?"* re: integer zoom): the world SCALE already is a whole integer (`worldLayout.js`
+`N`), bar a `1.5` half-step offered only on `devicePixelRatio ≥ 2` (where 1.5 CSS-px = 3 whole device-px)
+and one non-home mount path with no `worldScale`. So integer zoom was NOT the problem. The real cause: the
+DOM tile layers scroll via `transform: translateX(-cameraX·zoom)` where `cameraX` is a **continuous float**
+(dead-zone follow, never rounded) — so the DOM slides sub-pixel while the WebGL foliage/water quads already
+snap their position to whole device pixels (`ForegroundFoliageLayer` §327 `Math.round(screenX·dpr)`, both
+the per-instance and instanced paths). The DOM and WebGL layers drift ±1 device px apart as the camera
+pans → a seam that crawls along the 16/32-px grid.
+**Fix:** snap the camera scroll offset to the SAME device-pixel grid — `RpgLevelPanel`'s `setCameraX`
+callback now computes `offsetPx = Math.round(-next·z·dpr) / dpr` (and `cameraOffsetRef`, read by the WebGL
+cull, gets that snapped value, so DOM + WebGL step in lockstep). `cameraX` state stays a float for the
+follow/clamp math — only the visible transform snaps. `LdtkAnimatedTiles.AnimatedTile` also rounds its own
+`left` / `bottom` to device px (the viewport-centre term can still be ½ px even at integer zoom).
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`setCameraX` offset snap),
+`src/components/character/LdtkAnimatedTiles.jsx` (per-tile `left`/`bottom` snap).
+
+**#5 round 2 (Han: "ik zie de naden nog steeds").** The camera snap alone wasn't enough — the seams
+survive on a **fractional `devicePixelRatio`** (Windows 125 % / 150 % display scaling → dpr 1.25 / 1.5).
+Both the WebGL foliage/water quads (`ForegroundFoliageLayer`, §327) and the campfire DOM tiles
+(`LdtkAnimatedTiles`) snapped each tile's **centre and size independently** — `round(centre·dpr)` +
+`round(size·dpr)`. At a fractional dpr, `round(cx·dpr) + round(w·dpr)/2` for tile A and
+`round((cx+w)·dpr) − round(w·dpr)/2` for tile B differ by ±1 device px at some boundaries, so a 1-px
+gap/overlap tiles across the whole grid. **Fix:** snap the four **EDGES** instead —
+`lDev = round((cx − w/2)·dpr)`, `rDev = round((cx + w/2)·dpr)`, likewise `bDev`/`tDev` — then the quad
+is `centre = (lDev+rDev)/2`, `size = rDev − lDev`. Because `cx + w/2 == cxNext − w/2` exactly, tile A's
+`rDev` **is** tile B's `lDev` at any dpr (and a stacked tile's `bDev` is the one above's `tDev`).
+Applied identically to `ForegroundFoliageLayer`'s per-instance loop AND its instanced (atlas) path, and
+to `LdtkAnimatedTiles.AnimatedTile` (which now derives `width`/`height` from rounded edges too). The
+cost is a ≤1-device-px texture stretch per tile instead of a visible seam.
+
+### §365. Wind-3 gusts are capped at 10 s (Han 2026-09-01)
+
+Follow-up to §360's wind track. Han: *"wanneer windkracht 3 gerold wordt, laat die maar 10 seconden op
+die kracht blazen, en zak dan af naar windkracht 2."* — a full-strength gust shouldn't sit at 3
+indefinitely (it could hold up to a full 30 s draw interval, plus repeat).
+
+**`weatherCycle.js` `tickWeather`:** after the wind-fade step, once `windTo === 3` has fully settled
+(`windFadeElapsed >= WIND_FADE_S`), a `wind3HoldS` timer accumulates `dt`. At `WIND_GUST3_HOLD_S`
+(10 s) it forces `windFrom = 3, windTo = 2, windFadeElapsed = 0` (ease down over the normal 3 s) and
+resets `windTimer` to 0 so the next random draw is a fresh 30 s away. `wind3HoldS` resets to 0 whenever
+`windTo !== 3`. Total 3 + 10 + 3 = 16 s < the 30 s draw interval, so a normal roll never interrupts a
+capped gust. `seekWind` also resets `wind3HoldS`, so a manually-picked 3 gets the same cap (consistent —
+"wind 3 always lasts ≤ 10 s"). New export `WIND_GUST3_HOLD_S`; new state field `wind3HoldS` (in
+`createWeatherState`).
+
+**Files.** `src/components/character/weatherCycle.js`.
+Tests: `src/components/character/__tests__/weatherCycle.test.js` (new §365 hold-then-decay case; the
+`seekWind` easing test switched from picking 3 to picking 2 so the cap doesn't fire mid-assert).
+
+---
+
+### §366. Song-backed levels get a real generation cadence — 2-measure chunks + the 3× adaptive runway (#1168, Han 2026-09-01)
+
+**Purpose / Symptom.** §354 limitation 5: a level with a `songId` (ids **1, 2, 200–206**) was ONE
+generation block, so `blockCountFor` was 1 and `useLevelContentStream`'s adaptive decider — which
+runs once per block boundary — fired exactly once. That single call is a *seed* (there is nothing to
+diff the first stats snapshot against), never a decision, so letter `i` on a song level gave the
+player the baseline tempo and then **nothing adapted for the rest of the song**. Songs were also
+deliberately excluded from #1102's ×3 evaluation runway (see "why the exclusion existed" below), so
+even the block count could not grow that way.
+
+**Root cause.** `blockMeasuresFor` fell through to `lvl.numMeasures || 2`, and for a song level
+`numMeasures` is **not** a chunk size at all: `songLevelDefaults` (levels.js, §871) back-fills it
+from the song JSON as the **song's LENGTH**, because the song is the single source of truth for its
+own musical metadata. One block = the whole song.
+
+#### How it works
+
+**1. The cadence — `levelBlockPlan.js`.** A new named constant `SONG_BLOCK_MEASURES = 2` and one
+branch in `blockMeasuresFor`:
+
+```js
+if (usesSongTreble(lvl)) return SONG_BLOCK_MEASURES;
+```
+
+It sits **after** the Wizard / Mixed / decorativeWizard branches and **before** the `numMeasures`
+fall-through. **Branch ORDER is load-bearing** — a song level with letter `d`/`e` must keep the
+call-response cadence (`callResponseMeasures * 2`), because `applyLevelVariant` also rewrites its
+`numMeasures` to the call GROUP size. The branch is **unconditional**: every song level generates in
+2-measure chunks whether or not it is adaptive (Han Q1). `blockCountFor` therefore goes 1 →
+`ceil(totalMeasures / 2)` (3…15 for the shipped songs) even at 1×, which alone is what gives the
+decider real boundaries.
+
+**No `levels.json` edit.** Re-authoring `numMeasures` as a chunk size — the literal #1166 shape —
+would break three consumers that read it AS the song's length (`normalizeLevel`'s
+`totalMeasures ?? numMeasures`, `applyLevelVariant`'s `callResponseOverrides`
+(`totalMeasures: lvl.numMeasures * 2`, the §1155 "de akkoorden zijn op" fix), and
+`useLevel.applyConfig`'s `setNumMeasures`), and pinning the song length into levels.json instead
+would break §871's SSOT (§6c). So the song's cadence is stated in the pure policy module that
+already owns three such per-level-SHAPE cadences.
+
+**2. The runway — `levels.js` `applyLevelVariant`.** The `lvl.songId == null` exclusion on
+`adaptiveRepeats` is gone; the condition is now `lvl.sideScroll && lvl.totalMeasures > 0`.
+(`!sideScroll` stays excluded for its own separate reason: a static level never consults the
+controller, so a longer one is pure padding.) Flat `ADAPTIVE_LEVEL_REPEATS = 3` for every song, no
+per-song budget (Han Q2).
+
+*Why the exclusion existed, and why removing it is safe:* it was written because a song level's
+per-block treble slice is deliberately UNWRAPPED, so tripling `totalMeasures` while the slimes stopped
+at the song's true end would have left the wave target unreachable — the §289 "level never ends" bug
+class. #1168 removes the **premise**, not the guard: the content is now genuinely 3× long (point 4
+below), and `wavesForLevel` is 1 either way, so there is nothing left to strand. The original comment
+is preserved in `levels.js` with this update appended (CLAUDE.md §4).
+
+**3. The period stamp — ONE new level field.** `adaptiveOverrides` additionally stamps
+`contentPeriodMeasures: lvl.totalMeasures` — the **un-multiplied** content period, written in the one
+place that does the multiplication. Exactly the "the original value must survive the override"
+pattern `adaptiveBaseBpm` already uses for the authored tempo. It is `undefined` for every
+non-adaptive level, which is what makes every non-adaptive path collapse to today's behaviour **by
+construction** rather than by coincidence. (A deliberate deviation from the design note, approved by
+Han: the design proposed a *second* field `songMeasures` on `songLevelDefaults` for the source repeat.
+With two fields, a **d/e call-response song** — whose content period is its DOUBLED length, not the
+song's own — would have computed a repeat count of 2 and pointlessly materialised a doubled source on
+a path that must stay unchanged. One field removes that class of coupling entirely.)
+
+**4. The two readers — `useLevelContentStream.js`.** Both derived once per effect run:
+
+```js
+const contentPeriod  = Math.max(1, lvl.contentPeriodMeasures ?? totalContentMeasures);
+const contentRepeats = Math.max(1, Math.round(totalContentMeasures / contentPeriod));
+```
+
+- **The chord period.** `songMeasureCount: contentPeriod` (was `Math.max(1, totalContentMeasures)`).
+  `generateBlock`'s `'song'` strategy wraps chords by `(measure mod songMeasureCount)`; handed the ×3
+  total it would never wrap, and the chords — and with them the cello, which follows them via
+  `force_chord_roots` — would run dry after pass 1. That is literally the §1155 *"Sakura d/e: de
+  akkoorden zijn op"* bug shape. For a d/e song `contentPeriodMeasures` is undefined and this stays
+  the doubled total, which is correct because `handleLoadSong` doubles the chord progression to match.
+- **The song SOURCE.** The song is concatenated `contentRepeats` times at exactly
+  `contentPeriod * measureLengthTicks` per pass — **seamless**, repeat-sign style: no bar of rest, no
+  padding measure, no new notation (Han Q5). The concatenation reuses `appendChunk`, the same helper
+  every track's publish path already uses (§6c: no third melody slicer/concatenator).
+
+#### The invariant: WHY THE LEVEL STILL ENDS (§289)
+
+The wrap is materialised **in the SOURCE, never in the slicer**. `songSlice` keeps its existing
+**UNWRAPPED** `sliceMelodyByRange` call with the same window arithmetic, so the guard the code has
+always carried — *"past the source's last measure the slice is empty, so a song never silently
+repeats"* — stays **literally true**, now against a source that genuinely is 3× long. The full chain:
+
+1. `totalMeasures` = songLen × 3 → `blockCountFor` = `ceil(3·songLen / 2)`, **finite**; the stream
+   stops generating.
+2. The treble source spans exactly 3 passes → every block has real content up to the 3× end and empty
+   slices after it → `slimeData.length` (`total`) stops growing.
+3. `wavesForLevel` is still `() => 1` → SheetRpgLayer's cumulative `killedCount >= total` fires ONCE,
+   `onWaveCleared` arms `pendingSongEndRef`.
+4. `levelFullTotalMeasures` = `lvl.totalMeasures` → `trebleFinalBarTick` sits at the 3× end →
+   `onSongEnd` when that barline crosses the strike line → the result screen.
+
+A **modulo slicer** would have INVERTED that guard into "never empty" — the exact property that makes
+the level's end provable. That is why it was rejected. A block straddling a repeat seam gets both
+halves for free, with no special case.
+
+A **gated** song level (ids 1/2) keeps `blockCountFor === Infinity` by design (§867: content must
+never run out while the scroll waits for the player); there, "the level ends" rests entirely on the
+treble stopping at the 3× end, which it does — pinned by an integration test.
+
+#### Han's six locked answers (2026-09-01)
+
+| Q | Answer |
+|---|---|
+| Q1 | **2-measure chunk for ALL song levels**, not gated on letter `i`. |
+| Q2 | Flat `ADAPTIVE_LEVEL_REPEATS = 3` for every song — no per-song budget, no cap logic. |
+| Q3 | Chunk = **2 measures flat**, not the level's `visibleMeasures`. Revisit only on UAT feel. |
+| Q4 | Song + `i` + no ANPM = **0.7× the song's authored tempo**, the same rule as procedural. Zero code: `baselineAdaptiveBpm`'s `NO_ANPM_BASELINE_FACTOR` branch already works against `lvl.bpm`, which for a song level IS `songDef.defaultTempo` via `songLevelDefaults`. No song branch. |
+| Q5 | **Seamless** repeats (repeat-sign style), no bar of rest, no new notation. |
+| Q6 | **No special-casing** for very long (La Bamba, 29 bars) or very short (level1-intro, 5 bars) songs. |
+
+#### The one accepted side effect (Han Q1, explicitly acknowledged)
+
+Song levels **1, 2, 200–206** now generate their **cello / bass line in 2-measure blocks** instead of
+one song-length block. Same generator, same `InstrumentSettings`, same chords underneath — but
+`generateNextSeries` rolls once per block, so **the cello line sounds different from before**. Not a
+regression: this is the same accepted side effect (a) of #1165 and the #1166/§353 ramp migration, now
+applied to the song levels. **Treble, chords, metronome and timpani stay byte-identical**: the treble
+is the song's own notes replayed verbatim (the union of contiguous slices IS the whole song), the
+chords come from the same per-measure `'song'` modulo, the metronome is a chunk-size-independent
+deterministic click track (`generateMetronomeChunk`, still outside `generateBlock`), and the timpani is
+sliced from one pattern built over `leadInBars + totalMeasures` (#1167/§356).
+
+#### What deliberately did NOT change
+
+- **The lead-in** — `leadInSpecFor` is still separate from `blockMeasuresFor`; cello+timpani on every
+  lead-in bar, metronome on the second half (Han's §248 rule).
+- **The wave model** — `wavesForLevel === () => 1`. **No file under `src/components/sheet-music/` is
+  touched by this ticket.**
+- **Routing** — the song's chords still go through `generateBlock`'s existing `chordStrategy: 'song'`,
+  and the song's treble still reaches the pipeline via `trackSpecsForLevel`'s
+  `randomizationRule: 'fixed'` + `fixedOstinato.treble`. No new routing key, no `source:` enum
+  (§6b/§6c: no per-instrument branching anywhere — the one new branch is a per-level-SHAPE cadence).
+- **Every procedural level**, adaptive or not, and **every d/e call-response run**: `contentRepeats`
+  is 1 and `songSource` is literally the same object reference as `songMelody`, so nothing is
+  allocated and nothing is copied.
+
+#### Rejected alternatives
+
+- **`numMeasures: 2` in levels.json / `songLevelDefaults`** — destroys the one field carrying the
+  song's length and breaks the three consumers listed above. Bigger blast radius, zero behavioural
+  gain.
+- **A per-block modulo slice of the song treble** (mirroring `sliceSongChordsModulo`) — works, but
+  needs a wrap-aware slicer at a second call site and inverts the §289 "empty past the end" guard.
+- **A bounded `loopForever` inside the stream** — the same alternative §354 already rejected for
+  procedural levels; it would still have to move `totalMeasures` / `levelFullTotalMeasures` anyway.
+- **Deriving the chord period from the chord melody's own tick span** — silently shrinks if a song's
+  last measures carry no chord.
+
+#### Known, pre-existing, deliberately-unfixed gaps (verified inert here)
+
+`appendChunk` does not carry `triplets` or `fermatas`, and `sliceMelodyByRange` does not carry
+`lyrics`. Both predate this ticket and are live for every track since #1165. They are inert for
+#1168: **no song under `src/songs/data/` ships a `triplets` array**, **every level sets
+`polyMultiplier: 1`**, and the 1× path never reaches the new concatenation at all
+(`contentRepeats === 1` short-circuits it), so no existing path's array handling changes. Recorded
+here rather than fixed, because extending `appendChunk` would change rendering for any future tuplet
+content without UAT.
+
+**Related.** §350 (the one per-block content pipeline this all lives in), §353 (the #1166 ramp
+`numMeasures` 8 → 2 migration this mirrors for songs), §354 (adaptive tempo — its limitation 5 is what
+this section closes), §361 (the adaptive difficulty ladder that consumes the extra block boundaries).
+
+**Files.** `src/levels/levelBlockPlan.js` (`SONG_BLOCK_MEASURES`, the branch, the cadence note's
+fourth bullet), `src/levels/levels.js` (`adaptiveRepeats` scope, `contentPeriodMeasures`, the
+`callResponseOverrides` tripwire comment), `src/hooks/useLevelContentStream.js` (`contentPeriod` /
+`contentRepeats`, the repeated `songSource`, `songMeasureCount`).
+Tests: `src/levels/__tests__/levelBlockPlan.test.js` (the cadence, the branch-order guard, the whole
+song roster), `src/levels/__tests__/levelVariants.test.js` (the old "does NOT repeat a SONG level"
+case INVERTED, not deleted, + the adaptive-only period stamp),
+`src/levels/__tests__/levels.test.js` (the `numMeasures`-means-song-length tripwire),
+`src/hooks/__tests__/useLevelContentStream.test.js` (fake song widened 4 → 6 measures so the "grows
+one block at a time" case still tests something; the "reassembles the song EXACTLY" case unchanged
+and green; new: 3× verbatim + seamless offsets, "and stops there", the 1×-not-materialised guard, and
+the `songMeasureCount` pins for 3× / plain / d-e),
+`src/hooks/__tests__/adaptiveMode.integration.test.js` (a real Sakura `i` run: `blockCountFor(lvl)`
+evaluations instead of one, 3× verbatim treble, every track switching at the same block, generation
+terminating — plus a non-adaptive song run and a gated song level).
+
+**UAT round 2 (Han 2026-09-03) — "ik hoor 4 metronomen/cello's op net andere tempo's": see §369.**
+Going from ONE block per song level to twenty-one turned a latent, previously-inaudible defect
+(`useLevelContentStream` restarting its JIT chain from block 0 against an already-elapsed
+`contentStartTime`, whose past-due schedules `playMelodies` CLAMPS to "now" instead of skipping)
+into an audible pile-up of every elapsed block at every tempo the ladder had visited. Fixed by a
+past-due guard at `scheduleInto`; the cadence and the 3× runway described above are unchanged.
+
+### §367. The ladder's GATED PACING rung — rubato rescue at the bpm floor, and the return to timed (#1120, Han 2026-09-01)
+
+**Purpose.** §361's difficulty ladder walks a struggling player down two knobs — the tempo to the
+clamp FLOOR (`baseBpm/2`), then the note density to a SKELETON line. Han's #1120 answer is that the
+ladder does not stop there: *"de ladder gaat door voorbij de bpm-floor."* Once slowing down and
+thinning out have both been exhausted and the player is STILL under `SLOW_DOWN_ACCURACY`, the level
+stops asking them to keep up at all and switches PACING MODEL: the scroll starts WAITING for each note
+(the rubato/input-paced `gatedScroll` behaviour levels 1/2 already author) instead of running the
+clock. It is a rescue, not a punishment — and it is **not terminal**: when the player demonstrably
+plays in time again, the level hands itself back to timed pacing and the ladder climbs from there.
+
+**Where the rung sits.** At the very bottom of the ONE monotone scale in §361 — never a second
+controller and never a parallel state machine:
+
+| rung | position | knob |
+|---|---|---|
+| **0 (easiest)** | **gated pacing @ skeleton density @ floor bpm** | **`pacing` (#1120)** |
+| 1 | floor bpm, density climbing back to authored | `densityStep` (#1121) |
+| 2 | authored density, bpm floor→ceiling | `bpm` (#1102) |
+| 3 (hardest) | ceiling bpm, density above authored | `densityStep` (#1121) |
+
+So THREE conditions must ALL hold before a level can gate: `bpm === floor` **and**
+`densityStep === MIN_DENSITY_STEP` **and** the block accuracy is still `< SLOW_DOWN_ACCURACY`. You
+cannot stumble into it one notch early — asserted directly (`adaptiveLadder.test.js`, "gates ONLY
+from (floor bpm, skeleton density, still struggling)").
+
+**Scope — ONE predicate, `gatingAllowed(lvl)`** (`src/levels/adaptiveLadder.js`):
+`adaptive && sideScroll && !songId && !gatedScroll && enemyType ∉ {Wizard, Mixed}`. A song-backed
+treble is sliced `randomizationRule: 'fixed'`; a level that AUTHORS rubato starts gated so the rung is
+unreachable for it (levels 1/2 are byte-identical to before this ticket); and Wizard/Mixed are
+excluded because there is no gate-aware cast timing — the cast would fire on its own fixed schedule
+into a frozen screen, which is exactly why `availableVariantLetters` already refuses the
+gated+wizard combination (Han q6). The graceful consequence, and it needs no special case: an adaptive
+Wizard/Mixed or song level simply **PARKS** at (floor, skeleton) and never gates.
+
+#### The HIDDEN TRUE GRADE — why the obvious exit signal is dead
+
+Han's q3 answer was *"keep computing the real deltaMs-based grade under the hood while the visible
+grade stays force-'perfect', and exit when the hidden grade is perfect on ≥8 of the last 10 notes."*
+Taken literally that condition is **true 100% of the time**, and the plan_review bounce settled the
+mechanism (Han approved it verbatim):
+
+> The gate does not merely relabel the grade — **it FREEZES THE CLOCK.** `SheetRpgLayer` pins `tRawMs`
+> at `gatedFreezeStartRawMs` the instant the earliest unresolved slime reaches its own arrival
+> instant, and the delta the combat effect grades with (`elapsedMs − (beat + beatsOnScreen)·beatMs`)
+> is computed from that frozen clock. So `target.delta` is ~0 — at most one frame — for every gated
+> hit NO MATTER how long the player actually sat there. At a 40-bpm floor `gradeHit`'s perfect window
+> is ±187 ms, so a naive re-grade returns `'perfect'` forever.
+
+**The fix, and it invents nothing.** `hiddenTimingGrade` (`src/levels/gradeHit.js`) adds back the real
+frozen time — the exact value the unfreeze branch one line further down already computes to fold into
+`gatedPauseAccumMsRef`:
+
+```
+frozenExtraMs = gatedFrozen ? (rawTRawMs − gatedFreezeStartRawMs) : 0     // the never-frozen raw clock
+hiddenGrade   = gradeHit(target.delta + frozenExtraMs, beatMs)?.category  // the ONE grader (§6c)
+```
+
+A player hitting notes as they arrive, whom the gate never had to wait for, grades `'perfect'`; a
+player the gate waited 400 ms for does not. `gradeHit` stays the single timing grader — it is now
+called on EVERY side-scroll kill, gated or not, never duplicated into a second formula.
+
+**ORDER MATTERS** in `SheetRpgLayer`'s combat effect: `frozenExtraMs` is read BEFORE the unfreeze
+branch mutates `gatedFrozenRef`/`gatedPauseAccumMsRef` and arms the catch-up ramp.
+
+**Second attempts (the one place the two grades differ in KIND, not strictness).** A corrected second
+attempt counts as **not perfect** in the hidden buffer however well the correction itself was timed —
+the player needed two tries — while the RECORDED grade still reports `secondAttemptCorrected` to stats
+exactly as before. Without this the exit is trivially satisfied by anyone who eventually presses the
+right key.
+
+**The exit rule.** `shouldExitGated(hiddenGrades)`: at least `GATED_EXIT_REQUIRED` (8) of the last
+`GATED_EXIT_WINDOW` (10) hidden grades are `'perfect'`. A **partially filled** window can never exit
+(edge case c): three perfect notes since gating is evidence the player has barely started, not that
+they have recovered. On exit the ladder resumes at exactly (floor bpm, `MIN_DENSITY_STEP`, `'timed'`)
+and climbs through §361's ordinary HARDER rules — **content back first, then tempo**.
+
+**Anti-flap.** `GATED_REENTRY_COOLDOWN_BLOCKS = 1`: at least one graded boundary must pass in timed
+pacing after an exit before the ladder may gate again, so one bad block right afterwards cannot make
+the pacing model flicker. The counter (`blocksSinceGatedExit`) is bookkeeping owned by
+`useAdaptiveDifficulty`, not a rung — it is deliberately NOT part of the "did anything change?" test,
+so a bump in it can never manufacture a commit. It starts at `Infinity` on `begin()` so the FIRST
+gating of a run is never blocked, and resets to 0 when the exit actually LANDS.
+
+**The buffer.** An App-owned ref (`hiddenGradesRef`), written imperatively per hit by `SheetRpgLayer`
+via `pushHiddenGrade` — the same convention as `gatedElapsedMsRef`, never React state (a re-render per
+keypress would tear down the RPG layer, §6). It is CLEARED on every pacing flip, which is what makes
+the rule mean "8 of the last 10 notes **since gating**". `pushHiddenGrade` lives next to
+`shouldExitGated` so the window size has exactly one definition.
+
+#### The flip: one decision, two moments — and nothing is ever cancelled
+
+The pacing rung rides the **existing** `commitIndexFor` + armed-`setTimeout` machinery that already
+lands `setBpm` (§354, §361) — the same commit object, the same `delayMs`, the same staleness re-check.
+There is no second timer. `evaluate` is called from inside block *k*'s own generation with
+`fromMeasure: (k+1)·B`, so the commit lands on a block that has **not been generated yet**: blocks
+already generated and scheduled simply play out at their own pacing, and **nothing already scheduled
+is ever cancelled**. The audio moment (this block's backing skips the fixed schedule) and the visual
+moment (`SheetRpgLayer`'s `gatedScroll` prop flips) are armed for the same block start time, so
+picture and sound switch together.
+
+**`pacingMode`** is plain app state in `App.jsx`. It must NEVER enter `useLevelContentStream`'s
+dependency array — that would tear the whole JIT schedule down mid-level (§289). The stream does not
+read it at all: a block is generated a screenful before it sounds, so the stream asks the CONTROLLER
+what the pacing will be at THAT block (`blockSettingsFor`). `lvl.gatedScroll` is never mutated and
+`level.current`'s identity never changes.
+
+**The FOUR consumers of the combined value** `gatedNow = level.active && (lvl.gatedScroll || pacingMode === 'gated')`,
+computed once in `App.jsx` and never re-derived per site (§6c):
+
+1. `SheetMusic`/`SheetRpgLayer`'s `gatedScroll` prop → `geomRef` → the scroll freeze.
+2. `showExpectedNoteGlow` (the due-piano-key glow, §1052's fourth follow-up) — a ladder-gated level IS
+   gated, and withholding the glow would make the rescue feel like a different, worse mode.
+3. `useLevelGatedRubatoAudio`'s `active` — the real-time cello/timpani trigger.
+4. …and the content stream's own guards, which are per-BLOCK instead (see below), for the reason above.
+
+**Han's §867 rule holds unchanged: NO metronome while gated** (*"wel timpanen, geen metronoom"*, q4).
+A click track is actively misleading when the scroll is waiting for you — there is no tempo to aim at.
+Timpani keeps sounding off the gate clock, exactly as on levels 1/2.
+
+**THREE fixed-schedule guards, now per-block.** Inside `generateAndScheduleBlock`:
+`fixedSchedule = !lvl.gatedScroll && ladder.pacing !== 'gated'` — one boolean, used at the cello, the
+metronome AND the timpani. The timpani one is the guard the design note originally missed: without it
+every post-flip block would have kept putting timpani on the clock while `useLevelGatedRubatoAudio`
+fired it off the gate clock too — audible double timpani, drifting apart. `timpaniEnabled` /
+`timpaniPattern` keep their BUILD-time `!lvl.gatedScroll` condition (an authored gated level builds
+nothing; §356's "the pattern stays FINITE" is untouched); only the SCHEDULING is per-block. The
+LEAD-IN's three guards stay bound to the authored field on purpose — the lead-in is always at the
+level's very start, where the ladder's pacing is always `'timed'`.
+
+#### ⚠ THE HARD INVARIANT — the ladder NEVER sets `loopForever`
+
+`loopForever` (`useLevelContentStream`) and `blockCountFor`'s `Infinity` (`levelBlockPlan.js`) stay
+bound to the **AUTHORED** `lvl.gatedScroll` FIELD ALONE. The pacing rung must never reach either.
+
+*Why.* An infinite stream is safe for the SHIPPED gated levels (1/2) only because they are `songId`
+levels whose treble slice is unwrapped and therefore stops growing at the song's true end — so
+`SheetRpgLayer`'s `total` stabilises and `killedCount >= total` can eventually fire. A **procedural**
+level (exactly this ticket's scope) has no such stop: its `total` (`slimeData.length`) grows with the
+stream, so an infinite stream means the level can **NEVER END** — §289, whose bug class has already
+bitten this codebase three times.
+
+*Why the finite plan is safe while the scroll is frozen.* Generation is DEADLINE-driven in real time,
+not scroll-driven: while the gate waits, the generation deadlines still pass, so the level's finite
+content is simply generated EARLY and then waits for the player. They eventually reach the final
+barline and the level ends through exactly the paths that already exist. A ladder-gated level keeps its
+ordinary finite block plan (`totalMeasures × ADAPTIVE_LEVEL_REPEATS`) and merely takes longer in real
+time. **Asserted by a test**, not reasoned about once and forgotten
+(`adaptiveMode.integration.test.js`, "THE HARD INVARIANT").
+
+#### The tempo-normalized gate clock, and live-bpm rubato audio
+
+`useLevelGatedRubatoAudio` derives the measure the cello should be singing as `elapsedMs / barMs`.
+Both halves of that division were wrong for a ladder-gated level, and both are fixed:
+
+- **`barMs`/`beatMs` now derive from the LIVE bpm, inside the rAF loop** (`bpmRef`, read fresh every
+  frame) instead of a `lvl.bpm` captured once in the effect. A ladder-gated level's tempo is the
+  adaptive FLOOR, not `lvl.bpm`, so the captured value put the cello on a bar of the wrong length.
+  This is the same "re-read the live value at the top of each scheduling unit" pattern the content
+  stream uses per block and `Sequencer.scheduleBlock` per measure. `bpmRef` is a stable ref OBJECT, so
+  listing it in the dependency array cannot restart the loop; the bpm STATE must never appear there —
+  that would re-arm the effect on every tempo commit and re-open the #1096 "extra cello" bug.
+- **`gatedElapsedMsRef` is now TEMPO-NORMALIZED**, through `tempoNormalizedMs` with its **OWN anchor**
+  (`gateTempoAnchorRef`, beside `tempoAnchorRef` in `SheetRpgLayer`). A ladder-gated level's bpm has
+  already walked from `lvl.bpm` down to the floor across many blocks before gating, so the accumulated
+  RAW elapsed corresponds to NO single `barMs`. A separate anchor — not the scroll's — because
+  `tempoScrollMs` also subtracts `waveStartRef * INTERVAL_MS`, and reusing it would change Level 3's
+  (multi-wave, authored-gated) cello behaviour.
+
+The two halves are consistent BY CONSTRUCTION: `tempoNormalizedMs`'s contract is "the number that,
+divided by the CURRENT `beatMs`, yields the true beats elapsed". For every constant-tempo level the
+anchor's `beats`/`rawMs` both stay 0 and it returns `rawMs` unchanged — so **levels 1/2/3 are
+byte-identical**, asserted directly (`useLevelGatedRubatoAudio.test.js`, "is BYTE-IDENTICAL at a
+constant tempo").
+
+#### Edge cases
+
+a. **The level ends WHILE gated** — the final barline still crosses (finite content, above) and the
+   result screen appears normally.
+b. **Gating armed but the level ends first** — the controller's `cancel()` already drops any unlanded
+   commit on level end/replay; inherited unchanged, and it drops the pacing half with it.
+c. **Fewer than `GATED_EXIT_WINDOW` hits since gating** — cannot exit; a partially filled window
+   returns `false`.
+d. **A second-attempt correction while gated** — not perfect in the hidden buffer (see above).
+e. **Pause / resume / replay** — `pacingMode` resets to `'timed'` (and the buffer clears) in
+   `startLevel`, `handleReplayLevel` and the level-end effect, beside the existing
+   `adaptiveDifficulty.begin()`/`cancel()` calls. A fresh run always starts on the clock.
+f. **ANPM** — a gated run reports ~100% accuracy and is player-paced, i.e. a clean-but-slow sample, so
+   under §358's rule ANPM **HOLDS**. A rubato rescue can never punish the player's skill number. That
+   is intended, not a loophole.
+
+#### What must NOT change (and is asserted)
+
+- The RECORDED grade while gated stays `'perfect'`. Stats, the judgment popup, the result screen, the
+  L/R split charts and the ANPM sample are byte-identical; the true grade is a hidden signal only.
+- A level that AUTHORS rubato behaves exactly as before (no metronome, no fixed-schedule cello, no
+  timpani from the stream's schedule).
+- `lvl.gatedScroll` is never mutated; `level.current`'s identity never changes; the content stream is
+  never torn down mid-level.
+- Gated pacing and the BASS density rungs can never both be active — they sit at opposite ends of one
+  totally ordered scale (gating requires `MIN_DENSITY_STEP`, the bass rungs require
+  `> MAX_TREBLE_DENSITY_STEP`). This matters concretely: `useLevelGatedRubatoAudio`'s cello logic
+  assumes exactly one whole note per measure and would mis-trigger a busier bass line.
+
+**Files.** EDIT `src/levels/adaptiveLadder.js` (`GATED_EXIT_WINDOW`/`GATED_EXIT_REQUIRED`/
+`GATED_REENTRY_COOLDOWN_BLOCKS`, `gatingAllowed`, `shouldExitGated`, `pushHiddenGrade`, the gated
+branch + EASIER rule 4 in `evaluateLadder`). EDIT `src/levels/gradeHit.js` (`hiddenTimingGrade`).
+EDIT `src/hooks/useAdaptiveDifficulty.js` (`setPacingMode` on the SAME armed commit,
+`blocksSinceGatedExit`, `hiddenGrades` forwarded). EDIT `src/hooks/useLevelContentStream.js`
+(`hiddenGradesRef` prop, the per-block `fixedSchedule` guard at all three sites, the `loopForever`
+invariant comment). EDIT `src/hooks/useLevelGatedRubatoAudio.js` (`bpmRef`, live `barMs`/`beatMs`).
+EDIT `src/components/sheet-music/SheetRpgLayer.jsx` (`hiddenGradesRef` prop, the hidden-grade write,
+`gateTempoAnchorRef` + the tempo-normalized `gatedElapsedMsRef`). EDIT
+`src/components/sheet-music/SheetMusic.jsx` (forwards `hiddenGradesRef`). EDIT
+`src/levels/levelBlockPlan.js` (the `blockCountFor` invariant comment). EDIT `src/App.jsx`
+(`pacingMode` + `setPacingMode` clearing the buffer, `hiddenGradesRef`, the combined `gatedNow` at its
+three render consumers, the three resets). Tests:
+`src/levels/__tests__/adaptiveLadder.test.js` (+13: entry, scope/park, cooldown, the exit window,
+"gated is not terminal", mutual exclusion), `src/levels/__tests__/gradeHit.test.js` (+5: the frozen
+delta, the timed identity, second attempts), `src/hooks/__tests__/useAdaptiveDifficulty.test.js` (+8:
+the walk to the bottom, ONE armed moment for bpm+pacing, the exit, the cooldown, `cancel`/`begin`, the
+Wizard park), `src/hooks/__tests__/useLevelGatedRubatoAudio.test.js` (+4: byte-identical at a constant
+tempo, a halved tempo, no loop restart), `src/hooks/__tests__/adaptiveMode.integration.test.js` (+7,
+including the MANDATORY "THE HARD INVARIANT: the ladder NEVER sets `loopForever`" regression).
+
+### §368. Night look — UAT round 3: firefly light centred, wisp bluer, foliage shimmer tracks day/night (Han 2026-09-03)
+
+Three more artefacts on top of §364.
+
+**1 — the firefly glow sat at the sprite's bottom, not its centre.** §364 placed the moving light at
+`LEVEL_PX_HEIGHT - p.y`, where `p.y` (from `WorldWanderer`) is the sprite's BOTTOM edge (top-down world
+Y, same convention as campfire tiles). Now `+ (fireflyVariant.frame.h ?? 16) / 2` → the sprite's centre.
+(Wisp/hero were already centred in §364 item 3 — `groundHeightAt + halfCropH`.)
+
+**2 — the wisp point light didn't read as blue next to the campfire.** `WISP_LIGHT_COLOR01` was
+`[0.39, 0.39, 1.0]` — a pale blue that the bright warm campfire light (`[1.0, 0.55, 0.15]`,
+`uLightStrength` 1.5) washed out where the two overlap. Deepened to `[0.2, 0.4, 1.0]` (R/G well below B).
+Colour only — there is still no per-light strength (`uLightStrength` is one global value); revisit with a
+per-light strength array if it still loses the fight near the fire.
+
+**3 — the foliage shimmer looked wrong at night ("veel horizontale strepen").** The wave highlight bakes
+a near-white `HIGHLIGHT_COLOR` (`vec3(1.0, 1.0, 0.95)`) into `trueColor` BEFORE the ambient darken; at
+night `applyMoonLight` then reveals that white band back out over the very dark foliage → harsh bright
+quantised stripes. Fix (Han's own colours): the **instanced** shader path (LDtk foliage — trees) now
+uses `mix(vec3(49,78,158)/255, vec3(112,255,153)/255, uGlobalIllumination)` — day mint, night blue — so
+the wave bands read as a gentle hue shimmer instead of white stripes. The **non-instanced** path (water +
+legacy foliage) is untouched — water keeps the white `HIGHLIGHT_COLOR` (Han: "laat water onveranderd").
+No new uniform — `uGlobalIllumination` is already in the shared `LIGHTING_PARAM_UNIFORMS_GLSL`.
+
+**Files.** `src/components/character/RpgLevelPanel.jsx` (`WISP_LIGHT_COLOR01`, firefly light
+`worldHeight`), `src/components/character/ForegroundFoliageLayer.jsx` (instanced `FRAGMENT_SRC_INSTANCED`
+shimmer colour). `npm run test:run` 1367 pass / 1 skip · `build` clean · `lint` 0 errors.
+
+**Round 2 (Han: "De illum moet als allerlaatste worden toegepast! Dus ná pixel switch en shimmer. De
+pixels in de boom steken nog steeds hard af, ik zie soms fel-groene pixels ... echt horizontale
+strepen").** The §368 colour change wasn't enough — the *effect order* was the real bug.
+
+- **Effect order (instanced / foliage shader only).** OLD: shimmer baked into `trueColor`, then
+  darkened, then `applyPointLights`/`applyMoonLight` *revealed* `trueColor` (= the shimmered colour)
+  back out at full brightness. The "Color" wave-blend recolours bright foliage pixels to the shimmer
+  hue, and the moon then re-lit those into fel-groene pixels and hard bands. NEW: the lights/moon
+  reveal the **plain diffuse** only; the shimmer (`blendHighlightDual` + white-cap) is applied **last**,
+  on top of the fully lit+darkened colour — so at night it can only ever be a faint scene-matched
+  sheen. The non-instanced path (water) keeps its original order — "water onveranderd".
+- **Horizontal stripes.** `applyMoonLight` (shared GLSL) followed the full per-texel normal map, so the
+  per-tile normal-map seams between the stacked 16-px foliage tiles carved visible horizontal stripes
+  once moonlit. The moon now uses `normalize(mix(FLAT_NORMAL, normal, 0.4))` — a broad soft wash that
+  follows the overall shape, not per-tile relief detail.
+- Files r2: `src/components/character/ForegroundFoliageLayer.jsx` (instanced `main()` reorder),
+  `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` normal flatten — shared, so
+  `LdtkLitGround`'s moon softens too). `test:run` 1367 pass · `build` clean · `lint` 0 errors.
+
+**Round 3 — the stripes were a wrong-UV normal-atlas sample (Han: "een probleem met het lijmen van de
+normal-maps? ... die is opgebouwd in stroken").** The instanced foliage shader binds `uNormal` to the
+shared **atlas** `normalCanvas`, but its `normalUV` was tile-local `[0,1]` — code inherited verbatim
+from the NON-instanced path, where `uNormal` is a genuine per-tile texture and `[0,1]` is right. So
+every foliage instance sampled the SAME `[0,1]` slice of the packed atlas — a full vertical scan across
+every packed row = the atlas's strip layout smeared onto every tile → the horizontal stripes (worst at
+night, when the moon lit that garbage relief). **Fix:** map `normalUV` through `vDiffuseUV` (the
+per-instance atlas rect), identical to `duv` — the diffuse and normal atlases share one packing layout
+(`useLdtkFoliageAtlas`). Also fixes the striped debug-channel-1 (raw normal) view. With correct normals,
+`applyMoonLight`'s flatten was relaxed `0.4 → 0.75` (keep most of the real relief, a touch of soften
+for §364's "subtieler"). The X camera-pixel-snap (§364) is unrelated — that's the horizontal camera
+SCROLL (no vertical scroll exists); the WebGL tile Y positions were already edge-snapped in §364 r2.
+- Files r3: `src/components/character/ForegroundFoliageLayer.jsx` (`FRAGMENT_SRC_INSTANCED` `normalUV`),
+  `src/components/character/foliageLightingGLSL.js` (`applyMoonLight` flatten 0.4 → 0.75). `test:run`
+  1369 pass · `build` clean · `lint` 0 errors.
+
+**Note.** §366 / §367 were taken by a concurrent session (adaptive difficulty), so this is §368.
+
+---
+
+### §369. Level audio is NEVER scheduled into the past — the "4 metronomen/cello's" pile-up (#1168 UAT round 2, Han 2026-09-03)
+
+**Symptom (Han, UAT of #1168 on Sakura = level 205 + letter `i`).**
+*"bij sommige maten gaat het helemaal bad: ik hoor 4 metronomen/cello's op net andere tempo's.
+Gebeurt na een tempowisseling. Bijvoorbeeld op maat 27."* — at some measures several cello and
+metronome tracks sound simultaneously at slightly different tempos, after an adaptive tempo commit.
+HIGH severity; it blocked #1168's UAT.
+
+**What it is NOT.** The `test`-note's working hypothesis ("something from #1120's `pacingMode` or
+#1121 crept into `useLevelContentStream`'s dependency array, so a tempo commit re-runs the effect")
+was measured and **ruled out**. Instrumented live in a real browser (Playwright against the dev
+server: every effect run/cleanup with a per-dependency diff, every `playMelodies` schedule with its
+requested start vs the clock at call time, every armed/landed ladder commit), a 200-second Sakura +
+`i` run — passive *and* stats-driven, through six tempo commits and nineteen blocks — is completely
+clean: the effect runs **once**, there is exactly **one** schedule per (track, block), and every
+requested start is in the future. A tempo commit changes nothing in the dependency array, and the
+block chain never forks. #1120 and #1121 are not implicated.
+
+**Root cause — `playMelodies` CLAMPS a past start instead of skipping it.**
+`playMelodies` computes `adjustedStart = Math.max(scheduledStart, currentTime + safetyBuffer)`. That
+clamp is correct for the Sequencer, which schedules a measure at a time on a short horizon and must
+never hand smplr a moment the audio thread has already passed. It is **actively harmful** for a
+level, which hands over whole blocks many bars ahead: there, "this block's moment has passed" is
+silently converted into *"play this entire block RIGHT NOW"*.
+
+That becomes audible the moment `useLevelContentStream`'s effect is torn down and re-run **after the
+level's audio has started**. The chain then restarts from `generateLeadIn()` and
+`generateAndScheduleBlock(0, contentStartTime)` against the ORIGINAL, long-elapsed
+`contentStartTime`, and:
+
+* every elapsed block's `scheduledStart` is in the past → clamped to the same instant, so they all
+  sound **together**;
+* each one still carries the bpm **its own block** was generated at (`blockSettingsFor` returns the
+  live ladder position), so the pile-up is at several *different* tempos — Han's "op net andere
+  tempo's" is literally the ladder's history playing at once;
+* `generateAt` is in the past for all of them too, so `delayMs` clamps to 0 and the whole elapsed
+  span is regenerated in one burst rather than over time;
+* the elapsed block's own ladder read arms the app-wide `setBpm` with `delayMs` 0, so the tempo
+  jumps at that same instant.
+
+Forced once, deliberately, at content measure ~26 of a live Sakura + `i` run (one dependency
+identity change, nothing else): **eleven schedules — lead-in plus blocks 0-9 — all past-due, all
+clamped to the same moment, at three different bpms (50 / 40.7 / 38.7).** That is the reported
+sound, reproduced exactly.
+
+**Why it is a #1168 regression, even though the defect is older.** Only the BLAST RADIUS is new.
+Before #1168 a song level was ONE generation chunk (`blockMeasuresFor` fell through to
+`numMeasures`, which for a song level is the song's own length, §366), so the same latent restart
+re-scheduled exactly one block, at one tempo, whose start IS `contentStartTime` — inaudible in
+practice, and never reported. `SONG_BLOCK_MEASURES = 2` makes Sakura + `i` twenty-one blocks, so the
+identical restart now re-schedules **every already-elapsed block at every tempo the ladder has
+visited**. The trigger (which dependency changed in Han's session) is not the bug: a level whose
+audio has started must survive a restart, and it did not.
+
+**Fix — one guard, at the one seam, plus the ladder consequence.**
+
+1. `SCHEDULE_SAFETY_BUFFER_SECONDS` moved out of `playMelodies`'s function body into
+   `src/constants/timing.js` (the timing SSOT, CLAUDE.md §8/§6c). Both the clamp and the new guard
+   now read the SAME threshold, so the guard cannot fire on a slightly different condition than the
+   clamp it exists to prevent.
+2. `useLevelContentStream`'s `scheduleInto` — the single seam every level track passes through
+   (lead-in cello/metronome/timpani, per-block cello/metronome/timpani, the Wizard cast preview) —
+   **drops** a schedule whose heard-at moment is already past, instead of handing it to
+   `playMelodies`. Placed in `scheduleInto` and not at the six call sites so no future track can
+   reintroduce the pile-up. `isPastDue(heardAt)` subtracts `outputLatencySeconds(context)` first,
+   because every audio time in that file is a "heard at" time (§355).
+3. A block whose moment has passed (`alreadySounded`) no longer takes part in the LIVE machinery: no
+   `blockSettingsFor` read (so it can never arm `setBpm` with a zero delay) and no
+   `adaptiveDifficulty.evaluate` (so a restart cannot hand the decider a burst of fake block
+   boundaries in one tick and corrupt its cumulative-snapshot diffing). It **is** still generated and
+   published — append-only (§350): the staff and SheetRpgLayer's slime/kill bookkeeping need every
+   block of the timeline to exist, and after a restart the elapsed blocks are how the growing
+   Melodies are rebuilt.
+4. New error code **E035-LEVEL-AUDIO-PAST-DUE**, logged once per effect run. Dropping is the correct
+   behaviour, but a level whose audio has started should never re-enter this effect at all — so a
+   single drop is a real anomaly and now names itself in the log instead of having to be inferred
+   from a UAT report.
+
+**Invariants this establishes.**
+
+* **A level never puts audio on the clock at a moment that has already passed.** Whatever happens to
+  this effect's lifecycle, the worst case is now *silence* for the elapsed span (self-correcting from
+  the next future block boundary), never a pile-up. This also strictly improves the §166 cold-start
+  race, whose documented failure mode was the very same clamp "collapsing/overlapping the level's
+  opening bars".
+* **The past never drives the ladder.** Only a block that is still going to sound reads the adaptive
+  controller or offers it a decision.
+* **The guard is inert on the normal path.** Blocks are generated ~`lookaheadMeasures` bars ahead
+  (at least 2 bars, i.e. seconds), so nothing is ever near the threshold; pinned by a test that
+  asserts the unchanged "lead-in + exactly one schedule per content block per track" count.
+
+**Still true / deliberately NOT changed.** The effect's dependency array is untouched. Making the
+per-track settings / `scale` / `chordProgression` / `songMelody` ref-driven (so the effect could not
+be torn down mid-level at all — the "⚠ HARD CONSTRAINT" already written at the ladder read) would
+remove the *trigger* class as well, but `chordProgression` and `songMelody` arriving late are real
+start-up gates that the re-run currently resolves, so that is its own ticket, not a UAT hotfix.
+
+**Files.** `src/constants/timing.js` (`SCHEDULE_SAFETY_BUFFER_SECONDS`),
+`src/audio/playMelodies.js` (imports it instead of the inline `0.05`),
+`src/hooks/useLevelContentStream.js` (`isPastDue` + the `scheduleInto` drop + `alreadySounded`
+gating the ladder read and `evaluate` + E035), `src/hooks/__tests__/adaptiveMode.integration.test.js`
+(a restartable Sakura + `i` harness: "drops every past-due schedule instead of letting playMelodies
+clamp it to now" — verified to FAIL without the guard, with the lead-in re-issued 120 s in the past —
+and "a level that is NEVER restarted is completely unaffected"), `CLAUDE.md` (§7a: E035).
+
+### §370. Night look — deeper blue + a bright white top-left moon RIM (Han 2026-09-03)
+
+Two asks on top of §368.
+
+**1 — night darker + "echt donkerblauw".** `TIME_PHASES` night `illum` 0.10 → **0.05** (halved again).
+`AMBIENT_DARK_COLOR` 0.11/0.15/0.25 → **`vec3(0.03, 0.06, 0.17)`** — deep, saturated, low R/G. CSS twin
+`AMBIENT_DARK_RGB` → `[8, 15, 43]`. The moon rim + point lights carry readability now.
+
+**2 — a bright white moonlight RIM on the top-left 2-3 px outline, foreground AND backgrounds.**
+
+*Foreground (shader).* New shared `topLeftRimFactor(tex, duv, texelSize, uvRect)` — like `edgeLightFactor`
+but DIRECTIONAL (only a transparent neighbour toward screen-UP or screen-LEFT counts) and two-tier
+(`RIM_PX_FULL` 2 → 1.0, `RIM_PX_HALF` 3 → 0.5). Neighbour samples are clamped to the tile's own `uvRect`
+so the gap-free foliage atlas never bleeds an adjacent tile's alpha in. `applyMoonLight` signature
+changed to `(currentColor, normal, edgeFactor, rimFactor)` (the unused `trueColor` param dropped) and now
+returns `screenBlend(currentColor, MOON_COLOR * intensity)` where `intensity = max(wash, rim)`:
+`wash` = the old half-Lambert surface term at **half** strength (`MOON_WASH_SCALE` 0.5 — Han: "rim +
+zwakke wash"); `rim` = `rimFactor * (1-illum) * uMoonStrength * 3` — bright, still gated by the debug
+slider and the night factor. Wired at all four call sites (both `ForegroundFoliageLayer` shaders,
+`LdtkLitGround` with `uvRect` = whole canvas, `FoliageInstancingTest`).
+
+*Backgrounds (DOM).* The parallax bg canvases have no shader, so `LdtkScenery.drawTopLeftRim(srcCanvas)`
+bakes a white rim ONCE per composite — pure canvas compositing (`source-in` white-mask, then
+`destination-out` the shape shifted +2/+3 px so only the top-left fringe survives; 2 px full + 3rd px at
+0.5). It's blitted into a **separately-mounted** `<canvas>` per bg layer that `LdtkScenery` renders
+AFTER the §362 `multiply` darken div (a white rim UNDER a multiply would just go dark) and before the
+ground. Its `opacity` = `bgRimOpacity` = `1 - globalIllumination` (threaded from `RpgLevelPanel` through
+`SceneryBack`). Rim canvases only mount while `bgRimOpacity > 0`.
+
+**Files.** `foliageLightingGLSL.js`, `ForegroundFoliageLayer.jsx`, `LdtkLitGround.jsx`,
+`FoliageInstancingTest.jsx`, `LdtkScenery.jsx`, `RpgLevelPanel.jsx`, `weatherCycle.js`.
+
+**Round 2 (Han: "een beetje te fel ... de illum houdt geen rekening met de lagen — de lijn van de
+achtergrond bergen wordt over de bomen daarvoor gerenderd ... 70%").** Three things:
+
+- **Layer order.** The old design mounted ALL bg rim canvases after ONE full-viewport darken div, so a
+  farther layer's rim painted over a nearer layer's base. Now each background parallax layer is its OWN
+  `<BgLayer>` = an **`isolation: isolate`** wrapper holding [base canvas → per-layer `multiply` darken
+  div → baked rim canvas]. The isolation confines each layer's darken to its own tiles; the wrappers
+  stack in DOM order, so a nearer layer correctly occludes a farther layer's rim, and the rim (after
+  the darken, inside the isolated context) stays bright. The single `bgDarkenColor` div is gone. (A
+  known side effect: at deep night the stack of isolated `rgba(8,15,43,~0.95)` veils over the open-sky
+  regions drives the sky solid dark blue — which is the "echt donkerblauw" Han asked for anyway.)
+- **The rim algorithm is now Han's exact spec** — shared `moonRimFactor` (shader, was `topLeftRimFactor`)
+  and `computeMoonRim` (DOM, a `getImageData` + per-pixel pass): for an opaque pixel, an EMPTY pixel
+  toward UP → adjacent `.70` / next `.50` / next `.20`; LEFT → adjacent `.70` / next `.30`; RIGHT →
+  adjacent `.50`; clash → the highest opacity wins. Max is 0.70 by construction (Han's "70%"). The
+  shader rim is `rimFactor * (1-illum) * clamp(uMoonStrength/0.3, 0, 2)`; the DOM rim's `<canvas>`
+  `opacity` is `bgRimOpacity` = `1 - globalIllumination`. On the foliage path `duv` already carries the
+  wind pixel-switch, so the rim shifts with the leaves for free (Han: "bereken 1x en pixel switch
+  gewoon mee").
+- `computeMoonRim` runs once per composite, deferred via `requestIdleCallback` so the full-canvas
+  getImageData never blocks a frame; the rim `<canvas>` is always mounted (opacity-gated), so there's
+  no dusk-time bake hitch.
+
+Files r2: `foliageLightingGLSL.js` (`moonRimFactor`, `applyMoonLight` rim math),
+`ForegroundFoliageLayer.jsx` / `LdtkLitGround.jsx` / `FoliageInstancingTest.jsx` (renamed call),
+`LdtkScenery.jsx` (`computeMoonRim`, `BgLayer` isolated wrapper, `GroundCanvas`, single darken div
+removed).
+
+**Round 3 (Han: "de achtergrond is helemaal onzichtbaar ... elke parallax laag verder extra hard blauw
+gekleurd tot ze verdwijnen").** The r2 isolated-wrapper design put a `mixBlendMode: multiply` div in
+each of ~5 `<BgLayer>` wrappers; over each wrapper's TRANSPARENT (sky) region that div renders as a
+near-opaque `rgba(8,15,43,~0.95)` rectangle, and ~5 of them stacked drove the whole viewport solid dark
+blue. Han's actual intent was just "one moon glow per parallax layer" (so the multi-sublayer parallax-0
+doesn't get 5+ stacked glows) — not per-layer darkening.
+**Fix.** No overlay divs on the bg layers. `<BgLayer>` composites its tiles ONCE into an offscreen
+`src` canvas (+ its `computeMoonRim`, once, `requestIdleCallback`), then **bakes** the shown canvas =
+`drawImage(src)` → `globalCompositeOperation:'multiply'` fill `darkenColor` → `'destination-in'`
+`drawImage(src)` (re-clip to the tile silhouette, so the sky stays transparent) → rim `drawImage` at
+`rimOpacity`. That second bake runs only when the **quantised** `darkenColor` (0.05 alpha steps, ~13
+per fade) or `rimOpacity` changes — never per frame. The bg canvases stack in plain DOM order → layer
+order respected, and their transparent sky lets the real sky-gradient show. The sky-gradient /
+`bgLayer5` are darkened by ONE `multiply` div rendered FIRST in `LdtkScenery` (behind the bg layers).
+`RpgLevelPanel` quantises `bgNight = round((1-illum)*20)/20` and derives `bgDarkenColor` / `bgRimOpacity`
+from it.
+**Also (Han: "geef ook nog wat globale witte illum (normal map) van linksboven 's nachts").** The moon
+surface `wash` in `applyMoonLight` is now a real normal-map term: half-Lambert toward `MOON_DIR` with a
+small non-directional floor (`0.15 + 0.85·wrap²`), normal flatten relaxed `0.75 → 0.85`, `MOON_WASH_SCALE`
+`0.5 → 1.0` — so surfaces facing top-left catch a soft white light and the whole scene lifts a touch at
+night.
+Files r3: `LdtkScenery.jsx` (`BgLayer` bake-into-canvas, one sky darken div), `RpgLevelPanel.jsx`
+(quantised `bgNight`), `foliageLightingGLSL.js` (`applyMoonLight` wash).
+
+**Round 4.**
+- **Moon is NIGHT-ONLY.** Was gated on `1 - uGlobalIllumination` (0.67 at dusk AND dawn — far too
+  present). Now `moonPresence() = 1 - smoothstep(0.08, 0.20, uGlobalIllumination)`: 0 by day and at
+  dusk/dawn (illum 0.33), 1 only deep in the night (illum ≤ 0.08), fading in as dusk crosses into night
+  and back out before dawn's brightness ramps. Both the shader (wash + rim) and the DOM `bgRimOpacity`
+  (`RpgLevelPanel`, a JS copy of the same curve) use it.
+- **Wash stronger** — `MOON_WASH_SCALE` `1.0 → 1.7`; the wash colour split off from the rim as a
+  blue-white `MOON_WASH_COLOR = vec3(0.80,0.88,1.0)` (pure white washed grey over the dark-blue base);
+  the rim stays pure white (`MOON_RIM_COLOR`).
+- **Point lights restore colour, not grey** (Han: "kan de illum glow ... de donkerblauw global illum
+  lokaal vervangen? dat je terug de oorspronkelijke kleur met een beetje geel/blauw/groen terugkrijgt
+  ipv flets grijs?"). `applyPointLight`'s `revealed` was `blendLightDual(trueColor, lightColor, …)` —
+  colour-dodge washed bright pixels toward white, so "ambient-blue then light-white" read as grey. Now
+  `revealed = mix(trueColor, clamp(trueColor * lcLumNorm, 0, 1), clamp(uHuePull*2, 0, 1))` where
+  `lcLumNorm = lightColor / luminance(lightColor)` — the pixel's OWN colour, luminance-preserved, hue
+  nudged toward the light. Near the wisp/hero/firefly you get the real colour back with a cool/warm/
+  green cast instead of flat grey.
+Files r4: `foliageLightingGLSL.js` (`moonPresence`, `applyMoonLight`, `applyPointLight`),
+`RpgLevelPanel.jsx` (`bgRimOpacity` night curve).
+
+**Round 5 (Han: r4 was "juist supergrijs").** Two greying operations were still there:
+- **The moon wash** did `screenBlend(currentColor, MOON_WASH_COLOR * amt)` — a screen-blend toward a
+  light colour desaturates dark pixels to grey, and r4's `MOON_WASH_SCALE 1.7` + a `0.15` non-directional
+  floor applied it everywhere. Now the wash is a **proportional brighten** of the pixel's own colour
+  (`currentColor * (1 + lift)`, keeps hue & saturation) on the top-left half-Lambert term only (no
+  floor), plus a tiny additive cool cast (`lift * 0.06 * MOON_WASH_TINT`). `MOON_WASH_SCALE` `1.7 → 0.9`.
+  The RIM keeps its `screenBlend` toward white (a thin edge, not a surface).
+- **The point-light `revealed`** still ran through a `mix(trueColor, …, huePull)` toward a clamped
+  `trueColor * lcLumNorm`. Now it's simply `revealed = clamp(trueColor * lc, 0, 1)` with
+  `lc = mix(vec3(1), lightColor/luminance(lightColor), 0.7)` — the pixel's colour with a gentle,
+  channel-safe hue cast; the light's `intensity` falloff already controls how much.
+Files r5: `foliageLightingGLSL.js` (`applyMoonLight` wash, `applyPointLight` revealed, `MOON_WASH_*`).
+`test:run` 1381 pass · `build` clean · `lint` 0 errors.
+
+**Round 6 — moon −15 pp.** `moonRimFactor` (shader) + `computeMoonRim` (DOM) opacity tiers all dropped
+0.15: up `.55/.35/.05`, left `.55/.15`, right `.35`. `MOON_WASH_SCALE` `0.9 → 0.75`.
+
+**Round 7 — the normal-map glow (Han: "kan de witte gloed ook op de normal map (extra laag)? die is nu
+niet of niet goed zichtbaar ... dak, huis, blaadjes ook een subtiele witte gloed in de richting van de
+maan").** The moon surface term is now an **additive near-white glow** driven by the FULL
+(`uNormalStrength`-adjusted) normal — a roof slope / wall / leaf clump that faces `MOON_DIR` catches a
+sheen. Half-Lambert CUBED (`mw³`) for a soft-but-directional response;
+`glowAmt = edgeFactor · strength · mw³ · MOON_GLOW_SCALE(1.5)`;
+`lit = currentColor·(1 + glowAmt·0.35) + glowAmt · MOON_GLOW_COLOR(0.90,0.94,1.0)`. Runs on
+`ForegroundFoliageLayer` (leaves) and `LdtkLitGround` (roofs/houses/decor). Consts renamed
+`MOON_WASH_* → MOON_GLOW_*`. Files r6/r7: `foliageLightingGLSL.js`, `LdtkScenery.jsx` (r6 tiers).
+`build` clean · `lint` 0.
+
+**Round 8 — the surface glow is now BINARY (Han: "Nu wordt alles grijze brij. Ik dacht aan subtiel wit
+(30% opacity) maken van de pixels die naar linksboven mappen ... dus 30% of 0%, geen tussenvorm").** The
+r7 continuous `mw³` glow lifted nearly every texel a little, so the whole canopy read as grey mush. r8
+replaces it with a step: `facing = step(MOON_FACING_THRESHOLD, dot(normalize(normal), MOON_DIR))` and
+`lit = mix(currentColor, vec3(1.0), edgeFactor · present · moonScale · facing · MOON_GLOW_OPACITY)`. A
+moon-facing texel gets a flat 30% lerp toward pure white; every other texel is untouched — no in-between.
+`MOON_FACING_THRESHOLD 0.75` sits above the ~0.66 a flat `(0,0,1)` normal scores against `MOON_DIR`, so
+only real up-left-facing relief lights up. `present` (night gate) and `moonScale` (`uMoonStrength/0.3`
+debug dial) still fade/scale it. Consts: `MOON_GLOW_SCALE` removed; `MOON_GLOW_COLOR` → `vec3(1.0)`;
+added `MOON_GLOW_OPACITY 0.30`, `MOON_FACING_THRESHOLD 0.75`. Files r8: `foliageLightingGLSL.js`.
+`build` clean · `lint` 0.
+
+**Round 9 — luminance-masked directional sheen (Han, screenshot: "manenschijn is te heftig ... Mijn
+binaire 30% opacity is te simplistisch. Slimmer gebruik van de normal map en de bestaande kleuren:
+dakpannen-highlights moeten maanlicht vangen, de donkere rand onder het dak juist NIET").** r8's binary
+step lit every up-left-facing texel by the same 30 %, ignoring the tone the artist painted, so the whole
+roof/facade glowed flat. r9 makes the moon **ride the art's existing highlights**:
+
+- **Soft directional term**, no hard step: `d = smoothstep(MOON_FACING_LO 0.45, MOON_FACING_HI 0.95,
+  dot(normalize(normal), MOON_DIR))`.
+- **Luminance mask from the texel's OWN painted colour** (the raw `diffuse.rgb`, passed in as a new
+  `baseColor` param — before ambient darkening / point lights): `hi = smoothstep(MOON_LUM_LO 0.35,
+  MOON_LUM_HI 0.75, dot(baseColor, luma))`. A dark eave recess (low luminance) → `hi ≈ 0` → no sheen
+  there, exactly Han's ask.
+- **Additive via `screenBlend`**: `sheen = edgeFactor · present · moonScale · d · hi · MOON_SHEEN_SCALE
+  (0.5)`; `lit = screenBlend(currentColor, MOON_GLOW_COLOR · sheen)`. Self-limiting — never blows a light
+  pixel to white, does nothing to black. Applies to structures (`LdtkLitGround`) AND foliage (both
+  `ForegroundFoliageLayer` paths, `FoliageInstancingTest`) — leaf highlights facing the moon glint too.
+- Consts: `MOON_GLOW_OPACITY` / `MOON_FACING_THRESHOLD` removed; added `MOON_FACING_LO/HI`,
+  `MOON_LUM_LO/HI`, `MOON_SHEEN_SCALE`; `MOON_GLOW_COLOR` → `vec3(0.92, 0.96, 1.0)` (barely-cool
+  near-white). `applyMoonLight` signature gains `baseColor` (2nd param) — updated at all 4 call sites.
+  Files r9: `foliageLightingGLSL.js`, `ForegroundFoliageLayer.jsx`, `LdtkLitGround.jsx`,
+  `FoliageInstancingTest.jsx`. `build` clean · `lint` 0 · `test:run` 1389 pass.
+
+**Note.** §369 was taken by a concurrent session (level-audio guard), so this is §370.
+
+### §371. "Yellow wizard" — blind perfect-timing trainer: Level 16 + mode-variant `j` (Han 2026-09-03)
+
+**Purpose.** A drill for playing on the beat *from memory*. The level generates and renders like a
+completely normal side-scroll level — but each notehead is "conjured away" by a static **yellow**
+wizard `wizardSpawnLeadMeasures` measures before its beat and replaced by the black wizard's blue
+projectile (the combat target), with the wizard playing a **silent** cast. So you read every note,
+then play it on time with no notehead and no reference tone.
+
+**Built as its own mechanic — NOT grafted onto the black wizard (§121/§135).** Han's explicit
+correction: "bouw opnieuw de logica op zonder het te hard te enten op de logica van de zwarte
+tovenaar. genereer level als normaal. toon noten als normaal. máár: verberg ze 1 maat voordat ze
+gespeeld moeten worden." So `enemyType: 'YellowWizard'` is a distinct type, deliberately **not**
+`'Wizard'`:
+
+- **Generation / block plan (levelBlockPlan.js): untouched.** `'YellowWizard'` is not `'Wizard'`, so
+  `blockMeasuresFor` falls through to `lvl.numMeasures` and `blockTypeForBlock` returns `'Slime'` — a
+  normal block, no `shape: 'call-response'`, no odd/even rest collapse. `useLevelContentStream`'s
+  `isWizardBlock` is false, so there is **no cast-preview audio** scheduled at all (nothing to gate —
+  the schedule simply never runs) and `mayCast` is false (it never waits on `wizardInstrument`). Every
+  measure carries its real generated notes.
+- **Notation: the normal `noteStaffContent` layer** (the `isWizard || isMixed` guards that build the
+  `noteStaffContentRest` / `noteStaffContentReal` call-response split are left as-is — `YellowWizard`
+  is neither, so it renders the single normal layer). That layer's `{noteStaffContent}` is wrapped in
+  `<g mask="url(#rpgYellowCastGate)">` when `isYellowWizard && !debugMode`; chord labels and lyrics in
+  the same scrolling group stay unmasked. `debugMode` bypasses the mask (every notehead visible, for
+  alignment inspection).
+- **`rpgYellowCastGate`** — a static `userSpaceOnUse` linear-gradient mask: opaque (white) for
+  screen-x ≥ `castGateX`, a ~100 ms (`castFadePx`) ramp to transparent, black to the left. `castGateX`
+  is the linear `noteX` glide evaluated at the projectile's own visibility-gate time
+  `(beatsOnScreen − spawnLeadBeats) · beatMs` — i.e. `wizardSpawnLeadMeasures` measures before the
+  beat — so a notehead is cut at the exact screen position where its projectile appears (Han: "harde
+  cut op de flash, dan snelle 100 ms fade"). The gate is stationary and notes scroll past it, so the
+  mask needs no per-frame work; §6-safe (the rAF loop only pushes `transform` onto the scrolling
+  groups, never opacity/mask).
+- **Combat = projectile**, exactly the black wizard's path: `projectileCombat = isWizard ||
+  isYellowWizard` folds `YellowWizard` into `DEATH_FRAMES`, the spawn-glow effect + render, the
+  `itemIsWizard` per-note branch (note → `<Projectile>`, projectile death, projectile hit) and the
+  static-wizard render. The projectile becomes visible at the same `(beatsOnScreen − spawnLeadBeats)`
+  gate the notehead-mask uses, so notehead-out and projectile-in are frame-locked.
+- **Yellow sprite + cast anims from the bestiary.** `findCreatureVariantByName('Wizard (Portrait)',
+  'Yellow')` gives both the sprite sheet URL (`wizardSheetUrl`, from the variant's own animation
+  `url` — the manifest, not a hand-copied kebab file) and the `song_attack_single/double/triple`
+  cells + `flashIndices` (`wizardVariant` → `wizardSongAttack`). `computeWizardCast`'s guard and the
+  static `<Wizard>` render both add `isYellowWizard`. The cast plays **no audio** (nothing in
+  `SheetRpgLayer` ever did — the black wizard's tone comes from `useLevelContentStream`, which a
+  YellowWizard level never triggers).
+
+**Two entry points ("allebei").**
+- **Level 16** (`levels.json`): `enemyType: 'YellowWizard'`, `wizardSpawnLeadMeasures: 1`, otherwise
+  Level 13's neutral musical params (bpm 80, C4–G4, `numMeasures` 2, `notesPerMeasure` 2,
+  `smallestNoteDenom` 4, `totalMeasures` 8) — but generated normally, not as call-response.
+- **Mode-variant `j`** ("Gele wizard", icon `Status_effect1_1_32.png`): `LEVEL_MODE_VARIANTS.j`
+  `{ yellowWizard: true }`; `applyLevelVariant`'s `yellowWizardOverrides` forces
+  `enemyType: 'YellowWizard'` onto any level and defaults `wizardSpawnLeadMeasures` to 1 if the level
+  didn't author its own. Immediately selectable (added to `VARIANT_LETTERS`). Carries no
+  colorScheme/colorScope (a mechanic variant, like `g`/`h`/`i` — the colour-preset tests exempt
+  `yellowWizard`). **Not** excluded on gatedScroll levels (the rubato exclusion guards cast *audio*
+  desync while the gate freezes visuals; the yellow cast is silent).
+
+**Invariants.** `wizardSilent` from the first (reverted) attempt no longer exists — `enemyType:
+'YellowWizard'` alone carries the meaning. Generation and block-type logic must never branch on
+`isYellowWizard` (they don't — `'YellowWizard' !== 'Wizard'` keeps it on the plain path). The
+notehead-mask gate `castGateX` and the projectile visibility gate must stay derived from the SAME
+`(beatsOnScreen − spawnLeadBeats) · beatMs` quantity, or the notehead cut and projectile spawn drift
+apart.
+
+**End-of-level portrait.** The post-combat `DialogueBox` speaker (`App.jsx` `levelResultSpeaker` /
+`wizardColorName` / `wizardDedicatedPortrait`) now recognises `enemyType: 'YellowWizard'` as a
+`kind: 'wizard'` speaker and resolves `wizardColorName` to `'Yellow'`, so `findCreatureByName('Wizard
+(Portrait)', 'Yellow')` supplies the yellow wizard's dedicated 64×64 portrait (and the wizard —
+not slime — victory lines). Same two-line pattern the black/green wizard cases already use.
+
+**Runtime fixes (v2 UAT, Han 2026-09-04).** (1) `wizardSheetUrl` must read `wizardVariant.url` — the
+bestiary sheet URL lives on the VARIANT object, not per-animation (`findAnim(v,'idle').url` is
+`undefined` for the wizard, so it fell back to the black `WIZARD_URL`). (2) The `rpgYellowCastGate`
+mask MUST sit on a NON-translated wrapper: `maskUnits="userSpaceOnUse"` resolves in the referencing
+element's user space, so nesting it inside the per-frame `translate(-scrollPx)` group made the gate
+scroll away with the notes and hid everything. The noteheads get their own scroll group
+(`noteScrollRef`, still driven by the rAF loop) INSIDE the static masked wrapper; chords/lyrics move
+to `chordLyricScrollRef`.
+
+**Files:** `src/levels/levels.js` (`LEVEL_MODE_VARIANTS.j`, `yellowWizardOverrides`,
+`availableVariantLetters` note, `enemyType` field doc), `src/levels/levels.json` (Level 16),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`isYellowWizard`/`projectileCombat`, `wizardVariant`/
+`wizardSheetUrl` from the bestiary Yellow variant, `castGateX`/`castFadePx` + `rpgYellowCastGate`
+mask on a static wrapper around the notes' own `noteScrollRef` group, `chordLyricScrollRef`,
+`isYellowWizard` folded into the projectile/spawn-glow/cast/static-wizard branches), `src/App.jsx`
+(`enemyType` pass-through; `levelResultSpeaker`/`wizardColorName` recognise `'YellowWizard'`),
+`src/components/levels/LevelStartSplash.jsx` (icon `Status_effect1_1_32.png` + `'j'` in
+`VARIANT_LETTERS`). Tests: `src/levels/__tests__/levelVariants.test.js` (`variant j` → `YellowWizard`,
+no call-response, colour exemptions), `src/hooks/__tests__/useLevelContentStream.test.js`
+(`yellow wizard (enemyType: YellowWizard)`: normal cadence + `blockTypeForBlock` Slime, zero casts,
+real notes in every measure, streams without a cast instrument),
+`src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx` (one normal notehead layer, the
+non-translated mask wrapper with an inner translate group, the yellow sprite href).
+
+**Superseded first attempt (same day).** The first build grafted onto `enemyType: 'Wizard'` +
+`wizardSilent` (kept the call-response block shape, added `WIZARD_YELLOW_URL` kebab file). Han
+rejected all three premises (wrong sprite source, notes barely visible, unwanted rest/notes measure
+split). Fully reverted; this section describes the rebuilt mechanic.
+
+### §372. The backmost sky is a rendered gradient — `SkyGradientBackdrop` (Han 2026-09-04)
+
+**Purpose.** The RPG world's furthest backdrop used to be TWO stacked static full-viewport elements in
+`RpgLevelPanel.jsx`: a hard-coded CSS `linear-gradient(to bottom, #8fd0d9, #dff3f5)` div and the painted
+`assets/ASSORTED/backgrounds/Normal BG/Background layers_layer 5.png` `<img>` on top of it. Han: "vervang
+de achtergrond (verste parallax) door een gerenderde gradient. Meet de kleuren uit de huidige
+achtergrondlaag eenmalig. Blauwig naar wit. Ik wil dan bij dusk en dawn zo wat roze/rood aan de horizon.
+De huidige nachtkleuring vind ik eigenlijk perfect: dezelfde gradient als overdag, met donkerblauw
+ingemengd." Both elements are replaced by one component, `src/components/character/SkyGradientBackdrop.jsx`.
+
+> **See also §374** — `<CelestialSky>` (stars / sun / moon) mounts immediately IN FRONT of this
+> gradient and behind every parallax layer, and fades its stars off the same `globalIllumination`.
+
+**How it works.**
+
+- **17 day stops, sampled once.** On mount, `SkyGradientBackdrop` loads `Background layers_layer 5.png`
+  into an offscreen canvas and reads a row at each of `STOP_COUNT = 17` evenly spaced height fractions,
+  averaging RGB across every 4th column (transparent margins skipped). Those `[r,g,b]` values become the
+  gradient stops. Until the sample resolves (or if it fails — `logger.error` code **E036-SKY-SAMPLE**, a
+  system-boundary catch per CLAUDE.md §7a) it shows `FALLBACK_STOPS` (the old `#8fd0d9 → #dff3f5`
+  interpolated across the 17). *(UAT, Han: "waar komt deze streep nu nog vandaan in hoge levels?" — the
+  first cut used 5 stops = 4 straight sRGB segments over the whole sky; the joints, especially at 25 %,
+  showed as a Mach band / hard line, worse the taller the viewport. 17 stops make each segment's slope
+  change imperceptible AND trace the painted layer-5 curve directly so a subtle horizon-haze band in the
+  source can't be aliased into a kink. `SAMPLE_FRACS` is generated; the per-stop dusk/dawn warm weight is
+  now `sunsetWeightAt(f) = smoothstep(0.55, 1, f) · 0.8`, a function of the stop's height fraction.)*
+- **Night mix, baked per-stop.** `mixNight(stop, illum)` reproduces the OLD look exactly: it is the
+  algebra of an `rgba(AMBIENT_DARK_RGB, 1 − illum)` fill painted `mix-blend-mode: multiply` over the day
+  stop → `stop · (1 − n + n · dark/255)` per channel, `n = 1 − illum`. `AMBIENT_DARK_RGB = [8, 15, 43]`
+  is the local twin of `RpgLevelPanel`'s constant and the shader's `AMBIENT_DARK_COLOR` (§370), so the
+  sky darkens onto the exact same colour as the parallax `BgLayer` canvases and the WebGL ground/foliage.
+  `illum` is `foliageParams.globalIllumination` passed straight through — NOT quantised (unlike the
+  canvases' `bgNight`), because this component only rebuilds a short CSS string, so it follows the 10 s
+  illum crossfade smoothly.
+- **Dusk/dawn horizon glow.** `sunsetFactor(illum) = smoothstep(0.05, 0.33, illum) · (1 −
+  smoothstep(0.33, 0.75, illum))` — a hump that peaks at the illum ≈ 0.33 plateau that BOTH dusk and
+  dawn sit on, and is 0 at deep night (≤ 0.05) and well into day (≥ 0.75). One value therefore covers
+  dusk and dawn and tails smoothly into the neighbouring day/night (Han's "ramp, and also bleed into
+  day/night edges" with no phase plumbing). It lerps the lower stops toward `SUNSET_RGB = [255, 150,
+  130]` by `SUNSET_STOP_WEIGHT = [0, 0, 0.15, 0.45, 0.8]` × `sunsetFactor` — only the bottom band warms,
+  strongest at the horizon.
+
+**Invariants / interactions.**
+
+- `LdtkScenery.jsx`'s standalone sky-darken `<div>` (`bgDarkenColor && backgroundLayers.length > 0`,
+  `mix-blend-mode: multiply`, added in §362 r3) is **removed**. Its only job was darkening the two static
+  sky elements that §372 replaced; leaving it would stack a second multiply on the now self-darkening
+  gradient — the message-26 "achtergrond verdwijnt / elke parallax laag wordt extra hard blauw" bug.
+  `bgDarkenColor` is still passed and still consumed: each parallax `BgLayer` bakes it into its own
+  canvas (clipped to the tile silhouette), unchanged.
+- `bgLayer5Url` moved out of `RpgLevelPanel.jsx` (its only use was the deleted `<img>`) into
+  `SkyGradientBackdrop.jsx`.
+- Legacy-mode caveat: `sceneryMode === 'Legacy'`'s `domDarkenOverlayStyle` multiply (a deprecated
+  side-by-side comparison path) still sits over `SkyGradientBackdrop`, so in that debug mode only the sky
+  is darkened twice. Accepted — LDtk is the default and Legacy is comparison-only.
+
+**Files:** `src/components/character/SkyGradientBackdrop.jsx` (new), `src/components/character/
+RpgLevelPanel.jsx` (import swap; the CSS gradient div + `bgLayer5` `<img>` → `<SkyGradientBackdrop
+globalIllumination={foliageParams.globalIllumination} />`), `src/components/character/LdtkScenery.jsx`
+(sky-darken div removed). Tests: `src/components/character/__tests__/skyGradientBackdrop.test.js`
+(`mixNight` no-op at day / pulls to AMBIENT_DARK / hits `stop·dark/255` at illum 0; `sunsetFactor` ~0 in
+day and deep night, peaks at 0.33, bleeds into the edges). New error code **E036-SKY-SAMPLE** (E035 was
+already taken by a concurrent session's level-audio guard).
+
+**Note.** §371 was the last section header, so this is §372.
+
+### §373. Worker-NPC names + dialogue, and a dialogue-box name plate (Han 2026-09-04)
+
+**Purpose.** The 6 stationary worker NPCs in the RPG world (`RpgLevelPanel`'s `workerNpcs`, x-ordered
+from Level_1's LDtk "NPC" markers, #1093) had only a bell sound — no name, no dialogue. Han: "geef alle
+NPC's in de RPG-wereld wat tekst als je interactie hebt (engels), en een naam ... ik verwacht dat je op
+een NPC kan klikken en dat je dan de naam ziet (linksboven tekstvak), portret/avatar, en een tekstje."
+Plus names for the other named entities (Wisp → **Lamentia**, decorative Slime → **Blob**, wizards:
+black **Antophon**, yellow **Prosperus**, green **Modulatus**).
+
+**How it works.**
+
+- **`src/model/npcDialogue.js`** (new) — `NPC_DIALOGUE`, keyed by the bestiary base name (the SAME key
+  `workerNpcs[i].name`, `WORKER_SOUND_CONFIG`, and `ENTITY_AUDIO_PROFILE` use, so all four line up 1:1):
+  `{ displayName, lines: string[] }`, ~11 English lines per worker in each one's established voice —
+  Tambo (slow smith, optimistic), Sonia (fast smith, "the world is always in motion"), Campano (town
+  crier, Melody Hill news), Piccolo (lumberjack seeking the perfect flute), Dominica (potion lady, scale
+  puns), Wavie (steampunker, riddles). `randomNpcLine(name)` → one random line. `ENTITY_DISPLAY_NAME` +
+  `entityDisplayName(entity)` also carry the Wisp/Slime/wizard names, keyed by the `entity` string each
+  existing dialogue path already passes.
+- **Click → walk-then-talk.** `useRpgLevelState.js` gains `clickWorkerNpc(name, worldX)` → `randomNpcLine`
+  → `openEntityDialogue(worldX, name, [line])` — the exact same shared walk-to-then-open path as the Wisp
+  and decorative Slime (§922). `RpgLevelPanel`'s `WorkerNpcSlot` renders an `EntityHitZone` (the shared
+  fixed hit target + debug overlay, §3a) per worker, `stopPropagation` so it doesn't also walk-to-tap.
+- **F / Space / Enter key.** The keyboard interact handler in `useRpgLevelState` used to only know the
+  wisp and slime X. It now picks the NEAREST of {wisp, slime, ...worker NPCs} within
+  `NPC_INTERACT_RANGE`. The worker roster reaches the hook via `registerWorldInteractables([{ x, run }])`
+  — `RpgLevelPanel` calls it in an effect from `workerNpcs` (their X lives in the LDtk markers, which the
+  hook has no access to); cleared to `[]` on unmount / leaving LDtk scenery. (UAT: Han — "'f' of 'spatie'
+  werken niet om gesprek te starten".)
+- **Hit zone size.** `HIT_ZONE_GPX` `16 → 48` (game px) — the shared wisp/slime/worker click target. UAT:
+  Han, "De hitbox is veel te klein, maak die maar 48x48."
+- **Audio.** `conversationEntities.js` `ENTITY_AUDIO_PROFILE` gains one instrument per worker (vibraphone
+  / glockenspiel / trumpet / piccolo / orchestral_harp / accordion), shared default tone pool — resolved
+  through the existing `getEntityAudioProfile` / `useConversationInstruments` path, no new wiring.
+- **Name plate.** `DialogueBox` gains an optional `speakerName` prop — a pixel-art tab centred over the
+  portrait column, sitting ON the box's top edge (bottom border dropped so it reads as attached), same
+  `var(--text-primary)`/`var(--panel-bg)` chrome as the box. A flow sibling *above* the box, NOT
+  absolutely positioned, so the bottom panel's `overflow: hidden` in compact/world mode can never clip
+  it; `marginLeft: portraitSize/2` + `translateX(-50%)` keeps it centred on the portrait's centre at any
+  width. `minWidth: portraitSize` is the "even breed als het portret (64 game px)" floor; it only grows
+  past that for a long name (Prosperus / Modulatus), staying centred. Font: the name is **always Bitfantasy**
+  (Han UAT: "naam is altijd BF") at the **same `fontSizeFor(scale)` as the body** — so name and body
+  letters are the same size and the plate is pixel-perfect (`fontSizeFor` is built so a Bitfantasy
+  capital is `8·scale` px = a whole number of screen px at every real scale, integer or the 1.5
+  half-step; an earlier `·0.82` fell off that grid, a `·0.75` was on-grid but a different size). The
+  first letter is force-capitalised at render time (`charAt(0).toUpperCase()`) regardless of the stored
+  `displayName`. `RpgLevelBottomPanel` resolves a
+  worker's portrait via `findCreatureByName(entity)` (its own classified sprite, fed to the canonical
+  `CreatureSprite` renderer, §6d) and passes `speakerName={entityDisplayName(entity)}`. `App.jsx`'s
+  level-complete `DialogueBox` passes `speakerName` for the wizard/slime post-combat speakers
+  (`wizardColorName` → Antophon/Prosperus/Modulatus).
+
+**Invariants.** `NPC_DIALOGUE` keys must equal `RpgLevelPanel`'s `workerNpcs` name list
+(`['Blacksmith', 'Lumberjack', 'Town crier', 'Blacksmith Woman', 'Lady Potions', 'Steampunker']`) — a
+worker with no entry just gets no dialogue/plate (its `EntityHitZone` isn't rendered, `onClick` unset).
+Callers that pass no `speakerName` (LevelSplash) render exactly as before.
+
+**UAT r2 — hit zone + keyboard.** `HIT_ZONE_GPX` `16 → 48` (the shared wisp/slime/worker click target).
+The F/Space/Enter interact key in `useRpgLevelState` picked only wisp/slime; it now picks the nearest of
+{wisp, slime, ...worker NPCs} within `NPC_INTERACT_RANGE`, the workers registered via a new
+`registerWorldInteractables([{ x, run }])` that `RpgLevelPanel` fills in an effect from `workerNpcs`
+(cleared on unmount / leaving LDtk scenery).
+
+**UAT r3 — fonts (Han: "Gebruik SandyForest als tekst ... Bitfantasy in de tekstvakken voor benadrukte
+woorden").** The dialogue **body** now renders in **SandyForest**; **Bitfantasy** is kept for
+`*asterisk*`-wrapped emphasis runs AND for the **name plate** (Han UAT: "naam is altijd BF"). `OscillatingText.parseEmphasis(text)`
+splits `text` into `[{ text, emph }]` segments (markers stripped; multi-word runs OK; a lone `*` stays
+literal); the char-stream carries a per-char `emph` flag so the existing word-nowrap grouping + wobble
+seed are unchanged, an emphasised char just also gets `font-family: 'Bitfantasy'`. Both faces share the
+1024-unit em / 64-units-per-design-pixel grid (they already co-exist in the `BestiaryPixel` family,
+App.css), so the same `fontSizeFor(scale)` px value keeps them pixel-matched; the name plate uses that
+same `fontSizeFor(scale)` too (see the Name plate bullet — a later UAT round dropped its `·0.75` so name
+and body letters are the same size). `DialogueBox` registers a standalone `@font-face` for `SandyForest`.
+Example
+`*emphasis*` markers were added across `npcDialogue.js`, `WISP_LINES` (useRpgLevelState.js), and
+`conversationContent.js`'s wizard/npc/slime lines (LOREM left plain). Applies to ALL `DialogueBox`
+instances (world NPCs, decorative slime, level-complete panel).
+
+**Files:** `src/model/npcDialogue.js` (new), `src/audio/conversationEntities.js`,
+`src/hooks/useRpgLevelState.js` (`clickWorkerNpc`, `registerWorldInteractables`, `WISP_LINES` emphasis),
+`src/components/character/RpgLevelPanel.jsx` (`clickWorkerNpc` threaded to `EntityLayer` →
+`WorkerNpcSlot` + its `EntityHitZone`; `HIT_ZONE_GPX 48`; interactables effect),
+`src/components/character/DialogueBox.jsx` (`speakerName` plate, SandyForest body + plate, SandyForest
+`@font-face`), `src/components/character/OscillatingText.jsx` (`parseEmphasis` + per-char font),
+`src/components/character/RpgLevelBottomPanel.jsx` (worker portrait + name), `src/model/
+conversationContent.js` (emphasis markers), `src/App.jsx` (level-result `speakerName`). Tests:
+`src/model/__tests__/npcDialogue.test.js`, `src/components/character/__tests__/OscillatingText.test.jsx`.
+
+**Note.** §372 was the last section header, so this is §373.
+
+---
+
+### §374. De sterrenhemel — a real south-facing sky: stars, constellations, sun and a 28-cycle moon (#1191, Han 2026-09-04)
+
+**Purpose.** The night world had a dark blue gradient and nothing in it. Han: *"kun je op een of andere
+manier 's nachts de sterren tonen, en subtiel zichtbaar in dusk/dawn? … toon grote sterren als een
+'cirkel van 3 gpx' … gebruik de kleur van de ster … vind het nog wel cute als er een stippellijn de
+sterrenbeelden toont (toggelbaar) en de namen in serif pixel font (toggelbaar) … ik wil graag ook de zon
+en de maan zien … dat die in de day/night cycle **écht** draaien … Neem aan dat we in Brussel zijn en
+naar het zuiden kijken, en dat het rond de equinox is. 28 cycles = een maancyclus. Simuleer ook volle
+halfvolle nieuwe maan, volgens de regels van fysica. In debug mode: toon de baan van de zon en de maan.
+draai de sterrennacht ook met de dag-nacht-cyclus."* So: an actual sky, driven by the world's own
+weather clock — not a decorative twinkle layer.
+
+**How it works.**
+
+- **The clock (`weatherCycle.js`).** Two derived constants, both computed with `reduce()` over
+  `TIME_PHASES` and never typed as literals (§6c): `CYCLE_TOTAL_S` (480 s) and `PHASE_START_S`
+  (`[0, 240, 300, 420]`). State gains one integer field, `cyclesElapsed`, incremented on the
+  dawn→day wrap inside the EXISTING phase loop — no new timer, no wall-clock. `weatherOutputs()` gains
+  two PURE derivations: `cycleT` (0..1 over the whole loop: day 0 · dusk 0.5 · night 0.625 · dawn 0.875)
+  and `lunationPhase` (`((cyclesElapsed + cycleT) % 28) / 28`, continuous — a stepped
+  once-per-cycle value would jerk the whole star sphere at every cycle boundary). `seekPhase` leaves
+  `cyclesElapsed` alone: a debug seek is a jump within the day, not a day passing.
+- **The sun's arc (`celestialModel.solarHourAngleDeg`).** At the equinox `dec = 0`, so
+  `sin(alt) = cos(φ)·cos(H)` and altitude is EXACTLY 0 at `H = ±90`. The curve therefore needs only two
+  anchors — the midpoints of dusk and dawn, both derived from `TIME_PHASES` — with two uniform segments
+  between them. Mid-day (`H = 0`, alt `90 − φ = 39.15°`) and mid-night (`H = 180`, alt `−39.15°`) fall
+  out for free at the segment midpoints. Because `TIME_PHASES` is unchanged, daytime is 62.5 % of the
+  cycle rather than the real equinox 50 % — the sun simply sweeps its 180 daytime degrees more slowly
+  than its 180 night degrees. The `dH/dcycleT` kink where the segments join sits exactly at altitude 0,
+  i.e. on the horizon line where the disc is already behind the scenery: invisible by construction, and
+  deliberately not smoothed.
+- **One clock for sun, moon AND stars.** `H = LST − RA`. The "year" is compressed to one lunation, so
+  `RA_sun = 360·lunationPhase` and `LST = H_sun + RA_sun`. Over one cycle LST therefore advances
+  `360 + 360/28` degrees — the sidereal excess that makes a constellation rise ~1/28 turn earlier each
+  successive night. **There is no separate star clock and no `SIDEREAL_RATIO` constant**: the single
+  `CYCLES_PER_LUNATION = 28` knob governs the moon's elongation, the sun's RA drift and the star drift
+  together. `dec = 0` for both sun and moon (perpetual equinox) — they ride the celestial equator, not
+  the ecliptic, so both share one arc shape, offset only in hour angle.
+- **The moon, and the ELONGATION SIGN.** The moon moves EASTWARD (increasing RA) as the lunation waxes,
+  and `H = LST − RA`, so `H_moon = H_sun − 360·lunationPhase` — a MINUS. The design note originally had
+  a plus; that is retrograde and mirrors every quarter moon onto the wrong side of the sky (first
+  quarter would transit at dawn instead of dusk). Han confirmed the correction at plan review. With the
+  minus: new moon rides with the sun and is below the horizon all night; first quarter transits due
+  south at dusk; full moon rises at dusk, transits at midnight, sets at dawn; last quarter rises around
+  midnight. `RA_moon = 720·lunationPhase` degrees — two sidereal circuits per lunation, which is exactly
+  right when the "year" is itself one lunation long. Illuminated fraction `k = (1 − cos elongation)/2`.
+  `belowHorizon` ⇒ the moon is simply not drawn, which is what makes it ABSENT from the night sky near
+  new moon.
+- **The projection (`projectToScreen`).** Cylindrical (plate-carrée), linear in azimuth and in altitude,
+  with the SAME `DEG_PER_PX = 2·HALF_FOV_AZ_DEG / Wpx` on BOTH axes — isotropic, so stick figures keep
+  their real shape at any viewport aspect (a fixed VERTICAL fov would stretch them ~35 % on a 16:9
+  world). `HALF_FOV_AZ_DEG = 60` (120° of sky across the canvas) is the one tunable. Altitude 0 lands at
+  `horizonY = Hpx − horizonGamePx`, where `horizonGamePx` is RpgLevelPanel's own §141 `HORIZON_PX`
+  passed in as a PROP — the horizon is never re-measured or re-invented here. Altitudes near the zenith
+  legitimately map above the canvas top; nothing is clamped, off-canvas is simply culled.
+- **Rasterisation (`CelestialSky.jsx`).** Native game-pixel canvas (`viewport / zoom`), CSS-scaled with
+  `imageRendering: 'pixelated'` — the same convention LdtkScenery's parallax `CanvasLayer`s use.
+  Everything is integer-coordinate `fillRect`; `ctx.arc()` is never called. Stars: magnitude buckets
+  `< 1.5 → 3 gpx` (a 3×3 block MINUS its corners — the canonical pixel-art "circle of 3"; a solid square
+  reads as a blob), `< 3.0 → 2 gpx` (2×2), else 1 gpx; colour quantised from B−V into five deliberately
+  bright hexes (blue-white → orange-red). **Disc rasteriser (`discHalfWidth`, UAT r4 — Han: sun/moon
+  "uiteinden ... één game-pixel ... Maak die randen ten minste 3 gpx breed"):** per-row half-width is
+  `max(1, round(√(r²−dy²)))` — `round` (not `floor`) for a rounder small circle, and a 1-px floor so
+  the top/bottom rows are 3 px, never a 1-px spike; `round` already holds full width across `dy ∈
+  {−2..2}` at r = 6/7 so the left/right extremes are ≥ 5 rows too. Used by both the sun disc/glow and
+  the moon. Sun: a per-row filled disc (R = 7 gpx) plus two QUANTISED alpha glow rings at R+3 / R+6
+  (not a smooth gradient — same pixel-art spirit as the foliage shader's `waveSteps`/dither). Moon: a
+  per-pixel TERMINATOR test (R = 6 gpx) — for each pixel, `u` along the screen-space sun direction, `v`
+  across it, `wt = √(R²−v²)`, signed distance from the terminator `su = u − wt·(1−2k)`. That is the
+  two-circle crescent construction done directly in pixels: exact at ANY limb angle, pixel-perfect, no
+  arc. **UAT r3 (Han: "voeg ook pixels aan 70 en 30 procent toe"):** instead of a hard `su ≥ 0`
+  binary, `su` buckets into 4 shades — earthshine (`< −1`), 30 % (`[−1,0)`), 70 % (`[0,1)`), full
+  (`≥ +1`) — so the crescent edge softens by one game pixel each side. **UAT r4 (Han, screenshot: "de
+  gradient in het midden is donkerder dan het onbelichte stuk"):** the r3 version varied ALPHA per
+  shade (0.18 → 1), which over a bright DAY sky made the mid-band read darker than the low-alpha
+  earthshine — a dark ring. Fixed: ONE uniform `MOON_DISC_ALPHA = 0.9` for the whole disc, only the
+  fill COLOUR ramps (`MOON_SHADE[]` = 4 pre-mixed greys), so lightness is monotone over any
+  background; the disc is effectively opaque. **UAT r5 (Han, pre-test 2026-09-04: "geef de unlit part
+  opacity 0.1, en de half lit part accordingly"):** back to a PER-SHADE alpha (r3's shape) — reopened
+  r4's exact failure mode, now visibly: against a bright day sky the low-alpha unlit side read almost
+  sky-bright while the higher-alpha lit side showed its own (comparatively darker) colour, so the
+  "lit" side looked DARKER than the "unlit" side. **UAT r6 (Han, screenshot 2026-09-05: "de 'lichte
+  kant' dicht bij de zon donkerder dan de donkere kant. Design even hoe de maan moet eruit zien from
+  scratch"):** root-caused for good this time — expressing "how lit" as ALPHA is inherently
+  background-dependent (a translucent fill's apparent brightness always depends on what's behind it),
+  so no alpha tuning can fix it; only removing alpha from the equation can. Redesigned with Han from
+  scratch: the disc is now ALWAYS FULLY OPAQUE (`MOON_DISC_ALPHA = 1`, no exceptions) and `MOON_SHADE[]`
+  is a plain fill-colour array — "how lit" lives ONLY in colour, never alpha, so the disc's internal
+  brightness ordering (lit > terminator > unlit) can never invert against whatever sky is behind it.
+  Han explicitly declined a legibility outline (kept simple) and kept the earthshine tone dark
+  blue-grey (`MOON_EARTHSHINE_RGB`, unchanged), not near-black. `drawMoonDisc`'s `alphaMul` parameter
+  remains the SEPARATE §375 cloud-cover fade, applied once for the whole disc — never "how lit" again.
+  **UAT r7 (Han 2026-09-05: "de maan is nog steeds donker overdag — overdag moet het onbelichte stuk
+  vd maan haast onzichtbaar zijn"):** the one sanctioned carve-out from r6's colour-only rule. The
+  real daytime moon shows only its lit crescent; the unlit half is invisible against the bright sky.
+  `drawMoonDisc` gains a `dayness` arg that fades the non-fully-lit shades toward transparent as the
+  sky brightens. **UAT r8 (two more Han complaints):** (a) *"de rand tussen het verlichte en
+  onverlichte deel is donkerder dan de rest"* — the opaque 70 %-lit **shade 2** band read as a dark
+  rim by day, so now EVERY shade below fully-lit (0 earthshine + 1 **and** 2, the soft terminator)
+  fades with `dayness`; only shade 3 (near-white crescent) stays opaque → clean crescent, no rim.
+  (b) *"de maan 's avonds/'s ochtends geeft een zwarte plek"* — `dayness` used to be 0 all through
+  dusk/dawn, so the unlit half was a solid earthshine blob then. It now ramps up from **deep night**:
+  `easeInOut((illum − 0.13) / 0.35)` — 0 only when `illum ≲ 0.13` (full earthshine), ~0.6 at the
+  dusk/dawn plateau (`illum ~0.33` → faint ghost, not a blob), 1 by real daylight. r6's no-inversion
+  guarantee is untouched: the only fully-opaque part that shows as the sky brightens is the near-white
+  crescent, which always out-reads a near-transparent fill over any sky.
+  Still integer-coord `fillRect` — a quantised 4-level colour dither, not sub-pixel AA. The sun's
+  SCREEN position is computed even while the sun is below the horizon — that is what keeps the
+  crescent pointing the right way after dark. **UAT r5 (Han:
+  "if moon within the glow radius of the sun, make it invisible"):** the moon draw gains a
+  `nearSun = hypot(moonXY − sunXY) < SUN_GLOW_RADIUS_GPX` screen-space cutoff, reusing the SAME
+  `SUN_GLOW_RADIUS_GPX` constant (`celestialModel.js`) §377's sun edge-glow already defines — one
+  source of truth for "how close is too close" — physically apt too, since near conjunction (new moon)
+  the sun and moon sit close together in the sky.
+- **Day/night fade.** `starOpacity(illum) = (1 − easeInOut((illum − 0.05)/(0.60 − 0.05)))²`, reusing
+  `weatherCycle`'s already-exported `easeInOut` rather than adding a second smoothstep. Deep night
+  (illum 0.12 since §374 UAT r2 — see below) → ~0.94, dusk/dawn (0.33) → 0.23, day (1.0) → 0. The 0.05
+  in the formula is the curve's low anchor, not the night floor. There is NO separate "show stars"
+  state: the layer reads the same `foliageParams.globalIllumination` the shaders and
+  `SkyGradientBackdrop.mixNight` read.
+- **UAT r2 (Han 2026-09-04) — "midden in de nacht de wereld te donker".** `TIME_PHASES` night `illum`
+  lifted `0.05 → 0.12` (`weatherCycle.js`) — back to the §362 value; §370's halving to 0.05 went too
+  far for the walkable world. Flat, every night (Han's pick over a moon-phase-linked brightness). Stars
+  barely dim (see above). `weatherCycle.test.js` night-floor asserts updated to 0.12.
+- **Debug affordances.** Two `FoliageParamsPanel` toggles (`Constellation lines` / `Constellation
+  names`, both default OFF; the whole panel is already `debugMode`-gated). Lines are dotted Bresenham
+  (one 1-gpx dot every 3 steps) on the game-px sky canvas. **UAT r5 (Han, pre-test 2026-09-04:
+  "sterrenstelsels ... alle stippellijnen altijd getekend worden, ook naar sterren die buiten beeld
+  zijn"):** `starXY` now records a position for EVERY astronomically-visible star (`p.visible`), on-
+  canvas or not — only the star PIXEL itself is skipped when off-canvas, never its entry in the map — so
+  a constellation line can run off the edge of the viewport toward a star outside the current frame.
+  Free: a canvas drawing call outside its bounds simply paints nothing. **Names (UAT r4 — Han: they
+  "zien er blurry
+  uit ... een of ander schalingseffect?"):** they used to be drawn at 16 px on the game-px canvas,
+  which is then CSS-upscaled ×`zoom` with `image-rendering: pixelated` — magnifying already-rasterised
+  canvas text turns its AA edge into chunky halos. Now the names get their OWN full-CSS-resolution
+  `<canvas>` sibling (`labelCanvasRef`, no upscale, above the sky canvas in DOM order), drawn at
+  `16 · zoom` px. `zoom` is an integer in world mode (`worldScale`, §334) so `16·zoom` is an exact
+  multiple of the font's 16 px native size — still pixel-perfect, and never re-magnified. It is cleared
+  and repainted each redraw while names are on and the stars are up; blank by day; wiped by an effect
+  when the toggle goes off. The World debug panel (top-left) also gains a **`Moon phase`**
+  `LevelPicker` (§374 UAT r2, #1191): `Auto / New / First ¼ / Full / Last ¼` → `weatherCycle.js`
+  `seekLunation(state, null | 0 | 0.25 | 0.5 | 0.75)`, which pins `weatherOutputs().lunationPhase`. That
+  drives the moon, the sun's RA drift AND the star sphere together — a jump in lunation TIME, so Han can
+  eyeball any phase without waiting out the ~3.7 h real-time lunation. `cyclesElapsed` keeps counting
+  under the pin; `Auto` snaps back to the real clock. Separately, with world `debugMode` on, the sun's
+  and the moon's full paths draw as dotted arcs (warm `#ffcc66` / cool `#88bbff`) with 5-px cross
+  markers at the live positions.
+- **The font, and the load gotcha.** §374 UAT r2 (Han: *"er is een serif pixel font ... ik wil dat je
+  de derde gebruikt"*): the labels use the app's existing curated **`'BestiaryPixel'`** family
+  (`App.css` / §334 / §351) — one `@font-face` split by style: normal = CelticTime, **italic =
+  SandyForest**, bold = Bitfantasy. Han's "third (italic)" is SandyForest, reached with
+  `font-style: italic`. Both faces are `unitsPerEm 1024` with 64 units per design-pixel, so **16 px is
+  their native size** (1 design-pixel = 1 screen-pixel); the labels render at `16 · zoom` px (an exact
+  multiple) on the full-res overlay described above. The `PixelNewspaperIII` `@font-face` the first cut
+  added is removed. The load gotcha stands: the
+  normal `BestiaryPixel` face is already loaded (ScalesPanel / WorldPiano use it in the DOM) but the
+  ITALIC face may not be, and `ctx.font` never triggers a font load — so `CelestialSky` still
+  `document.fonts.load('italic 16px BestiaryPixel')` on mount and skips the names pass until it
+  resolves; a rejection logs `E038-CELESTIAL-FONT-LOAD`. Canvas text antialiasing cannot be disabled —
+  a pixel font at its exact native px size on integer coordinates is the standard mitigation.
+- **The data pipeline.** `scripts/generate-star-catalog.mjs` reads the Yale Bright Star Catalogue
+  (Hoffleit D. & Warren W.H. Jr. 1991, *Bright Star Catalogue, 5th Revised Ed.*, ADC/CDS V/50 —
+  a publicly-funded astronomical catalogue, freely redistributable, no copyleft) and emits two
+  committed, DO-NOT-EDIT modules: `data/brightStars.js` (611 stars: everything to magnitude 4.5 that
+  ever clears the horizon within ±60° of due south from latitude 50.85 °N, plus every star a figure
+  references) and `data/constellationLines.js` (33 figures / 213 segments). The raw catalogue is not
+  committed; the generated files carry the source URL, the citation and the exact regeneration command.
+  ~45 KB raw, ~12 KB gzipped in the world bundle. The generator IMPORTS `celestialModel.js` for its
+  visibility test, so the data and the runtime can never disagree about what "visible from Brussels"
+  means. The constellation stick figures are **hand-authored in the generator's own source**, as Bayer
+  designations resolved against the catalogue's own name column: the ready-made figure files are all
+  encumbered for a non-copyleft app (Stellarium's `constellationship.fab` is GPL-2.0+/CC BY-SA 4.0,
+  whose share-alike would attach to our generated data file; the Sky & Telescope figures are
+  copyrighted), whereas a short factual list of which bright stars a figure joins, written
+  independently, carries none of that. An unresolvable designation or a never-visible figure is a hard
+  non-zero exit, never a silent drop — a silently dropped star is a broken stick figure that only shows
+  up visually at 3 a.m. in-game.
+
+**Invariants.**
+
+- `weatherCycle.js` stays PURE and timer-free. `cycleT` and `lunationPhase` are DERIVATIONS of the
+  existing phase clock, never their own timers — which is why freeze/resume across a music LEVEL
+  (`weatherCycleStore`) is completely unaffected. That store saves the whole object by reference, so
+  `cyclesElapsed` (and the §374 UAT r2 `lunationOverride`) ride along with no migration; `weatherOutputs`
+  treats an absent `lunationOverride` as `null` (auto), so a legacy persisted state is safe.
+- **`cycleT` / `lunationPhase` must NEVER enter RpgLevelPanel's `setWeather`/`pushWeatherToFoliage`
+  change-detection lists.** They move every tick; adding them would turn a steady phase from 0
+  re-renders into ~12/s and undo #1162 Fase 8. `CelestialSky` reads them off `weatherRef` inside its own
+  draw callback — that is a requirement, not an optimisation.
+- ONE knob, `CYCLES_PER_LUNATION = 28`, governs the moon elongation, the sun's RA drift AND the sidereal
+  excess. No second star clock, no `SIDEREAL_RATIO` constant to keep in sync.
+- Star/constellation opacity is a pure function of `globalIllumination`. No second day/night state.
+- `CelestialSky` does NOT react to `cameraX`: celestial objects are at infinity, parallax factor 0. The
+  canvas never redraws on a pan, only on a `cycleT`/illumination change — but it redraws on ANY such
+  change, once per frame. It skips only a byte-for-byte identical frame (frozen `cycleT` AND illumination
+  settled within the same 0.004 epsilon the weather loop uses). **UAT (Han 2026-09-04): it originally
+  redrew at 10 fps AND gated on "moved ≥ 1 whole game pixel", which lumped continuous motion into
+  multi-pixel star jumps. Both are gone — per-frame redraw, no whole-pixel gate — so every star steps
+  exactly one game pixel at a time across 60 fps. A very slow star still advances in 1-px steps (no
+  sub-pixel motion without antialiasing, which a pixel-art sky must not have); at 60 fps that is
+  imperceptible.**
+- No bare `requestAnimationFrame`: it is a `'throttled'`-PRIORITY subscriber on the shared `useFrameLoop`
+  ticker with `throttleMs: 0` — i.e. it runs every frame, but AFTER the `'critical'` camera/scroll pass
+  so it can never delay clock-driven position. The whole draw body is wrapped so one bad frame logs
+  `E037-CELESTIAL-SKY-DRAW-FRAME` and the ticker keeps running for every other subscriber. The per-frame
+  cost is ~200 visible `fillRect`s plus the moon's 169-px terminator loop — sub-millisecond.
+- Everything is drawn with integer-coordinate `fillRect`; `ctx.arc()` is never used, and star sizes are
+  GAME pixels (sprite px), not CSS px.
+- `celestialModel.js` is pure: no DOM, no `Date`/`performance.now`, no module-level mutable state. All
+  astronomy constants live there; `CelestialSky.jsx` owns none.
+- CLAUDE.md §3a (debug hit-box overlay) is **N/A** for this layer: `pointerEvents: 'none'`, zero
+  handlers, nothing to visualise.
+- §374's moon DISC is a DIFFERENT thing from §370's moon-RIM/sheen directional light, which keeps its
+  fixed top-left `MOON_DIR`. **UAT r2 (Han: "ik wil de maangloed enkel als de maan schrijnt"):** only
+  the STRENGTH of §370's glow is now driven by the real moon — its DIRECTION stays the fixed
+  `MOON_DIR` (Han's pick). `celestialModel.moonShine(moon)` is a 0..1 scalar = `0` when the moon is
+  below the horizon or new, else `illumFraction × smoothstep-in over the first
+  MOON_SHINE_ALT_FADE_DEG (12°) of altitude`. `RpgLevelPanel` quantises it to 0.05
+  (`quantMoonShine`), publishes it as `foliageParams.moonShine`, and adds that quantised value to the
+  per-tick weather change-detection (allowed there precisely BECAUSE it is quantised and coarse —
+  unlike `cycleT`). Every `uMoonStrength` upload site premultiplies by `p.moonShine ?? 1`
+  (`ForegroundFoliageLayer` non-instanced + instanced, `LdtkLitGround`); the parallax-bg rim
+  (`bgRimOpacity`) multiplies by it too. So a moonless / new-moon night has NO moon glow anywhere,
+  and a low moon's glow ramps up as it climbs. `?? 1` keeps the dev harness and any non-world caller
+  unchanged. (The night-floor lift to 0.12 also nudged `bgRimOpacity`'s `moonPresence` lower bound
+  0.08 → 0.13 so deep night still reads as full presence.)
+
+**Files:** `src/components/character/celestialModel.js` (new, pure),
+`src/components/character/CelestialSky.jsx` (new, rasterisation only),
+`src/components/character/data/brightStars.js` + `data/constellationLines.js` (new, generated),
+`scripts/generate-star-catalog.mjs` (new), `src/components/character/weatherCycle.js`
+(`CYCLE_TOTAL_S`/`PHASE_START_S`/`CYCLES_PER_LUNATION`, `cyclesElapsed`, `cycleT`, `lunationPhase`),
+`src/components/character/weatherCycleStore.js` (header note),
+`src/components/character/RpgLevelPanel.jsx` (mount between `<SkyGradientBackdrop>` and the parallax
+layers, two toggle states, `FoliageParamsPanel` rows; UAT r2: the `Moon phase` `LevelPicker` +
+`seekLunation` wiring; UAT r2: `quantMoonShine` + `moonShine` in `pushWeatherToFoliage`/the tick gate,
+`bgRimOpacity` × `moonShine`), `CLAUDE.md` (E037/E038). UAT r2 also: `weatherCycle.js`
+(`lunationOverride`, `seekLunation`, night `illum` 0.05 → 0.12), `celestialModel.js` (`moonShine` +
+`MOON_SHINE_ALT_FADE_DEG`), `CelestialSky.jsx` (per-frame redraw, `BestiaryPixel` italic labels; UAT
+r3 4-level moon terminator; UAT r4 `discHalfWidth` ≥3-px poles; UAT r5 per-shade `MOON_SHADE[].alpha`
+(briefly, then reverted); UAT r6 back to a single always-opaque `MOON_DISC_ALPHA = 1` with
+colour-only `MOON_SHADE[]`; the `nearSun` sun-proximity cutoff; and off-canvas `starXY` entries for
+constellation lines; full-res `labelCanvasRef` overlay for the names), `ForegroundFoliageLayer.jsx` +
+`LdtkLitGround.jsx`
+(premultiply `uMoonStrength` by `p.moonShine ?? 1`;
+`DEFAULT_FOLIAGE_PARAMS.moonShine`), `src/styles/App.css` (the `PixelNewspaperIII` `@font-face` the
+first cut added is removed — labels now use the existing `BestiaryPixel` family). Tests:
+`src/components/character/__tests__/celestialModel.test.js` (27 cases — incl. the
+first-quarter-transits-at-DUSK elongation-sign test and the `moonShine` gate) and the `§374 cycle
+clock` + `§374 seekLunation` describes in `src/components/character/__tests__/weatherCycle.test.js`.
+
+**Cross-references.** §360 (the auto weather cycle) owns the clock this layer reads; §372
+(`SkyGradientBackdrop`) is the gradient it draws in front of; §141 owns `HORIZON_PX`, the horizon this
+layer projects onto; §370 owns the separate moon-RIM light.
+
+**Note.** §373 was the last section header, so this is §374.
+
+### §375. Weertypen — de cloud-cover as: helder / licht bewolkt / bewolkt / donker bewolkt (#1192, Han 2026-09-04)
+
+**Purpose.** The RPG world had two auto-cycling weather tracks (wind and time-of-day, §360). Han asked
+for a third — cloud cover — with four types, verbatim:
+
+- **DONKER BEWOLKT:** "lucht is grijs …, globalIllumination iets omlaag, zon EN maan niet zichtbaar."
+- **BEWOLKT:** "achtergrond wit …, de zon is *waterig* (diffuus) achter de wolken; maan en sterren
+  niet zichtbaar."
+- **LICHT BEWOLKT:** "as is" — the current look, unchanged.
+- **HELDER:** "maak de witte fade (horizon) minder wit en het blauw blauwer."
+
+**UAT r1 (Han) changed four things:** (1) the procedural "vlekkerig" mottle canvas was **removed
+entirely** ("de vlekken hoeven niet") — an overcast sky is now just the flat white/grey sheet with a
+*subtle* top→horizon falloff; (2) an overcast **night must go properly dark**, not the r0 half-dim;
+(3) HELDER now also lerps toward a real deep sky-blue, not just a saturation bump, and (4) the watery
+sun is **white, not yellow**.
+
+Cloud SPRITES per parallax layer are explicitly **out of scope** — Han supplies that art later and it
+becomes its own ticket. (`weather.cloudSeed` — a stable per-session seed — is kept for it.)
+
+**How it works — one scalar, three ramps, zero per-type branches.**
+
+The whole feature rides on ONE continuous eased number, `cloudCoverT` (0..1), and three pure ramps
+derived from it. There is no `if (cloudType === …)` in any renderer: the four types are four positions
+on one axis and every visual is a lerp over one of the three ramps. A transition therefore eases
+*through* the intermediate looks automatically (Han's "no jump-cuts"), and **LIGHT is bit-identical to
+the pre-§375 world BY CONSTRUCTION** — at LIGHT all three ramps are exactly 0, so every new term
+multiplies out — rather than by a special case.
+
+```
+CLOUD_COVER = { CLEAR: 0, LIGHT: 0.25, OVERCAST: (0.25+1)/2, DARK_OVERCAST: 1 }
+```
+
+`OVERCAST` is **derived** as the midpoint of LIGHT..DARK_OVERCAST, so `CLOUD_LIGHT_COVER = 0.25` is the
+only free number on the axis (CLAUDE.md §6c — a 4-entry table would silently stop making sense the
+moment that value is retuned).
+
+| ramp | formula | 1 at | drives |
+|---|---|---|---|
+| `cloudClearness(t)` | `clamp01((LIGHT − t) / (LIGHT − CLEAR))` | CLEAR | sky saturation boost |
+| `cloudCollapseT(t)` | `clamp01((t − LIGHT) / (OVERCAST − LIGHT))` | OVERCAST + DARK | overcast sheet, hiding moon/stars, watery sun, moonlight gate |
+| `cloudDarkT(t)` | `clamp01((t − OVERCAST) / (DARK − OVERCAST))` | DARK | white→matte-grey sheet, hiding the sun |
+
+- **The track itself** (`weatherCycle.js`) mirrors the wind track field-for-field:
+  `cloudType` / `cloudCover` / `cloudFrom` / `cloudTo` / `cloudFadeElapsed` / `cloudTimer`, eased with
+  the same `easeInOut` over `CLOUD_FADE_S = TIME_FADE_S` (10 s). The one difference is
+  `cloudNextDrawS`: the draw interval is a RANGE (`CLOUD_INTERVAL_MIN_S = 60` …
+  `CLOUD_INTERVAL_MAX_S = 2 × MIN`), re-rolled at every draw, so it has to live on the state.
+  `CLOUD_BAG = WIND_BAG.map((n) => CLOUD_TYPES[n])` — the SAME 1/7 · 3/7 · 2/7 · 1/7 weighting the wind
+  track already uses, mapped onto the four cover levels in increasing order, i.e. weighted toward LIGHT
+  with CLEAR and DARK_OVERCAST equally rare. One weighting shape in the file, two tracks reading it.
+  No new timer and no wall clock — it rides the same `dt` accumulator, which is exactly why
+  freeze/resume through `weatherCycleStore` keeps working with **no migration**.
+- **`seekCloud(state, type)`** is the picker action, shaped exactly like `seekWind`: it eases from
+  wherever the cover currently is, restarts the draw timer, and lets the auto-cycle carry on from
+  there. An unknown type is a no-op returning the same object (mirrors `seekPhase`).
+- **Illumination — ONE line.** `cloudIllumMultiplier(t) = 1 − CLOUD_ILLUM_DROP_STEP × (collapseT +
+  darkT)` with `CLOUD_ILLUM_DROP_STEP = 0.1` yields exactly **1.0 / 1.0 / 0.9 / 0.8** across the four
+  types — Han's locked design values, from one formula and one constant, not a table. It folds in at
+  exactly one place, `weatherOutputs`' `globalIllumination: state.illum * illumMultiplier`. Every
+  downstream consumer (`ForegroundFoliageLayer`'s `uMix`, `LdtkLitGround`, `FoliageInstancingTest`,
+  `WaterReflectionLayer`'s CSS `brightness()`, `SkyGradientBackdrop`'s `mixNight`/`sunsetFactor`,
+  `CelestialSky`'s `starOpacity`, `RpgLevelPanel`'s `domAmbientTint`/`bgNight`/`moonPresence`) keeps
+  reading that single scalar and knows nothing about clouds. `illumMultiplier` is also emitted, but
+  **diagnostic/test only — nothing may ever multiply it in again.**
+- **`SkyGradientBackdrop` colour (§372's pipeline, bookended).** The per-stop pipeline is four ordered
+  ops in the exported, unit-testable `cloudSkyStop(dayStop, f, illum, cloudCoverT)`:
+  1. *(new)* **CLEAR (HELDER)** — a saturation bump around the stop's OWN Rec.601 luma
+     (`CLEAR_SAT_GAIN = 0.85`) **and** a lerp toward a real deep sky-blue `CLEAR_SKY_BLUE = [64,132,220]`
+     by `CLEAR_BLUE_SHARE = 0.55`, both weighted by `clearWeightAt(f) × clearness` — `clearWeightAt(f)`
+     falls from 1.0 at the top stop ("het blauw blauwer") to `CLEAR_HORIZON_SHARE (0.4)` at the horizon
+     ("de witte fade minder wit"). UAT r1: the r0 version only *saturated* and stayed pale — the blue
+     lerp is what makes HELDER actually read as a vivid blue sky.
+  2. **`mixNight(c, illum)` — UNCHANGED.**
+  3. **The dusk/dawn `sunsetFactor` lerp — UNCHANGED**, except its weight is additionally scaled by
+     `(1 − collapseT)`: a pink horizon under a solid cloud sheet would be wrong.
+  4. *(new)* **Overcast-sheet collapse** — `lerpRgb(c, cloudSheetAt(f, darkT, illum), collapseT)`.
+     `cloudSheetAt` is an explicit neutral **white** `CLOUD_SHEET_WHITE = [250,250,250]` (Han UAT r1:
+     "gewoon wit") scaled by `lerp(1, CLOUD_SHEET_VGRAD (0.92), f)` (a SUBTLE top→horizon falloff — "met
+     subtiele gradient", not a dead flat fill) × `lerp(1, OVERCAST_DARK_SCALE (0.46), darkT)`
+     (white → matte grey ≈ `[115,115,115]`) × `lerp(1, OVERCAST_NIGHT_DIM (0.26), 1 − illum)` (an
+     overcast NIGHT is properly dark — the r0 0.45 was too light).
+
+  **`mixNight` is never bypassed and there is no threshold anywhere in the component** — the sheet is
+  simply lerped over its result, and carries its own night dim. So an overcast sky is the same colour
+  day AND night, only much darker at night, and at LIGHT/CLEAR op 4 is a mathematical no-op.
+- **UAT r1: the procedural "vlekkerig" mottle canvas is GONE.** Han: *"de vlekken hoeven niet. Maak de
+  achtergrond maar gewoon wit (bewolkt) en mat grijs (zwaar bewolkt) met subtiele gradient."* The
+  sibling `<canvas>`, its two-octave value-noise field, the `MOTTLE_*` constants, the FIELD/PAINT
+  effects, the `cloudSeed` / `sizePx` / `zoom` props to `SkyGradientBackdrop`, and the
+  `E039-SKY-MOTTLE-PAINT` code path were all removed — `SkyGradientBackdrop` is a plain gradient
+  `<div>` again. `weather.cloudSeed` stays (see the sprite-phase note above).
+- **`CelestialSky` visibility.** No new prop: the draw callback already calls
+  `weatherOutputs(weatherRef.current)`, so it simply also destructures `cloudCoverT`. Four pass-groups,
+  each gated by ONE continuous multiply:
+  - **stars** `× (1 − collapseT)`. Because the constellation LINES and NAMES passes are nested inside
+    the existing `alpha >= STAR_ALPHA_FLOOR` guard and derive their own alpha from the star alpha, that
+    single multiplication hides all three, as a 10 s fade rather than a pop.
+  - **moon disc** `× (1 − collapseT)` (`drawMoonDisc` now takes its alpha as a parameter instead of the
+    `MOON_DISC_ALPHA` constant), and the visibility condition gains `moonAlpha >= STAR_ALPHA_FLOOR` so
+    the 169-pixel terminator loop is skipped entirely when invisible. `STAR_ALPHA_FLOOR` is REUSED as
+    the shared "too faint to bother" floor, never duplicated.
+  - **sun** `× (1 − darkT)` — gone entirely at DARK_OVERCAST.
+  - **the "waterige" sun**, `wet = collapseT`, built from the EXISTING `SUN_GLOW_RINGS` mechanism and
+    never a blur or shadow: the radius grows by `SUN_WATERY_R_GAIN (0.6)`, the two existing rings widen
+    with it and dim toward `SUN_WET_RING_ALPHA_SCALE (0.6)`, two EXTRA soft rings of the identical
+    `{pad, alpha}` shape (`SUN_WET_EXTRA_RINGS`) fade in, a `SUN_WET_BODY_ALPHA (0.5)` diffuse body is
+    added, and the hard `SUN_CORE` is faded out by `(1 − wet)`. **UAT r1 (Han: "Waterige zon: wit, niet
+    geel"):** the glow/body colour lerps from the warm `SUN_GLOW_RGB [255,233,160]` toward pure white
+    `SUN_WET_GLOW_RGB [255,255,255]` on `wet`, so a fully overcast sun is white. The
+    sink-behind-the-scenery condition is recomputed with the watery radius so the bigger disc still
+    sinks correctly. At `wet = 0` every new term is multiplied by 0 and `sunR === SUN_R_GPX`, so
+    CLEAR/LIGHT render bit-identically to §374.
+  - Debug **orbit paths and live position markers are deliberately NOT gated** — they are debug
+    affordances, and Han must still be able to see where the hidden sun/moon are.
+- **Moonlight consistency (Han, plan_review Q1 = ja).** `foliageParams.moonShine` (§374 UAT r2) drives
+  the parallax-bg moon RIM and the WebGL moonlight sheen from the moon's REAL position, which under
+  OVERCAST/DARK would light the world from a moon that is not drawn. `quantMoonShine` therefore
+  multiplies by the SAME `(1 − cloudCollapseT(cloudCoverT))` factor `CelestialSky` uses for the disc —
+  one source of truth, so "moon hidden" and "no moonlight" can never disagree. This is not a second
+  darkness knob: it is the EXISTING moon knob, gated.
+- **The debug picker.** A `LevelPicker` labelled **"Weather"** (Clear / Light / Overcast / Dark) in the
+  World debug panel, between "Wind" and "Moon phase" →
+  `commitWeather(seekCloud(weatherRef.current, type))`. `CLOUD_PICK_LABELS` holds display-only short
+  labels; the canonical `CLOUD_TYPES` keys are what reach `seekCloud`. The panel's existing reset
+  button (`commitWeather(createWeatherState())`) now also re-rolls the cloud track and its seed.
+
+**Invariants.**
+
+- **The raw continuous `cloudCoverT` must NEVER enter `RpgLevelPanel`'s per-tick change-detection
+  lists** — the §374 invariant, extended. It appears in exactly ONE place in the whole app:
+  `CelestialSky`'s draw callback, read off `weatherRef`. The tick loop's `setWeather` (render-only) list
+  gained only two DISCRETE terms — `cloudType` (a string, changes at most once per 60–120 s) and
+  `quantCloudCover` (0.05 steps ⇒ ≤20 renders over a 10 s transition, 0 while settled, the same
+  convention as `bgNight` / `quantMoonShine`). The `pushWeatherToFoliage` list gained **nothing**:
+  during a cloud ease `globalIllumination` itself moves, so its existing `>= 0.004` term already
+  re-pushes at the right moments.
+- **Nothing re-multiplies `illumMultiplier`.** It is folded into `globalIllumination` inside
+  `weatherOutputs` and nowhere else; the emitted `illumMultiplier` field is diagnostic only.
+- **LIGHT is bit-identical to pre-§375** — proven by a unit test, not eyeballed: `cloudSkyStop` at
+  `CLOUD_COVER.LIGHT` equals the old `mixNight` + sunset result exactly, for every illum and every stop
+  fraction.
+- A **legacy persisted state with no cloud fields defaults to LIGHT** (every ramp 0 ⇒ "unchanged") and
+  has a fresh `cloudSeed` rolled on its first `tickWeather` — `weatherOutputs` stays a pure derivation
+  and never rolls anything.
+- `tickWeather` remains **pure** (spreads, never mutates) and adds **no new timer**.
+- CLAUDE.md §3a (debug hit boxes) is **N/A**: `SkyGradientBackdrop` is a `pointerEvents: 'none'` div;
+  the "Weather" picker reuses the existing `LevelPicker` buttons, which are real DOM buttons with their
+  own hit region.
+- **Cloud SPRITES per parallax layer are a separate future phase** (Han supplies the art).
+
+**Files:** `src/components/character/weatherCycle.js` (the cloud track: constants, `CLOUD_BAG`, the
+three ramps, `cloudIllumMultiplier`, `pickCloud`, state fields incl. `cloudSeed`, the two `tickWeather`
+blocks, `seekCloud`, the `weatherOutputs` additions and the single `globalIllumination` line),
+`src/components/character/SkyGradientBackdrop.jsx` (`cloudSkyStop` / `cloudSheetAt` / `sunsetWeightAt`
+exports, the CLEAR blue-lerp + saturation, the white/matte-grey subtle-gradient sheet, the single new
+`cloudCoverT` prop — **UAT r1 removed the mottle canvas + its FIELD/PAINT passes + the
+`cloudSeed`/`sizePx`/`zoom` props**), `src/components/character/CelestialSky.jsx` (cloud read off
+`weatherRef`, the four gated pass-groups, `drawMoonDisc` alpha parameter, the watery-sun constants +
+the UAT-r1 warm→white glow lerp, `CLOUD_EPSILON` in the identical-frame early-out),
+`src/components/character/RpgLevelPanel.jsx` (`quantCloudCover`, `quantMoonShine` × `(1 − collapseT)`,
+two discrete terms in the `setWeather` list, the `<SkyGradientBackdrop>` prop, the "Weather"
+`LevelPicker` + `CLOUD_PICK_LABELS`), `CLAUDE.md` (`E039-SKY-MOTTLE-PAINT` marked **RETIRED** — the
+mottle it guarded was removed in UAT r1; the number is left listed so old logs resolve). Tests: the
+four `§375 cloud cover` describes in `src/components/character/__tests__/weatherCycle.test.js` and the
+`§375 cloudSkyStop` describe in `src/components/character/__tests__/skyGradientBackdrop.test.js`.
+
+**Cross-references.** §360 (the auto weather cycle) now has a THIRD track; §372
+(`SkyGradientBackdrop`) owns the gradient this recolours; §374 (`CelestialSky`) owns the
+sun/moon/stars this hides and the `moonShine` knob this gates; §141 owns `HORIZON_PX`.
+
+**Note.** §374 was the last section header, so this is §375.
+
+---
+
+### §376. Hero/pet position taken off the React-render path (#1192-jank, Han 2026-09-04, "de hero die rent hakkelt, soms zie ik hem dubbel")
+
+**Symptom.** Han reported the RPG world feeling stuttery/jerky (variable-framerate feel) with occasional
+visible sprite "doubling" of the hero while running — plus a related complaint that the star field
+(§374) moves in visible steps rather than smoothly, and that the music LEVEL flow (SheetRpgLayer) shows
+similar jank for slimes/critters. This entry covers the first fix: the hero/pet.
+
+**Root cause.** `useRpgLevelState.js`'s movement `useFrameLoop` callback called `setPlayerX(...)`
+**unconditionally every rAF frame** while moving (its sibling flags — `moving`/`running`/`petMoving` —
+all had a diff-check before calling their setter; `playerX` did not). That forced a full React commit of
+`RpgLevelPanel`'s entity subtree (hero, pet, NPCs, critters — all routed through the memoized
+`EntityLayer`, since `playerX`/`petX` were props it depended on) at up to 60/sec. Camera panning had
+already been migrated to imperative `ref.style.transform` writes inside its own `useFrameLoop` callback
+(§321-§325, #1162) specifically to avoid this; the hero/pet position never got the same treatment. Worse,
+the camera's DOM offset SNAPS to whole device pixels every frame (`Math.round(-next*z*dpr)/dpr`, §321),
+while the hero/pet's own `left` (`worldToScreenXLocal(playerX)`) did not — a per-frame React-commit-
+latency gap plus a sub-pixel/whole-pixel mismatch between the hero and the ground it stands on, which is
+the most likely mechanism behind the reported "double sprite" during fast movement or direction changes.
+
+Han's own hypothesis — that a metronome/BPM-bound sprite framerate was the cause — was only half right:
+the **walk-cycle** animation frame (`walkFrame`, `RpgLevelPanel.jsx`) is already wall-clock-based
+(`frameMs = running ? 60 : 120`), not BPM-locked. The **idle** frame (`petFrame`, shared by hero/pet/
+Wisp/Slime/workers, §6c one shared cadence) IS BPM-locked (`frameMsForBpm`) by design — unchanged here,
+out of scope (idle cadence tracking the world's own tempo is intentional, not a bug).
+
+**Fix.**
+- `useRpgLevelState.js`: `playerXRef`/`petXRef` are now returned directly from the hook (the SAME refs
+  the physics loop already wrote every frame internally) instead of only being consumed inside the hook.
+  They are no longer resynced from `playerX`/`petX` state on every render (that resync would otherwise
+  periodically clobber the live physics value with a stale one once state updates are throttled — see
+  next point). `setPlayerX`/`setPetX` are now throttled to `POSITION_STATE_THROTTLE_MS = 60` (~16Hz)
+  while moving, with an immediate flush on the moving→stopped transition (so the resting position is
+  never stale for consumers of the state value). The physics refs themselves are still written every
+  frame, unthrottled — only the React-visible *state* snapshot is throttled.
+- `RpgLevelPanel.jsx`: reads `playerXRef`/`petXRef` straight from the hook (removed a local copy that used
+  to resync `.current = playerX` on every render — now redundant and would have reintroduced the same
+  staleness bug). New `heroWrapperRef`/`petWrapperRef` DOM refs are attached to the hero/pet wrapper
+  `<div>`s (JSX still sets an initial `left`/`bottom` from state, for first paint only). The existing
+  camera `useFrameLoop` callback — already running every critical frame — now ALSO writes the hero/pet
+  `style.left`/`style.bottom` directly from `playerXRef.current`/`petXRef.current`, snapped to the SAME
+  device-pixel grid (`Math.round(x*dpr)/dpr`) the camera offset already snaps to.
+- **Deliberately out of scope this round:** the water-reflection copies (`EntityReflection`) still read
+  the throttled `playerX`/`petX` state props, not the refs — they're decorative (opacity 0.35, only
+  rendered near a pond) and a ≤60ms lag there is not perceptible; converting them too would have meant
+  threading refs through a conditionally-`null`-returning component for no visible benefit. Pet-facing-
+  vs-hero comparisons (`petX <= playerX`) and the hero point-light position (§weather) also still read the
+  throttled state — both tolerate ~16Hz update rate fine (facing flips are not sub-frame-critical; the
+  light already only rebuilds on `petFrame`, ~10/s, per its own comment).
+
+**Invariant.** Any RPG-world entity whose position must track a physics ref at full frame rate writes its
+DOM position **imperatively inside a `'critical'`-priority `useFrameLoop` callback**, snapped to the same
+device-pixel grid as the camera offset it's composited against — never through React state consumed by
+JSX `style` props (CLAUDE.md §6's opacity rule, generalized to position). React state for such a value is
+a throttled, best-effort snapshot for secondary consumers only, never the thing driving what's on screen.
+
+**Files:** `src/hooks/useRpgLevelState.js` (refs returned, throttled+flushed state setters),
+`src/components/character/RpgLevelPanel.jsx` (`heroWrapperRef`/`petWrapperRef`, imperative position write
+in the camera `useFrameLoop` callback, `EntityLayer` prop plumbing). No test file changes — this is a
+rendering-path change with no new pure-function surface; verified via `npm run test:run` (131 files /
+1473 tests passed, 1 pre-existing skip unaffected), `npm run build`, `npm run lint` (0 new warnings).
+
+**Still open (tracked in BACKLOG.md under "Performance: hakkelige rendering", not yet implemented):**
+CelestialSky's star-position update is throttled to ~12Hz while its canvas redraws at 60Hz (visible
+stepping); SheetRpgLayer's slime/critter/projectile entity updates are throttled to ~30Hz while the
+scroll itself is unthrottled at 60Hz (a similar background/entity desync, one layer over).
+
+**Cross-references.** §321-§325, §328-§331 (#1162, the camera/foliage imperative-transform precedent this
+fix follows); §374 (`CelestialSky`, the still-open star-stepping issue); the music-LEVEL flow's own
+`SheetRpgLayer.jsx` entity throttle (still-open, no prior architecture.md section — see BACKLOG.md).
+
+---
+
+### §377. Sun edge-glow — "felle zon door de bomen" / "zon vlak over daken" (#1193, Han 2026-09-04)
+
+**Purpose.** §370 gave the world a moon: a directional sheen plus a bright white RIM on every sprite's
+top-left contour, on at night. Han asked for the SUN's counterpart, and was precise about what makes
+it different (2026-09-04):
+
+> "geef de zon een glow (net zoals de maan), maar dan in de kleur van de zon (geel, of dusk/dawn naar
+> roze toe) enkel voor pixels aan de rand van sprites **vlakbij de zon** (zeg, 20 gpx vanaf oorsprong
+> vd zon), zo krijg je een felle zon door de bomen-effect, of zon vlak over daken."
+
+So: the same rim/sheen machinery as the moon, but (a) tinted with the sun's own colour, (b) **masked to
+a disc around the sun's actual on-screen position**, and (c) strongest when the sun is LOW. The moon
+rims the whole world uniformly (it is a distant, diffuse light); the sun is a small bright disc you can
+look straight at, and what you see when it is low is a *local* flare on whatever silhouette happens to
+sit in front of it.
+
+**The altitude curve (`celestialModel.sunGlowStrength`, pure).**
+
+```
+altDeg <= 0                       ->  0                           (nothing at or below the horizon)
+strength = min(1, altDeg / 2 deg)                                 (SUN_GLOW_RISE_DEG)
+```
+
+**UAT r1 (Han 2026-09-06, "ik vind de sun-glow nog niet goed zichtbaar ... ik wil de zelfde soort gloed
+die de maan geeft, op objecten die visueel dicht bij de zon staan").** The ORIGINAL curve (below) faded
+the term down to a floor of 0.25 above 25° altitude, on the assumption that "vlak over daken" was
+specifically a low-sun moment. Han's interview answer was the opposite — **"niet hoogte afhankelijk"**:
+a willow standing right under a HIGH midday sun must glow exactly as strongly as one under a low dusk
+sun, because "the sun is visually close to that object" can happen at any point in its arc, not just at
+the horizon. The fall-to-a-floor term (and its two constants, `SUN_GLOW_ALT_FADE_DEG` /
+`SUN_GLOW_ZENITH_FLOOR`) are GONE. Only the `rise` band survives — it exists purely so the term cannot
+pop 1 → 0 at the horizon line while half of the glow's 40 gpx disc still covers on-screen rooftops (2°
+is ~7 gpx of sky at the shipped fov) — so strength is **exactly 1 for any altitude ≥ 2°**, however high
+the sun climbs. Below the horizon it is still *exactly* 0 (ac3). The interview's OTHER half — whether
+to also loosen the luminance mask that gates the glow to already-bright-painted texels (shared with
+`applyMoonLight`, §370) — Han declined: "hou 'm zoals de maan", so `MOON_LUM_LO`/`MOON_LUM_HI` are
+untouched and shared as before.
+
+*Superseded — kept for the historical record of why this was tried and reverted:*
+
+```
+rise = min(1, altDeg / 2 deg)                                     (SUN_GLOW_RISE_DEG)
+t    = min(1, altDeg / 25 deg)                                    (was SUN_GLOW_ALT_FADE_DEG)
+fall = 0.25 + 0.75 * (1 - easeInOut(t))                           (was SUN_GLOW_ZENITH_FLOOR = 0.25)
+strength = rise * fall
+```
+
+**The colour (`SkyGradientBackdrop.sunGlowColor`, pure).** `lerpRgb(SUN_GLOW_RGB, SUNSET_RGB,
+sunsetFactor(illum))` — the sun's OWN yellow `[255, 233, 160]` lerped to the sky's OWN warm rose
+`[255, 150, 130]` on the SAME `sunsetFactor` hump §372 already uses for the horizon glow. There is no
+second dusk/dawn curve and no new pink constant (cr2). `SUN_GLOW_RGB` moved out of `CelestialSky.jsx`
+into `celestialModel.js` so the drawn disc's glow and this tint are provably one colour (CLAUDE.md
+§6d). **UAT r2 (Han, screenshot 2026-09-06: "de buitenste paar pixels in de buurt van de zon
+'overbelicht', precies zoals bij de maan"; then, after a try with a warm near-white: "gewoon de
+huidige kleur van de zon hergebruiken. het effect mag even sterk zijn als dat van de maan").** A brief
+r2 attempt swapped the colour to a warm near-white to force the blow-out; Han reverted it — the fix is
+STRENGTH, not colour (see the rim/mask paragraphs below), so this stays the sun's own yellow.
+`lerpRgb` rounds to integers, so the result is inherently quantised to 1/255 steps — the colour needs
+no term of its own in the change-detection list (below), being a pure function of `globalIllumination`.
+
+**The cloud gate.** `quantSunGlow` multiplies the altitude curve by `(1 - cloudCollapseT(cloudCoverT))`
+— the SAME factor `quantMoonShine` uses, so "sun hidden behind cloud" and "no sun glow in the world"
+can never disagree. Deliberately `cloudCollapseT`, not `cloudDarkT`: at BEWOLKT §375 still draws the
+sun disc "waterig" but the sharp glow is gone, which is the physically right reading of a diffused sun
+(ac5). It is not a second darkness knob — it is the existing sun knob, gated.
+
+**THE COORDINATE BRIDGE (the whole risk of this feature, and why it is not one).**
+
+The glow must be centred on the sun *as the player sees it*, in four shaders that know nothing about
+the sky. Resolved without a single new varying, uniform-side camera term, or dpr calculation:
+
+- **Every fragment already has the value.** All four consumers already derive a TOP-DOWN canvas pixel
+  from `gl_FragCoord` + `uCanvasSize` (ForegroundFoliageLayer's two shaders and the dev harness do it
+  for `localYPx`; LdtkLitGround literally computes `vec2 screenPx = vec2(gl_FragCoord.x,
+  uCanvasSize.y - gl_FragCoord.y)`). The sun term reuses that exact expression.
+- **Normalise BOTH axes by the canvas WIDTH.** Dividing x and y by the same scalar keeps the metric
+  isotropic (a circle stays a circle at any aspect ratio) and cancels devicePixelRatio exactly:
+  `(cssPx*dpr)/(cssW*dpr) == cssPx/cssW`. JS never reasons about dpr.
+- **Zoom cancels** (numerator and denominator are both game px). **Camera pan is free**: the sky layer
+  does not parallax and never reads `cameraX`, so the sun's viewport position is camera-independent BY
+  CONSTRUCTION, and `gl_FragCoord` is viewport-absolute. The glow stays welded to the visible disc
+  while sprites slide underneath it (ac6) with zero camera plumbing.
+- **Sun outside the azimuth window**: `projectToScreen` returns a far-off x and the distance mask goes
+  to 0 by itself — no extra visibility gate.
+- **ONE projection, structurally.** `CelestialSky.jsx` now EXPORTS `skyGeom(sizePx, zoom,
+  horizonGamePx)` — the three lines (`Wpx`, `Hpx`, `horizonY`) it used to compute inline — and consumes
+  its own extraction. `RpgLevelPanel` calls the same function, then `sunPosition` + `projectToScreen`,
+  then rounds to a whole game pixel. Because that quantum is exactly 1, the result is BIT-IDENTICAL to
+  `CelestialSky`'s own `sunXY = {x: round(sunP.x), y: round(sunP.y)}`: the glow centre and the drawn
+  disc cannot drift apart.
+
+**The shared GLSL (`foliageLightingGLSL.js`).** `LIGHTING_PARAM_UNIFORMS_GLSL` gains four uniforms —
+`uSunGlowStrength` (float), `uSunGlowColor` (vec3, 0..1), `uSunScreenPos` (highp vec2,
+canvas-width-normalised, top-down) and `uSunGlowRadius` (highp float, same units). `highp` matches the
+existing `highp uScreenPos/uSizePx/uCanvasSize` fragment uniforms (#141 round 23), so no NEW
+fragment-highp requirement is introduced, and they are fragment-stage-only in all four consumers, so
+round 23's cross-stage precision-mismatch trap does not apply.
+
+`applySunGlow(currentColor, baseColor, edgeFactor, rimFactor, tex, duv, texelSize, fragUnit)` mirrors
+`applyMoonLight`'s shape — a luminance-masked screen-blend sheen plus a screen-blended rim — with three
+differences:
+
+1. **no directional `dot(normal, DIR)` term** — the sun has no fixed world direction here; its
+   LOCALITY is the distance mask, which is the whole point of the feature;
+2. the colour is a **uniform** (the sun's own yellow → dusk-rose lerp) instead of a fixed const;
+3. **everything is multiplied by the screen-space distance mask** around the sun's own position.
+
+It reuses the `rimFactor` the call site already computed for §370 (`moonRimFactor`, up to 6
+`texture2D` reads) — one rim definition in the codebase, zero extra texture fetches — and §370's own
+tuned `MOON_LUM_LO/HI` luminance thresholds, so the sun rides the art's painted highlights exactly as
+the moon does (Han's UAT r1 answer: "hou 'm zoals de maan"). **UAT r2: `SUN_SHEEN_SCALE` 0.35 → 0.5**,
+matching the moon's `MOON_SHEEN_SCALE` — "hetzelfde effect hergebruiken", not a weaker supporting term.
+Setting it to 0 still gives strictly-edges-only.
+
+**UAT r4** — three tweaks, all "altijd actief zolang de zon boven de horizon staat, hoogte/tijd-onafhankelijk"
+(which `sunGlowStrength` already is — `min(1, altDeg/2)`, zero below the horizon, no illumination fade):
+
+- **`SUN_SHEEN_SCALE` 0.5 → 0.8** (Han: "interieur sheen mag sterker") — the sun's near-object surface
+  sheen now reads stronger than the moon's supporting term, no longer strict parity.
+- **`sunInwardGlow(tex, duv, texelSize)`** — moonRimFactor only lights the single outermost silhouette
+  texel; near the sun Han wants the glow to bite **3 game-px INTO** the sprite with a gradient. New
+  isotropic distance-to-edge helper: 1 px from an empty neighbour → `1.0`, 2 px → `0.6`, 3 px → `0.3`,
+  deeper → `0`. The rim term became `max(rimFactor, sunInwardGlow(...))` — the inward gradient takes
+  over near the sun and never weakens the existing directional rim. It is computed **inside**
+  `applySunGlow` after both early-outs, so its up-to-12 `texture2D` reads are only paid by fragments
+  already inside the sun's screen-space mask while the sun is up — hence the new `tex/duv/texelSize`
+  params. Still multiplied by the `near` mask, so the 3-px bite is full in the hard core and fades out
+  with the rest of the glow.
+- **`RIM_EMPTY_ALPHA`** — introduced at r4 as `0.7` to catch anti-aliased edge texels (idea: α ≈
+  0.5–0.9 texels clear the 0.5 cutout-discard but a `< 0.5` "neighbour empty" test misses them, so the
+  rim stops one texel short of a dark fringe). **Reverted to `0.5` at UAT r5** (Han: "mijn pixel art
+  heeft geen sub-1 alpha") — verified: the LDtk foliage atlas is composited with
+  `imageSmoothingEnabled = false`, 1:1 blits, and sampled `NEAREST` with no mipmaps, so its alpha is
+  strictly 0 or 1 and `0.7` behaved identically to the `0.5` discard. The actual dark-fringe fix is
+  `sunInwardGlow` returning full rim strength (`1.0`) on the outermost texel. The constant is kept as a
+  single named lift point for any future genuinely-AA'd art. `edgeLightFactor` (crates/fences, #141)
+  keeps its own literal `0.5` via the `anyNeighborTransparent` wrapper over `anyNeighborBelowAlpha`.
+
+**Internal-tile-seam suppression — `internalEdges` (#1221, Han: "de sheen verraadt dat er nog naden
+zitten in de foliage layer").** A tree canopy in an LDtk world is a grid of separate `gridSize`-tile
+instances (§337's atlas packs each *distinct crop* once, deduped), each sampling its own atlas cell.
+`moonRimFactor`/`sunInwardGlow` clamp their neighbour taps to the instance's own `uvRect` (to stop
+atlas-cell bleed), so **every internal boundary of a multi-tile canopy reads as a silhouette edge** —
+subtle under the moon rim, blatant once #1193 r4 strengthened the sun sheen, which lit up horizontal
+seam lines across every tree. Han picked option **(b)** (a per-instance edge mask) over **(a)**
+(compositing foliage per-sprite — rejected as an atlas/bin-pack/instanced-pipeline rewrite). JS side
+(`RpgLevelPanel.atlasFoliageInstanceFor`): `foliageCellSet` is every occupied foliage grid cell; each
+instance gets `internalEdges`, a 4-bit mask of which world-space edges abut a sister cell, **mapped
+into atlas-sample space** (a `flipX`/`flipY` mirrors the shader's neighbour direction, exactly as it
+mirrors the UV rect) — bit 1 = atlas-up (−v), 2 = down (+v), 4 = left (−u), 8 = right (+u). It rides
+`aInstance4.z` (a previously-unused slot — no new attribute) → `varying float vInternalEdges` → passed
+to `moonRimFactor` and `applySunGlow`/`sunInwardGlow`. `edgeIsInternal` does the bit test with
+`mod(floor(mask/bit), 2.0)` (GLSL ES 1.00 has no bit ops). The non-instanced foliage shader (legacy
+mode, one sprite per object), `LdtkLitGround` (one composite), and the `FoliageInstancingTest` harness
+all pass `0.0` — no seams there.
+
+**UAT r6 — per-tap, not per-direction.** r1 skipped a flagged direction WHOLESALE, killing genuine
+leaf-gap edges inside a densely-neighboured tile. r6 gated each tap individually (drop only when the
+direction is internal AND that tap coordinate crossed the tile's own `uvRect`). Superseded by r7 below,
+but the per-tap `internalEdges` gating survives in `moonRimFactor`/`sunInwardGlow`.
+
+**UAT r7 — TRIED then REVERTED.** r7 decoupled the lighting from the wind shift by sampling an
+*unshifted* `duv0` for the silhouette/discard/edge detection. That **broke the wind effect** — Han:
+*"het is juist de bedoeling dat pixels buiten de oorspronkelijke sprite terecht kunnen komen, dat geeft
+net het wind effect"*. Reverted. Both foliage shaders again sample the **shifted `duv`** for the colour,
+the discard, and all lighting (`edgeLightFactor` / `moonRimFactor` / `sunInwardGlow` / `applySunGlow`),
+so a wind-moved texel can land outside the rest silhouette (the bend) and is lit coherently *as itself*.
+`normalUV` stays on the shifted coord. `internalEdges` (bits 1/2/4/8) is kept — it still suppresses the
+per-tile atlas-cell seam. The dead screen-space bits 16/32 (only the deleted #1219 discard read them)
+are removed from the JS packing.
+
+**The wind pixel-switch — order confirmed, RTT tried and reverted.** Han confirmed the correct ORDER:
+**texel-swap → global illum → normal-map light → sheen → shimmer → reflection**. An attempt to
+guarantee it with a two-pass render-to-texture (displace to an offscreen texture, then light it in
+screen space) was made over 5 rounds but could not be made reliable by code inspection alone (no
+runtime WebGL debugging available here) and regressed the sheen — **reverted** to the pre-existing
+single pass: the instanced + non-instanced foliage shaders sample `duv` at the wind-shifted texel and
+run all lighting on that shifted coordinate, so a wind-moved texel is lit coherently *as itself* (the
+order above holds within the one pass). `internalEdges` (#1221) stays.
+
+Two targeted fixes on that single-pass base:
+
+- **Canopy speckle at night** (Han read it as "pixels zonder global illum" — it is not; global illum
+  *is* applied, the canopy is darkened). It is `applyPointLights` revealing a leaf's raw green wherever
+  the high-frequency per-leaf normal map faces a *distant* light — the hero's, which reaches the
+  tree-top via its `lightHeightRadius`. Fix: a second normal `nPoint = mix(FLAT_NORMAL, sampledNormal,
+  uNormalStrength · 0.25)` is used **only** for `applyPointLights`, so point lights read the canopy as a
+  near-flat surface (a smooth near-light glow, no per-leaf sparkle); the moon directional term and the
+  shimmer keep the full `n`. Foliage-only — the hero light itself is untouched (Han: *"ik wil niet dat
+  je de hero illum aanpast"*).
+- **The wind-bent edge gets no glow** (Han). Where the bend pushed a tile's sample past its own
+  `[0, W-1]`, `moonRimFactor` clamps its neighbour taps to the tile rect and cannot see the sky beyond
+  the smeared edge column, so it never rims the new outline. Fix: force a `0.55` rim on the **outermost
+  column** (`nativeX` at the extreme) when the shift pushed out, suppressed when a sister tile sits
+  alongside (an internal seam, per `internalEdges`, not an outline). It feeds the moon rim and, through
+  `rimFactor`, `applySunGlow`.
+
+**#1220 — the glow radius shrinks to 0 as the sun sinks behind the PARALLAX layers** (Han: *"als de zon
+volledig achter de bomen verdwenen is, stop met sheenen op alle lagen"*; *"maak de straal kleiner,
+lineair tot 0"*; and — the rescope — *"beperken van sheen-straal moet ALLEEN wanneer bedekt door
+parallax-lagen, niet wanneer bedekt door de gewone laag"*). The sun is screen-fixed (celestial
+projection) so its level position is **camera-aware**; `RpgLevelPanel`'s render body (which already
+re-runs every pan frame — Han's chosen compute site) samples the sun disc at 9 points (centre + a ring
+at 0.85·R / 0.6·R) against `bgOccluders` — the occupied grid cells of each **background parallax layer**,
+each paired with its parallax `factor` so the sun's screen X maps back through `cameraX · factor` (Y
+through the parallax bottom-anchor, no `GROUND_ANCHOR` term). The **foreground** foliage never triggers
+it. The covered fraction drives `sunGlowVisFrac = 1 − fraction` (quantised 0.05) which **linearly scales
+the glow radius**: `foliageParamsRender` is a `useMemo` multiplying `foliageParams.sunGlowRadius` by it,
+keeping the *same object identity* on a clear frame so the foliage/ground `React.memo` never breaks;
+`BgLayer`'s `drawSunRimPatch` takes a matching `radiusScale`. The shader needs no change: `near =
+1 − smoothstep(0.5·r, r, d)` with `r → 0` zeroes the term.
+
+**Item 1 — flat surface sheen on the DOM parallax layers** (Han: *"sub sheen moet ook werken op de
+achtergrond (parallaxlagen)"*). The shader layers have a luminance-masked surface sheen
+(`SUN_SHEEN_SCALE`); the `LdtkScenery` parallax layers only ever had the rim (`computeMoonRim`).
+`drawSunRimPatch` now also lays down a **flat** sheen from the layer's own `src` tile composite —
+`src × SUN_SHEEN_WEIGHT` (0.35), then the baked rim additively (`lighter`) on top, then **one** radial
+mask + **one** sun-colour tint over the combined patch (so `destination-in` masks both contributions at
+once, no double-mask). No per-pixel luminance bake — for a distant treeline the flat form is
+indistinguishable from the shader's highlight-riding version.
+
+**The distance mask, UAT r2.** The r0/r1 falloff was `1.0 - smoothstep(0.0, radius, d)` — a fade from
+the sun's centre all the way out, so a sprite edge *right under* the disc only ever got a fraction of
+the moon's rim strength. It is now `1.0 - smoothstep(0.5·r, r, d)` — a **flat core** at full strength
+out to half the radius (an actual blow-out there), then a smooth fade over the outer half. Paired with
+`SUN_GLOW_RADIUS_GPX` **40 → 55**, so the flat core reaches ~27 gpx from the disc. **UAT r3** (Han:
+"kippenvel! Maak de radius dubbel zo groot — harde straal en fall-off schaal"): `SUN_GLOW_RADIUS_GPX`
+**55 → 110** — one constant, and because the mask is written off `0.5·r` and `r` it doubles the hard
+core (~55 gpx now) and the fade end together. `CelestialSky`'s `nearSun` moon-hide reuses the same
+constant, so that screen-space cutoff doubled too (kept unified). **UAT r5** (Han, screenshot: "maak de
+straal iets kleiner, 30%"): `SUN_GLOW_RADIUS_GPX` **110 → 77** (hard core ~38 gpx, fade to 77); the
+`nearSun` cutoff shrinks with it.
+
+**GLSL ES 1.00 trap, avoided deliberately.** `smoothstep(edge0, edge1, x)` is **undefined** when
+`edge0 >= edge1`, so the natural-looking `smoothstep(uSunGlowRadius, 0.0, d)` must NOT be written. The
+falloff's edges are always passed low-then-high. Most
+drivers tolerate the reversed form; the spec does not. (Related trap in the same files: a **backtick**
+in a comment inside one of these GLSL template literals terminates the literal — this bit the first
+build of this ticket. Use single quotes there.)
+
+**INVARIANT — the omit-means-zero contract (§362's, extended).** A consumer that never uploads these
+four uniforms gets GL's default 0 => `uSunGlowStrength == 0` => `applySunGlow` returns on its first
+line. Never a compile or link error; the linker may strip the uniforms entirely and
+`gl.uniform*(null, ...)` silently no-ops. `DEFAULT_FOLIAGE_PARAMS` mirrors that with `sunGlow: 0` /
+`sunGlowRadius: 0`, so the dev harness and any future caller are a proven no-op. This is also why the
+term costs nothing at night (ac7): one float compare, no texture fetches, no maths.
+
+**The `foliageParams` channels and their quanta (the §374/§375 invariant, restated for the sun).**
+
+| channel | meaning | quantum |
+|---|---|---|
+| `sunGlow` | altitude curve × cloud gate | 0.05, like `moonShine` |
+| `sunGlowColor` | `[r,g,b]` 0..255 ints | 1/255, inherent (`lerpRgb` rounds) |
+| `sunScreenPos` | `[x, y]` ÷ sky canvas width, top-down | 1 game px, before normalising |
+| `sunGlowRadius` | `SUN_GLOW_RADIUS_GPX ÷ Wpx` | constant per canvas size |
+
+**INVARIANT: no RAW `cycleT`-derived value may enter `RpgLevelPanel`'s change-detection lists.** The
+sun terms obey it exactly as `cycleT`/`lunationPhase`/`cloudCoverT` do. Only `quantSunGlow` (0.05) and
+`sunPosMoved` (whole game px) appear, and only in the FOLIAGE list — no sun term drives a React-only
+(`setWeather`) render. The `quantSunGlow(b) > 0 &&` short-circuit means a whole night and an overcast
+spell cost ZERO extra re-renders; while the sun IS up it fires ~2×/s (the sun crosses ~2 gpx/s on a
+~426 gpx-wide sky), well inside the existing budget — `globalIllumination` already pushes ~12×/s during
+a 10 s ease. When the sun is down the position is FROZEN at `[0, 0]` rather than tracked.
+
+A resize or `worldScale` change moves `skyGeom.Wpx` WITHOUT the weather clock moving, so a small effect
+re-pushes on exactly those two scalars; otherwise the glow would sit at a stale position/size until the
+next quantised weather change.
+
+**The parallax-background rim (`LdtkScenery.jsx`).** The DOM parallax layers have no shader, so §370
+bakes their moon rim ONCE per composite (`computeMoonRim` -> `rimRef`, a white RGBA canvas) and draws
+it into the shown canvas at `rimOpacity`. The sun glow reuses **that same baked rim** — not a second
+rim renderer — masked and tinted: copy the rim under the sun -> `destination-in` a radial gradient
+(whose stops are DERIVED from the same `1 - smoothstep(0, R, d)` curve the shader uses, not a
+hand-tuned table) -> `source-in` the sun's colour at the glow's opacity.
+
+**DELIBERATE STRUCTURAL DIFFERENCE from the moon rim, and from #1193's plan wording.** The moon rim is
+a whole-canvas, camera-independent overlay, so baking it into the shown canvas is free. The sun glow is
+a small patch that must stay welded to the SUN's screen position while the art parallaxes underneath —
+i.e. its canvas-LOCAL position changes on every panning frame. Baking THAT into the shown canvas would
+re-bake a 3200 × `LEVEL_PX_HEIGHT` canvas every pan frame for a 40 gpx effect. So the patch gets its
+own 2R × 2R (80 × 80) canvas, CSS-positioned at the sun with the same `left`/`bottom` convention
+`layerStyle` uses, and re-baked from `rimRef` — 6 400 px of work instead of ~640 000. It is a sibling
+immediately after the layer canvas, so it z-orders exactly where a baked-in version would have: above
+THIS layer's art, below the next, nearer parallax layer. It is a plain transparent canvas drawn
+`source-over` — NOT the isolated blending wrapper that turned every layer's sky region into a solid
+blue veil in §370 r3. Its POSITION uses a coarser quantum than the shaders' (`BG_SUN_POS_QUANT_GPX = 4`
+game px, ~0.5 re-bakes/s instead of ~2/s) because each change here costs a canvas bake, whereas a
+shader just reads a new uniform. Everything threaded through `SceneryBack` -> `LdtkScenery` ->
+`BgLayer` is a scalar or a css string — never a fresh array — so those `React.memo` boundaries hold.
+
+**CLAUDE.md §3a (debug hit boxes) is N/A.** Nothing added here is interactive: four shader uniforms, a
+`pointerEvents: 'none'` canvas, and pure functions. The existing `CelestialSky` debugMode sun marker
+already draws the sun's exact screen position, and is the ready-made ruler for "is the glow centred on
+the disc".
+
+**§7a: no new error code.** The shader term sits inside the existing per-layer try/catch and codes
+(E021/E023 foliage, E030/E031 lit ground, E034 the shared ticker); the `BgLayer` patch runs in a plain
+effect and introduces no system boundary (no I/O, no decode, no external API). Adding one would violate
+§7 "no error handling for impossible states".
+
+**Not unit-testable, stated explicitly (same precedent as §370/§374/§375):** the GLSL itself and the
+`BgLayer` canvas patch — jsdom has no WebGL and no real 2D canvas. What IS tested: the pure altitude
+curve and the pure colour lerp.
+
+**Files:** `src/components/character/celestialModel.js` (`SUN_GLOW_RGB` moved in, `SUN_GLOW_RADIUS_GPX`
+/`SUN_GLOW_RISE_DEG`, `sunGlowStrength`; UAT r1 removed `SUN_GLOW_ALT_FADE_DEG`/`SUN_GLOW_ZENITH_FLOOR`),
+`src/components/character/CelestialSky.jsx` (`skyGeom` extracted + exported and consumed here;
+`SUN_GLOW_RGB` now imported), `src/components/character/SkyGradientBackdrop.jsx` (`SUNSET_RGB`
+exported, `sunGlowColor`), `src/components/character/foliageLightingGLSL.js` (4 uniforms,
+`SUN_SHEEN_SCALE`, `applySunGlow`), `src/components/character/ForegroundFoliageLayer.jsx` (both shader
+paths + 4 locations + 4 uploads × 2, and the four `DEFAULT_FOLIAGE_PARAMS` no-op defaults),
+`src/components/character/LdtkLitGround.jsx` (shader + locations + uploads),
+`src/components/character/FoliageInstancingTest.jsx` (dev-harness parity),
+`src/components/character/RpgLevelPanel.jsx` (`quantSunGlow`/`quantSunScreenPos`/`sunPosMoved`,
+`BG_SUN_POS_QUANT_GPX`, `skyGeomRef`, the four `foliageParams` channels, the two change-detection
+terms, the resize re-push, the four `bgSun*` props),
+`src/components/character/LdtkScenery.jsx` (`SUN_PATCH_PX`/`SUN_MASK_STOPS`/`drawSunRimPatch`, the
+`BgLayer` patch canvas + its effect, the four props threaded through). Tests: the `sunGlowStrength`
+describe in `src/components/character/__tests__/celestialModel.test.js` and the `sunGlowColor` describe
+in `src/components/character/__tests__/skyGradientBackdrop.test.js`.
+
+**Cross-references.** §370 (the moon sheen/rim this mirrors, and the `moonRimFactor`/`computeMoonRim`
+it reuses); §362 (the shared uniform block and its omit-means-zero contract); §372 (`SUNSET_RGB` /
+`sunsetFactor`, the one dusk/dawn curve); §374 (`celestialModel`, `projectToScreen`, `CelestialSky`,
+the quantised-`moonShine` precedent); §375 (`cloudCollapseT`, the cloud gate); §141 (`HORIZON_PX`, and
+round 23's fragment-precision rule); §334 (`worldScale`, the integer zoom).
+
+**Note.** A parallel in-flight ticket (#1192-jank) claimed §376 in the working tree while this was being written, so this is §377.
+
+---
+
+### §378. Star field stepping fixed at the root — the weather clock, not the star draw (#1192-jank, Han 2026-09-04, "de sterren bewegen hakkelig")
+
+**Symptom.** Continuing §376's jank investigation: stars in `<CelestialSky>` visibly moved in discrete
+steps rather than gliding, even though the draw callback runs every rAF frame (60 fps) and — per its own
+comment at the time — was explicitly written to redraw "each star then advances at most one game pixel
+per frame, which at 60 fps is the smoothest a pixel-perfect sky can move."
+
+**Root cause.** That comment's assumption was false in practice: `cycleT` (the sky's phase clock, read
+off `weatherRef.current` inside the draw callback — `weatherOutputs(weatherRef.current)`, §374/§375) is a
+pure derivation of `state.phaseElapsed`, which only advances when `tickWeather` is called. That call only
+happened inside RpgLevelPanel's OWN weather `useFrameLoop` subscription, which was throttled to
+`throttleMs: 80` (~12 fps) — chosen because the visible EASES that same subscriber drives
+(`globalIllumination`, wind) only need ~12/s of sampling. But `weatherRef.current = next` (and therefore
+`cycleT`) was written at that SAME throttled rate, unconditionally, regardless of the eases. So although
+`<CelestialSky>` redrew 60x/sec, it was reading an unchanged `cycleT` for ~5 consecutive frames at a
+time, then jumping ~5 game-px-worth of motion in one frame — the exact "hakkelig" stepping reported. Not
+a bug in `CelestialSky.jsx` at all; the star-draw code had already been written correctly for a 60 Hz
+clock that didn't exist yet.
+
+**Fix.**
+- `RpgLevelPanel.jsx`: the weather `useFrameLoop` subscription (§374/§375/§377's home for
+  `tickWeather`/`weatherOutputs`) changed from `{ priority: 'throttled', throttleMs: 80 }` to
+  `{ priority: 'critical' }` — runs every rAF frame now. `tickWeather`/`weatherOutputs` are both pure,
+  allocation-light arithmetic (object spread + lerps + scalar math, no trig, no per-star loop) — safe at
+  60 Hz. The `if` blocks that gate `setWeather(next)`/`pushWeatherToFoliage(next)` are UNCHANGED — they
+  already compared `prev`/`next` on their own thresholds independent of call rate, so #1162 Fase 8's
+  re-render reduction is untouched; only the invisible `weatherRef.current` ref write happens more often.
+- `CelestialSky.jsx`: separately, `starXY` — a `Map()` used to hand cached star screen coordinates from
+  the star-draw pass to the constellation-line pass a few lines later — was reallocated every single
+  draw call. Now a `useRef(new Map())`, `.clear()`'d each frame instead: pure GC-pressure cleanup, no
+  behavioural change, worth doing once this callback is confirmed to run at full frame rate every frame.
+
+**Invariant, generalized from §376.** A value that drives PER-FRAME visual motion (a screen position, a
+celestial angle) must be recomputed on the SAME per-frame cadence as whatever reads it for drawing, even
+if it is stored on a ref/shared object that looks like a slow-changing "settings" value. Throttling is
+only safe for the derived REACT-VISIBLE consequences of a clock (a re-render, a repaint trigger) — never
+for the clock's own advancement, once anything draws from it every frame.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (weather `useFrameLoop` priority),
+`src/components/character/CelestialSky.jsx` (`starXYRef`). No test changes — pure timing/allocation
+change, no new branchable logic. Verified: `npm run test:run` (131 files / 1473 tests, 1 pre-existing
+skip, unaffected), `npm run build`, `npm run lint` (0 new warnings).
+
+**Still open (BACKLOG.md "Performance: hakkelige rendering"):** SheetRpgLayer's slime/critter/projectile
+entity updates (music LEVEL flow) are throttled to ~30 Hz while the scroll itself runs unthrottled at
+60 Hz — a background/entity desync one layer over from this fix, not yet addressed.
+
+**Cross-references.** §376 (the hero/pet fix this continues, same investigation); §374 (`CelestialSky`,
+`weatherOutputs`, the star-draw callback whose own comment predicted exactly this fix would be needed);
+§375 (the same weather `useFrameLoop` subscription, `cloudCoverT`); §377 (`#1193`, which also edits this
+same subscription's body — see its own §376/§377 numbering note above; the two changes are additive and
+do not conflict, confirmed by re-reading the live file before editing).
+
+---
+
+### §379. World-height toggle — reclaim height by turning blocks off in priority order (Han 2026-09-04)
+
+**Purpose.** The world block (`worldLayout.js`'s pixel-perfect ladder, §334/§348) can render as short as
+`WORLD_GPX_H_MIN` (192 gpx) on a cramped viewport. Han: *"als het 'wereld' beeld lager is dan 320 GPX,
+wil ik een knopje rechtsbovenin om het volle hoogte te geven. Als content 1 en 2 niet meer passen,
+render die dan niet. als het nog wel past, render ze dan wel. bij volle hoogte moet het knopje weer
+terug naar standaardhoogte gaan."* — a manual, player-controlled toggle that trades the OTHER three
+blocks' visibility for a taller world, in a stated priority: content2 (usually the piano) goes first,
+then content1 (the conversation panel), then the nav bar last (kept longest, since it is normally how
+the player navigates away from the world screen at all).
+
+**How it works.**
+- **`computeWorldFullHeightLayout(w, h, n)`** (`worldLayout.js`) is a NEW function, deliberately NOT a
+  variant of the existing 4-arrangement ladder (`ARRANGEMENTS`/`pickArrangement`/`distributeHeight`):
+  "make room by turning blocks off" is a different question from "which arrangement best fills the
+  space", and conflating them would make both harder to reason about. It always produces a simple
+  full-width vertical stack: world (pinned to `WORLD_GPX_H_MAX` = 320 gpx, clamped down only if the
+  viewport genuinely can't reach it even alone) then whichever of content1/content2/nav survive, each
+  full width. `n` (the scale) is the CALLER's already-chosen scale from the normal `computeWorldLayout`
+  — toggling full-height never itself changes the pixel scale, only how the height at that scale is
+  spent.
+- **Drop order.** Four candidate combinations are tried, most-content-first: all three → content2
+  dropped → content1 also dropped → everything dropped. The first one whose survivors' MINIMUM sizes
+  (`CONTENT_GPX_H_MIN` × 2, `NAV_GPX` for the nav strip) fit in `h − worldH` is used — "als het nog wel
+  past, render ze dan wel". Survivors stack top-to-bottom in the SAME visual order Han listed (world,
+  content1, content2, nav); the LAST surviving block absorbs whatever height is left over (pins to the
+  viewport bottom, the same ±1px rounding convention `build()` already uses in the normal ladder).
+- **The toggle itself** is plain React state in `App.jsx` (`worldFullHeight`, default `false`) — NOT
+  re-derived from the viewport, so it stays exactly where the player left it across a resize.
+  `worldLayoutBase` (the normal `computeWorldLayout` result) is still always computed; `worldLayout`
+  (what everything actually renders from) is `worldFullHeight ? computeWorldFullHeightLayout(...,
+  worldLayoutBase.scale) : worldLayoutBase`.
+- **`<WorldHeightToggleButton>`** (`components/layout/`) — a plain DOM `<button>`, top-right, shown
+  whenever `worldLayoutBase.world.gpxH < WORLD_GPX_H_MAX` (there is height to gain) OR the toggle is
+  already on (so it can always be switched back off — "moet het knopje weer terug naar standaardhoogte
+  gaan"). Glyph flips `⤢`/`⤡` with the toggle state.
+- **Where it is anchored.** The button is a SIBLING of the `<RpgLevelPanel>` wrapper, not a child of it.
+  That inner wrapper is the full 272·N-tall (uncropped) art layer, offset by `bottom: −(bottomCropGpx·N)`
+  to align the visible crop window — a button placed inside it would inherit that offset and could
+  scroll off-screen with the crop. The OUTER container (already `position:'relative'`, already
+  `overflow:'hidden'` at exactly `world.screenH` in world mode) is the CLIPPED box the player actually
+  sees, so anchoring there means "top-right" really is top-right of the visible world block.
+
+**Invariants.**
+- `computeWorldFullHeightLayout` can return `null` for `nav` / `content.block1` / `content.block2` — any
+  consumer of a `worldLayout`-shaped object MUST null-check those three before reading their rects.
+  Fixed at both existing consumers: `WorldBottomArea.jsx` (skips the block's DOM entirely) and
+  `WorldLayoutDebugFrames.jsx` (skips that block's debug frame). The normal `computeWorldLayout` never
+  returns `null` for these — only the full-height path can.
+- CLAUDE.md §3a (debug hit boxes) is **N/A** for `<WorldHeightToggleButton>`: a real `<button>`'s
+  rendered box IS its hit box, so there is no separate hit region to visualise.
+- The world's pixel SCALE (`n`) never changes when the toggle flips — only which of the four blocks
+  below it exist and how tall they are.
+
+**Files:** `src/utils/worldLayout.js` (`computeWorldFullHeightLayout`, new), `src/App.jsx`
+(`worldLayoutBase` / `worldFullHeight` state / `worldLayout` derivation, the button's mount point),
+`src/components/layout/WorldHeightToggleButton.jsx` (new), `src/components/layout/WorldBottomArea.jsx`
+(null-guards), `src/components/layout/WorldLayoutDebugFrames.jsx` (null-guards). Tests:
+`src/utils/__tests__/worldLayout.test.js` (`computeWorldFullHeightLayout` describe, 6 cases).
+
+**Cross-references.** §334/§348 (the normal pixel-perfect world-layout ladder this deliberately does
+NOT extend); §141 (`HORIZON_PX`, unrelated but the same "world block" this toggle resizes).
+
+**Note.** §378 was the last section header, so this is §379.
+
+---
+
+### §380. Music-LEVEL entity jank — X-position interpolated between the #1050 entity throttle's ticks (#1192-jank, Han 2026-09-04, "ik zie dit soort problemen ook in de muzieklevels")
+
+**Symptom.** Continuing §376/§378's jank investigation into the music LEVEL flow (`SheetRpgLayer.jsx`):
+slimes, bass-slimes, critters, projectiles, and the Level-11 switch-flourish all visibly "jump" relative
+to the smoothly-scrolling staff/barlines behind them, instead of gliding at the same rate.
+
+**Root cause.** The scroll transform (barlines/notes) is written every rAF frame (60 fps, never
+throttled — see the `#1050 third follow-up` comment at the top of this section). Every entity's
+position, by contrast, is gated by `runRpgEntityUpdates` (`RPG_ENTITY_THROTTLE_MS = 33`, ~30 fps) — and
+this throttle is **not an oversight**: it is itself a deliberate, previously-shipped fix for a real,
+measured problem (#1050, Han 2026-08-18, "the performance sucks... decouple [note scrolling] from the
+RPG-overlay"). Scroll and entity work run in the SAME rAF callback, and the browser cannot paint until
+the whole callback returns, so on a frame with many on-screen entities the (per-entity `sideScrollX` +
+animation-frame selection + oscillation) work could delay the ALREADY-computed scroll position from
+reaching the screen. The throttle lets entity work skip itself on some frames while the clock/scroll
+transform never does. **This fix does not touch that throttle** — lowering or removing it risks
+resurrecting #1050, and this session has no browser/GPU available to verify a real-hardware FPS claim
+either way (the same caveat §319 already logged for the RPG *world*).
+
+**Fix — interpolate only X, only on the frames the throttle skips.** Two pure module-level helpers,
+`tickInterpX(entry, freshX)` and `interpX(entry, frac)`, record each entity's PREVIOUS and CURRENT
+throttle-tick X (the exact final value already written to the DOM, oscillation/wiggle included) on the
+entry object itself (the `slimeRefsMap`/`bassSlimeRefsMap`/`critterRefsMap` Map values; a new parallel
+`switchInterpRef` array for `switchRefsArr`, whose entries are bare imperative handles with no object of
+their own to attach state to). A new `entityTickIntervalMsRef` records the OBSERVED gap between the last
+two throttle ticks (rAF timing jitters, so this is measured, not assumed to be exactly 33 ms). On a
+throttle-skipped frame, a new `else` branch (sibling to the existing `if (runRpgEntityUpdates)` block)
+computes `frac = clamp((now - lastTickMs) / observedIntervalMs, 0, 1)` and re-issues each entity's
+existing setter (`setPosition`/`.update`/`setCenter`) with `lerp(prevX, currX, frac)`, replaying the
+LAST tick's Y/frame/frozen-state exactly (stored as `entry.lastY`/`lastGF`/`lastFrozen` at tick time) —
+never recomputed fresh. This is standard "hold last two snapshots, ease between them" interpolation
+(client-side netcode's usual pattern): a ~33 ms display lag, imperceptible, in exchange for a smooth
+glide instead of a jump. The expensive per-entity work (`sideScrollX`, `slimeWalkOrIdleFrame`,
+`oscillate`, `critterDraw`'s trig) still runs ONLY at the throttled rate — untouched.
+
+One subtlety caught during implementation: a projectile's Y is `g.projectileCenterY + oscY`, where
+`oscY` is itself a continuous, time-varying oscillation term computed only at tick time — recomputing a
+fresh `g.projectileCenterY` (without `oscY`) on interpolated frames would have introduced a NEW every-
+frame Y-snap jitter between "centerY+oscY" and "bare centerY". Fixed by storing the actual Y written
+(`entry.lastY`) and replaying it verbatim, rather than re-deriving any Y term inside the interpolation
+branch. `g.slimeY`/`g.bassSlimeY` are fixed layout lanes (not time-varying), so this matters only for
+the projectile branch, but `lastY` is stored uniformly for every entity kind to avoid relying on that
+distinction staying true in the future.
+
+**Deliberately out of scope, per Han's own call:** the slime "hop gait" (`movingProgress`/
+`movingFramesBefore` — advances only on specific animation frames, pausing on others, tempo-locked) is
+NOT smoothed into continuous motion. Han confirmed this is a deliberate art-style choice to keep, not a
+bug — this fix only removes the scroll/entity DESYNC (the jump), not the intentional stepped RATE of a
+slime's own hop.
+
+**Invariant, generalized from §376/§378.** When a value driving PER-FRAME visual motion is deliberately
+throttled for a documented perf reason, do not remove the throttle to fix a smoothness complaint —
+interpolate the cheap, already-computed sample between throttle ticks instead. This keeps the expensive
+work's call rate exactly as low as the perf fix intended, while the DISPLAYED value still updates every
+frame.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`tickInterpX`/`interpX` module-level helpers,
+`entityTickIntervalMsRef`, `switchInterpRef`, the `else` interpolation branch, `lastY`/`lastGF`/
+`lastFrozen` bookkeeping on each entity's tick-time write). No test changes — this is a rendering-path
+change with no new pure, independently-testable logic beyond the two tiny helpers (already covered by
+the full suite's existing SheetRpgLayer-adjacent smoke tests continuing to pass). Verified: `npm run
+test:run` (131 files / 1479 tests, 1 pre-existing skip, unaffected), `npm run build`, `npm run lint`
+(0 new warnings).
+
+**Cross-references.** §376 (the hero/pet fix this investigation started with); §378 (the star-field fix,
+same investigation, same "throttle the expensive derivation, not the displayed value" principle); the
+`#1050` comment block at the top of this file's `RPG_ENTITY_THROTTLE_MS` declaration (the perf fix this
+entry explicitly does not touch). BACKLOG.md "Performance: hakkelige rendering" tracks the original
+3-part request this closes out.
+
+---
+
+### §381. Sky-gradient transition jank — cloud-cover fix, the 4th "throttle the derivation, not the display" bug in this series (#1192-jank, Han 2026-09-05, "transitie van gradient loopt ook nog wat schokkerig")
+
+**Symptom.** After §376/§378/§380 shipped, Han asked "zie je nog meer opportuniteiten?" and separately
+flagged the RPG world's sky-gradient backdrop (`<SkyGradientBackdrop>`, §372) as still feeling choppy
+during a weather transition — clarified mid-message as "(achtergrond)", i.e. the sky background, not the
+foreground layers already fixed.
+
+**Root cause — same family as §378, different component.** Unlike `<CelestialSky>` (§374), which reads
+`weatherOutputs(weatherRef.current)` directly inside its own `useFrameLoop` draw callback,
+`SkyGradientBackdrop` was a plain declarative React component: it only repainted its CSS gradient when
+its `globalIllumination`/`cloudCoverT` PROPS changed. `globalIllumination` arrived reasonably fine-
+grained (RpgLevelPanel's weather tick already gates `pushWeatherToFoliage` at a 0.004 threshold — see
+§375/§377's own invariant comments). `cloudCoverT`, however, arrived pre-QUANTISED to 0.05 via
+`quantCloudCover` (`RpgLevelPanel.jsx`, `Math.round(out.cloudCoverT * 20) / 20`) specifically so this
+component would NOT force a React render on every weather-tick frame. With `CLOUD_FADE_S = 10` (the
+cloud-cover ease duration, `weatherCycle.js`), 0.05-quantisation means at most ~20 renders across a full
+0→1 transition — roughly 2 repaints per SECOND for a full-screen colour sweep, easily perceived as
+discrete jumps rather than a smooth fade. This is the exact same bug shape as §378 (`cycleT` throttled to
+~12 fps while `CelestialSky` drew at 60 fps) — a continuously-eased value gated behind a React-render
+threshold that was tuned for render-COST reasons, not for how smooth the thing driven by it needs to look.
+
+**Fix.** `SkyGradientBackdrop` now takes `weatherRef` directly (the same ref `<CelestialSky>` already
+reads) instead of `globalIllumination`/`cloudCoverT` props, and mirrors `<CelestialSky>`'s own
+architecture exactly:
+- A `useFrameLoop` (`priority: 'critical'`) callback reads `weatherOutputs(weatherRef.current)` fresh
+  every frame — the raw, unquantised, un-thresholded values — and writes the computed gradient string to
+  `divRef.current.style.background` imperatively.
+- The same early-out epsilons `<CelestialSky>` uses (`ILLUM_EPSILON = 0.004`, `CLOUD_EPSILON = 0.002`,
+  redefined locally rather than imported — the two components' guards are otherwise independent) skip the
+  DOM write on a byte-for-byte-settled frame, so a stable sky (no weather changing) costs nothing extra.
+- `buildGradientCss` (extracted from the old `useMemo` body, unchanged arithmetic — 17 stops, plain
+  per-stop colour math, no trig) is cheap enough for 60 fps, same reasoning as `tickWeather`/
+  `weatherOutputs` themselves in §378.
+- The initial paint (before the first rAF tick, and again the instant the async `dayStops` image-sample
+  effect resolves) is seeded via `useLayoutEffect`, NOT a `style={{ background: ... }}` JSX prop — a JSX
+  prop would fight the imperative rAF write on every unrelated parent re-render, since React resets
+  inline styles it controls on every commit. This is CLAUDE.md §6's opacity invariant ("never set opacity
+  via JSX props on animated elements... all animation opacity must go through `element.style.opacity` in
+  the rAF callback"), generalized here to `background` — the same generalization §376 already made for
+  DOM position.
+- `RpgLevelPanel.jsx`'s `<SkyGradientBackdrop>` call site now passes `weatherRef={weatherRef}` only;
+  `quantCloudCover` is no longer threaded through here (it is still used, unchanged, by the SEPARATE
+  `weather`-state gate a few lines up, which other consumers — the critter pool, debug picker — still
+  need at the coarser cadence).
+
+**Invariant, generalized further from §376/§378/§380.** Any component whose visual output should track
+the world's weather clock CONTINUOUSLY (a colour, a position, an angle — not a discrete state like
+`phaseName` or `critterKind`) should read `weatherOutputs(weatherRef.current)` directly inside its own
+per-frame callback, the same way `<CelestialSky>` always has — never through a React prop gated by a
+render-cost threshold, however fine-grained that threshold seems. A quantisation step chosen to protect
+render cost is a statement about how often REACT should reconcile, not a statement about how smooth the
+underlying phenomenon is allowed to look.
+
+**Files:** `src/components/character/SkyGradientBackdrop.jsx` (`weatherRef` prop replaces
+`globalIllumination`/`cloudCoverT`, `buildGradientCss` extracted, `useFrameLoop` + `useLayoutEffect`
+imperative paint, local `ILLUM_EPSILON`/`CLOUD_EPSILON`), `src/components/character/RpgLevelPanel.jsx`
+(call-site update). No test changes — `skyGradientBackdrop.test.js` only covers the PURE colour helpers
+(`cloudSkyStop`, `mixNight`, etc.), none of which changed; the component's own render/prop wiring was
+never unit-tested (jsdom has no real canvas/rAF timing to assert against). Verified: `npm run test:run`
+(131 files / 1479 tests, 1 pre-existing skip, unaffected), `npm run build`, `npm run lint` (0 new
+warnings beyond the pre-existing project-wide "missing prop-types" style, matching every other
+`weatherRef`-consuming component).
+
+**Cross-references.** §374 (`<CelestialSky>`, the architecture this now mirrors exactly); §375/§377 (the
+`globalIllumination`/`cloudCoverT` gating invariants this respects — only the SkyGradientBackdrop
+CONSUMER side changed, not how `weatherRef`/`weather` state itself is produced or gated); §376/§378/§380
+(the three earlier fixes in this same investigation, all the same "throttle the derivation, not the
+display" shape). BACKLOG.md "Performance: hakkelige rendering" — this closes the gradient follow-up Han
+raised after the original 3-part request.
+
+---
+
+### §382. LDtk world content pipeline: generic layer rendering + `WORLD_ART_GPX_H` height fix (#1195, Han 2026-09-05)
+
+**Purpose.** Han grew every `RAM level.ldtk` level's native height from 272px to 320px and added new
+authored content (a `City_Walls`-layer stone bridge using Castle Tiles, `Water_FG`/`Grass_tiles_fg_poc`/
+`Decor_Shimmer_FG` reed/water decoration, a `Character_examples_placeholders` test layer). None of it
+appeared in-game after saving, and the top of the level looked permanently clipped. Two independent
+bugs, found via direct investigation of the raw `.ldtk` JSON (not a caching issue — `ldtkWorld.js`
+already re-parses the file fresh via a Vite `?raw` import on every build, see §194).
+
+**Bug 1 — the level's top was clipped behind a flat colour.** `WORLD_ART_GPX_H` (`worldLayout.js`,
+§348) was still hardcoded to **272** — the level height at the time §348 was written (2026-08-29), a
+week before Han's resize. Since `RpgLevelPanel` (ground/water/foliage/sky/celestial, everything) is
+always rendered at a fixed `WORLD_ART_GPX_H·N` px tall (`App.jsx`), any world-block height above 272
+was filled with a flat `#8fd0d9` div standing in for real content, and content between the level's new
+top (0) and the old cap (48px in from the top) was ADDITIONALLY clipped by `RpgLevelPanel`'s own
+`overflow: hidden` regardless of the outer crop. **Fix:** `WORLD_ART_GPX_H` → 320 (now equal to
+`WORLD_GPX_H_MAX` and to `ldtkWorld.js`'s `LEVEL_PX_HEIGHT`). `cropFor`'s `skyPadGpx` (the flat-colour
+pad) is consequently always 0 now — the art fills the world block at whatever height the ladder gives
+it, real content only. **Invariant:** `WORLD_ART_GPX_H` MUST track `LEVEL_PX_HEIGHT` — nothing
+cross-checks the two modules (`worldLayout.js` deliberately has no import of `ldtkWorld.js`, keeping
+the ladder level-content-agnostic), so this must be verified by hand whenever either changes.
+
+**Bug 2 — new LDtk layers were invisible (silently, no error).** *(Superseded same day — see §383. The
+`GENERIC_LAYERS` fix below was step one, correctly diagnosed and shipped, but Han's very next report —
+"de wilg staat VOOR de brug, maar in ldtk staat ie er achter" — showed the deeper issue: even with every
+layer rendering, ground/foliage/water/background/entities were each still hardcoded into fixed, ONE-TIME
+"which bucket, front or back of Entities" buckets, so a ground layer between two foliage layers (like
+`City_Walls`) still couldn't land in its true paint position. §383 replaces the bucket system itself
+with a general back-to-front pass list, superseding `GENERIC_LAYERS` — this write-up is kept for the
+diagnosis history, not as a description of the current code.)* `ldtkWorld.js` reads tiles through an
+explicit per-purpose whitelist (`STATIC_TILE_LAYERS`, `TAVERN_TIER_LAYERS`, `BRIDGE_TIER_LAYERS`,
+`FOLIAGE_LAYERS`, `BACKGROUND_LAYERS`, `ANIMATED_LAYERS`) — CLAUDE.md §6c calls for deriving from the
+data instead of hand-typed lists, and this is exactly the failure mode it warns about: a layer added in
+LDtk that isn't in one of these lists just never renders, with no warning (unlike a missing tileset
+PNG, which at least logs — `tilesetUrls.js`). Han's own framing after the investigation: *"render de
+nieuwe levels gewoon zoals in LDTK. Enkel de sheets met 'level' erin en de masking moeten speciale
+behandeling."*
+
+**Fix.** A new `GENERIC_LAYERS` list in `ldtkWorld.js`, derived from `ldtk.defs.layers` (the file's own
+authoritative layer list) rather than hand-typed: every layer identifier NOT already claimed by one of
+the existing special-cased buckets above (tiers, foliage-shimmer, animated frame-cycling,
+background-parallax, a grass rule-group, a Terrain/Pavement rule-engine source, the collision mask, or
+Entities) AND not containing `_level_` in its name. Appended to `groundTiles` in `buildWorld()`
+(`...GENERIC_LAYERS.flatMap(staticLayerTiles)`), reusing the SAME `staticLayerTiles`/
+`isInFrontOfEntities` front/back split every other ground layer already gets — no new rendering
+mechanism. `_level_`-named layers (the tier families: Tavern/Bridge today, plus Blacksmith/Alchemist's
+single always-on "tier") are excluded on purpose — Han: *"apart, ik ga de tiering herbouwen"* — the
+tier system is being reworked separately, so a brand-new tier layer must still be wired in by hand, not
+silently render as a permanently-on layer. Existing `STATIC_TILE_LAYERS` etc. are UNCHANGED (kept
+exactly as they were) — this is purely an additive fallback bucket, chosen over replacing the existing
+lists to avoid any regression risk to already-working tiers.
+
+**Interview answers (Han 2026-09-05), for reference:**
+
+1. Keep the existing special-cased buckets (background/foliage/animated) exactly as they are — "apart."
+2. New content (`Water_FG` etc.) are legitimate new variants, not replacements — "nieuwe varianten :)."
+3. `Character_examples_placeholders` renders too, no filtering — "render maar." (It currently has no
+   matching tileset PNG under ASSORTED — `characters sheet1.png` — so it logs the existing
+   `tilesetUrls.js` "tileset PNG not found" warning and its tiles are skipped; this is the pre-existing,
+   non-fatal missing-asset path, not a new failure mode.)
+4. Unreachable levels (different `worldY` than the Hero's level, §233's `REACHABLE_LEVELS` filter) stay
+   out of scope — "je mag de niet-bereikbare levels negeren." No change needed; already correct by
+   design.
+
+**Side-finding (no action taken).** `Bridge_level_1_log`/`Bridge_level_2_wood` (already-existing
+`BRIDGE_TIER_LAYERS` entries, pre-dating this investigation) turned out to reference tile coordinates
+that are 85-100% transparent in their assigned tilesets (`Pine forest sheet.png`/`SSW_Interriors.png`)
+— old placeholder content, not Han's new stone bridge (which lives on `City_Walls`, now covered by the
+`GENERIC_LAYERS` fix above). Left as-is; not in scope of this fix.
+
+**Invariants.** `GENERIC_LAYERS` is computed once at module load (same pattern as every other derived
+constant in this file) from the CURRENT `ldtk.defs.layers` — adding a new non-tier layer in LDtk needs
+zero code changes going forward, closing the exact gap that caused Bug 2. A layer accidentally named
+with `_level_` in it that ISN'T meant to be a tier family would silently need manual wiring (matches
+Han's stated intent for tier layers, but is a sharp edge worth remembering if a future decor layer
+happens to get a `_level_`-containing name).
+
+**Files:** `src/utils/worldLayout.js` (`WORLD_ART_GPX_H` 272→320 + comments), `src/App.jsx` (comments
+only), `src/utils/__tests__/worldLayout.test.js` (2 tests updated to stop conflating the ladder's own
+272-plateau literal with `WORLD_ART_GPX_H`), `src/levels/ldtk/ldtkWorld.js` (new
+`HANDLED_LAYER_IDENTIFIERS` and `GENERIC_LAYERS`, `buildWorld`'s `groundTiles` extended),
+`IMPLEMENTATION_PLAN.md`. Verified: `npm run test:run` (131 files / 1479 tests, 1 pre-existing skip),
+`npm run build`, `npm run lint` (0 errors, same pre-existing warning baseline).
+
+**Cross-references.** §194/§195-201/§233 (the original LDtk scenery pipeline and its file-ownership
+rule this generalizes); §348/§379 (the world-height ladder and toggle `WORLD_ART_GPX_H` belongs to);
+CLAUDE.md §6c (the "derive, don't hardcode" rule this directly applies).
+
+---
+
+### §383. LDtk world content pipeline, take 2 — a general back-to-front PASS list replaces the fixed ground/foliage/animated/background/entities buckets (#1195, Han 2026-09-05)
+
+**Purpose.** §382's `GENERIC_LAYERS` fix made every layer render, but Han's very next report —
+*"nice, ik zie de brug. Let goed op dat je dezelfde volgorde van lagen aanhoudt als in de ldtk. Nu staat
+bijvoorbeeld de wilg VOOR de brug, maar in ldtk staat ie er achter"* — exposed the deeper bug §382
+didn't touch: the app has always rendered scenery through a small number of FIXED, hardcoded stacking
+buckets (a "ground" canvas, a "foliage" WebGL shimmer layer, an "animated" DOM overlay, a "background"
+parallax set, and `Entities`, split into exactly "everything behind Entities" and "everything in front
+of Entities" — `isInFrontOfEntities`/`splitByFront`, §925). `City_Walls` (the new stone bridge, a plain
+`'ground'`-shaped layer) sits BETWEEN `Grass_decoration_fg` and `Grass_decoration_bg` in the real
+`.ldtk` layer order — but the old buckets always painted ALL foliage after ALL ground, so the bridge
+rendered UNDER the willow regardless of what LDtk's own order said. Han's direction after being shown
+the scope: *"het is heel simpel: houd gewoon áltijd de volgorde van LDTK aan"* — confirmed, after an
+interview about scope, to apply to EVERY kind of content (ground, foliage, water, campfire, background
+parallax, AND `Entities` itself — Han: *"alles in één keer, inclusief Entities-interleaving"*, accepting
+that a layer in front of `Entities` in the file can now visually cover the hero/pet/NPCs, a real
+behaviour change from the old "hero is always drawn between exactly two halves" model).
+
+**The fix — `ldtkWorld.js`: `buildWorld()` returns `world.passes`, not fixed buckets.**
+
+- `PAINT_ORDER_IDENTIFIERS` — every layer identifier the file defines (`LAYER_INDEX`, already built for
+  §925's front/back check), sorted by DESCENDING index — i.e. back-to-front, the file's own real paint
+  order.
+- `classifyLayer(identifier, {tavernTier, bridgeTier})` — the ONE place that decides what kind of
+  content a layer is: `'entities'` (the `Entities` layer), `null`/excluded (`Collision_mask`, `Terrain`
+  — the IntGrid rule-engine SOURCE with no tiles of its own, an inactive tavern/bridge tier), or one of
+  `'background'`/`'campfire'`/`'shimmer'` (foliage AND water — water renders through the same WebGL
+  shimmer pipeline as foliage, see `useLdtkWaterInstances.js`)/`'ground'` (the default — tiers, plain
+  decor, any future layer with no special treatment needed).
+- `tilesForIdentifier(identifier, {season, city})` — fetches ONE identifier's tiles the right way
+  (season/city-gated rule engine for Terrain_Tiles/Pavement, the two grass rule-groups,
+  `withAnimMeta`+`kind` tagging for water/campfire, plain `staticLayerTiles` for everything else).
+- `buildPasses(params)` walks `PAINT_ORDER_IDENTIFIERS` back-to-front, classifies each, and merges
+  CONTIGUOUS same-kind identifiers into one pass (`{kind, tiles}`, or `{kind:'background', layers:
+  [{identifier, factor, tiles}]}` — each background layer keeps its own parallax factor — or
+  `{kind:'entities'}`, always a singleton). An identifier contributing zero tiles this call is skipped
+  WITHOUT flushing, so it doesn't break up a run of its neighbours. The result: `world.passes`, an
+  ordered array `RpgLevelPanel.jsx` renders directly via one `.map()`.
+
+This is a strict generalization of §382's principle — "derive from the file, don't hand-type a list"
+— extended from "which layers exist" to "in what ORDER do they render," and it made `GENERIC_LAYERS`/
+`HANDLED_LAYER_IDENTIFIERS` themselves redundant (deleted): the pass-builder's `'ground'` DEFAULT
+already covers everything those two lists existed to enumerate.
+
+**The fix — `RpgLevelPanel.jsx`: one small component per pass KIND, mounted via `.map()`.**
+
+React's Rules of Hooks forbid a dynamic number of hook calls inside ONE component body, but allow a
+dynamic number of SIBLING component instances — so each pass kind that needs its own per-pass hook call
+(lit-ground textures, water instances, campfire culling) got its own tiny component, replacing the old
+fixed `SceneryBack`/`SceneryFront`/`EntityLayer` trio:
+
+- **`GroundPass`** — `LdtkScenery` (flat canvas) + its own `LdtkLitGround` (lighting), one
+  `useLdtkLitGroundTextures` call per pass. `edgeLitOnly` (the old back(false)/front(true) split) is now
+  computed per-pass in `RpgLevelPanel`: `i > entitiesPassIndex`.
+- **`BackgroundPass`** — thin wrapper around `LdtkScenery`'s existing `backgroundLayers` prop (already a
+  LIST of independently-parallaxing canvases, §6d reuse — no new mechanism).
+- **`ShimmerPass`** — `ForegroundFoliageLayer` for this pass's foliage/water tiles, PLUS (RAM-level bug
+  fix, Han 2026-08-11) a flat `LdtkScenery` fallback canvas of the SAME tiles underneath, so there's
+  always a correctly-drawn un-shimmering sprite visible before the WebGL atlas/instances resolve — this
+  used to be achieved by literally baking foliage into the ground canvas array (`groundAndFoliageBack/
+  Front`); now each shimmer pass carries its own fallback. If the pass contains water tiles,
+  `WaterReflectionLayer` also mounts (immediately before the shimmer layer, preserving the
+  animation-reflection-shimmer z-order from #1032).
+- **`CampfirePass`** — `LdtkAnimatedTiles`' DOM frame-cycling overlay + its own `useCulledAnimatedTiles`
+  call (campfire is the only remaining consumer — water moved to the shimmer path back in #925 round 2).
+- **`'entities'`** — no new component; the EXISTING memoized `EntityLayer` (§1162 Fase 3) is rendered
+  inline in the `.map()`'s `'entities'` branch, at whatever array position the real LDtk order puts it.
+  `EntityLayer` already took every input via props (no sibling-JSX coupling), so relocating its MOUNT
+  POINT in the tree — while its own hooks/state/refs stay exactly where they were, called unconditionally
+  every render as before — was a low-risk move despite Entities being a live, imperative,
+  physics/camera-driven subsystem (§233/§322/§325/§330/§331), not static tile data like everything else
+  in this rewrite.
+
+**Perf preserved: the imperative camera-pan transform, generalized to a dynamic set.** §1162 Fase 1 made
+every "factor=1 ground-plane" wrapper `<div>` receive its pan `transform` IMPERATIVELY every rAF frame
+(bypassing React state/props for the offset) via 4 fixed refs. With a dynamic pass count, those became
+`panElsRef` — a `Map` each pass's own wrapper div joins/leaves via `useRegisteredRef` (a `useLayoutEffect`
+registering `ref.current` on mount, deleting on unmount) — and the pan loop now does
+`for (const el of panElsRef.current.values()) el.style.transform = transform;` instead of 4 fixed
+`if`-checks. `entityScrollRef` (Entities' own pan wrapper) stayed a single fixed ref — there is always
+exactly one `'entities'` pass, so no dynamism was needed there.
+
+**Legacy-mode ordering preserved.** The old JSX order was `SceneryBack → Legacy decor block →
+EntityLayer → SceneryFront`; folding `SceneryBack`/`EntityLayer`/`SceneryFront` into one `.map()` would
+have put the Legacy decor block (floor/trunk/tent, meant to render BEHIND the hero) AFTER `Entities` —
+a real regression for `sceneryMode === 'Legacy'` (the dev/comparison toggle, §194). Fixed by moving the
+Legacy decor block to render BEFORE the `.map()` (the Legacy "foreground foliage" block — tree
+canopy/tufts/crates, meant to stay IN FRONT of the hero — was already positioned after, and stays there
+unchanged). Every non-`'entities'` pass component already no-ops outside `sceneryMode === 'LDtk'`, so
+interleaving them with Legacy-only JSX has no visual effect in Legacy mode.
+
+**Verification note.** This is WebGL/canvas-compositing rendering code with no visual test harness
+(same "not unit-testable, stated explicitly" precedent as §370/§374/§375/§377) — `npm run test:run`/
+`build`/`lint` all pass, confirming no reference errors and no regression in `ldtkWorld.js`'s own pure
+logic (`ldtkWorld.test.js` rewritten around `world.passes`, including a regression test asserting
+`City_Walls` lands in a `'ground'` pass sandwiched between `'shimmer'` passes), but the actual on-screen
+result — bridge/willow ordering, lit-ground per pass, water reflection, Legacy-mode parity, camera-pan
+smoothness — has NOT been visually confirmed and needs Han's UAT.
+
+**Invariants.**
+
+- `world.passes` order IS render order — `RpgLevelPanel` must never reorder or re-bucket it; any new
+  per-pass concern (lighting, culling, instancing) belongs in that pass kind's own small component, not
+  in a new top-level split.
+- Every wrapper `<div>` positioned via the `panElsRef` imperative-transform convention must register via
+  `useRegisteredRef` (mount) and be trusted to unregister on unmount — a leaked entry would apply a
+  transform to a detached DOM node harmlessly, but a MISSING registration would leave that pass's
+  content frozen at `transform: translateX(0)` while the camera pans.
+- A pass kind's component must remain the ONLY place its hooks are called — do not hoist a per-pass hook
+  (e.g. `useLdtkLitGroundTextures`) back up into `RpgLevelPanel` itself, since the pass count is dynamic.
+
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`buildWorld` rewritten around `PAINT_ORDER_IDENTIFIERS`/
+`classifyLayer`/`tilesForIdentifier`/`buildPasses`; `GENERIC_LAYERS`/`HANDLED_LAYER_IDENTIFIERS`/
+`STATIC_TILE_LAYERS`'s old role/`isInFrontOfEntities`/`splitByFront`/`ENTITIES_INDEX` removed;
+`reflectableTilesFor` rederived from `classifyLayer`), `src/levels/ldtk/__tests__/ldtkWorld.test.js`
+(rewritten around `world.passes`), `src/components/character/RpgLevelPanel.jsx` (`SceneryBack`/
+`SceneryFront` replaced by `useRegisteredRef`/`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`;
+`panElsRef` replaces the 4 fixed scroll refs; the render body's scenery JSX replaced by one
+`world.passes.map()`; various per-pass derivations — `atlasFoliageInstanceFor`, `foliageInstanceProps`,
+`waterPonds`, `campfireLight`, `waterSpanNear`, the ambient-audio `envAudioRef.waterTiles` — updated to
+read `world.passes` instead of the old fixed buckets). Verified: `npm run test:run` (131 files / 1483
+tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors).
+
+**Cross-references.** §382 (the same-day predecessor this supersedes for layer VISIBILITY — still
+correct for that, just not for ordering); §194/§195-201/§233/§925 (the original LDtk pipeline, multi-
+level stitching, and the `isInFrontOfEntities` front/back split this replaces); §1162 (the perf work —
+Fase 1's imperative pan transform, Fase 3's `EntityLayer` extraction, Fase 4's `SceneryBack`/
+`SceneryFront` extraction, Fase 10a/10c's shared foliage atlas — all generalized here, none of it
+reverted); §1032 (water reflection, animation-reflection-shimmer z-order); CLAUDE.md §6c (derive, don't
+hardcode — extended from "which layers" to "what order").
+
+---
+
+### §384. RPG world F1 — `cameraX` state → ref: a camera pan now triggers ZERO React re-renders (#1196, Han 2026-09-06, "ik ben voor consistentie, dus ik ga voor 1")
+
+**Purpose / symptom.** Han: the open-world animation is "hakkelig / framerate inconsistent, vooral bij
+veel beweging." A performance diagnostic (logged in `IMPLEMENTATION_PLAN.md`) found the primary cause
+was long-known and long-accepted: `cameraX` was React state, and the dead-zone follow-camera's
+`useFrameLoop` called `setCameraX` on **every rAF frame** while the hero moved — forcing a full
+re-render of the ~3200-line `RpgLevelPanel` 60×/sec, even though the visible pan was ALREADY written
+imperatively (translateX on the `panElsRef` / `entityScrollRef` wrappers, `cameraOffsetRef` for
+`ForegroundFoliageLayer`). §321–§325 (#1162) mitigated the *cost* of that re-render (imperative
+transforms, `EntityLayer` / `SceneryBack` / `SceneryFront` extraction) but never removed it; §383
+(#1195) then folded the scenery back into an inline `world.passes.map()` in the render body, undoing
+§324's protection. Han's real-hardware number through all of that: 120 fps idle → ~41 fps moving. He
+chose **Option 1** (full imperative, every layer on the same pan mechanism) over a throttled-state or
+isolated-subtree compromise, explicitly for consistency.
+
+**How it works.** `cameraX` is now `cameraXRef` (a `useRef(0)`). The camera `useFrameLoop` computes the
+dead-zone/clamp `next` exactly as before, writes `cameraXRef.current = next`, and — as it already did —
+writes every visible transform imperatively that same frame (`panElsRef` wrappers, `entityScrollRef`,
+`cameraOffsetRef`, hero/pet `left`/`bottom`). It additionally writes `envAudioRef.current.cameraX`
+(previously refreshed by the render). **Nothing reads the camera as a render value on a panning frame
+any more**, so `setCameraX` is gone and a pure pan produces no React commit. The last two camera-coupled
+render-time consumers were converted:
+
+- **Parallax background (`LdtkScenery.jsx` `BgLayer`).** Each `BgLayer` now runs its **own**
+  `useFrameLoop` (`'critical'`), reading `cameraXRef.current` live and writing
+  `transform: translateX(-cameraX · factor · zoom)` (snapped to whole device px, same grid the ground
+  layers use) onto its own wrapper `<div>`. Its art canvas sits at a static camera-independent `bgLeftPx`
+  (= `groundLeftPxLocal`); per-layer parallax depth comes purely from that wrapper transform. The §377
+  sun edge-glow patch is handled in the SAME loop: its moving canvas-local box (`sunLocalX` tracks which
+  silhouette region sits under the screen-fixed sun as the art slides) is recomputed each frame and the
+  80×80 patch is re-baked only when that integer box actually moves (`lastSunBoxRef` dedup); a
+  non-camera input change (new `gen`, opacity/colour/radius/zoom/sun-position) forces one re-bake by
+  nulling the dedup. `leftPxForFactor` is **deleted** from `LdtkScenery` entirely.
+- **`LdtkLitGround.jsx`.** Given the same `cameraOffsetRef` treatment §322/§331 gave
+  `ForegroundFoliageLayer`: `leftPx` is now the camera-independent `groundLeftPxLocal`, and the live
+  snapped pan offset (`cameraOffsetRef.current`, fed by the camera loop) is added to it inside
+  `drawFrame` right before the `uLevelLeftPx` uniform upload. §322 said this component "needed no change"
+  — true only while `RpgLevelPanel` re-rendered every pan frame and re-fed `leftPx` through `liveRef`;
+  F1 removes that re-render, so the offset must arrive through a ref. `ZERO_OFFSET_REF` keeps a
+  camera-less caller working unchanged.
+
+`worldToScreenX`/`leftPxForFactor` in `RpgLevelPanel` now read `cameraXRef.current` with deps
+`[centerX, zoom]` (stable identity even while panning). `worldToScreenX`'s only remaining callers are
+the unreachable `sceneryMode === 'Legacy'` blocks; `leftPxForFactor` had none left and was removed.
+
+**What still re-renders during movement (and why that's fine).** The hero's own `playerX` React state
+still updates at the #1192-jank `POSITION_STATE_THROTTLE_MS` cadence (~16 Hz) while walking — needed by
+the hero point-light position, water-reflection `worldX`, and pet-vs-player facing. So `RpgLevelPanel`
+still re-renders ~16 Hz during movement (not 60 Hz), which is what `ldtkLights` / `sunGlowVisFrac` /
+`DebugGrid` / the `world.passes.map` now recompute at. That is 4× fewer full re-renders than before and
+comfortably enough for a soft glow / a 0.05-quantised occlusion fraction / a debug grid. Driving
+`ldtkLights` through a ref to shave that too is a possible follow-up if Han's UAT still shows drops; the
+CPU-side WebGL raster floor (one un-batched `gl.drawArrays` per foliage instance, §325) is a separate,
+GPU-bound concern (§318/§319).
+
+**Invariants.**
+- The camera `useFrameLoop` is the single writer of `cameraXRef.current`; every layer's own per-frame
+  loop is a READER. No layer writes it.
+- Every per-frame camera read snaps to whole **device** pixels (`Math.round(x·dpr)/dpr`) — the DOM
+  wrappers, the `BgLayer` transforms, and `cameraOffsetRef` all use the identical snap so nothing
+  sub-pixel-crawls against anything else (§364/§327).
+- `BgLayer`'s sun-glow patch canvas re-bakes only on integer-box movement or an explicit non-camera
+  input change — never unconditionally every frame.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`cameraX` useState → `cameraXRef`; camera
+`useFrameLoop` writes the ref + `envAudioRef.current.cameraX`; `worldToScreenX`/`leftPxForFactor`
+stabilised, `leftPxForFactor` then deleted; `GroundPass`/`BackgroundPass`/`ShimmerPass` signatures
+swap `leftPxForFactor` for `cameraOffsetRef` / `cameraXRef`+`bgLeftPx` / nothing; `moveTo` click,
+`DebugGrid`, `sunGlowVisFrac`, the Legacy `PARALLAX_LAYERS` block all read `cameraXRef.current`),
+`src/components/character/LdtkScenery.jsx` (`BgLayer` own `useFrameLoop` for parallax transform + §377
+patch; `leftPx` → `factor`+`cameraXRef`+`bgLeftPx`; `LdtkScenery` drops `leftPxForFactor`, adds
+`cameraXRef`/`bgLeftPx`; `useFrameLoop` import), `src/components/character/LdtkLitGround.jsx`
+(`cameraOffsetRef` prop + `ZERO_OFFSET_REF`; `drawFrame` adds the live offset to `leftPx`).
+Verified: `npm run test:run` (131 files / 1484 tests, 1 pre-existing skip), `npm run build`,
+`npm run lint` (0 errors). **Visual UAT on real hardware is the acceptance gate** — this session's
+sandbox has no GPU (SwiftShader only, §319), so it cannot produce a trustworthy before/after FPS number
+for this WebGL-heavy scene, nor confirm the §377 sun-glow-on-parallax still tracks correctly.
+
+**Cross-references.** `IMPLEMENTATION_PLAN.md` (the F1–F6 diagnostic this acts on); §321–§325 (#1162 —
+the imperative-camera arc this completes; F1 is effectively its "Fase 6"); §322/§331 (the
+`cameraOffsetRef` pattern extended here to `LdtkLitGround`); §377 (#1193 — the sun edge-glow whose
+parallax-bg patch is now driven imperatively); §383 (#1195 — the `world.passes.map` render body F1
+stops re-running on pan); CLAUDE.md §6 ("never set opacity via JSX props on animated elements",
+generalised here to the whole camera-pan position path).
+
+---
+
+### §385. RPG world — Legacy scenery mode deleted (Han 2026-09-06, "haal legacy maar weg!")
+
+**Purpose.** `RpgLevelPanel` carried a second, older scenery implementation behind a `sceneryMode`
+state (`'LDtk'` default, `'Legacy'` the alternative): hand-placed parallax PNGs (`PARALLAX_LAYERS` /
+`Background layers_layer 1-4.png`), a hard-coded 200-tile floor strip (`floorTileIdx` / `FLOOR_CELLS` /
+`Floor Tiles2.png`), a fixed tree/tent/crate layout with browser-side normal-map generation
+(`runtimeTextures` + `normalMapCanvasFromCrop`), the `SheetCrop` DOM-crop helper, and a
+`mix-blend-mode: multiply` day/night overlay (`domDarkenOverlayStyle`). It existed only as a
+side-by-side visual reference during the #194 RAM-level migration and, per §325, had been dead weight in
+every render path since. Han: *"haal legacy maar weg!"*
+
+**What was removed.** The `sceneryMode`/`setSceneryMode` state and the debug "Scenery" picker; every
+`sceneryMode === 'LDtk'` guard (now unconditional) and every `sceneryMode === 'Legacy'` block (deleted);
+the `sceneryMode` prop threaded through `EntityLayer` / `GroundPass` / `ShimmerPass` / `CampfirePass` and
+the `useLdtkFoliageAtlas` / `useLdtkLitGroundTextures` / `useLdtkWaterInstances` hooks (their `!== 'LDtk'`
+early-return replaced by the plain empty-input check that was already `||`-d onto it); the dead
+`useLdtkFoliageInstances.js` file (imported nowhere — its output was replaced by the shared atlas in
+§340); `worldToScreenX` (camera-aware helper, its only callers were Legacy blocks); `zoom` /
+`standAnchorFor` / `envAudioRef` lost their `sceneryMode` ternaries; and the Legacy-only module
+constants + imports (`PARALLAX_LAYERS`, `BG_NATIVE`, `bgLayer1-4Url`, `FLOOR_SHEET`/`FLOOR_CELLS`/
+`FLOOR_TILE`/`FLOOR_T`/`LEVEL_TILES`, `TREE_SHEET`/`TREE_CELL`/`TRUNK_CELL`/`SUMMER_FOLIAGE_CELL`/`TREE_X`,
+`DECOR_SHEET`/`TENT_CELL`/`TENT_W`/`TENT_H`/`TENT_X`, `CRATE_*`, `GRASS_TUFT_CELLS`/`GRASS_NORMAL_BY_CELL`/
+`GRASS_TUFT_SPACING`, `GROUND_ANCHOR`/`GROUND_ANCHOR_PX`, `SheetCrop`, `mixRgb`,
+`normalMapCanvasFromCrop`, and the whole `NORMAL_MAP_URLS` glob + `treeFoliage*`/`grassNormal*`/
+`crateNormalUrl`). Net: ~400 lines out of `RpgLevelPanel.jsx`.
+
+**Kept.** `HORIZON_PX` (still the parallax-background alignment reference for the LDtk `BgLayer`s),
+`AMBIENT_DARK_RGB` (feeds `bgDarkenColor`), `NPC_X` / `WISP_URL` / `HIT_ZONE_GPX`, `loadImageEl` (used
+for the one-time firefly-colour sample), `DebugGrid`. `bgOccluders` (unused since the parallel #1220
+"sun-sheen-off" change) was left in place — it belongs to that ticket, not this one.
+
+**Invariant.** There is now exactly ONE world-scenery renderer: `world.passes` (ldtkWorld.js) →
+`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`/`EntityLayer`/`LastLayerPass` (§383). No
+mode switch, no `sceneryMode` anywhere in `src/`.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (bulk deletion), `LdtkScenery.jsx` (comment
+only — its `sceneryMode` was already gone), `useLdtkFoliageAtlas.js` / `useLdtkLitGroundTextures.js` /
+`useLdtkWaterInstances.js` (drop the `sceneryMode` param + guard + dep), `useLdtkFoliageInstances.js`
+(deleted), `__tests__/useLdtkFoliageAtlas.test.js` (drop the "not in LDtk mode" case). Verified: `npm
+run test:run` (131 files / 1484 tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors).
+
+**Cross-references.** §384 (F1 — its "removed with Legacy" forward references are now fulfilled);
+§194/§382/§383 (the LDtk scenery pipeline that fully replaces this); §325 (which first identified the
+Legacy `mix-blend-mode` overlay as dead-weight in LDtk mode); CLAUDE.md §7 ("delete unused code").
+
+---
+
+### §386. RPG world F4 + F5 — hero point-light on a ref, and a redraw-skip for `<CelestialSky>` (#1196, Han 2026-09-06, "goed f4 en f5 maar! :D")
+
+Two smaller follow-ups to §384's F1, from the same `IMPLEMENTATION_PLAN.md` diagnostic.
+
+**F4 — the hero point light no longer busts the scenery memos every ~16 Hz.** The hero's own point
+light is the only light that moves while walking. Its position lived inside the `baseLights` /
+`ldtkLights` `useMemo`s keyed on `playerX` — the #1192-jank *throttled* state that still ticks ~16 Hz
+during movement — so every tick rebuilt the whole `ldtkLights` array, handed a fresh identity to
+`GroundPass` / `ShimmerPass`, and re-rendered `LdtkLitGround` + `ForegroundFoliageLayer` ~16 Hz even
+though F1 had already stopped the 60 Hz churn. Fix: the hero light is now a single **ref-owned object**
+(`heroLightRef.current = { worldX, worldHeight, color }`), placed at a fixed index 1 of
+`baseLights` / `ldtkLights` **by reference**. `playerX` is dropped from both memos' deps (the firefly
+"nearest 4" sort reads `playerXRef.current` live instead), so the arrays keep a stable identity through
+a pure walk. The camera `useFrameLoop` (already 60 Hz, already reading `playerXRef`) mutates
+`heroLightRef.current.worldX` / `.worldHeight` in place every frame. Both WebGL lighting layers already
+read the light array through their own `liveRef` / `lightsRef` inside their draw loops, so the glow now
+tracks the hero at full 60 Hz — *smoother* than the old 16 Hz — with zero React re-renders. (An
+in-place ref mutation deliberately bypassing React is the same §6 pattern the rest of this file uses
+for per-frame position.)
+
+**F5 — `<CelestialSky>` skips frames whose pixel-quantised output cannot have changed.** The 611-star
+loop (`altAz` spherical trig + `projectToScreen` per star) is the dominant per-frame cost at night, and
+it ran every frame because the skip-gate compared `cycleT` byte-exact (`cycleT` always advances).
+Replaced with a **sky-rotation bucket**: the sky is projected linearly in azimuth (§374 plate-carrée),
+so a star's screen-x moves `≈ (dAz/dlst) / degPerPx` px per degree of local sidereal time; `dAz/dlst`
+stays ≲ 8 for any star inside the ±60° FOV, so bucketing `lst` at `degPerPx / 8` degrees guarantees no
+star moves as much as one game pixel between two frames in the same bucket. The bucket ref
+(`lastLstBucketRef`) is updated **only on an actual redraw**, so skipped sub-pixel motion can never
+accumulate into a multi-pixel jump — this is exactly §374's own stated goal ("each star advances at
+most one game pixel per frame"), just without redrawing frames where it advanced zero. Wrap-around and
+a debug time-seek both change the bucket → redraw. `illum` / `cloudCoverT` keep their existing epsilon
+gates (the alphas they drive are the other thing a frame's output depends on). At night this cuts the
+`<CelestialSky>` redraw rate from 60/s to roughly 5–15/s with no visible change; by day the star loop
+was already `alpha`-gated off, so F5 is night-dominant. **If star stepping is ever visible, halve the
+`dpp / 8` divisor** — this is a tunable, in the same iterative-tuning spirit as §374's own UAT rounds.
+
+**`<SkyGradientBackdrop>` — no change.** §381 already gave it an `ILLUM_EPSILON` / `CLOUD_EPSILON`
+gate, so on a stable-weather frame it costs nothing; it only repaints during a ~10 s weather
+transition, which is the intended design.
+
+**Invariants.** F4: `heroLightRef.current` is created once and lives at `baseLights[1]` /
+`ldtkLights[1]` by reference for the component's whole life; the camera `useFrameLoop` is its only
+writer. F5: `<CelestialSky>` may only skip a frame whose every drawn body is at the identical rounded
+screen position AND whose alphas are within epsilon — the bucket ref resets on any geometry/toggle
+change (bucket size depends on `Wpx`) and on mount.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`heroLightRef`; `baseLights` / `ldtkLights`
+deps + hero entry; camera-loop mutation), `src/components/character/CelestialSky.jsx`
+(`lastLstBucketRef`, the `lst`-bucket skip gate, reset-effect addition). Verified: `npm run test:run`
+(131 files / 1484 tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors). Visual UAT
+on real hardware still the gate (no GPU here, §319) — in particular that the night sky's star motion
+stays smooth.
+
+**Cross-references.** §384 (F1, the parent change); §374 (`<CelestialSky>`, whose "one game pixel per
+frame" goal F5 preserves); §376/§378 (the earlier "un-throttle the derivation" fixes F5 is careful not
+to regress — the sky still *advances* every frame, F5 just skips *drawing* the zero-motion ones);
+§381 (`<SkyGradientBackdrop>`, already handled); `IMPLEMENTATION_PLAN.md` (the F1–F6 diagnostic).
+
+### §387. Wereld-silhouetmasker — één silhouet voor álle randbelichting (#1222, Han 2026-09-06, "alle entiteiten op de main layer als één behandeld ... het silhouet van de 'wereld' en niet van de tile laag")
+
+**Purpose / Symptom.** Han meldde drie samenhangende klachten over de RPG-wereldbelichting:
+*"aan de rand pixels die niet reageren op de illum, sheen, of andere lighting"*; *"'s nachts pixels die
+niet donker worden en dus fel afsteken tegen de rest, en overdag pixels die over worden geslagen door de
+sheen van de zon"*; en *"ik zie soms licht op de naden van 16x16 grid waaruit foliage is opgebouwd"*.
+Zijn eigen eis erbij is meteen de juiste diagnose: de sheen moet het silhouet van de **wereld** volgen,
+niet dat van een losse tile of een losse tak.
+
+**Root cause.** Elke randgevoelige belichtingsterm — `edgeLightFactor` (§141 r10/r14), `moonRimFactor`
+(§370 r2), `sunInwardGlow` (§377 r4) — beantwoordde de vraag *"lig ik op een silhouetrand?"* door de
+**diffuse-textuur van het fragment zelf** af te tasten. Die textuur is per laag iets anders, en in geen
+enkel geval het wereldsilhouet:
+
+1. **Foliage: één 16×16 atlascel.** `useLdtkFoliageAtlas` pakt 447 unieke crops strak tegen elkaar in een
+   352×352 atlas (22 kolommen), **zonder gutter** — die was in #1221 teruggedraaid. `sunInwardGlow`
+   klemde zijn taps bewust *niet*, met als motivering in de comment: *"so an external edge still detects
+   the transparent atlas gutter past the crop"*. Die gutter bestond niet meer. Alle taps van 1–3 texels
+   buiten de cel lazen dus een **willekeurige andere boom-tile**. Buurcrop daar ondoorzichtig ⇒ een échte
+   silhouetrand werd nooit gedetecteerd ⇒ geen zon-sheen ("overdag overgeslagen pixels"). Buurcrop daar
+   leeg ⇒ valse rand op een interieurpixel ⇒ felwitte rim 's nachts ("pixels die niet donker worden").
+   Eén bug, beide symptomen, in tegengestelde richting — de handtekening van een randtest waarvan het
+   antwoord in feite willekeurig is.
+2. **De uvRect-klem en de `internalEdges`-gating zijn no-ops op gespiegelde tiles.** Bij `flipX`/`flipY`
+   keert het teken van `texelSize` om, dus de tap loopt de andere kant op en `max(tap, min(rect))` klemt
+   nooit. **200 van de 1599 foliage-tiles in dit level zijn flipX** — daar liepen de taps volledig
+   ongeklemd én zonder naadonderdrukking. Dit is Hans eigen §377 UAT r6-vraag (*"heeft het met de
+   richting te maken?"*) beantwoord: ja, letterlijk de spiegelrichting.
+3. **`internalEdges` kan het wereldsilhouet principieel niet beschrijven.** De bitmask (#1221) kende
+   alleen **orthogonale** buren (nooit een diagonale zuster) en alleen **foliage**-buren — nooit het
+   gebouw achter de tak. Vandaar dat de gutter-poging werd teruggedraaid: hij verplaatste het probleem.
+4. **Grond/gebouwen/decor: het composiet van één pass.** `buildWorld()` levert voor dit level **14
+   passes**: 6 × ground, 5 × shimmer, 1 background, 1 campfire, 1 entities — ground en shimmer
+   afwisselend. Een muur in pass 5 en het terrein in pass 1 waren dus losse silhouetten, en hun
+   contactlijn kreeg rim alsof daar open lucht zat.
+
+**How it works.** `useWorldSilhouetteMask.js` bouwt één **level-groot alfamasker**: de unie van elke
+non-parallax, non-entity pass (terrein, gebouwen, decor, foliage, water, campfire), via dezelfde
+`ldtkTileCompositing`-bliterlus die `LdtkScenery`/`useLdtkLitGroundTextures` al gebruiken (§6c/§6d).
+Het wordt éénmaal per wereldconfiguratie (season/city/tier) gebouwd. `createWorldMaskTexture` (zelfde
+module — één plek definieert het GPU-contract) uploadt het als **`gl.ALPHA`**: 1 byte per texel in plaats
+van 4, wat telt bij ~2,1 M texels × de 11 WebGL-contexten die dit level draait (≈23 MB in plaats van
+≈94 MB), met NEAREST + CLAMP_TO_EDGE zoals elke andere textuur hier.
+
+In `foliageLightingGLSL.js` is `worldMaskAt(highp vec2 levelPx)` nu de enige primitief waarop alle
+randlogica rust. Daarbovenop:
+
+| was | is | gedeeld door |
+|---|---|---|
+| `edgeLightFactor(tex, duv, texelSize, ...)` | `worldEdgeLightFactor(levelPx, edgeLitOnly)` | beide shaders |
+| `moonRimFactor(tex, duv, texelSize, uvRect, internalEdges)` | `worldRimFactor(levelPx)` | beide shaders |
+| `sunInwardGlow(tex, duv, texelSize, uvRect, internalEdges)` | `worldInwardGlow(levelPx)` | `applySunGlow` |
+
+De §370 r2/r6-rimspec (boven .55/.35/.05, links .55/.15, rechts .35, hoogste wint) en §377 r4's
+isotrope 3-px gradiënt (1.0/0.75/0.5) zijn **ongewijzigd** — alleen *waarnaar* ze kijken is veranderd.
+Verdwenen: `edgeIsInternal`, `anyNeighborBelowAlpha`, `anyNeighborTransparent`, het `internalEdges`-
+attribuut/varying, `foliageCellSet` en de per-tile adjacency-scan in `atlasFoliageInstanceFor`.
+
+**Coördinaten.** `LdtkLitGround` had `levelPx` al (`localX`/`localY`) — geen nieuwe varying, geen nieuwe
+uniform, geen extra rekenwerk. `ForegroundFoliageLayer` leidt het af uit waarden die het al heeft:
+`tileTopLeft = (worldCenterX - worldWidth/2, maskHeight - (groundDistOffset + worldHeight))`, en telt
+daar `(maskNativeX + 0.5, nativeY + 0.5)` bij op. Omdat dit in level-/schermruimte gebeurt en de
+flip al in de UV-rect verwerkt zit, is de opzoeking **flip-agnostisch** — bugklasse 2 hierboven verdwijnt
+per constructie.
+
+**Wind / texel-swap.** Het masker is de **ruststand** en dat is geen benadering. De windbend
+*verplaatst* een texel (bemonstert bronkolom `shiftedNativeX`, tekent hem op doelkolom `nativeX`); de
+shader zoekt het masker op bij de **broncoördinaat** van die texel. De pixel wordt dus belicht als de
+pixel die hij werkelijk is, met de omgeving waar hij werkelijk vandaan komt — de rim reist gratis met de
+bladeren mee, zonder per-frame silhouet-render (geen FBO, geen tweede pass). `maskNativeX` volgt daarbij
+óók de wind-hole-fill terug naar de rustkolom, zodat het altijd de getekende texel beschrijft. Hierdoor
+kon de `windPushedOut`/`atExtremeCol`-geforceerde-rim-hack wég: die bestond alleen omdat de oude test
+niet voorbij zijn eigen atlascel kon kijken.
+
+**Bewust buiten het masker** (Hans interviewantwoorden, 2026-09-06): parallax-`background`-passes (die
+schuiven met hun eigen `factor` en hebben dus geen vaste plek in levelruimte — zij houden hun gebakken
+DOM-rim, `LdtkScenery` `computeMoonRim`) en de `entities`-pass (*"geen deel van silhouet, mag zo
+blijven"*). **Wél** in het masker: water (*"water doet mee in wereldsilhouet"*) en grond (*"klopt,
+onderrand boom geen rim"* — een boom op het gras heeft geen lucht onder zich).
+
+**Fallback-canvas donkerder (D4).** `LdtkScenery`'s `GroundCanvas` is de opzettelijke on-shimmerende
+fallbacksprite (#RAM-level: *"toon dan de default ongemodificeerde sprite, ipv niets"*) die ónder de
+WebGL-laag ligt die diezelfde tiles herbelicht. Hij droeg géén dag/nacht-multiply, in de veronderstelling
+dat de shader hem exact afdekt. Dat klopt niet helemaal: dit canvas wordt door de browser CSS-geschaald
+(fractionele `left`, `imageRendering: pixelated`) terwijl de WebGL-quads hun vier randen naar hele
+**device**-pixels snappen (§364 r2) — bij fractionele dpr (Windows 125 %/150 %) verschillen die twee
+afrondingen tot een device-pixel. Een sliver van dit canvas schijnt dan door langs een silhouet, in volle
+daglichtkleur, náást buren die de shader wél verduisterd heeft: een felle randpixel die niet op de
+belichting lijkt te reageren. `GroundCanvas` bakt nu dezelfde multiply (+ `destination-in` herklip naar
+het tile-silhouet) die `BgLayer` al deed — de fallback blijft dus bestaan, maar een doorschijnende sliver
+valt niet meer op. `darkenColor` is al gekwantiseerd op 0,05-stappen, dus een nachtovergang kost ~13
+re-bakes, niet één per frame.
+
+**Debug channel 4 — "Edge mask".** De foliage-debugknop cyclet nu door 5 kanalen; het nieuwe kanaal 4
+toont de rand**test** zelf in plaats van zijn effect op de kunst: **rood** = `worldRimFactor`, **groen** =
+`worldInwardGlow`, **gedimd blauw** = de ruwe maskerdekking. Beide belichtingslagen tonen hetzelfde beeld,
+dus een naad die van een gebouw in een boom overloopt is als één plaatje leesbaar. Dit is het instrument
+dat bij de #1221/§377-rondes ontbrak: een valse rim op een interne naad, of een echte contour die de glow
+overslaat, is hier direct zichtbaar in plaats van af te leiden uit het eindbeeld.
+
+**Invariants.**
+- Er is precies **één** definitie van "rand van de wereld": `worldMaskAt` + `RIM_EMPTY_ALPHA`. Een nieuwe
+  randgevoelige term mag nooit opnieuw de eigen diffuse-textuur van een fragment aftasten.
+- Elke level-ruimte-coördinaat in de shaders is expliciet **`highp`**, inclusief functieparameters.
+  `LEVEL_PX_WIDTH` is 7872; mediump garandeert 2^-10 relatieve precisie ≈ 7,7 px fout daar, wat de
+  maskeropzoeking een halve tile kan verschuiven. Desktopdrivers implementeren mediump als float32,
+  dus dit zou stil blijven werken op Hans machine en op mobiel rotten (zelfde valkuilklasse als
+  #141 ronde 23).
+- `uWorldMaskSize` is **altijd** de echte levelomvang, ook zolang de 1×1-placeholdertextuur gebonden is —
+  de bounds-test én de normalisatie hebben de echte omvang nodig, en een 1×1-textuur binnen bereik levert
+  simpelweg "solide" op, dus géén rim in plaats van een willekeurig omlijnde wereld.
+- Het masker is de ruststand; foliage zoekt op bij de **bron**kolom. Wie de windbend aanpast, moet
+  `maskNativeX` mee laten lopen met wat `duv` uiteindelijk bemonstert.
+- **Buiten de maskergrenzen telt als SOLIDE, niet als leeg** (UAT r1, zie hieronder). Wie ooit een vijfde
+  randterm toevoegt, mag die regel niet omkeren "omdat de wereldcontour dan mooier uitkomt".
+
+**UAT r1 (Han 2026-09-06) — de levelrand is geen silhouetrand.** *"Ik zie dat de allllerbovenste pixel
+als rand telt. Als texel aan schermrand grenst, beschouw deze niet als 'rand'."* De eerste versie van
+`worldMaskAt` gaf **0.0 (leeg)** terug buiten de maskergrenzen, met als redenering dat de eigen
+buitencontour van het level dan netjes rimt. Dat is verkeerd om gedacht: de levelgrens is waar de wereld
+opheldt *geauthored* te zijn, niet waar hij visueel eindigt. Een canopy die door de bovenrand van het
+levelcanvas wordt afgesneden is een **afgeknipte boom**, geen silhouet tegen de lucht — zijn snijrand
+belichten trekt een heldere lijn dwars over de bovenkant van het scherm. Nu **1.0 (solide)**: de grens
+telt als "meer wereld", dus een texel die eraan raakt heeft daar geen lege buur en is simpelweg geen
+rand. Geldt voor alle vier de zijden (Hans regel is algemeen gesteld); links/rechts zijn de uiteinden van
+de aaneengeregen levelstrip en onder is de grondlijn, dus in de praktijk komt alleen de bovenrand ooit
+in beeld. Eén regel in `worldMaskAt`; alle vier de randtermen erven het.
+
+**Files:** `src/components/character/useWorldSilhouetteMask.js` (nieuw — hook + `createWorldMaskTexture`),
+`foliageLightingGLSL.js` (`WORLD_MASK_UNIFORMS_GLSL`, `worldMaskAt`/`worldAnyNeighborEmpty`/
+`worldEdgeLightFactor`/`worldRimFactor`/`worldInwardGlow`, nieuwe `applySunGlow`-signatuur,
+`RIM_EMPTY_ALPHA` verplaatst), `ForegroundFoliageLayer.jsx` (beide fragment-shaders, mask-uniforms/
+textuur-unit 2, `internalEdges` verwijderd, debug kanaal 4), `LdtkLitGround.jsx` (idem, plus `highp` op
+`screenPx`/`localX`/`localY`), `LdtkScenery.jsx` (`GroundCanvas` darken-bake), `RpgLevelPanel.jsx`
+(`useWorldSilhouetteMask`, `worldMask`/`bgDarkenColor` bedrading, `foliageCellSet`/`internalEdges`
+verwijderd, debugknop 5 kanalen). Nieuwe foutcode **E040-WORLD-MASK-COMPOSITE**.
+
+**Cross-references.** §141 (de shimmer-shader en zijn edge-lit-rondes); §370 (de maan-sheen/rim waarvan
+de spec hier ongewijzigd overgenomen is); §377 (#1193, de zon-glow); #1221 (de per-tile `internalEdges`-
+aanpak die dit vervangt); §383 (de pass-lijst waaruit het masker zijn tiles haalt); §925 (`LdtkLitGround`).
+
+#### §387a. Nevenbevinding — de windbend laat hele texelkolommen vallen (gemeten)
+
+Han, bij de UAT-screenshot: *"De zwarte pixels die niet meegenomen worden in de sheen lijken me kleiner
+dan een texel. Ik ben door andere agents verzekerd dat de pixel swap per texel gaat en niet per
+(sub)-pixel; en dat ze pixel perfect zijn. Klopt dat wel?"*
+
+**Deels.** De swap is inderdaad per hele texel — elke doelkolom bemonstert precies één bronkolom, nooit
+een mengsel. Maar de afbeelding is **niet bijectief**, en dat is wél zichtbaar.
+
+`skewShiftPx = floor(sway * heightRatio² * uSkewAmount + 0.5)` waarbij `sway` uit
+`computeWave01(worldX, ...)` komt en `worldX` uit `nativeX` — de **kolom**. De skew-verschuiving varieert
+dus per kolom, niet per rij. Commit fdc7b2f9 stelde expliciet *"SKEW (rigid per-row translation) has no
+such artefact"* toen stretch om precies deze reden werd uitgezet; **die aanname is onjuist**. Met
+`noiseScaleB = 0.17` verandert de tweede noise-octaaf ~0,36 noise-eenheden per game-pixel, en
+`SKEW_CONTRAST = 5` versterkt dat vóór de afronding.
+
+Gemeten door de shader-math (hash21/valueNoise/blotchNoise/computeWave01/skewShiftPx) 1-op-1 naar JS te
+porten en over 40 tijdstappen × vele tileposities × alle 16 rijen te bemonsteren:
+
+| `skewAmount` | kolomgrenzen die een bronkolom **laten vallen** | die er één **verdubbelen** | max abs(delta shift) tussen buurkolommen |
+|---|---|---|---|
+| 1 | 6,0 % | 6,2 % | 1 |
+| 2 (default) | 11,7 % | 12,1 % | 2 |
+| 3 (volle wind) | 17,5 % | 17,6 % | 3 |
+
+Bij de standaardwind verliest dus ongeveer **één op de zes** kolomgrenzen binnen elke 16-px tile een hele
+game-pixelkolom. Een 1 texel brede donkere bladcontour die op zo'n weggevallen kolom staat, verdwijnt —
+en zijn buren lopen door, waardoor het overblijvende stukje *smaller dan een texel* lijkt. Alleen tijdens
+wind (bij `skewAmount = 0` is de verschuiving overal 0) en alleen op foliage/gras (`skew: true`), precies
+zoals Han het beschrijft.
+
+**Wat het NIET is:** het device-pixelraster. Een aparte meting van de quad-snap (vier randen naar hele
+device-px, §364 r2) plus de fragment-kolomafleiding laat zien dat een game-pixel bij elke geteste
+zoom/dpr-combinatie hooguit 1 device-pixel in breedte varieert (bijv. 4 of 5 bij zoom 3 / dpr 1,5) en
+nooit smaller wordt dan `floor(zoom*dpr)`. Dat is de onvermijdelijke consequentie van een fractionele
+schaal, niet een fout — het raster is zo pixel-perfect als het kan zijn.
+
+**Status: bewust NIET gewijzigd.** Han: *"De texel swap werkt zoals ik wil."* Het weghalen van het
+kolomverlies verandert het wind-uiterlijk, en dat is zijn keuze, niet die van een agent (§9k). De
+opties, mocht hij het willen:
+- **(a)** Skew per **rij** in plaats van per kolom evalueren (`wave01` op de instantie-X in plaats van de
+  fragment-X): bijectief, nul verlies, en de boom buigt als één tak in plaats van per kolom te rafelen.
+  Let op: naïef per tile evalueren geeft een naad op elke 16-px tilegrens — het moet een continu veld
+  blijven over de hele canopy.
+- **(b)** Alleen de lage octaaf gebruiken voor de skew (`noiseScale 0.03`, periode ~33 px), zodat
+  `floor()` nog maar eens per ~10 kolommen stapt: ordegrootte minder verlies, veld blijft continu.
+- **(c)** Laten zoals het is en het als korrel/ruis van de wind accepteren.
+
+**Files:** geen (analyse). De meetscripts stonden in de scratchpad; de cijfers hierboven zijn het
+resultaat.

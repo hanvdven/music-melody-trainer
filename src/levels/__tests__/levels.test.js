@@ -304,3 +304,36 @@ describe('levels.js — #1163c: ramp levels are 4 two-measure chunks, same 8-mea
         expect(full.offsets.length).toBeGreaterThan(truncated.offsets.length);
     });
 });
+
+// #1168 (Han 2026-09-01) — THE TRIPWIRE for the alternative this ticket deliberately REJECTED.
+// A song level's `numMeasures` is the SONG'S LENGTH (songLevelDefaults back-fills it from the song
+// JSON, §871), and #1168 kept it that way: the song's 2-measure generation cadence lives in
+// `blockMeasuresFor` (SONG_BLOCK_MEASURES), NOT in levels.json. Re-authoring `numMeasures` as a chunk
+// size — the "literal #1166 shape" — would silently break `callResponseOverrides`, which computes a
+// call-response song's doubled length from it (the §1155 "de akkoorden zijn op" fix). Both halves of
+// that coupling are pinned here, in one test, so the breakage cannot land unnoticed.
+describe('levels.js — #1168: a song\'s numMeasures still means "the song\'s length"', () => {
+    const SONG_LEVEL_IDS = [200, 201, 202, 203, 204, 205, 206];
+
+    it.each(SONG_LEVEL_IDS)('level %i + letter e: Wizard cadence 4 AND the doubled song length', (id) => {
+        const lvl = LEVELS[id];
+        const songLen = lvl.numMeasures;
+        expect(lvl.totalMeasures).toBe(songLen);          // un-varied: length === the song's own length
+        const v = applyLevelVariant(lvl, 'e');
+        // Half 1 — the LENGTH still doubles off `lvl.numMeasures`.
+        expect(v.totalMeasures).toBe(songLen * 2);
+        // Half 2 — the branch ORDER: the Wizard branch (callResponseMeasures * 2 = 4) must keep winning
+        // over the new song branch, even though this level has a songId.
+        expect(blockMeasuresFor(v)).toBe(4);
+        expect(blockCountFor(v)).toBe(Math.ceil((songLen * 2) / 4));
+    });
+
+    it('a plain (non-call-response) song level generates in 2-measure chunks, length untouched', () => {
+        SONG_LEVEL_IDS.forEach((id) => {
+            const lvl = LEVELS[id];
+            expect(blockMeasuresFor(lvl)).toBe(2);
+            expect(lvl.totalMeasures).toBe(lvl.numMeasures);
+            expect(wavesForLevel(lvl)).toBe(1);
+        });
+    });
+});

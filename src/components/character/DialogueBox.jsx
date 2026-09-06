@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import bitfantasyFontUrl from '../../assets/fonts/pixel_fonts/Bitfantasy.ttf';
+// #weather (Han 2026-09-04, "Gebruik SandyForest als tekst ... Bitfantasy in de tekstvakken voor
+// benadrukte woorden"): the dialogue body + name plate now render in SandyForest; Bitfantasy is kept
+// only for *asterisk-wrapped* emphasis runs (OscillatingText.parseEmphasis).
+import sandyForestFontUrl from '../../assets/fonts/pixel_fonts/SandyForest.ttf';
 // #1028 follow-up (Han 2026-08-17, HMR bug fix): moved to its own file — see CreatureSprite.jsx header.
 import { Frame64Overlay, CreatureSprite } from './CreatureSprite';
 import OscillatingText from './OscillatingText';
@@ -126,6 +130,11 @@ export default function DialogueBox({
     portraitVariant,
     dedicatedPortraitUrl, dedicatedPortraitCell, dedicatedPortraitFrame, text, onClick,
     autoContinue, onToggleAutoContinue, hasMorePages,
+    // #weather (Han 2026-09-04, "je ziet de naam (linksboven tekstvak)"): an optional speaker name plate,
+    // a standalone pixel-art tab overhanging the box's top-left corner — classic JRPG. Same chrome as the
+    // box (square, `var(--text-primary)` border on `var(--panel-bg)`), Bitfantasy font. Callers that don't
+    // pass it (LevelSplash) get no plate.
+    speakerName = null,
     scale = DIALOGUE_SCALE,
     textCols = BASE_TEXT_COLS,
     // #UI-overhaul (Han 2026-08-27): compact mode — the box is EXACTLY `(64 + textCols) · scale` wide
@@ -142,29 +151,55 @@ export default function DialogueBox({
         <>
             <style>{`
                 @font-face { font-family: 'Bitfantasy'; src: url('${bitfantasyFontUrl}') format('truetype'); }
+                @font-face { font-family: 'SandyForest'; src: url('${sandyForestFontUrl}') format('truetype'); }
                 @keyframes dialogue-more-pages-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
             `}</style>
-            <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                <div onClick={onClick} style={{
-                    display: 'flex', alignItems: 'stretch', height: portraitSize,
-                    background: 'var(--panel-bg)', borderRadius: 0,
-                    ...(compact
-                        ? { boxShadow: 'inset 0 0 0 3px var(--text-primary)' }
-                        : { border: '3px solid var(--text-primary)' }),
-                    cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
-                }}>
-                    {dedicatedPortraitUrl
-                        ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} size={portraitSize} divider={!compact} />
-                        : <SpeakerPortrait variant={portraitVariant} size={portraitSize} divider={!compact} />}
-                    <div style={{ position: 'relative', width: textWidth, boxSizing: 'border-box', display: 'flex', alignItems: 'center', padding: compact ? `${4 * scale}px` : `0 ${7 * scale}px`, overflow: 'hidden' }}>
-                        <OscillatingText
-                            text={text} scale={scale}
-                            style={{ fontFamily: 'Bitfantasy, monospace', fontSize, lineHeight: 0.92, color: 'var(--text-primary)' }}
-                        />
-                        {hasMorePages && <MorePagesIndicator />}
+            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                {/* Name plate — a tab centred over the portrait column, sitting ON the box's top edge
+                    (bottom border dropped so it reads as attached). A flow sibling (not absolutely
+                    positioned) so the bottom panel's `overflow: hidden` in compact/world mode can never
+                    clip it; `translateX(-50%)` off the portrait's centre keeps it centred at ANY width.
+                    Font: the name is ALWAYS Bitfantasy (Han 2026-09-04, "naam is altijd BF"), at the SAME
+                    `fontSize` as the body — so name and body letters are the same size and the plate is
+                    pixel-perfect (`fontSizeFor` is built so a Bitfantasy capital is `8·scale` px = a whole
+                    number of screen px at every real scale, integer or the 1.5 half-step). `minWidth:
+                    portraitSize` keeps it "even breed als het portret (64px)" as a floor; it only grows
+                    past that for a long name (Prosperus / Modulatus), staying centred. */}
+                {speakerName && (
+                    <div style={{
+                        marginLeft: portraitSize / 2, transform: 'translateX(-50%)',
+                        minWidth: portraitSize, width: 'fit-content', boxSizing: 'border-box',
+                        background: 'var(--panel-bg)', color: 'var(--text-primary)',
+                        border: '3px solid var(--text-primary)', borderBottom: 'none',
+                        fontFamily: 'Bitfantasy, monospace', fontSize, lineHeight: 1,
+                        padding: `${2 * scale}px ${3 * scale}px`, textAlign: 'center',
+                        whiteSpace: 'nowrap', imageRendering: 'pixelated', pointerEvents: 'none',
+                    }}>
+                        {speakerName.charAt(0).toUpperCase() + speakerName.slice(1)}
                     </div>
+                )}
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
+                    <div onClick={onClick} style={{
+                        display: 'flex', alignItems: 'stretch', height: portraitSize,
+                        background: 'var(--panel-bg)', borderRadius: 0,
+                        ...(compact
+                            ? { boxShadow: 'inset 0 0 0 3px var(--text-primary)' }
+                            : { border: '3px solid var(--text-primary)' }),
+                        cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
+                    }}>
+                        {dedicatedPortraitUrl
+                            ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} size={portraitSize} divider={!compact} />
+                            : <SpeakerPortrait variant={portraitVariant} size={portraitSize} divider={!compact} />}
+                        <div style={{ position: 'relative', width: textWidth, boxSizing: 'border-box', display: 'flex', alignItems: 'center', padding: compact ? `${4 * scale}px` : `0 ${7 * scale}px`, overflow: 'hidden' }}>
+                            <OscillatingText
+                                text={text} scale={scale}
+                                style={{ fontFamily: 'SandyForest, monospace', fontSize, lineHeight: 0.92, color: 'var(--text-primary)' }}
+                            />
+                            {hasMorePages && <MorePagesIndicator />}
+                        </div>
+                    </div>
+                    {onToggleAutoContinue && <AutoContinueToggle on={autoContinue} onToggle={onToggleAutoContinue} />}
                 </div>
-                {onToggleAutoContinue && <AutoContinueToggle on={autoContinue} onToggle={onToggleAutoContinue} />}
             </div>
         </>
     );
