@@ -9095,3 +9095,29 @@ Vastgelegd als invariant in architecture.md §387 zodat niemand hem later "mooie
 Han koos verder **optie (c)** voor §387a (de windbend die hele texelkolommen laat vallen): laten staan.
 
 lint 0 errors · build clean · 1484 tests groen.
+
+## 🐞 Harde knip tussen dag/nacht-stadia — achtergrond en illum lopen niet gelijk (Han 2026-09-06)
+
+Han: *"Ik zie soms tussen sommige stadia een soort harde knip. Bijvoorbeeld tussen avond en nacht, lijkt
+de illum enorm te springen. Zorg voor soepele overgangen tussen de achtergrond en de illum."*
+
+🔨 Diagnostiek gedaan, **nog niet geïmplementeerd** (§4b interview loopt). Drie kandidaten, alle drie echt:
+
+- **C1 🐞 `moonPresence` heeft twee kopieën die niet overeenkomen.** Shader
+  (`foliageLightingGLSL.js`): `1 - smoothstep(0.08, 0.20, gi)` → bij de nachtvloer gi = 0,12 geeft dat
+  **0,74**. DOM-twin (`RpgLevelPanel.jsx` ~2149): `gi <= 0.13 ? 1` → **1,00**. §374 UAT r2 tilde de
+  ondergrens 0,08 → 0,13 *"zodat de nieuwe 0,12-nachtvloer als volle presence leest"* — maar paste dat
+  alleen op de DOM-kopie toe. De parallax-achtergrond krijgt dus een maanrim op volle sterkte terwijl de
+  wereld zelf op 74 % blijft, en tijdens de dusk→night-ramp komen ze op verschillende momenten binnen.
+  Dat is letterlijk "achtergrond en illum lopen niet gelijk".
+- **C2 `bgNight` is gekwantiseerd op 0,05.** Over de dusk→night-ramp gaat `1 - gi` van 0,67 naar 0,88 —
+  dat zijn ~4 discrete her-bakes van de parallax-canvassen, terwijl de skygradient en de WebGL-lagen
+  continu meebewegen. Zichtbare banding = "harde knip". De kwantisatie is er met opzet (elke stap kost
+  een canvas-re-bake), dus dit is een perf/afvlakking-afweging, geen simpele bug.
+- **C3 De illum is per ontwerp een trap.** `TIME_PHASES`: day 240 s @1 → dusk 60 s @0,33 → night 120 s
+  @0,12 → dawn 60 s @0,33, met `TIME_FADE_S = 10 s` ease op elke fasegrens. Dus 50 s stilstand op 0,33,
+  dan 10 s naar 0,12, dan weer stil. Technisch geëased, maar een sprong ná een minuut stilstand voelt als
+  een knip. Grootste sprong is trouwens day→dusk (Δ0,67 in 10 s), niet dusk→night (Δ0,21).
+
+⏳ Wacht op Hans antwoorden (welke van de drie hij ziet; of de hele cyclus continu moet worden of alleen
+langer geëased; of `bgNight` fijner mag; welke kant C1 op moet worden gelijkgetrokken).
