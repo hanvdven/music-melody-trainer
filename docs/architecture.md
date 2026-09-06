@@ -27568,6 +27568,20 @@ overslaat, is hier direct zichtbaar in plaats van af te leiden uit het eindbeeld
   simpelweg "solide" op, dus géén rim in plaats van een willekeurig omlijnde wereld.
 - Het masker is de ruststand; foliage zoekt op bij de **bron**kolom. Wie de windbend aanpast, moet
   `maskNativeX` mee laten lopen met wat `duv` uiteindelijk bemonstert.
+- **Buiten de maskergrenzen telt als SOLIDE, niet als leeg** (UAT r1, zie hieronder). Wie ooit een vijfde
+  randterm toevoegt, mag die regel niet omkeren "omdat de wereldcontour dan mooier uitkomt".
+
+**UAT r1 (Han 2026-09-06) — de levelrand is geen silhouetrand.** *"Ik zie dat de allllerbovenste pixel
+als rand telt. Als texel aan schermrand grenst, beschouw deze niet als 'rand'."* De eerste versie van
+`worldMaskAt` gaf **0.0 (leeg)** terug buiten de maskergrenzen, met als redenering dat de eigen
+buitencontour van het level dan netjes rimt. Dat is verkeerd om gedacht: de levelgrens is waar de wereld
+opheldt *geauthored* te zijn, niet waar hij visueel eindigt. Een canopy die door de bovenrand van het
+levelcanvas wordt afgesneden is een **afgeknipte boom**, geen silhouet tegen de lucht — zijn snijrand
+belichten trekt een heldere lijn dwars over de bovenkant van het scherm. Nu **1.0 (solide)**: de grens
+telt als "meer wereld", dus een texel die eraan raakt heeft daar geen lege buur en is simpelweg geen
+rand. Geldt voor alle vier de zijden (Hans regel is algemeen gesteld); links/rechts zijn de uiteinden van
+de aaneengeregen levelstrip en onder is de grondlijn, dus in de praktijk komt alleen de bovenrand ooit
+in beeld. Eén regel in `worldMaskAt`; alle vier de randtermen erven het.
 
 **Files:** `src/components/character/useWorldSilhouetteMask.js` (nieuw — hook + `createWorldMaskTexture`),
 `foliageLightingGLSL.js` (`WORLD_MASK_UNIFORMS_GLSL`, `worldMaskAt`/`worldAnyNeighborEmpty`/

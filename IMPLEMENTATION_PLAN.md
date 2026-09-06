@@ -9073,3 +9073,25 @@ breedte en nooit onder `floor(zoom*dpr)`. Bewust NIET gewijzigd — het verander
 zei "de texel swap werkt zoals ik wil"; drie opties staan in architecture.md §387a, keuze is aan Han.
 
 lint 0 errors · build clean · 1484 tests groen. Klaar voor UAT.
+
+#### ✅ §387 UAT r1 (Han 2026-09-06) — levelrand telt niet als silhouetrand
+
+Han: *"het is toch goed nu het licht gefixt is! Laatste dingetje: ik zie dat de allllerbovenste pixel als
+rand telt. Als texel aan schermrand grenst, beschouw deze niet als 'rand'."*
+
+🐞→✅ `worldMaskAt` gaf buiten de maskergrenzen **0.0 (leeg)** terug — mijn eigen keuze in r0, met als
+redenering "dan rimt de buitencontour van het level netjes". Verkeerd om: de levelgrens is waar de wereld
+ophoudt *geauthored* te zijn, niet waar hij visueel eindigt. Een canopy die door de bovenrand van het
+canvas wordt afgesneden is een afgeknipte boom, geen silhouet tegen de lucht — zijn snijrand belichten
+trekt een heldere lijn dwars over de bovenkant van het scherm. Nu **1.0 (solide)**: de grens telt als
+"meer wereld", dus een texel die eraan raakt heeft daar geen lege buur en is geen rand.
+
+Eén regel in `foliageLightingGLSL.js`; alle vier de randtermen (`worldEdgeLightFactor`, `worldRimFactor`,
+`worldInwardGlow`, en `worldAnyNeighborEmpty`) erven het automatisch — dat is precies waar de §387-
+consolidatie voor bedoeld was. Toegepast op alle vier de zijden (Hans regel is algemeen gesteld);
+links/rechts zijn de uiteinden van de levelstrip, onder is de grondlijn, dus alleen boven komt in beeld.
+Vastgelegd als invariant in architecture.md §387 zodat niemand hem later "mooier" terugdraait.
+
+Han koos verder **optie (c)** voor §387a (de windbend die hele texelkolommen laat vallen): laten staan.
+
+lint 0 errors · build clean · 1484 tests groen.

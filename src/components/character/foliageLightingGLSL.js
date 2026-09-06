@@ -162,12 +162,20 @@ vec3 blendLightDual(vec3 base, vec3 lightColor, float intensity, int modeA, int 
 }
 
 // §387 (#1222): "is the world empty at this LEVEL pixel?" — the single primitive every edge term below
-// is now built from. Out of bounds counts as EMPTY, so the level's own outer contour rims correctly
-// instead of smearing its edge texel outward (CLAMP_TO_EDGE would otherwise report the border as solid).
-// RIM_EMPTY_ALPHA (declared below, next to the rim it was tuned for) is the ONE opacity cutoff in the
-// system, matching the shaders' own alpha-cutout discard.
+// is built from. RIM_EMPTY_ALPHA (above) is the ONE opacity cutoff in the system, matching the shaders'
+// own alpha-cutout discard.
+//
+// OUT OF BOUNDS COUNTS AS SOLID (§387 UAT r1, Han: "ik zie dat de allllerbovenste pixel als rand telt.
+// Als texel aan schermrand grenst, beschouw deze niet als rand"). The first pass returned 0.0 (empty)
+// here, reasoning that the level's own outer contour should rim. It should not: the level boundary is
+// where the WORLD stops being authored, not where the world ends visually — a canopy cropped by the top
+// of the level canvas is a cut-off tree, not a silhouette against sky, and lighting its cut edge draws a
+// bright line straight across the top of the screen. Returning 1.0 makes the boundary "more world", so a
+// texel touching it has no empty neighbour there and simply is not an edge. Applies to all four sides
+// (Han's rule is stated generally); left/right are the far ends of the stitched level strip and the
+// bottom is the ground line, so in practice only the top is ever on screen.
 highp float worldMaskAt(highp vec2 levelPx) {
-    if (levelPx.x < 0.0 || levelPx.y < 0.0 || levelPx.x >= uWorldMaskSize.x || levelPx.y >= uWorldMaskSize.y) return 0.0;
+    if (levelPx.x < 0.0 || levelPx.y < 0.0 || levelPx.x >= uWorldMaskSize.x || levelPx.y >= uWorldMaskSize.y) return 1.0;
     return texture2D(uWorldMask, levelPx / uWorldMaskSize).a;
 }
 
