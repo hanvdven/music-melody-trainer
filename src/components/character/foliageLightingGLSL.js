@@ -348,7 +348,7 @@ float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float 
         if (!(downInt  && dy > vB) && texture2D(tex, vec2(duv.x, dy)).a < RIM_EMPTY_ALPHA) hit = true;
         if (!(leftInt  && lx < uL) && texture2D(tex, vec2(lx, duv.y)).a < RIM_EMPTY_ALPHA) hit = true;
         if (!(rightInt && rx > uR) && texture2D(tex, vec2(rx, duv.y)).a < RIM_EMPTY_ALPHA) hit = true;
-        if (hit) return fk < 1.5 ? 1.0 : (fk < 2.5 ? 0.6 : 0.3);
+        if (hit) return fk < 1.5 ? 1.0 : (fk < 2.5 ? 0.75 : 0.5);   // §377 UAT: "iets hoger" (was 0.6/0.3)
     }
     return 0.0;
 }
@@ -386,6 +386,9 @@ vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rim
     float r = max(uSunGlowRadius, 1e-5);
     float near = 1.0 - smoothstep(0.5 * r, r, d);
     if (near <= 0.0) return currentColor;
+    // §377 UAT (Han: "de sheen intensiteit voor de buitenste 50% van de straal mag een stukje minder
+    // intens"). The flat core (d < 0.5r) stays at near == 1; squaring only bites in the outer-half fade.
+    near = near * near;
     // Luminance mask, same reasoning as §370 r9: the sun rides the art's OWN painted highlights, so a
     // dark eave recess next to a bright roof tile does not glow. Reuses §370's already-tuned
     // thresholds rather than inventing a second pair (CLAUDE.md §6c).

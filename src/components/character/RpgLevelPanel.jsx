@@ -1062,8 +1062,12 @@ function useRegisteredRef(panElsRef, key) {
 // `useLdtkLitGroundTextures` call, for just that pass's own tiles. `edgeLitOnly` mirrors the old
 // back(false)/front(true) split — `RpgLevelPanel` computes it per-pass from whether this pass falls
 // before or after the `'entities'` pass in `world.passes`.
+// Perf (#1196, F1): `cameraOffsetRef` replaces `leftPxForFactor` — the ground canvas scrolls via its
+// `groundScrollRef` wrapper transform (already), and `LdtkLitGround` now takes the same live
+// `cameraOffsetRef` the foliage layer does (§322/§331) and adds it to a camera-independent `leftPx` in
+// its own draw loop, so a pan needs no re-render here.
 const GroundPass = React.memo(function GroundPass({
-    passKey, tiles, edgeLitOnly, sceneryMode, leftPxForFactor, panElsRef, groundLeftPx, zoom,
+    passKey, tiles, edgeLitOnly, sceneryMode, cameraOffsetRef, panElsRef, groundLeftPx, zoom,
     size, ldtkLights, foliageParams, foliageDebugChannel, gridSize,
 }) {
     const groundScrollRef = useRegisteredRef(panElsRef, passKey);
@@ -1072,7 +1076,7 @@ const GroundPass = React.memo(function GroundPass({
         <>
             {sceneryMode === 'LDtk' && (
                 <LdtkScenery
-                    groundTiles={tiles} gridSize={gridSize} leftPxForFactor={leftPxForFactor}
+                    groundTiles={tiles} gridSize={gridSize}
                     groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
                     zoom={zoom} groundAnchor={0}
                 />
@@ -1081,7 +1085,7 @@ const GroundPass = React.memo(function GroundPass({
                 <LdtkLitGround
                     widthPx={size.w} heightPx={size.h}
                     textures={litGroundTextures} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
-                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    leftPx={groundLeftPx} cameraOffsetRef={cameraOffsetRef} canvasBottomScreenY={size.h} zoom={zoom}
                     lights={ldtkLights}
                     params={foliageParams} edgeLitOnly={edgeLitOnly} debugChannel={foliageDebugChannel}
                 />
@@ -1097,8 +1101,11 @@ const GroundPass = React.memo(function GroundPass({
 // computes covers them instead) and no pan-registration needed for its (empty, unused) ground-canvas
 // slot, since `LdtkScenery` always mounts a `GroundCanvas` internally even when `groundTiles` is empty
 // (it just never resolves `ready`, costing one inert `<canvas>`).
+// Perf (#1196, F1): `cameraXRef` + `bgLeftPx` replace `leftPxForFactor` — each parallax `BgLayer`
+// scrolls itself via its own `useFrameLoop` reading `cameraXRef.current` and applying its own `factor`
+// (see LdtkScenery.jsx). `bgLeftPx` is the shared camera-independent left edge (`groundLeftPxLocal`).
 const BackgroundPass = React.memo(function BackgroundPass({
-    layers, leftPxForFactor, zoom, gridSize,
+    layers, cameraXRef, bgLeftPx, zoom, gridSize,
     bgDarkenColor, bgRimOpacity, bgSunRimOpacity, bgSunLeftPx, bgSunBottomPx, bgSunRimColor, bgSunRadiusScale = 1,
 }) {
     const unusedGroundScrollRef = useRef(null);
@@ -1109,7 +1116,8 @@ const BackgroundPass = React.memo(function BackgroundPass({
         // none. A hardcoded `gridSize={0}` here silently drew every background tile at 0×0, so the
         // parallax mountains/hills never appeared and the sky gradient behind them showed through bare.
         <LdtkScenery
-            groundTiles={[]} backgroundLayers={layers} gridSize={gridSize} leftPxForFactor={leftPxForFactor}
+            groundTiles={[]} backgroundLayers={layers} gridSize={gridSize}
+            cameraXRef={cameraXRef} bgLeftPx={bgLeftPx}
             groundScrollRef={unusedGroundScrollRef} groundLeftPx={0}
             zoom={zoom} groundAnchor={0} bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
             bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
@@ -1127,7 +1135,7 @@ const BackgroundPass = React.memo(function BackgroundPass({
 // once ready, so the flat version simply stops being visible then). Water reflection is a SEPARATE,
 // standalone pass (`ReflectionPass` below) — see its own header comment for why it can't live here.
 const ShimmerPass = React.memo(function ShimmerPass({
-    passKey, tiles, sceneryMode, leftPxForFactor, panElsRef, groundLeftPx, zoom,
+    passKey, tiles, sceneryMode, panElsRef, groundLeftPx, zoom,
     size, cameraOffsetRef, foliageDebugChannel, ldtkLights, foliageParams, gridSize,
     foliageAtlas, atlasFoliageInstanceFor, foliageInstanceProps,
 }) {
@@ -1145,8 +1153,10 @@ const ShimmerPass = React.memo(function ShimmerPass({
     return (
         <>
             {sceneryMode === 'LDtk' && (
+                // Perf (#1196, F1): no `leftPxForFactor` — this LdtkScenery mounts only its ground canvas
+                // (`groundScrollRef` transform) and no `backgroundLayers`.
                 <LdtkScenery
-                    groundTiles={tiles} gridSize={gridSize} leftPxForFactor={leftPxForFactor}
+                    groundTiles={tiles} gridSize={gridSize}
                     groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
                     zoom={zoom} groundAnchor={0}
                 />
@@ -1445,7 +1455,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // #693 round 7: the camera's own world-x (what world position renders at screen center) — separate
     // from `playerX`, which can now roam the full 200-tile level while the camera only follows once the
     // player nears an edge (dead-zone follow, Han's "1/3 of either screen edge").
-    const [cameraX, setCameraX] = useState(0);
+    // Perf (#1196, F1, Han 2026-09-05, "ik ben voor consistentie, dus ik ga voor 1"): a REF, never
+    // React state. `setCameraX` fired on EVERY rAF frame while the hero moved, forcing a full re-render
+    // of this ~3000-line component 60×/sec even though the visible pan was ALREADY written imperatively.
+    // Every layer now reads the camera through this ref inside its OWN per-frame loop — the DOM ground/
+    // overlay/entity wrappers (this file's camera `useFrameLoop`), parallax `BgLayer` (its own loop, see
+    // LdtkScenery.jsx), `LdtkLitGround` + `ForegroundFoliageLayer` (`cameraOffsetRef`, §322/§331).
+    // Nothing reads the camera as a render value any more, so panning triggers zero React commits.
+    // See docs/architecture.md §384.
+    const cameraXRef = useRef(0);
     // #RAM-level (Han 2026-08-10, "vervang het RPG-level voor het level in RAM level.ldtk" + "maak een
     // tier selector in debug mode... season en city toggler"): the LDtk-driven scenery (`ldtkWorld.js`)
     // is the new DEFAULT — `sceneryMode` exists purely so Han can flip back to the old hand-placed scene
@@ -1904,9 +1922,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // render-driving loop (camera follow) — counting its ticks is what "Pixel art FPS" measures,
         // distinct from the generic browser paint rate ("App FPS", useFpsCounters' own rAF).
         reportPixelFrame();
-        setCameraX((cam) => {
+        {
                 const w = sizeRef.current.w;
-                if (w === 0) return cam;
+                if (w === 0) return;
+                const cam = cameraXRef.current;
                 // #RAM-level BUG FIX (Han 2026-08-11, "de scrolling is schokkerig"): was hardcoded to the
                 // module `ZOOM` (3) — silently wrong as soon as the dynamic zoom-to-fit (above) diverged
                 // from 3, throwing off the dead-zone/clamp math against the ACTUAL on-screen scale.
@@ -1920,25 +1939,35 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 const minCam = LEVEL_MIN_X + viewHalfWorld, maxCam = LEVEL_MAX_X - viewHalfWorld;
                 if (minCam <= maxCam) next = Math.min(maxCam, Math.max(minCam, next));
                 else next = (LEVEL_MIN_X + LEVEL_MAX_X) / 2;   // level narrower than viewport — just center it
+                // Perf (#1196, F1): `cameraX` is a REF — write the fresh value straight back, no React
+                // state, no re-render. Everything visible is written imperatively below (and by the
+                // per-layer loops that read `cameraXRef` / `cameraOffsetRef`).
+                cameraXRef.current = next;
                 // Perf (#1162): the ground-plane wrapper's own `left`-space offset is `-cameraX * zoom`
                 // (the exact term `worldToScreenXLocal` below drops from the full `worldToScreenX`
-                // formula) — writing it here, on the FRESH `next` value, means the transform is never a
-                // frame stale waiting for React to commit `cameraX` back down as a prop.
+                // formula), written on the FRESH `next` value.
                 // #weather §364 (Han UAT r2: "ik zie veel naden ... strepen op 16x16 of 32x32 grid"):
-                // SNAP the DOM scroll offset to whole DEVICE pixels. `cameraX` stays a continuous float
-                // (the dead-zone / clamp math needs it), but the visible transform must land on the SAME
-                // device-pixel grid the WebGL foliage/water quads already snap to (ForegroundFoliageLayer
-                // §327 `Math.round(screenX*dpr)`). Without this the DOM tile layers slide sub-pixel while
-                // the WebGL layers step whole pixels → a 1-px seam that crawls along the tile grid as the
-                // camera pans. `cameraOffsetRef` (read by the WebGL cull) gets the snapped value too, so
-                // both stay in exact lockstep.
+                // SNAP the DOM scroll offset to whole DEVICE pixels. `cameraXRef.current` stays a
+                // continuous float (the dead-zone / clamp math needs it), but the visible transform must
+                // land on the SAME device-pixel grid the WebGL foliage/water quads already snap to
+                // (ForegroundFoliageLayer §327 `Math.round(screenX*dpr)`). Without this the DOM tile
+                // layers slide sub-pixel while the WebGL layers step whole pixels → a 1-px seam that
+                // crawls along the tile grid as the camera pans. `cameraOffsetRef` (read by the WebGL
+                // cull, ForegroundFoliageLayer AND now LdtkLitGround, §322/§331) gets the snapped value
+                // too, so all stay in exact lockstep.
                 const dpr = window.devicePixelRatio || 1;
                 const offsetPx = Math.round(-next * z * dpr) / dpr;
                 const transform = `translateX(${offsetPx}px)`;
                 for (const el of panElsRef.current.values()) el.style.transform = transform;
                 if (entityScrollRef.current) entityScrollRef.current.style.transform = transform;
-                // Perf (#1162, Fase 2b): SAME offset, read by ForegroundFoliageLayer's own draw loop.
+                // Perf (#1162, Fase 2b / #1196 F1): SAME offset, read by ForegroundFoliageLayer's AND
+                // LdtkLitGround's own draw loops (the two WebGL layers that bake a per-frame camera term
+                // into a shader uniform rather than a CSS transform).
                 cameraOffsetRef.current = offsetPx;
+                // #wind §363: `useWorldAmbientMusic` reads camera position through `envAudioRef` for its
+                // per-screen-third rustle panning. That ref used to be refreshed by this component's own
+                // per-frame re-render; F1 removed that re-render, so feed it here directly.
+                if (envAudioRef.current) envAudioRef.current.cameraX = next;
                 // Perf (#1192-jank): hero/pet screen position, written imperatively every frame from the
                 // live physics refs — same rationale as the scroll-layer transforms just above, and SNAPPED
                 // to the same device-pixel grid `offsetPx` uses so the hero never sub-pixel-drifts relative
@@ -1954,8 +1983,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     petWrapperRef.current.style.left = `${px}px`;
                     petWrapperRef.current.style.bottom = `${standAnchorFor(petXRef.current)}px`;
                 }
-                return next;
-            });
+        }
     }, [], { priority: 'critical' });
 
     // #1093 (Han 2026-08-20, "gebruik de 5 NPC entities uit LDtk"): Level_1's 6 anonymous "NPC" markers
@@ -2124,49 +2152,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // — a fixed mapping that only worked because the camera never moved) so introducing the scrolling
     // camera couldn't silently miss a spot. Uses `zoom` (mode-aware) rather than the module `ZOOM` directly
     // so hero/pet/Wisp/Slime — shared between both scenery modes — scale correctly in either.
-    // Perf (#1161, Han 2026-08-27): `useCallback`-wrapped so these keep a STABLE function identity across
-    // renders where `cameraX`/`zoom`/`centerX` genuinely haven't changed (e.g. a `petFrame`-only tick while
-    // the hero stands still) — plain function expressions got a fresh reference every render regardless,
-    // which silently defeated `React.memo` on every consumer below (`LdtkScenery`, `WaterReflectionLayer`,
-    // `LdtkAnimatedTiles`) even when NONE of their actual inputs had changed. Still changes every frame
-    // while the camera is genuinely panning (moving hero) — that part is unavoidable with the current
-    // React-state-driven camera and intentionally NOT addressed this round (see this ticket's own notes on
-    // `cameraX`'s 60×/sec rAF-driven `setCameraX` loop — a separate, larger follow-up if still needed).
-    const worldToScreenX = useCallback((worldX) => centerX + (worldX - cameraX) * zoom, [centerX, cameraX, zoom]);
-    // LdtkScenery's canvases are drawn in LDtk's own native (unshifted) coordinate space, i.e. their own
-    // x=0 = this app's `LEVEL_MIN_X`. `factor` scales how much of the camera's movement a layer reacts to
-    // (1 = the ground plane, <1 = a background layer that lags behind — parallax depth).
-    const leftPxForFactor = useCallback((factor) => centerX + (LEVEL_MIN_X - cameraX * factor) * zoom, [centerX, cameraX, zoom]);
-    // Perf (Han 2026-08-27, "elke schermbreedte vertraagt de animatie even"): the camera-aware
-    // `localWorldToScreenX` wrapper that used to live here (LDtk ground-plane tiles are stored LEVEL-LOCAL,
-    // 0..pxWid — it added the level's own world offset before projecting through `worldToScreenX`) is gone
-    // — its only caller, the animated-tiles cull, was switched to the camera-INDEPENDENT
-    // `localWorldToScreenXLocal` + a live `cameraOffsetRef` read instead (see `useCulledAnimatedTiles`'s own
-    // header comment for why). Nothing else needs the camera-aware "local" variant.
-    // Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders" — Fase 1): `worldToScreenX`/
-    // `leftPxForFactor(1)` above are STILL unstable while the camera genuinely pans (they depend on
-    // `cameraX`, by design — the deps comment above already says so). This is the fix for that: every
-    // ground-plane (factor=1) wrapper `<div>` (one per scene pass, joining `panElsRef` — a `Map` declared
-    // above next to the camera rAF loop that writes them — via `useRegisteredRef`) whose
-    // `transform: translateX(...)` is written IMPERATIVELY every rAF frame by the SAME loop that already
-    // computes `cameraX` (see that effect's own comment), bypassing React/props entirely for the pan
-    // offset — exactly the pattern `SheetRpgLayer.jsx`'s `frozenScrollPxRef` already uses for its own
-    // scroll transform (§1050). Content placed INSIDE that wrapper positions itself with these LOCAL
-    // variants — `centerX + worldX*zoom`, i.e. the SAME formula with the `- cameraX` term dropped — which
-    // depend on `centerX`/`zoom` only, genuinely stable while only the camera (not the viewport size or
-    // zoom level) changes, so consumers wrapped this way keep a real `React.memo` hit while panning.
-    // Scoped to the plain DOM/2D-canvas layers only this round (`LdtkScenery`'s ground `CanvasLayer` —
-    // whose OWN header comment already says panning-via-CSS-`left` was the original intent —
-    // `WaterReflectionLayer`, `LdtkAnimatedTiles`): those position themselves with a single CSS
-    // `left`/`background-position` write, so wrapping them is a straightforward "drop the camera term,
-    // let the ancestor transform supply it" change. The WebGL INSTANCE layers (`LdtkLitGround`,
-    // `ForegroundFoliageLayer`) bake each instance's camera-aware `screenX` into per-frame draw-call data
-    // rather than a single CSS transform — giving THEM the same treatment needs a live camera-offset
-    // shader uniform instead, a separate, GLSL-touching follow-up, not done this round. Background
-    // parallax layers (factor <1, inside `LdtkScenery`'s own `backgroundLayers` loop) are few in number
-    // (a handful of hand-authored layers, not hundreds of placed tiles) and also left on the existing
-    // camera-dependent `leftPxForFactor` path for the same reason — lower cost, not worth the same
-    // wrapper machinery this round.
+    // Perf (#1161 → #1196 F1, Han 2026-08-27 / 2026-09-05): `useCallback`-wrapped, stable identity
+    // (deps `[centerX, zoom]`), reads the camera from `cameraXRef.current` (a ref, not state) so it stays
+    // stable even while the camera pans. Its only remaining callers are the (unreachable, default-off)
+    // `sceneryMode === 'Legacy'` blocks — every LDtk-mode layer scrolls imperatively now (`panElsRef`
+    // transforms / `BgLayer`'s own `useFrameLoop` / `cameraOffsetRef`), so `leftPxForFactor` (the old
+    // camera-aware parallax helper) was deleted entirely with F1.
+    const worldToScreenX = useCallback((worldX) => centerX + (worldX - cameraXRef.current) * zoom, [centerX, zoom]);
+    // Perf (#1162 Fase 1 → #1196 F1): LDtk-mode content positions itself with these camera-INDEPENDENT
+    // LOCAL variants — `centerX + worldX*zoom`, the same formula with the `- cameraX` term dropped —
+    // which depend on `centerX`/`zoom` only, genuinely stable while only the camera pans. The pan offset
+    // is then supplied by an ancestor's imperative `translateX` (the `panElsRef`/`entityScrollRef`
+    // wrappers written by the camera `useFrameLoop`), by `BgLayer`'s own per-frame transform, or by the
+    // `cameraOffsetRef` a WebGL layer adds inside its own draw loop (`LdtkLitGround`,
+    // `ForegroundFoliageLayer`). `localWorldToScreenXLocal` additionally folds in `LEVEL_MIN_X` for the
+    // LDtk tiles stored LEVEL-LOCAL (0..pxWid).
     const worldToScreenXLocal = useCallback((worldX) => centerX + worldX * zoom, [centerX, zoom]);
     const localWorldToScreenXLocal = useCallback((localX) => worldToScreenXLocal(LEVEL_MIN_X + localX), [worldToScreenXLocal]);
     const groundLeftPxLocal = useMemo(() => centerX + LEVEL_MIN_X * zoom, [centerX, zoom]);
@@ -2186,7 +2186,9 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         // ABSOLUTE-X world-chunks contain tree foliage — everything `useWorldAmbientMusic`'s rustle
         // voices need to gate/pan themselves per screen-third.
         windLevel: Math.round(wOut.windValue),
-        cameraX,
+        // Perf (#1196, F1): seed value only — the camera `useFrameLoop` writes `envAudioRef.current
+        // .cameraX` fresh every frame, since a pan no longer re-runs this render.
+        cameraX: cameraXRef.current,
         viewportWorldWidth: zoom > 0 ? size.w / zoom : 0,
         foliageChunkSet: sceneryMode === 'LDtk' ? world.foliageChunkSet : null,
     };
@@ -2342,29 +2344,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const bgSunRimColor = rgbCss(foliageParams.sunGlowColor ?? SUN_GLOW_RGB);
     // #1220 (Han: "als de zon volledig achter de PARALLAX-lagen verdwenen is, stop met sheenen op alle
     // lagen — NIET wanneer bedekt door de gewone [voorgrond] laag"). The sun is screen-fixed (celestial
-    // projection); the world scrolls under it, so this is CAMERA-aware and lives here in the render body
-    // (Han's call), which already re-runs on every pan frame. Sample the sun disc (centre + a ring at
-    // 0.85·R / 0.6·R) against the parallax BACKGROUND layers only (`bgOccluders`) — each with its own
-    // `factor`; the covered fraction drives a LINEAR shrink of the glow RADIUS (Han: "maak de straal
-    // kleiner, lineair tot 0"), quantised to 0.05 so the memo below stays stable.
-    let sunGlowVisFrac = 1;
-    if ((foliageParams.sunGlow ?? 0) > 0 && world.gridSize > 0 && bgOccluders.length > 0) {
-        const g = world.gridSize;
-        const R = SUN_GLOW_RADIUS_GPX;
-        // Parallax layers are bottom-anchored at the container bottom (groundAnchor 0), unlike the
-        // foreground's GROUND_ANCHOR offset — so the Y maps back without that term.
-        const sunLocalYbg = LEVEL_PX_HEIGHT - (size.h - sunGpxY * zoom) / zoom;
-        const pts = [[0, 0], [0.85, 0], [-0.85, 0], [0, -0.85], [0, 0.85], [0.6, 0.6], [-0.6, 0.6], [0.6, -0.6], [-0.6, -0.6]];
-        let hit = 0;
-        for (const [dx, dy] of pts) {
-            const cys = Math.round((sunLocalYbg + dy * R) / g);
-            for (const { factor, cells } of bgOccluders) {
-                const sunLocalXbg = sunGpxX - skyGeomWpx / 2 - LEVEL_MIN_X + cameraX * factor;
-                if (cells.has(`${Math.round((sunLocalXbg + dx * R) / g)},${cys}`)) { hit++; break; }
-            }
-        }
-        sunGlowVisFrac = Math.round((1 - hit / pts.length) * 20) / 20;
-    }
+    // projection); the world scrolls under it, so this is CAMERA-aware. Reads `cameraXRef.current` live.
+    // Perf (#1196, F1): the render body no longer re-runs on every pan frame — but the hero's own
+    // `playerX` state still ticks at ~16 Hz while moving (and the camera only pans while the hero moves),
+    // so this recomputes at ~16 Hz during movement, which is ample for a 0.05-quantised "sun sinking
+    // behind the treeline" fraction. Sample the sun disc (centre + a ring at 0.85·R / 0.6·R) against the
+    // parallax BACKGROUND layers only (`bgOccluders`) — each with its own `factor`; the covered fraction
+    // drives a LINEAR shrink of the glow RADIUS, quantised to 0.05 so the memo below stays stable.
+    // #1220 DISABLED (Han: "als ik naar links ga, tegen de wereldrand, valt de sheen opeens weg —
+    // hangt samen met een ghost parallax-laag met dennebomen"). The parallax-occlusion radius shrink
+    // relied on the render body re-running each pan frame to read a fresh camera; #1196 F1 made the
+    // camera a pure ref and stopped that, so this fires stale (the "sudden drop" at the world edge).
+    // Doing it right needs the sample to run in the rAF loop where `cameraXRef.current` is fresh — a
+    // design revisit. Until then the sun sheen is consistent (no false occlusion). `bgOccluders` is
+    // kept for that redo.
+    const sunGlowVisFrac = 1;
     // Scale the astronomy radius by the visible fraction, keeping the SAME object identity when nothing
     // is occluded so the foliage/ground layers' React.memo never breaks on a clear-sky frame.
     const foliageParamsRender = useMemo(
@@ -2472,7 +2466,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 // #UI-overhaul Stap 3 bug: was `/ ZOOM` (the fixed module constant) — wrong whenever the
                 // live `zoom` differs (LDtk `dynamicZoom`, or an explicit integer `worldScale`), same
                 // class of bug as the #1032-round-4 DebugGrid fix ("gebruik je universele schalingfactor?").
-                moveTo(cameraX + (e.clientX - rect.left - centerX) / zoom);
+                moveTo(cameraXRef.current + (e.clientX - rect.left - centerX) / zoom);
             }}
             style={{
                 position: 'relative', width: '100%', height: '100%', overflow: 'hidden',
@@ -2546,7 +2540,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 system is legacy-mode only, kept for Han's side-by-side comparison (see `sceneryMode`). */}
             {sceneryMode === 'Legacy' && PARALLAX_LAYERS.map(({ url, factor }, i) => {
                 const bgW = BG_NATIVE.w * ZOOM, bgH = BG_NATIVE.h * ZOOM;
-                const offsetPx = -((cameraX * factor * ZOOM) % bgW);
+                const offsetPx = -((cameraXRef.current * factor * ZOOM) % bgW);
                 // #141 round 4 (Han: "drop the backgrounds a further 32px"): additional fixed nudge below
                 // the HORIZON_PX/GROUND_ANCHOR alignment solved above — a flat adjustment, not a new rule.
                 const bgBottomOffset = GROUND_ANCHOR - HORIZON_PX * ZOOM - 32;
@@ -2712,7 +2706,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     return (
                         <GroundPass
                             key={passKey} passKey={passKey} tiles={pass.tiles} edgeLitOnly={i > entitiesPassIndex}
-                            sceneryMode={sceneryMode} leftPxForFactor={leftPxForFactor} panElsRef={panElsRef}
+                            sceneryMode={sceneryMode} cameraOffsetRef={cameraOffsetRef} panElsRef={panElsRef}
                             groundLeftPx={groundLeftPxLocal} zoom={zoom} size={size} ldtkLights={ldtkLights}
                             foliageParams={foliageParamsRender} foliageDebugChannel={foliageDebugChannel} gridSize={world.gridSize}
                         />
@@ -2721,7 +2715,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 if (pass.kind === 'background') {
                     return (
                         <BackgroundPass
-                            key={passKey} layers={pass.layers} leftPxForFactor={leftPxForFactor} zoom={zoom}
+                            key={passKey} layers={pass.layers} cameraXRef={cameraXRef} bgLeftPx={groundLeftPxLocal} zoom={zoom}
                             gridSize={world.gridSize}
                             bgDarkenColor={bgDarkenColor} bgRimOpacity={bgRimOpacity}
                             bgSunRimOpacity={bgSunRimOpacity} bgSunLeftPx={bgSunLeftPx}
@@ -2735,7 +2729,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         <ShimmerPass
                             key={passKey} passKey={passKey} tiles={pass.tiles}
                             sceneryMode={sceneryMode}
-                            leftPxForFactor={leftPxForFactor} panElsRef={panElsRef} groundLeftPx={groundLeftPxLocal}
+                            panElsRef={panElsRef} groundLeftPx={groundLeftPxLocal}
                             zoom={zoom} size={size} cameraOffsetRef={cameraOffsetRef} foliageDebugChannel={foliageDebugChannel}
                             ldtkLights={ldtkLights} foliageParams={foliageParamsRender} gridSize={world.gridSize}
                             foliageAtlas={foliageAtlas} atlasFoliageInstanceFor={atlasFoliageInstanceFor}
@@ -2888,7 +2882,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             {size.w > 0 && <EdgeHoldZone side="left" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
             {size.w > 0 && <EdgeHoldZone side="right" widthPx={size.w * 0.15} onHoldStart={setHeldDirection} onHoldEnd={() => setHeldDirection(0)} />}
 
-            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraX} zoom={zoom} />}
+            {/* Perf (#1196, F1): debug-only — `cameraXRef.current` is read at render time, so the grid
+                tracks the camera at whatever rate the panel re-renders (~16 Hz while the hero moves via
+                the throttled `playerX` state). Fine for a debug overlay. */}
+            {debugMode && size.w > 0 && <DebugGrid widthPx={size.w} heightPx={size.h} cameraX={cameraXRef.current} zoom={zoom} />}
 
             {/* Perf (#1162, Fase 10a, docs/architecture.md §337): visual check for the new foliage texture
                 atlas, gated behind debugMode like every other debug affordance in this file (§3a) — this

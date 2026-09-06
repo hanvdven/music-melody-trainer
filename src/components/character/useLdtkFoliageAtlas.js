@@ -26,12 +26,23 @@ const scheduleIdle = (typeof requestIdleCallback === 'function')
     : (cb) => setTimeout(() => cb({ timeRemaining: () => 0 }), 0);
 const cancelIdle = (typeof cancelIdleCallback === 'function') ? cancelIdleCallback : clearTimeout;
 
-// Every crop is the SAME gridSize×gridSize square, so a plain row-major grid pack is sufficient — no
-// bin-packing algorithm needed (unlike a general texture atlas where source rects vary in size).
+// §377 (Han: the main-layer moon rim / sun sheen is SHALLOWER than the parallax layers' — the parallax
+// works on ONE big canvas, the atlas packs 16-px crops edge-to-edge so a rim/inward-glow tap past a
+// crop hits the UNRELATED next-packed crop, collapsing the 3-texel depth and, as more crops pack in
+// over idle batches, drifting random seam-rims into view "na een lang stuk gerend"). A GUTTER of fully-
+// transparent texels around every crop makes "past the crop" always read empty — the tap reaches its
+// full 3-texel depth and the shader can treat the CELL rect (crop + gutter) as the sample bound. The
+// per-tile-seam question (#1221) is unchanged: `internalEdges` still suppresses the taps that abut a
+// sister tile, so an internal seam does not light even though the gutter there is transparent.
+const ATLAS_GUTTER_PX = 3;
+
+// Every crop is the SAME gridSize×gridSize square (in a gridSize+2·gutter CELL), so a plain row-major
+// grid pack is sufficient — no bin-packing algorithm needed.
 function atlasLayout(count, gridSize) {
+    const cellSize = gridSize + 2 * ATLAS_GUTTER_PX;
     const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
     const rows = Math.max(1, Math.ceil(count / cols));
-    return { cols, rows, width: cols * gridSize, height: rows * gridSize };
+    return { cols, rows, cellSize, width: cols * cellSize, height: rows * cellSize };
 }
 
 export default function useLdtkFoliageAtlas(foliageTiles, gridSize, sceneryMode) {
@@ -59,7 +70,7 @@ export default function useLdtkFoliageAtlas(foliageTiles, gridSize, sceneryMode)
                 if (!uniqueByKey.has(key)) uniqueByKey.set(key, t);
             }
             const uniqueKeys = [...uniqueByKey.keys()];
-            const { cols, rows, width, height } = atlasLayout(uniqueKeys.length, gridSize);
+            const { cols, rows, cellSize, width, height } = atlasLayout(uniqueKeys.length, gridSize);
 
             const diffuseCanvas = document.createElement('canvas');
             diffuseCanvas.width = width; diffuseCanvas.height = height;
@@ -92,7 +103,8 @@ export default function useLdtkFoliageAtlas(foliageTiles, gridSize, sceneryMode)
                     const img = imgByUrl.get(rep.tilesetUrl);
                     if (!img) continue;
                     const col = cursor % cols, row = Math.floor(cursor / cols);
-                    const destX = col * gridSize, destY = row * gridSize;
+                    // Crop is drawn INSET by the gutter inside its cell; the gutter stays transparent.
+                    const destX = col * cellSize + ATLAS_GUTTER_PX, destY = row * cellSize + ATLAS_GUTTER_PX;
                     diffuseCtx.drawImage(img, rep.src[0], rep.src[1], gridSize, gridSize, destX, destY, gridSize, gridSize);
                     // `normalMapCanvasFromCrop` already returns a canvas (not a data URL) — drawImage
                     // straight from it into the shared atlas, no `<img>`/data-URL round-trip needed (that

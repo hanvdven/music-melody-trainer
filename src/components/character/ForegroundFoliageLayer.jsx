@@ -750,6 +750,20 @@ void main() {
     );
 
     vec4 diffuse = texture2D(uDiffuse, duv);
+    // Wind-hole fill (Han: after the swap a transparent texel lands where the REST sprite was opaque,
+    // the shader discards there, and the FLAT LdtkScenery fallback canvas underneath — raw, un-darkened,
+    // un-lit — bleeds through as "groene stroken"). Fall the WHOLE fragment back to REST (colour, uv,
+    // normal — so the lighting/rim stays consistent, no spurious edge on a filled interior pixel). A
+    // genuinely-empty rest pixel still discards (sky shows through a thinned edge). Outward growth is
+    // unaffected: rest transparent + shift opaque keeps the shifted texel.
+    if (diffuse.a < 0.5) {
+        vec2 duvRest = vec2(
+            mix(vDiffuseUV.x, vDiffuseUV.z, (nativeX + 0.5) / vWorldWidth),
+            mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
+        );
+        vec4 restDiffuse = texture2D(uDiffuse, duvRest);
+        if (restDiffuse.a >= 0.5) { diffuse = restDiffuse; duv = duvRest; normalUV = duvRest; }
+    }
     if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
 
     float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, vEdgeLitOnly);
@@ -801,7 +815,13 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
     vec3 lit = applyPointLights(baseColor, darkened, nPoint, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
+    // Pass moonRimFactor the CELL rect (crop + the 3-texel transparent gutter useLdtkFoliageAtlas now
+    // bakes) instead of the crop rect, so its neighbour taps reach their full 3-texel depth into the
+    // gutter instead of clamping onto the crop's own edge column — the main-layer rim was shallower
+    // than the parallax layers' for exactly this reason (Han). Flip-safe (min/max, abs step).
+    vec2 g3 = abs(texelSize) * 3.0;
+    vec4 cellRect = vec4(min(vDiffuseUV.xy, vDiffuseUV.zw) - g3, max(vDiffuseUV.xy, vDiffuseUV.zw) + g3);
+    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, cellRect, vInternalEdges);   // #weather §370 / #1221
     // Han ("pixels aan de rand van de boom krijgen geen glow"): where the WIND bend pushed this tile's
     // sample past its own [0,W-1] range, the clamped edge column IS the new (bent) silhouette — but
     // moonRimFactor clamps its neighbour taps to the tile rect and can't see the sky beyond, so it
