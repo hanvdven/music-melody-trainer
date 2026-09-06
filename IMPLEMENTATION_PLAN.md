@@ -151,6 +151,39 @@ real-device trace):
 = snelste win (regressie terugdraaien: pass-groepen weer in een memo-component, camera-stabiele
 props).
 
+### 2026-09-06 — ✅ F1 geïmplementeerd (#1196, "ik ga voor 1" = volledig imperatief)
+
+Han koos **Optie 1**: `cameraX` volledig van React-state → `useRef`, elke laag op hetzelfde
+imperatieve pan-mechanisme. Gedaan (op de working tree van een parallelle sessie, met Han's OK; die
+sessie was gepauzeerd):
+
+- `RpgLevelPanel.jsx`: `const [cameraX,setCameraX]=useState` → `const cameraXRef=useRef(0)`. Camera-
+  `useFrameLoop` schrijft `cameraXRef.current=next` + `envAudioRef.current.cameraX=next` (was door de
+  render ververst). `worldToScreenX`/`leftPxForFactor` lezen `cameraXRef.current`, deps `[centerX,zoom]`
+  → stabiele identiteit; `leftPxForFactor` had daarna 0 callers → **verwijderd**. `GroundPass`/
+  `BackgroundPass`/`ShimmerPass` signatures: `leftPxForFactor` weg, `cameraOffsetRef` /
+  `cameraXRef`+`bgLeftPx` / niets ervoor in de plaats. `moveTo`-click, `DebugGrid`, `sunGlowVisFrac`
+  (#1220), en het (onbereikbare) Legacy `PARALLAX_LAYERS`-blok lezen nu `cameraXRef.current`.
+- `LdtkScenery.jsx`: elke `BgLayer` heeft nu zijn **eigen** `useFrameLoop` — schrijft de parallax-
+  `translateX(-cameraX·factor·zoom)` (device-px snapped) op zijn wrapper-div én re-baket de §377
+  zon-glow-patch alleen als het integer-box beweegt (`lastSunBoxRef` dedup; non-camera-wijziging
+  forceert 1 re-bake). Art-canvas op statische `bgLeftPx`. `leftPxForFactor` uit de component-signatuur.
+- `LdtkLitGround.jsx`: `cameraOffsetRef`-prop (+ `ZERO_OFFSET_REF` fallback) zoals `ForegroundFoliage
+  Layer` (§322/§331); `drawFrame` telt de live offset bij `leftPx` op vóór de `uLevelLeftPx` uniform.
+
+**Resultaat:** een camera-pan triggert 0 React-commits. Blijft over: ~16 Hz re-render tijdens lopen
+door de throttled `playerX`-state (hero-licht/reflectie/pet-facing hebben die nodig) — 4× minder dan
+de oude 60 Hz. `ldtkLights` via ref schuiven = mogelijke follow-up. De CPU-side WebGL-raster-vloer
+(F6, `gl.drawArrays` per instance) staat los en is GPU-gebonden.
+
+`npm run test:run` (131 files / 1484 tests, 1 pre-existing skip) ✅ · `npm run build` ✅ · `npm run
+lint` (0 errors) ✅. Architecture.md **§384** geschreven. **Visuele UAT op Han's echte hardware is de
+acceptatie-gate** — deze sessie heeft geen GPU (SwiftShader, §319), dus geen betrouwbaar FPS-cijfer
+en geen visuele check op de §377 zon-glow-op-parallax.
+
+⏳ Legacy scenery-mode volledig verwijderen (Han: "legacy mag weg, volledig") = aparte follow-up
+commit. F2/F4/F5 = optioneel afhankelijk van Han's UAT.
+
 ## 2026-09-06 — ✅ #1193 UAT r3: sun-glow radius verdubbeld (55 → 110 gpx)
 
 Han ("oooh heel nice! kippenvel. Maak de radius dubbel zo groot — harde straal en

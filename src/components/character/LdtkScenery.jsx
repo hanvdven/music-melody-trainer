@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import useFrameLoop from '../../hooks/useFrameLoop';
 import { LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
 import { loadTileImages, drawTilesToCanvas } from './ldtkTileCompositing';
 // §377 (#1193): the sun edge-glow's reach, in GAME px. ONE constant, shared with the shaders — never a
@@ -145,14 +146,23 @@ function drawSunRimPatch(ctx, src, rim, bx, by, cx, cy, color, opacity, radiusSc
 //     rim on top at `rimOpacity` — only when the (quantised) darken colour or the rim opacity changes,
 //     NOT every frame.
 const BgLayer = React.memo(function BgLayer({
-    tiles, gridSize, leftPx, zoom, groundAnchor, darkenColor, rimOpacity,
+    tiles, gridSize, zoom, groundAnchor, darkenColor, rimOpacity,
+    // Perf (#1196, F1, Han 2026-09-05): parallax is IMPERATIVE now — `bgLeftPx` is the camera-
+    // independent left edge (RpgLevelPanel's `groundLeftPxLocal`), and this layer's own `useFrameLoop`
+    // writes `transform: translateX(-cameraX*factor*zoom)` (snapped) onto its wrapper div every frame,
+    // reading `cameraXRef.current` live — so a camera pan never re-renders RpgLevelPanel. Before F1 the
+    // parent recomputed `leftPx={leftPxForFactor(factor)}` on every panning re-render; that re-render is
+    // gone.
+    factor = 1, cameraXRef, bgLeftPx = 0,
     // §377 (#1193): the sun edge-glow. `sunLeftPx` is the sun's css x from the CONTAINER's left edge,
     // `sunBottomPx` its css distance from the container's BOTTOM — both already quantised to 4 game px
     // by RpgLevelPanel, because each change here costs a canvas re-bake. All scalars/strings, so this
     // React.memo still holds.
     sunRimOpacity = 0, sunLeftPx = 0, sunBottomPx = 0, sunRimColor = '#fff', sunRadiusScale = 1,
 }) {
+    const wrapRef = useRef(null);       // parallax transform is written here every frame (F1)
     const canvasRef = useRef(null);
+    const sunCanvasRef = useRef(null);
     const srcRef = useRef(null);        // tiles-only, composited once
     const rimRef = useRef(null);        // white rim, computed once from src
     const [gen, setGen] = useState(0);  // bumped when src/rim are (re)built
@@ -209,53 +219,67 @@ const BgLayer = React.memo(function BgLayer({
     // canvas the moon rim uses (cr5: no second rim renderer), masked to a disc around the sun and
     // tinted with the sun's colour.
     //
-    // DELIBERATE STRUCTURAL DIFFERENCE FROM THE MOON RIM (and from the #1193 plan's literal wording,
-    // which put this inside the re-bake effect above): the moon rim is a WHOLE-CANVAS, camera-
-    // independent overlay, so baking it into the shown canvas is free. The sun glow is a small patch
-    // that must stay welded to the SUN's screen position while the art parallaxes underneath it — i.e.
-    // its canvas-LOCAL position changes on every panning frame. Baking that into the shown canvas would
-    // re-bake a 3200 × LEVEL_PX_HEIGHT canvas every pan frame for a 40 gpx effect. Instead the patch
-    // gets its own 2R × 2R canvas, CSS-positioned at the sun and re-baked from `rimRef` — 80 × 80 px of
-    // work instead of ~640 000. It is a sibling immediately after the layer canvas, so it z-orders
-    // exactly where the baked-in version would have: above THIS layer's art, below the next, nearer
-    // parallax layer. (It is a plain transparent canvas drawn source-over, NOT the isolated blending
-    // wrapper that made every layer's sky region a solid blue veil in §370 r3.)
-    const sunCanvasRef = useRef(null);
-    // The sun's centre in canvas-LOCAL level px, and the patch box's integer top-left corner. `leftPx`
-    // already carries this layer's parallax factor and the canvas is bottom-anchored at `groundAnchor`,
-    // so this is the exact inverse of `layerStyle` above. Computed in render (not in the effect) because
-    // the patch canvas's own CSS placement below must use the SAME box.
-    const sunLocalX = zoom > 0 ? (sunLeftPx - leftPx) / zoom : 0;
-    const sunLocalY = zoom > 0 ? LEVEL_PX_HEIGHT - (sunBottomPx - groundAnchor) / zoom : 0;
-    const sunBoxX = Math.floor(sunLocalX - SUN_GLOW_RADIUS_GPX);
-    const sunBoxY = Math.floor(sunLocalY - SUN_GLOW_RADIUS_GPX);
-    useEffect(() => {
-        const canvas = sunCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+    // The moon rim is a WHOLE-CANVAS, camera-independent overlay, so it bakes into the shown canvas for
+    // free (the re-bake effect above). The sun glow is a small patch that must stay welded to the SUN's
+    // fixed screen position while the art parallaxes underneath it — its canvas-LOCAL position changes
+    // every panning frame. It gets its own 2R × 2R canvas re-baked from `rimRef` (80 × 80 px, vs
+    // re-baking a 3200 × LEVEL_PX_HEIGHT canvas). It sits inside THIS layer's wrapper div, after the art
+    // canvas, so it z-orders above this layer's art and below the next, nearer parallax layer.
+    //
+    // Perf (#1196, F1): the wrapper transform AND the patch's moving canvas-local box are both driven
+    // here, imperatively, every frame — reading `cameraXRef.current` live — so a camera pan needs no
+    // React re-render. The patch is only re-baked when its integer box actually moves (dedup on
+    // `lastSunBoxRef`), and a NON-camera input change (a new `gen`, opacity/colour/radius/zoom/sun
+    // position) forces one re-bake by nulling that dedup.
+    const lastSunBoxRef = useRef({ x: null, y: null });
+    useEffect(() => { lastSunBoxRef.current = { x: null, y: null }; },
+        [gen, zoom, groundAnchor, sunLeftPx, sunBottomPx, sunRimOpacity, sunRimColor, sunRadiusScale, bgLeftPx, factor]);
+    useFrameLoop(() => {
+        if (zoom <= 0 || !cameraXRef) return;
+        const dpr = window.devicePixelRatio || 1;
+        // Parallax: the layer lags the camera by `factor` (1 = ground plane, <1 = far background). Snap
+        // to whole device px, same grid the ground/foliage/water layers already snap to (RpgLevelPanel
+        // camera loop, §364/§327) so nothing sub-pixel-crawls against them.
+        const off = Math.round(-cameraXRef.current * factor * zoom * dpr) / dpr;
+        if (wrapRef.current) wrapRef.current.style.transform = `translateX(${off}px)`;
+
+        // The sun's centre in this layer's canvas-LOCAL level px. `bgLeftPx + off` is the art canvas's
+        // real container-space left this frame — the exact inverse of `layerStyle`.
+        const sunLocalX = (sunLeftPx - (bgLeftPx + off)) / zoom;
+        const sunLocalY = LEVEL_PX_HEIGHT - (sunBottomPx - groundAnchor) / zoom;
+        const sunBoxX = Math.floor(sunLocalX - SUN_GLOW_RADIUS_GPX);
+        const sunBoxY = Math.floor(sunLocalY - SUN_GLOW_RADIUS_GPX);
+        if (sunBoxX === lastSunBoxRef.current.x && sunBoxY === lastSunBoxRef.current.y) return;
+        lastSunBoxRef.current = { x: sunBoxX, y: sunBoxY };
+
+        const patch = sunCanvasRef.current;
+        if (!patch) return;
+        // Patch CSS placement is camera-INDEPENDENT (`bgLeftPx + sunBoxX*zoom`) — the wrapper's own
+        // `translateX(off)` carries it to the fixed sun, exactly like the art canvas.
+        patch.style.left = `${bgLeftPx + sunBoxX * zoom}px`;
+        patch.style.bottom = `${groundAnchor + (LEVEL_PX_HEIGHT - (sunBoxY + SUN_PATCH_PX)) * zoom}px`;
+        const ctx = patch.getContext('2d');
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
         ctx.clearRect(0, 0, SUN_PATCH_PX, SUN_PATCH_PX);
-        // 0 at night and under real overcast (`sunRimOpacity` IS the shaders' own gated, quantised
-        // `sunGlow`), so a night/overcast frame does nothing here beyond the clear (ac3/ac5).
-        if (!rimRef.current || sunRimOpacity <= 0 || zoom <= 0 || sunRadiusScale <= 0) return;
+        // 0 at night / under real overcast (`sunRimOpacity` IS the shaders' own gated, quantised
+        // `sunGlow`), so a night/overcast frame does nothing beyond the clear.
+        if (!rimRef.current || sunRimOpacity <= 0 || sunRadiusScale <= 0) return;
         drawSunRimPatch(ctx, srcRef.current, rimRef.current, sunBoxX, sunBoxY, sunLocalX, sunLocalY, sunRimColor, sunRimOpacity, sunRadiusScale);
-    }, [gen, sunRimOpacity, sunRimColor, sunBoxX, sunBoxY, sunLocalX, sunLocalY, zoom, sunRadiusScale]);
+    }, [], { priority: 'critical' });
 
     return (
-        <>
+        <div ref={wrapRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
             <canvas
                 ref={canvasRef}
                 width={LEVEL_PX_WIDTH}
                 height={LEVEL_PX_HEIGHT}
-                style={layerStyle(leftPx, zoom, groundAnchor, { opacity: srcRef.current ? 1 : 0 })}
+                style={layerStyle(bgLeftPx, zoom, groundAnchor, { opacity: srcRef.current ? 1 : 0 })}
             />
-            {/* §377: the sun edge-glow patch. Positioned with the SAME left/bottom convention
-                `layerStyle` uses, just for the 2R box instead of the whole level: its left edge sits
-                `sunBoxX` level px right of the layer's own left edge, and its bottom edge
-                `LEVEL_PX_HEIGHT - (sunBoxY + 2R)` level px above the layer's bottom. Always mounted
-                (an empty transparent canvas costs nothing) so there is no mount/unmount churn as the
-                sun rises and sets. */}
+            {/* §377: the sun edge-glow patch. Same left/bottom convention as `layerStyle`, for the 2R
+                box. Its `left`/`bottom` are written imperatively by the frame loop above; the seed
+                values here just keep the first paint sane before frame 1. Always mounted (an empty
+                transparent canvas costs nothing) so there is no mount/unmount churn as the sun sets. */}
             <canvas
                 ref={sunCanvasRef}
                 aria-hidden
@@ -263,15 +287,15 @@ const BgLayer = React.memo(function BgLayer({
                 height={SUN_PATCH_PX}
                 style={{
                     position: 'absolute',
-                    left: leftPx + sunBoxX * zoom,
-                    bottom: groundAnchor + (LEVEL_PX_HEIGHT - (sunBoxY + SUN_PATCH_PX)) * zoom,
+                    left: bgLeftPx,
+                    bottom: groundAnchor,
                     width: SUN_PATCH_PX * zoom,
                     height: SUN_PATCH_PX * zoom,
                     imageRendering: 'pixelated',
                     pointerEvents: 'none',
                 }}
             />
-        </>
+        </div>
     );
 });
 
@@ -312,16 +336,19 @@ const GroundCanvas = React.memo(function GroundCanvas({ tiles, gridSize, leftPx,
 // RpgLevelPanel's existing camera math with the camera term scaled by `factor` first (1 = full camera
 // reaction, the ground plane; <1 = a background layer, which lags behind — parallax depth).
 //
-// Perf (#1162, Han 2026-08-27, "de camera-update moet echt anders" — Fase 1): `groundScrollRef`/
-// `groundLeftPx` are the STABLE (camera-independent) counterparts to `leftPxForFactor`/`leftPxForFactor(1)`
-// — see RpgLevelPanel.jsx's own `worldToScreenXLocal` comment for the full rationale. Only the GROUND
-// layer (factor=1, by far the largest single composited canvas) gets this treatment; `backgroundLayers`
-// stay on the existing `leftPxForFactor` path (few in number, parallax factor varies per layer, not worth
-// the same wrapper machinery this round) — this is why the ground layer needs its OWN nested wrapper
-// `<div>` rather than one shared wrapper around this whole component's output.
+// Perf (#1162 Fase 1 → #1196 F1, Han 2026-08-27 / 2026-09-05): `groundScrollRef`/`groundLeftPx` scroll
+// the ground plane (factor 1) imperatively via a wrapper `<div>` transform. F1 extends the SAME imperative
+// treatment to the `backgroundLayers` (each `BgLayer` runs its own `useFrameLoop`, reading `cameraXRef`
+// live and applying its own parallax `factor`) — so `leftPxForFactor` is gone entirely and NOTHING here
+// reads a camera value at render time. `bgLeftPx` is the camera-independent left edge every `BgLayer`
+// shares (`= groundLeftPx` for factor-1 space); per-layer parallax comes purely from each `BgLayer`'s
+// wrapper transform.
 function LdtkScenery({
-    groundTiles, backgroundLayers = [], gridSize, leftPxForFactor, groundScrollRef, groundLeftPx,
+    groundTiles, backgroundLayers = [], gridSize, groundScrollRef, groundLeftPx,
     zoom, groundAnchor, bgDarkenColor = null, bgRimOpacity = 0,
+    // Perf (#1196, F1): the live camera ref + the shared camera-independent left edge, threaded to every
+    // `BgLayer` for its own per-frame parallax transform.
+    cameraXRef, bgLeftPx = 0,
     // §377 (#1193): the sun edge-glow's parallax-bg terms. Scalars + a css string only, so `BgLayer`'s
     // React.memo still holds (an array prop would break it on every render).
     bgSunRimOpacity = 0, bgSunLeftPx = 0, bgSunBottomPx = 0, bgSunRimColor = '#fff', bgSunRadiusScale = 1,
@@ -339,7 +366,8 @@ function LdtkScenery({
                 the isolated-wrapper version made every layer's transparent sky region a solid blue veil). */}
             {backgroundLayers.map(({ factor, tiles }, i) => (
                 <BgLayer
-                    key={`bg-${i}`} tiles={tiles} gridSize={gridSize} leftPx={leftPxForFactor(factor)}
+                    key={`bg-${i}`} tiles={tiles} gridSize={gridSize}
+                    factor={factor} cameraXRef={cameraXRef} bgLeftPx={bgLeftPx}
                     zoom={zoom} groundAnchor={groundAnchor}
                     darkenColor={bgDarkenColor} rimOpacity={bgRimOpacity}
                     sunRimOpacity={bgSunRimOpacity} sunLeftPx={bgSunLeftPx}
@@ -353,13 +381,11 @@ function LdtkScenery({
     );
 }
 
-// Perf (#1161/#1162, Han 2026-08-27): this canvas-compositing layer doesn't depend on `petFrame`/other
-// idle-animation state at all — without a memo boundary it still re-rendered on every tick of
-// RpgLevelPanel's `petFrame`. `groundTiles`/`backgroundLayers`/`leftPxForFactor`/`groundLeftPx` are
-// already stable references when nothing relevant changed (RpgLevelPanel.jsx's own useMemo/useCallback
-// wrapping), so this memo genuinely hits for the idle-standing case. While the camera pans, `groundLeftPx`
-// STAYS stable too (see this file's own `groundScrollRef` comment above) — only `leftPxForFactor` (used
-// for the few `backgroundLayers`) still varies, so THIS component's own function body still re-runs every
-// panning frame, but the (by far more expensive) ground `CanvasLayer` — now `React.memo`'d itself, wrapped
-// in the imperatively-scrolled `groundScrollRef` div — skips its own re-render regardless.
+// Perf (#1161/#1162 → #1196 F1, Han 2026-08-27 / 2026-09-05): this canvas-compositing layer doesn't
+// depend on `petFrame`/other idle-animation state — the memo boundary keeps it from re-rendering on
+// every `petFrame` tick. Since F1, EVERY prop it takes (`groundTiles`/`backgroundLayers`/`gridSize`/
+// `groundLeftPx`/`bgLeftPx`/`cameraXRef`/`zoom`/the quantised bg-sun scalars) is stable while only the
+// camera pans — `leftPxForFactor` is gone; the ground `GroundCanvas` scrolls via `groundScrollRef` and
+// each `BgLayer` scrolls via its own `useFrameLoop` — so this component's body does NOT re-run on a
+// panning frame at all.
 export default React.memo(LdtkScenery);

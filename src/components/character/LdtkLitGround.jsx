@@ -23,6 +23,11 @@ import { SUN_GLOW_RGB } from './celestialModel';
 // Reuses the SAME lighting GLSL (foliageLightingGLSL.js) and the SAME `foliageParams` debug dials as
 // ForegroundFoliageLayer — ONE set of lighting knobs in the debug panel, not two (CLAUDE.md §6d).
 
+// Perf (#1196, F1): a stable `{ current: 0 }` fallback so a caller that never drives a camera pan can
+// omit `cameraOffsetRef` and get the pre-F1 behaviour (offset always 0). Mirrors
+// `ForegroundFoliageLayer.jsx`'s own `ZERO_OFFSET_REF`.
+const ZERO_OFFSET_REF = { current: 0 };
+
 const VERTEX_SRC = `
 attribute vec2 aPos;
 void main() {
@@ -170,12 +175,21 @@ function createTextureFromCanvas(gl, canvas) {
 // compositing — this component renders nothing until then, same "brief flash while loading" pattern used
 // everywhere else in this level). `levelPxWidth/levelPxHeight`: the composited textures' own native size
 // (LEVEL_PX_WIDTH/LEVEL_PX_HEIGHT). `leftPx`/`canvasBottomScreenY`/`zoom`: screen-space placement, mirrors
-// LdtkScenery's own `leftPxForFactor`/`groundAnchor` convention exactly. `edgeLitOnly`: true for the
+// LdtkScenery's own `groundLeftPx`/`groundAnchor` convention exactly. `edgeLitOnly`: true for the
 // front-of-entities bucket (Han: rand-belichting op 2px, zie EDGE_LIGHT_PIXELS), false for back-of-
 // entities (full lighting).
+//
+// Perf (#1196, F1, Han 2026-09-05): `leftPx` is now the CAMERA-INDEPENDENT ground-plane left edge
+// (`groundLeftPxLocal`), stable while only the camera pans — the live pan offset arrives every frame
+// through `cameraOffsetRef` (the SAME snapped-device-px ref `RpgLevelPanel`'s camera `useFrameLoop`
+// already feeds `ForegroundFoliageLayer`, §322/§331) and is added to `leftPx` inside `drawFrame` right
+// before the `uLevelLeftPx` uniform upload. Before F1 this component "needed no change" only because
+// `RpgLevelPanel` re-rendered every panning frame and re-fed `leftPx` through `liveRef`; F1 removes that
+// re-render, so the offset must come through a ref instead. `ZERO_OFFSET_REF` keeps any caller that
+// doesn't drive a camera (none today) working unchanged.
 function LdtkLitGround({
     widthPx, heightPx, textures, levelPxWidth, levelPxHeight, leftPx, canvasBottomScreenY, zoom,
-    lights = [], params, edgeLitOnly, debugChannel = 0,
+    lights = [], params, edgeLitOnly, debugChannel = 0, cameraOffsetRef = ZERO_OFFSET_REF,
 }) {
     const canvasRef = useRef(null);
     const textureIds = useRef({ diffuse: null, normal: null });
@@ -280,8 +294,12 @@ function LdtkLitGround({
             gl.clear(gl.COLOR_BUFFER_BIT);
             const ids = textureIds.current;
             if (!ids.diffuse || !ids.normal) return;
-            const { leftPx: lp, canvasBottomScreenY: cb, zoom: z, levelPxWidth: lw, levelPxHeight: lh, lights: ls, params: p, edgeLitOnly: elo, debugChannel: dc } = liveRef.current;
+            const { leftPx: lpBase, canvasBottomScreenY: cb, zoom: z, levelPxWidth: lw, levelPxHeight: lh, lights: ls, params: p, edgeLitOnly: elo, debugChannel: dc } = liveRef.current;
             if (!p || !lw || !lh) return;
+            // Perf (#1196, F1): `lpBase` is the camera-INDEPENDENT ground left edge; the live pan offset
+            // (already snapped to whole device px by the camera loop, same value ForegroundFoliageLayer
+            // reads) is added here every frame so panning never needs a React re-render to move this layer.
+            const lp = lpBase + cameraOffsetRef.current;
             const u = uniformsRef.current;
 
             gl.useProgram(program);

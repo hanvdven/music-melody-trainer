@@ -27260,3 +27260,90 @@ Fase 1's imperative pan transform, Fase 3's `EntityLayer` extraction, Fase 4's `
 `SceneryFront` extraction, Fase 10a/10c's shared foliage atlas — all generalized here, none of it
 reverted); §1032 (water reflection, animation-reflection-shimmer z-order); CLAUDE.md §6c (derive, don't
 hardcode — extended from "which layers" to "what order").
+
+---
+
+### §384. RPG world F1 — `cameraX` state → ref: a camera pan now triggers ZERO React re-renders (#1196, Han 2026-09-06, "ik ben voor consistentie, dus ik ga voor 1")
+
+**Purpose / symptom.** Han: the open-world animation is "hakkelig / framerate inconsistent, vooral bij
+veel beweging." A performance diagnostic (logged in `IMPLEMENTATION_PLAN.md`) found the primary cause
+was long-known and long-accepted: `cameraX` was React state, and the dead-zone follow-camera's
+`useFrameLoop` called `setCameraX` on **every rAF frame** while the hero moved — forcing a full
+re-render of the ~3200-line `RpgLevelPanel` 60×/sec, even though the visible pan was ALREADY written
+imperatively (translateX on the `panElsRef` / `entityScrollRef` wrappers, `cameraOffsetRef` for
+`ForegroundFoliageLayer`). §321–§325 (#1162) mitigated the *cost* of that re-render (imperative
+transforms, `EntityLayer` / `SceneryBack` / `SceneryFront` extraction) but never removed it; §383
+(#1195) then folded the scenery back into an inline `world.passes.map()` in the render body, undoing
+§324's protection. Han's real-hardware number through all of that: 120 fps idle → ~41 fps moving. He
+chose **Option 1** (full imperative, every layer on the same pan mechanism) over a throttled-state or
+isolated-subtree compromise, explicitly for consistency.
+
+**How it works.** `cameraX` is now `cameraXRef` (a `useRef(0)`). The camera `useFrameLoop` computes the
+dead-zone/clamp `next` exactly as before, writes `cameraXRef.current = next`, and — as it already did —
+writes every visible transform imperatively that same frame (`panElsRef` wrappers, `entityScrollRef`,
+`cameraOffsetRef`, hero/pet `left`/`bottom`). It additionally writes `envAudioRef.current.cameraX`
+(previously refreshed by the render). **Nothing reads the camera as a render value on a panning frame
+any more**, so `setCameraX` is gone and a pure pan produces no React commit. The last two camera-coupled
+render-time consumers were converted:
+
+- **Parallax background (`LdtkScenery.jsx` `BgLayer`).** Each `BgLayer` now runs its **own**
+  `useFrameLoop` (`'critical'`), reading `cameraXRef.current` live and writing
+  `transform: translateX(-cameraX · factor · zoom)` (snapped to whole device px, same grid the ground
+  layers use) onto its own wrapper `<div>`. Its art canvas sits at a static camera-independent `bgLeftPx`
+  (= `groundLeftPxLocal`); per-layer parallax depth comes purely from that wrapper transform. The §377
+  sun edge-glow patch is handled in the SAME loop: its moving canvas-local box (`sunLocalX` tracks which
+  silhouette region sits under the screen-fixed sun as the art slides) is recomputed each frame and the
+  80×80 patch is re-baked only when that integer box actually moves (`lastSunBoxRef` dedup); a
+  non-camera input change (new `gen`, opacity/colour/radius/zoom/sun-position) forces one re-bake by
+  nulling the dedup. `leftPxForFactor` is **deleted** from `LdtkScenery` entirely.
+- **`LdtkLitGround.jsx`.** Given the same `cameraOffsetRef` treatment §322/§331 gave
+  `ForegroundFoliageLayer`: `leftPx` is now the camera-independent `groundLeftPxLocal`, and the live
+  snapped pan offset (`cameraOffsetRef.current`, fed by the camera loop) is added to it inside
+  `drawFrame` right before the `uLevelLeftPx` uniform upload. §322 said this component "needed no change"
+  — true only while `RpgLevelPanel` re-rendered every pan frame and re-fed `leftPx` through `liveRef`;
+  F1 removes that re-render, so the offset must arrive through a ref. `ZERO_OFFSET_REF` keeps a
+  camera-less caller working unchanged.
+
+`worldToScreenX`/`leftPxForFactor` in `RpgLevelPanel` now read `cameraXRef.current` with deps
+`[centerX, zoom]` (stable identity even while panning). `worldToScreenX`'s only remaining callers are
+the unreachable `sceneryMode === 'Legacy'` blocks; `leftPxForFactor` had none left and was removed.
+
+**What still re-renders during movement (and why that's fine).** The hero's own `playerX` React state
+still updates at the #1192-jank `POSITION_STATE_THROTTLE_MS` cadence (~16 Hz) while walking — needed by
+the hero point-light position, water-reflection `worldX`, and pet-vs-player facing. So `RpgLevelPanel`
+still re-renders ~16 Hz during movement (not 60 Hz), which is what `ldtkLights` / `sunGlowVisFrac` /
+`DebugGrid` / the `world.passes.map` now recompute at. That is 4× fewer full re-renders than before and
+comfortably enough for a soft glow / a 0.05-quantised occlusion fraction / a debug grid. Driving
+`ldtkLights` through a ref to shave that too is a possible follow-up if Han's UAT still shows drops; the
+CPU-side WebGL raster floor (one un-batched `gl.drawArrays` per foliage instance, §325) is a separate,
+GPU-bound concern (§318/§319).
+
+**Invariants.**
+- The camera `useFrameLoop` is the single writer of `cameraXRef.current`; every layer's own per-frame
+  loop is a READER. No layer writes it.
+- Every per-frame camera read snaps to whole **device** pixels (`Math.round(x·dpr)/dpr`) — the DOM
+  wrappers, the `BgLayer` transforms, and `cameraOffsetRef` all use the identical snap so nothing
+  sub-pixel-crawls against anything else (§364/§327).
+- `BgLayer`'s sun-glow patch canvas re-bakes only on integer-box movement or an explicit non-camera
+  input change — never unconditionally every frame.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`cameraX` useState → `cameraXRef`; camera
+`useFrameLoop` writes the ref + `envAudioRef.current.cameraX`; `worldToScreenX`/`leftPxForFactor`
+stabilised, `leftPxForFactor` then deleted; `GroundPass`/`BackgroundPass`/`ShimmerPass` signatures
+swap `leftPxForFactor` for `cameraOffsetRef` / `cameraXRef`+`bgLeftPx` / nothing; `moveTo` click,
+`DebugGrid`, `sunGlowVisFrac`, the Legacy `PARALLAX_LAYERS` block all read `cameraXRef.current`),
+`src/components/character/LdtkScenery.jsx` (`BgLayer` own `useFrameLoop` for parallax transform + §377
+patch; `leftPx` → `factor`+`cameraXRef`+`bgLeftPx`; `LdtkScenery` drops `leftPxForFactor`, adds
+`cameraXRef`/`bgLeftPx`; `useFrameLoop` import), `src/components/character/LdtkLitGround.jsx`
+(`cameraOffsetRef` prop + `ZERO_OFFSET_REF`; `drawFrame` adds the live offset to `leftPx`).
+Verified: `npm run test:run` (131 files / 1484 tests, 1 pre-existing skip), `npm run build`,
+`npm run lint` (0 errors). **Visual UAT on real hardware is the acceptance gate** — this session's
+sandbox has no GPU (SwiftShader only, §319), so it cannot produce a trustworthy before/after FPS number
+for this WebGL-heavy scene, nor confirm the §377 sun-glow-on-parallax still tracks correctly.
+
+**Cross-references.** `IMPLEMENTATION_PLAN.md` (the F1–F6 diagnostic this acts on); §321–§325 (#1162 —
+the imperative-camera arc this completes; F1 is effectively its "Fase 6"); §322/§331 (the
+`cameraOffsetRef` pattern extended here to `LdtkLitGround`); §377 (#1193 — the sun edge-glow whose
+parallax-bg patch is now driven imperatively); §383 (#1195 — the `world.passes.map` render body F1
+stops re-running on pan); CLAUDE.md §6 ("never set opacity via JSX props on animated elements",
+generalised here to the whole camera-pan position path).
