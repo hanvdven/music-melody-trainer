@@ -184,6 +184,17 @@ en geen visuele check op de §377 zon-glow-op-parallax.
 ⏳ Legacy scenery-mode volledig verwijderen (Han: "legacy mag weg, volledig") = aparte follow-up
 commit. F2/F4/F5 = optioneel afhankelijk van Han's UAT.
 
+### 2026-09-06 — ✅ Legacy scenery-mode volledig verwijderd (Han: "haal legacy maar weg!")
+
+`sceneryMode` state + debug-picker weg; alle `=== 'LDtk'` guards onvoorwaardelijk, alle `=== 'Legacy'`
+blokken gesloopt (parallax-PNG's `PARALLAX_LAYERS`, hardcoded floor/tree/tent/crate, `runtimeTextures`
+normal-map-build, `SheetCrop`, `domDarkenOverlayStyle`). `sceneryMode`-prop weg uit `EntityLayer`/
+`GroundPass`/`ShimmerPass`/`CampfirePass` + de 3 `useLdtk*`-hooks (guard → gewone empty-check). Dode
+`useLdtkFoliageInstances.js` verwijderd. `worldToScreenX` (alleen Legacy-callers) + ~25 Legacy-only
+module-consts/imports weg. ~400 regels uit `RpgLevelPanel.jsx`. Eén scenery-renderer over:
+`world.passes` (§383). `npm run test:run` (131 files / 1484) ✅ · build ✅ · lint (0 errors) ✅.
+Architecture.md **§385**.
+
 ## 2026-09-06 — ✅ #1193 UAT r3: sun-glow radius verdubbeld (55 → 110 gpx)
 
 Han ("oooh heel nice! kippenvel. Maak de radius dubbel zo groot — harde straal en

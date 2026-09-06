@@ -37,14 +37,13 @@ function atlasLayout(count, gridSize) {
     return { cols, rows, cellSize: gridSize, width: cols * gridSize, height: rows * gridSize };
 }
 
-export default function useLdtkFoliageAtlas(foliageTiles, gridSize, sceneryMode) {
-    // `atlas` is null until the FIRST batch publishes (mirrors `useLdtkFoliageInstances`'s own "some
-    // foliage visible+lit right away" incremental-publish behavior) — `uvByKey` only ever grows, existing
-    // entries never move, so a consumer holding a stale-but-valid UV from an earlier partial atlas is safe.
+export default function useLdtkFoliageAtlas(foliageTiles, gridSize) {
+    // `atlas` is null until the FIRST batch publishes — `uvByKey` only ever grows, existing entries never
+    // move, so a consumer holding a stale-but-valid UV from an earlier partial atlas is safe.
     const [atlas, setAtlas] = useState(null);
 
     useEffect(() => {
-        if (sceneryMode !== 'LDtk' || foliageTiles.length === 0) { setAtlas(null); return undefined; }
+        if (foliageTiles.length === 0) { setAtlas(null); return undefined; }
         let cancelled = false;
         let idleHandle;
 
@@ -113,7 +112,7 @@ export default function useLdtkFoliageAtlas(foliageTiles, gridSize, sceneryMode)
             genBatch();
         })();
         return () => { cancelled = true; if (idleHandle != null) cancelIdle(idleHandle); };
-    }, [foliageTiles, gridSize, sceneryMode]);
+    }, [foliageTiles, gridSize]);
 
     return atlas;
 }

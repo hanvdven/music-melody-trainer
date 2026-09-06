@@ -27347,3 +27347,50 @@ the imperative-camera arc this completes; F1 is effectively its "Fase 6"); §322
 parallax-bg patch is now driven imperatively); §383 (#1195 — the `world.passes.map` render body F1
 stops re-running on pan); CLAUDE.md §6 ("never set opacity via JSX props on animated elements",
 generalised here to the whole camera-pan position path).
+
+---
+
+### §385. RPG world — Legacy scenery mode deleted (Han 2026-09-06, "haal legacy maar weg!")
+
+**Purpose.** `RpgLevelPanel` carried a second, older scenery implementation behind a `sceneryMode`
+state (`'LDtk'` default, `'Legacy'` the alternative): hand-placed parallax PNGs (`PARALLAX_LAYERS` /
+`Background layers_layer 1-4.png`), a hard-coded 200-tile floor strip (`floorTileIdx` / `FLOOR_CELLS` /
+`Floor Tiles2.png`), a fixed tree/tent/crate layout with browser-side normal-map generation
+(`runtimeTextures` + `normalMapCanvasFromCrop`), the `SheetCrop` DOM-crop helper, and a
+`mix-blend-mode: multiply` day/night overlay (`domDarkenOverlayStyle`). It existed only as a
+side-by-side visual reference during the #194 RAM-level migration and, per §325, had been dead weight in
+every render path since. Han: *"haal legacy maar weg!"*
+
+**What was removed.** The `sceneryMode`/`setSceneryMode` state and the debug "Scenery" picker; every
+`sceneryMode === 'LDtk'` guard (now unconditional) and every `sceneryMode === 'Legacy'` block (deleted);
+the `sceneryMode` prop threaded through `EntityLayer` / `GroundPass` / `ShimmerPass` / `CampfirePass` and
+the `useLdtkFoliageAtlas` / `useLdtkLitGroundTextures` / `useLdtkWaterInstances` hooks (their `!== 'LDtk'`
+early-return replaced by the plain empty-input check that was already `||`-d onto it); the dead
+`useLdtkFoliageInstances.js` file (imported nowhere — its output was replaced by the shared atlas in
+§340); `worldToScreenX` (camera-aware helper, its only callers were Legacy blocks); `zoom` /
+`standAnchorFor` / `envAudioRef` lost their `sceneryMode` ternaries; and the Legacy-only module
+constants + imports (`PARALLAX_LAYERS`, `BG_NATIVE`, `bgLayer1-4Url`, `FLOOR_SHEET`/`FLOOR_CELLS`/
+`FLOOR_TILE`/`FLOOR_T`/`LEVEL_TILES`, `TREE_SHEET`/`TREE_CELL`/`TRUNK_CELL`/`SUMMER_FOLIAGE_CELL`/`TREE_X`,
+`DECOR_SHEET`/`TENT_CELL`/`TENT_W`/`TENT_H`/`TENT_X`, `CRATE_*`, `GRASS_TUFT_CELLS`/`GRASS_NORMAL_BY_CELL`/
+`GRASS_TUFT_SPACING`, `GROUND_ANCHOR`/`GROUND_ANCHOR_PX`, `SheetCrop`, `mixRgb`,
+`normalMapCanvasFromCrop`, and the whole `NORMAL_MAP_URLS` glob + `treeFoliage*`/`grassNormal*`/
+`crateNormalUrl`). Net: ~400 lines out of `RpgLevelPanel.jsx`.
+
+**Kept.** `HORIZON_PX` (still the parallax-background alignment reference for the LDtk `BgLayer`s),
+`AMBIENT_DARK_RGB` (feeds `bgDarkenColor`), `NPC_X` / `WISP_URL` / `HIT_ZONE_GPX`, `loadImageEl` (used
+for the one-time firefly-colour sample), `DebugGrid`. `bgOccluders` (unused since the parallel #1220
+"sun-sheen-off" change) was left in place — it belongs to that ticket, not this one.
+
+**Invariant.** There is now exactly ONE world-scenery renderer: `world.passes` (ldtkWorld.js) →
+`GroundPass`/`BackgroundPass`/`ShimmerPass`/`CampfirePass`/`EntityLayer`/`LastLayerPass` (§383). No
+mode switch, no `sceneryMode` anywhere in `src/`.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (bulk deletion), `LdtkScenery.jsx` (comment
+only — its `sceneryMode` was already gone), `useLdtkFoliageAtlas.js` / `useLdtkLitGroundTextures.js` /
+`useLdtkWaterInstances.js` (drop the `sceneryMode` param + guard + dep), `useLdtkFoliageInstances.js`
+(deleted), `__tests__/useLdtkFoliageAtlas.test.js` (drop the "not in LDtk mode" case). Verified: `npm
+run test:run` (131 files / 1484 tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors).
+
+**Cross-references.** §384 (F1 — its "removed with Legacy" forward references are now fulfilled);
+§194/§382/§383 (the LDtk scenery pipeline that fully replaces this); §325 (which first identified the
+Legacy `mix-blend-mode` overlay as dead-weight in LDtk mode); CLAUDE.md §7 ("delete unused code").
