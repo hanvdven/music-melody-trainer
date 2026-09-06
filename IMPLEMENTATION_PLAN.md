@@ -195,6 +195,29 @@ module-consts/imports weg. ~400 regels uit `RpgLevelPanel.jsx`. Eén scenery-ren
 `world.passes` (§383). `npm run test:run` (131 files / 1484) ✅ · build ✅ · lint (0 errors) ✅.
 Architecture.md **§385**.
 
+### 2026-09-06 — ✅ F4 + F5 (Han: "goed f4 en f5 maar! :D")
+
+**F4** — hero-puntlicht was de enige lichtbron die per frame beweegt; zat in `baseLights`/`ldtkLights`
+`useMemo` op `playerX` (throttled state, ~16 Hz) → elke tick nieuwe array-identiteit → `GroundPass`/
+`ShimmerPass` memo brak → `LdtkLitGround` + `ForegroundFoliageLayer` re-render ~16 Hz. Fix: hero-licht
+is nu één ref-object (`heroLightRef.current`, vast op index 1 van beide arrays *by reference*);
+`playerX` uit de deps (firefly-sort leest `playerXRef.current` live). De camera-`useFrameLoop` (60 Hz)
+muteert `heroLightRef.current.worldX/worldHeight` in place. Beide WebGL-lagen lezen de array via hun
+eigen `liveRef`/`lightsRef` in hun draw-loop → glow volgt de hero op 60 Hz (vloeiender dan de oude
+16 Hz), 0 re-renders.
+
+**F5** — `<CelestialSky>` tekende de 611-sterren-lus (`altAz`-trig) élke frame (skip-gate vergeleek
+`cycleT` byte-exact, verandert altijd). Nu: sky-rotatie-bucket — `lst` gequantiseerd op `degPerPx/8°`
+(lineair in azimut, §374 plate-carrée; `dAz/dlst ≲ 8` binnen ±60° FOV ⇒ geen ster beweegt ≥1 gpx
+binnen dezelfde bucket). Bucket-ref alleen bijgewerkt bij een echte redraw ⇒ overgeslagen sub-pixel-
+beweging kan nooit opstapelen tot een sprong (precies §374's doel "max 1 gpx/frame", zonder de
+nul-beweging-frames te tekenen). 's Nachts: ~60/s → ~5-15/s, geen zichtbaar verschil. Overdag was de
+sterrenlus al `alpha`-gated. `<SkyGradientBackdrop>` ongewijzigd (§381's epsilon-gate volstaat al).
+Tunable: bij zichtbaar sterren-steppen → deler `dpp/8` halveren.
+
+`npm run test:run` (131 files / 1484) ✅ · build ✅ · lint (0 errors) ✅. Architecture.md **§386**.
+Visuele UAT (geen GPU hier): let op vloeiende sterren-beweging 's nachts + hero-glow op de grond.
+
 ## 2026-09-06 — ✅ #1193 UAT r3: sun-glow radius verdubbeld (55 → 110 gpx)
 
 Han ("oooh heel nice! kippenvel. Maak de radius dubbel zo groot — harde straal en

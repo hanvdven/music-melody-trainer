@@ -27394,3 +27394,63 @@ run test:run` (131 files / 1484 tests, 1 pre-existing skip), `npm run build`, `n
 **Cross-references.** §384 (F1 — its "removed with Legacy" forward references are now fulfilled);
 §194/§382/§383 (the LDtk scenery pipeline that fully replaces this); §325 (which first identified the
 Legacy `mix-blend-mode` overlay as dead-weight in LDtk mode); CLAUDE.md §7 ("delete unused code").
+
+---
+
+### §386. RPG world F4 + F5 — hero point-light on a ref, and a redraw-skip for `<CelestialSky>` (#1196, Han 2026-09-06, "goed f4 en f5 maar! :D")
+
+Two smaller follow-ups to §384's F1, from the same `IMPLEMENTATION_PLAN.md` diagnostic.
+
+**F4 — the hero point light no longer busts the scenery memos every ~16 Hz.** The hero's own point
+light is the only light that moves while walking. Its position lived inside the `baseLights` /
+`ldtkLights` `useMemo`s keyed on `playerX` — the #1192-jank *throttled* state that still ticks ~16 Hz
+during movement — so every tick rebuilt the whole `ldtkLights` array, handed a fresh identity to
+`GroundPass` / `ShimmerPass`, and re-rendered `LdtkLitGround` + `ForegroundFoliageLayer` ~16 Hz even
+though F1 had already stopped the 60 Hz churn. Fix: the hero light is now a single **ref-owned object**
+(`heroLightRef.current = { worldX, worldHeight, color }`), placed at a fixed index 1 of
+`baseLights` / `ldtkLights` **by reference**. `playerX` is dropped from both memos' deps (the firefly
+"nearest 4" sort reads `playerXRef.current` live instead), so the arrays keep a stable identity through
+a pure walk. The camera `useFrameLoop` (already 60 Hz, already reading `playerXRef`) mutates
+`heroLightRef.current.worldX` / `.worldHeight` in place every frame. Both WebGL lighting layers already
+read the light array through their own `liveRef` / `lightsRef` inside their draw loops, so the glow now
+tracks the hero at full 60 Hz — *smoother* than the old 16 Hz — with zero React re-renders. (An
+in-place ref mutation deliberately bypassing React is the same §6 pattern the rest of this file uses
+for per-frame position.)
+
+**F5 — `<CelestialSky>` skips frames whose pixel-quantised output cannot have changed.** The 611-star
+loop (`altAz` spherical trig + `projectToScreen` per star) is the dominant per-frame cost at night, and
+it ran every frame because the skip-gate compared `cycleT` byte-exact (`cycleT` always advances).
+Replaced with a **sky-rotation bucket**: the sky is projected linearly in azimuth (§374 plate-carrée),
+so a star's screen-x moves `≈ (dAz/dlst) / degPerPx` px per degree of local sidereal time; `dAz/dlst`
+stays ≲ 8 for any star inside the ±60° FOV, so bucketing `lst` at `degPerPx / 8` degrees guarantees no
+star moves as much as one game pixel between two frames in the same bucket. The bucket ref
+(`lastLstBucketRef`) is updated **only on an actual redraw**, so skipped sub-pixel motion can never
+accumulate into a multi-pixel jump — this is exactly §374's own stated goal ("each star advances at
+most one game pixel per frame"), just without redrawing frames where it advanced zero. Wrap-around and
+a debug time-seek both change the bucket → redraw. `illum` / `cloudCoverT` keep their existing epsilon
+gates (the alphas they drive are the other thing a frame's output depends on). At night this cuts the
+`<CelestialSky>` redraw rate from 60/s to roughly 5–15/s with no visible change; by day the star loop
+was already `alpha`-gated off, so F5 is night-dominant. **If star stepping is ever visible, halve the
+`dpp / 8` divisor** — this is a tunable, in the same iterative-tuning spirit as §374's own UAT rounds.
+
+**`<SkyGradientBackdrop>` — no change.** §381 already gave it an `ILLUM_EPSILON` / `CLOUD_EPSILON`
+gate, so on a stable-weather frame it costs nothing; it only repaints during a ~10 s weather
+transition, which is the intended design.
+
+**Invariants.** F4: `heroLightRef.current` is created once and lives at `baseLights[1]` /
+`ldtkLights[1]` by reference for the component's whole life; the camera `useFrameLoop` is its only
+writer. F5: `<CelestialSky>` may only skip a frame whose every drawn body is at the identical rounded
+screen position AND whose alphas are within epsilon — the bucket ref resets on any geometry/toggle
+change (bucket size depends on `Wpx`) and on mount.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`heroLightRef`; `baseLights` / `ldtkLights`
+deps + hero entry; camera-loop mutation), `src/components/character/CelestialSky.jsx`
+(`lastLstBucketRef`, the `lst`-bucket skip gate, reset-effect addition). Verified: `npm run test:run`
+(131 files / 1484 tests, 1 pre-existing skip), `npm run build`, `npm run lint` (0 errors). Visual UAT
+on real hardware still the gate (no GPU here, §319) — in particular that the night sky's star motion
+stays smooth.
+
+**Cross-references.** §384 (F1, the parent change); §374 (`<CelestialSky>`, whose "one game pixel per
+frame" goal F5 preserves); §376/§378 (the earlier "un-throttle the derivation" fixes F5 is careful not
+to regress — the sky still *advances* every frame, F5 just skips *drawing* the zero-motion ones);
+§381 (`<SkyGradientBackdrop>`, already handled); `IMPLEMENTATION_PLAN.md` (the F1–F6 diagnostic).

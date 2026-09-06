@@ -278,6 +278,9 @@ export default function CelestialSky({
     // ≥1px lumps and, at the old 10 fps, into the multi-pixel jumps Han flagged at UAT. `null` forces
     // the next tick to redraw (used on mount and whenever a layout/toggle prop changes).
     const lastCycleTRef = useRef(null);
+    // Perf (#1196, F5): the sky-rotation bucket (`lst` quantised to sub-pixel steps) of the last frame
+    // actually drawn — see the draw callback for the full rationale.
+    const lastLstBucketRef = useRef(null);
     const lastIllumRef = useRef(null);
     const lastCloudCoverRef = useRef(null);
     // Perf (#1192-jank, Han 2026-09-04): reused across frames (`.clear()`'d, never reallocated) — this
@@ -307,6 +310,7 @@ export default function CelestialSky({
     // Any change to geometry or to what is drawn invalidates the early-out.
     useEffect(() => {
         lastCycleTRef.current = null;
+        lastLstBucketRef.current = null;   // bucket size depends on Wpx (dpp/8) — stale int is meaningless
     }, [Wpx, Hpx, horizonY, zoom, debugMode, showConstellationLines, showConstellationNames]);
 
     // Wipe the label overlay the moment names are toggled off (or the canvas resizes) — otherwise the
@@ -333,20 +337,31 @@ export default function CelestialSky({
             const sunAlphaMul = 1 - cloudDarkT(cloudCoverT);        // sun
             const wet = cloudCollapseT(cloudCoverT);                // 0 = crisp .. 1 = fully watery
 
-            // Skip ONLY a byte-for-byte identical frame (frozen clock AND settled illumination). Any
-            // motion at all redraws — each star then advances at most one game pixel per frame, which
-            // at 60 fps is the smoothest a pixel-perfect sky can move. (Previously this gated on
-            // "moved < 1 whole pixel", which lumped motion together and, at 10 fps, produced the
-            // multi-pixel star jumps Han reported at UAT.)
+            // Perf (#1196, F5, Han 2026-09-06): the whole sky is a rigid rotation parametrised by `lst`
+            // (local sidereal degrees). The 611-star loop + `altAz` trig below is the dominant per-frame
+            // cost at night, and it ran EVERY frame (`cycleT` always advances). Skip a frame whose
+            // pixel-quantised output cannot have changed: the sky is projected LINEARLY in azimuth
+            // (§374 plate-carrée), so `dx/dlst ≈ (dAz/dlst) / dpp` px; `dAz/dlst` stays ≲ 8 for any star
+            // within the ±60° FOV, so bucketing `lst` at `dpp / 8` degrees guarantees no star moves as
+            // much as one game pixel between two frames that fall in the SAME bucket. The bucket ref is
+            // updated only on an actual redraw (below), so skipped motion can NEVER accumulate into a
+            // multi-pixel jump — this is exactly §374's stated goal ("each star advances at most one
+            // game pixel per frame"), just without redrawing the frames where it advanced zero. Wrap /
+            // debug-seek both change the bucket → redraw. If star stepping is ever visible, halve the
+            // divisor. `illum` / `cloudCoverT` keep their own epsilon gates (the alpha changes they
+            // drive are the other thing a frame's output depends on).
+            const lst = localSiderealDeg(cycleT, lunationPhase);
+            const lstBucket = Math.round(((lst % 360) + 360) % 360 / Math.max(1e-4, dpp / 8));
             if (
                 lastCycleTRef.current != null &&
-                cycleT === lastCycleTRef.current &&
+                lstBucket === lastLstBucketRef.current &&
                 Math.abs(illum - lastIllumRef.current) < ILLUM_EPSILON &&
                 Math.abs(cloudCoverT - lastCloudCoverRef.current) < CLOUD_EPSILON
             ) {
                 return;
             }
             lastCycleTRef.current = cycleT;
+            lastLstBucketRef.current = lstBucket;
             lastIllumRef.current = illum;
             lastCloudCoverRef.current = cloudCoverT;
 
@@ -366,7 +381,7 @@ export default function CelestialSky({
             }
 
             const geom = { Wpx, horizonY };
-            const lst = localSiderealDeg(cycleT, lunationPhase);
+            // `lst` already computed above for the redraw-skip bucket (F5).
             // §375: ONE extra factor hides the stars AND — because both constellation passes are
             // nested inside the `alpha >= STAR_ALPHA_FLOOR` guard and derive their own alpha from this
             // one — the lines and the names too, at OVERCAST and DARK_OVERCAST. A 10 s fade, not a pop.

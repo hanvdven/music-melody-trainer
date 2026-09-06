@@ -1631,6 +1631,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         () => (wispVariant ? isFlyingAnim(findIdleAnim(wispVariant), wispVariant) : false),
         [wispVariant],
     );
+    // Perf (#1196, F4, Han 2026-09-06): the hero's own point light is the ONLY light that moves every
+    // frame. Before F4 its position lived inside `baseLights`/`ldtkLights` via `playerX` STATE, so every
+    // ~16 Hz `playerX` throttle tick rebuilt the whole `ldtkLights` array → a fresh identity → busted
+    // `GroundPass`/`ShimmerPass`'s `React.memo` → `LdtkLitGround` + `ForegroundFoliageLayer` re-rendered
+    // ~16 Hz during movement. Now the hero light is a single ref-owned object: it sits in the memo arrays
+    // by REFERENCE (so array identity is stable during a pure walk), and the camera `useFrameLoop` below
+    // mutates its `worldX`/`worldHeight` in place every frame from `playerXRef.current`. Both WebGL
+    // layers already read the light array through their own `liveRef`/`lightsRef` inside their draw
+    // loops, so they pick up the mutated position at full 60 Hz — SMOOTHER than the old 16 Hz — with zero
+    // React re-renders. (§6 pattern: a ref mutation deliberately bypasses React.)
+    const heroLightRef = useRef({ worldX: 0, worldHeight: 0, color: HERO_LIGHT_COLOR01 });
     const campfireLight = useMemo(() => {
         // #1195: campfire tiles now live in `world.passes` (kind: 'campfire'), not a fixed back/front bucket.
         const tiles = world.passes.filter((p) => p.kind === 'campfire').flatMap((p) => p.tiles);
@@ -1647,19 +1658,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // floor (same unit as campfire's `LEVEL_PX_HEIGHT - cyFromTop`), so "sprite centre" = the sprite's
     // own bottom (stand line, + the float offset when the wisp idle anim is a flying one) + half its
     // crop height.
+    // Perf (#1196, F4): index 1 is the ref-owned hero light (see `heroLightRef` above) — kept at a FIXED
+    // position in this array so the camera loop can address it as `ldtkLights[1]`; `playerX` is no longer
+    // a dep (the ref mutation drives the hero-light position instead).
     const baseLights = useMemo(() => [
         {
             worldX: NPC_X - LEVEL_MIN_X,
             worldHeight: groundHeightAt(NPC_X - LEVEL_MIN_X) + (wispFlying ? TILE : 0) + (wispVariant?.crop?.h ?? 16) / 2,
             color: WISP_LIGHT_COLOR01,
         },
-        {
-            worldX: playerX - LEVEL_MIN_X,
-            worldHeight: groundHeightAt(playerX - LEVEL_MIN_X) + HERO_CROP.h / 2,
-            color: HERO_LIGHT_COLOR01,
-        },
+        heroLightRef.current,
         ...(campfireLight ? [campfireLight] : []),
-    ], [playerX, campfireLight, wispFlying, wispVariant]);
+    ], [campfireLight, wispFlying, wispVariant]);
     // #weather §364 (Han: "ik zie nooit de vuurvlieg! ... Ze zijn ook een lightsource, sample voor de
     // kleur eenmalig het limoengroen van de sprite"): each spawned Firefly critter contributes a MOVING
     // point light that follows its live wander position (`critterLightPosRef`, written by WorldWanderer),
@@ -1805,6 +1815,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 // per-screen-third rustle panning. That ref used to be refreshed by this component's own
                 // per-frame re-render; F1 removed that re-render, so feed it here directly.
                 if (envAudioRef.current) envAudioRef.current.cameraX = next;
+                // Perf (#1196, F4): the hero point light follows the hero at full frame rate via this
+                // ref-owned object (index 1 of `baseLights`/`ldtkLights` by reference). Mutated in place
+                // — both WebGL lighting layers read the array through their own `liveRef`/`lightsRef`
+                // every draw, so no React re-render is needed for the glow to track the hero smoothly.
+                {
+                    const lx = playerXRef.current - LEVEL_MIN_X;
+                    heroLightRef.current.worldX = lx;
+                    heroLightRef.current.worldHeight = groundHeightAt(lx) + HERO_CROP.h / 2;
+                }
                 // Perf (#1192-jank): hero/pet screen position, written imperatively every frame from the
                 // live physics refs — same rationale as the scroll-layer transforms just above, and SNAPPED
                 // to the same device-pixel grid `offsetPx` uses so the hero never sub-pixel-drifts relative
@@ -1929,12 +1948,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const flies = critterWanderers
             .map((w, i) => (w.isFirefly ? critterLightPosRef.current.get(`critter-${i}`) : null))
             .filter(Boolean)
-            .sort((a, b) => Math.abs(a.x - playerX) - Math.abs(b.x - playerX))
+            // Perf (#1196, F4): `playerXRef.current` (live) not `playerX` (throttled state) — so this memo
+            // no longer rebuilds on every ~16 Hz `playerX` tick; the "nearest 4 fireflies" set is
+            // re-picked on `petFrame` (~10 Hz), plenty for a drifting-glow ordering.
+            .sort((a, b) => Math.abs(a.x - playerXRef.current) - Math.abs(b.x - playerXRef.current))
             .slice(0, 4)
             .map((p) => ({ worldX: p.x - LEVEL_MIN_X, worldHeight: LEVEL_PX_HEIGHT - p.y + halfFireflyH, color: col }));
         return flies.length ? [...baseLights, ...flies] : baseLights;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [baseLights, critterWanderers, fireflyLightColor, foliageParams.globalIllumination, playerX, petFrame]);
+    }, [baseLights, critterWanderers, fireflyLightColor, foliageParams.globalIllumination, petFrame]);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
