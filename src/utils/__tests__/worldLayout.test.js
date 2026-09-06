@@ -87,8 +87,12 @@ describe('computeWorldLayout — scale selection', () => {
         expect(L.world.screenH).toBeGreaterThan(272 + 2 * NAV_GPX);
     });
 
-    it('1366x768 → world reaches full 272 gpx (ladder phase 2)', () => {
-        expect(computeWorldLayout(1366, 768).world.gpxH).toBe(WORLD_ART_GPX_H);
+    it('1366x768 → world reaches the ladder\'s 272-gpx phase-2 plateau', () => {
+        // #348/#379 bugfix (2026-09-05): this plateau (272, `distributeHeight`'s own P1/P2) is a
+        // SEPARATE design value from `WORLD_ART_GPX_H` (now 320, bumped to match the LDtk levels'
+        // real height) — the two used to coincide at 272, which is why this test used to assert
+        // against `WORLD_ART_GPX_H` directly. They no longer do, so assert the ladder's own number.
+        expect(computeWorldLayout(1366, 768).world.gpxH).toBe(272);
     });
 
     it('very short 1280x256 → world squeezed to the 192-gpx floor ⇒ full 16-gpx bottom crop', () => {
@@ -105,11 +109,13 @@ describe('computeWorldLayout — scale selection', () => {
 });
 
 describe('computeWorldLayout — the world/content ladder (#348, Han 2026-08-29)', () => {
-    it('a very tall viewport pushes the world to its 320-gpx max, with a sky pad above the 272-gpx art', () => {
+    it('a very tall viewport pushes the world to its 320-gpx max, fully uncropped, no sky pad', () => {
         const L = computeWorldLayout(560, 1400);      // narrow + very tall → N=1, deep into the ladder
         expect(L.scale).toBe(1);
         expect(L.world.gpxH).toBe(WORLD_GPX_H_MAX);
-        expect(L.world.skyPadGpx).toBe(WORLD_GPX_H_MAX - WORLD_ART_GPX_H);   // 48
+        // #348/#379 bugfix (2026-09-05): `WORLD_ART_GPX_H` now equals `WORLD_GPX_H_MAX` (both 320), so
+        // this is always 0 — there's no ladder height the art can't natively reach anymore.
+        expect(L.world.skyPadGpx).toBe(WORLD_GPX_H_MAX - WORLD_ART_GPX_H);   // 0
         expect(L.world.topCropGpx).toBe(0);
         expect(L.world.bottomCropGpx).toBe(0);
     });

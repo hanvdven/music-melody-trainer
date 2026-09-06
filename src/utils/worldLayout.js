@@ -13,11 +13,15 @@
 // The split ALWAYS fills the viewport exactly (`world + navOverhead + k·content === viewport`).
 //
 // Constraints (Han's numbers):
-//  - World art is 272 game px tall. Rendered ≤ 272 it crops. Han 2026-09-01: as the world block grows
-//    UP from the 192-gpx floor, the FIRST 16 gpx (192→208) un-crop the BOTTOM (bottomCrop 16→0, one
-//    row per gpx), and only AFTER that (208→272) does further height un-crop the TOP sky (topCrop
-//    64→0). Rendered 272→320 (ladder phase 3) the extra top strip is sky-coloured padding
-//    (`skyPadGpx`, painted by App.jsx) — the art stays 272.
+//  - World art is 320 game px tall (bumped from 272 on 2026-09-05 when Han grew the LDtk levels'
+//    `pxHei` to 320 — `WORLD_ART_GPX_H` MUST track the level's own native height, see ldtkWorld.js's
+//    `LEVEL_PX_HEIGHT`, or the top of the level silently clips behind a flat sky-coloured pad; this bit
+//    the app once already, see the §348/§379 bug-log entries). Rendered ≤ 320 it crops. Han 2026-09-01:
+//    as the world block grows UP from the 192-gpx floor, the FIRST 16 gpx (192→208) un-crop the BOTTOM
+//    (bottomCrop 16→0, one row per gpx), and only AFTER that (208→320) does further height un-crop the
+//    TOP sky (topCrop 112→0). Since `WORLD_ART_GPX_H` now equals `WORLD_GPX_H_MAX`, `skyPadGpx` (the
+//    ladder-phase-3 flat-colour pad above the art) is always 0 — the art now fills the world block
+//    exactly at every ladder height, real content only, never a flat-colour stand-in.
 //  - Minimum visible world width 304 game px (rule 4A).
 //  - Content blocks: block 1 ≥ 256×64, block 2 ≥ 192×64 game px (W×H); their height follows the
 //    ladder above (per block — h-col/split stack two of them).
@@ -28,7 +32,7 @@
 //
 // Pure function, no React — unit-tested in __tests__/worldLayout.test.js.
 
-export const WORLD_ART_GPX_H = 272;
+export const WORLD_ART_GPX_H = 320;
 export const WORLD_GPX_H_MIN = 192;
 export const WORLD_GPX_H_MAX = 320;
 export const WORLD_SQUEEZE_BOTTOM_BELOW = 240;
@@ -71,19 +75,26 @@ const ARRANGEMENTS = [
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// The 272-px level art fills at most the bottom 272 gpx of the world block. `topCropGpx` /
-// `bottomCropGpx` describe how it is cropped when the block is SHORTER than 272; `skyPadGpx` is the
-// sky-coloured strip ABOVE the art when the block is TALLER than 272 (ladder phase 3+ — App.jsx
-// paints it). Always: `topCropGpx + (worldGpxH − skyPadGpx) + bottomCropGpx === WORLD_ART_GPX_H`.
+// The `WORLD_ART_GPX_H`-px level art fills at most the bottom `WORLD_ART_GPX_H` gpx of the world
+// block. `topCropGpx`/`bottomCropGpx` describe how it is cropped when the block is SHORTER than that;
+// `skyPadGpx` is the sky-coloured strip ABOVE the art when the block is TALLER than that. Always:
+// `topCropGpx + (worldGpxH − skyPadGpx) + bottomCropGpx === WORLD_ART_GPX_H`.
+//
+// #348/#379 bugfix (Han 2026-09-05, "je rendert maar tot 288 gpx, nieuwe hoogte is 320"): with
+// `WORLD_ART_GPX_H` now equal to `WORLD_GPX_H_MAX` (both 320), `skyPadGpx` is ALWAYS 0 — there is no
+// longer a "ladder phase 3" where the block outgrows the art and needs a flat-colour pad, since the
+// art itself now natively reaches the same max height the ladder ever hands the world block. Kept as
+// a live formula (not hardcoded to 0) rather than deleted, so a future `WORLD_GPX_H_MAX` bump above
+// `WORLD_ART_GPX_H` (or vice versa) degrades gracefully instead of silently clipping again.
 //
 // Han 2026-09-01: the bottom crop RAMPS 16→0 linearly over the first 16 gpx above the floor
 // (`artGpxH` 192→208) — every extra gpx there reveals one more row at the BOTTOM of the art — rather
 // than the old hard 16-or-0 switch at 240. Past `artGpxH` 208 the bottom is fully uncropped and all
-// further height goes to the TOP (`top` below shrinks to 0 at 272). `WORLD_SQUEEZE_BOTTOM_BELOW` is
-// no longer consulted here (it still bounds the world-squeeze clamp in `distributeHeight`).
+// further height goes to the TOP (`top` below shrinks to 0 at `WORLD_ART_GPX_H`). `WORLD_SQUEEZE_BOTTOM_BELOW`
+// is no longer consulted here (it still bounds the world-squeeze clamp in `distributeHeight`).
 function cropFor(worldGpxH) {
     const skyPadGpx = Math.max(0, worldGpxH - WORLD_ART_GPX_H);
-    const artGpxH = worldGpxH - skyPadGpx;                       // = min(worldGpxH, 272)
+    const artGpxH = worldGpxH - skyPadGpx;                       // = min(worldGpxH, WORLD_ART_GPX_H)
     // 16 at artGpxH ≤ 192, 0 at artGpxH ≥ 208, one row per gpx in between.
     const bottom = clamp((WORLD_GPX_H_MIN + WORLD_BOTTOM_CROP_GPX) - artGpxH, 0, WORLD_BOTTOM_CROP_GPX);
     const top = WORLD_ART_GPX_H - artGpxH - bottom;

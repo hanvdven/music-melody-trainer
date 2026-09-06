@@ -16,13 +16,14 @@ const LAYER_DEFS_BY_IDENTIFIER = Object.fromEntries(ldtk.defs.layers.map((l) => 
 // spawn altijd waar de hero entity staat; levels op andere hoogte zijn niet bereikbaar"): Han split
 // the single-level `.ldtk` file into several `Level_N` entries laid out in LDtk's "Free" world mode.
 // Levels sharing the SAME `worldY` sit side-by-side (walkable, contiguous on X); levels at a
-// DIFFERENT `worldY` are interiors/alt-biomes (currently Level_2, Level_5) with no door/stairs
-// mechanism yet to reach them, so they must stay out of this walkable world entirely.
+// DIFFERENT `worldY` are interiors/alt-biomes with no door/stairs mechanism yet to reach them, so they
+// must stay out of this walkable world entirely (#1195, Han 2026-09-05: "je mag de niet-bereikbare
+// levels negeren" — confirmed still correct as-is, no change here).
 //
 // Which `worldY` counts as "the walkable one" is derived from wherever the Hero entity marker
-// actually is (currently Level_1) rather than hardcoded to a level identifier or worldY=0 — per
-// Han's own answer in the interview ("er komt nog meer" levels later), this must keep working
-// unchanged if levels are added/removed/reordered in the LDtk editor at that same height.
+// actually is rather than hardcoded to a level identifier or worldY=0 — per Han's own answer in the
+// interview ("er komt nog meer" levels later), this must keep working unchanged if levels are
+// added/removed/reordered in the LDtk editor at that same height.
 function findHeroLevel() {
     for (const lvl of ldtk.levels) {
         const entities = lvl.layerInstances.find((li) => li.__identifier === 'Entities');
@@ -66,10 +67,11 @@ function findHorizontalNeighbor(lvl, direction) {
 export const LEVEL_MIN_X = Math.min(...REACHABLE_LEVELS.map((l) => l.worldX));
 export const LEVEL_MAX_X = Math.max(...REACHABLE_LEVELS.map((l) => l.worldX + l.pxWid));
 export const LEVEL_PX_WIDTH = LEVEL_MAX_X - LEVEL_MIN_X;
-// Reachable levels currently all share the same native height (272px); `Math.max` (not just the first
-// level's height) so a future level of a different height still produces a tall-enough composited
-// canvas instead of clipping — `tileFromLdtkEntry` below bottom-aligns each level's own tiles inside
-// that shared canvas height so the ground line still lines up regardless.
+// #348/#379 bugfix (2026-09-05): reachable levels are all 320px tall as of Han's LDtk resize; `Math.max`
+// (not just the first level's height) so a future level of a different height still produces a
+// tall-enough composited canvas instead of clipping — `tileFromLdtkEntry` below bottom-aligns each
+// level's own tiles inside that shared canvas height so the ground line still lines up regardless.
+// `worldLayout.js`'s `WORLD_ART_GPX_H` MUST track this value — see that file's own comment.
 export const LEVEL_PX_HEIGHT = Math.max(...REACHABLE_LEVELS.map((l) => l.pxHei));
 
 // #RAM-level (Han 2026-08-11, "ik zie dat alle 'lagen' áchter de entiteiten staan; houd goed de
@@ -77,12 +79,9 @@ export const LEVEL_PX_HEIGHT = Math.max(...REACHABLE_LEVELS.map((l) => l.pxHei))
 // FRONTMOST layer (rendered last/on top), the last index is the FARTHEST BACK. Every level in one
 // `.ldtk` file shares the SAME layer definitions in the SAME order (verified: every `Level_N` lists
 // its `layerInstances` identifiers in an identical sequence), so this only needs computing once from
-// any one reachable level rather than per-level.
+// any one reachable level rather than per-level. #1195 (Han 2026-09-05): this is now the SOLE source
+// of paint order for the whole pipeline — see `PAINT_ORDER_IDENTIFIERS` below.
 const LAYER_INDEX = Object.fromEntries(REACHABLE_LEVELS[0].layerInstances.map((l, i) => [l.__identifier, i]));
-const ENTITIES_INDEX = LAYER_INDEX.Entities;
-// A lower array index = more toward the FRONT; undefined (identifier not found) defaults to "behind" —
-// the safe fallback if a referenced layer is ever removed from the file.
-const isInFrontOfEntities = (identifier) => (LAYER_INDEX[identifier] ?? Infinity) < ENTITIES_INDEX;
 
 // #925 (Han 2026-08-14): spawn/entity markers now come from ALL reachable levels' `Entities` layers
 // merged together — Level_0 only has a couple of flying critters, the populated cast (Hero, Wisp, Pet,
@@ -141,14 +140,13 @@ function tilesetForLayerInstance(li) {
 // `LEVEL_MIN_X` being the one offset `RpgLevelPanel.jsx` applies when placing the whole canvas in the
 // scene); `offsetY` bottom-aligns a level against the shared canvas height (`LEVEL_PX_HEIGHT`) so the
 // ground line still lines up even if a future reachable level has a different native height.
-function tileFromLdtkEntry(entry, tileset, identifier, lvl) {
+function tileFromLdtkEntry(entry, tileset, lvl) {
     const offsetX = lvl.worldX - LEVEL_MIN_X;
     const offsetY = LEVEL_PX_HEIGHT - lvl.pxHei;
     return {
         worldX: entry.px[0] + offsetX, worldY: entry.px[1] + offsetY, src: entry.src, tilesetUrl: tilesetUrlFor(tileset),
         sheetW: tileset.pxWid, sheetH: tileset.pxHei,
         flipX: !!(entry.f & 1), flipY: !!(entry.f & 2),
-        inFront: isInFrontOfEntities(identifier),
     };
 }
 
@@ -164,7 +162,7 @@ function staticLayerTiles(identifier) {
         if (!tileset) continue;
         const entries = li.__type === 'Tiles' ? li.gridTiles : li.autoLayerTiles;
         for (const e of entries) {
-            const t = tileFromLdtkEntry(e, tileset, identifier, lvl);
+            const t = tileFromLdtkEntry(e, tileset, lvl);
             if (t.tilesetUrl) out.push(t);
         }
     }
@@ -190,7 +188,7 @@ function preBakedTilesForLevel(lvl, li, identifier, groupNames) {
         }
     }
     const entries = li.__type === 'Tiles' ? li.gridTiles : li.autoLayerTiles;
-    return entries.filter((e) => allowedIds.has(e.t)).map((e) => tileFromLdtkEntry(e, tileset, identifier, lvl)).filter((t) => t.tilesetUrl);
+    return entries.filter((e) => allowedIds.has(e.t)).map((e) => tileFromLdtkEntry(e, tileset, lvl)).filter((t) => t.tilesetUrl);
 }
 
 // Re-evaluates ONE level's AutoLayer rule GROUPS live against that level's OWN Terrain IntGrid (rather
@@ -225,7 +223,7 @@ function autoLayerTilesForLevel(lvl, layers, identifier, ruleGroupNames) {
                 gridSize: terrain.__gridSize, tileset: engineTileset, left, right,
             });
             for (const t of tiles) {
-                const converted = tileFromLdtkEntry(t, tileset, identifier, lvl);
+                const converted = tileFromLdtkEntry(t, tileset, lvl);
                 if (converted.tilesetUrl) out.push(converted);
             }
         }
@@ -241,8 +239,25 @@ function autoLayerTilesFor(identifier, ruleGroupNames) {
     return out;
 }
 
+// Prefers each level's own pre-baked, group-filtered tiles (exact fidelity — real chance/RNG outcome,
+// real pivot-adjusted `px`, no re-derivation risk); falls back to the live rule engine PER LEVEL only
+// for a level whose bake didn't include the requested groups at all (e.g. a season that level wasn't
+// saved showing) — done per-level (not once for the whole merged result) so one un-baked level doesn't
+// blank out the others' correctly-baked tiles.
+function grassTilesFor(identifier, groupNames) {
+    const out = [];
+    for (const { lvl, layers } of LEVEL_LAYERS) {
+        const preBaked = preBakedTilesForLevel(lvl, layers[identifier], identifier, groupNames);
+        out.push(...(preBaked.length > 0 ? preBaked : autoLayerTilesForLevel(lvl, layers, identifier, groupNames)));
+    }
+    return out;
+}
+
 // Building-tier layers are literal pre-authored LDtk `Tiles` layers, one per tier — no rule engine
-// involved, just "which whole layer is visible" (Han's own framing during the interview).
+// involved, just "which whole layer is visible" (Han's own framing during the interview). #1195 (Han
+// 2026-09-05, "apart, ik ga de tiering herbouwen"): this stays a hand-wired map on purpose — the tier
+// system itself is being reworked separately, so a new tier layer needs an entry here before it renders,
+// same as today; `classifyLayer` below only asks "is this THIS call's active tier."
 const TAVERN_TIER_LAYERS = { Tent: 'Tavern_level_1_tent', Small: 'Tavern_level_2_small', Full: 'Tavern_level_3_full' };
 const BRIDGE_TIER_LAYERS = { Log: 'Bridge_level_1_log', Wood: 'Bridge_level_2_wood' };
 export const TAVERN_TIERS = Object.keys(TAVERN_TIER_LAYERS);
@@ -256,11 +271,12 @@ export const BRIDGE_TIERS = Object.keys(BRIDGE_TIER_LAYERS);
 // this list on purpose, matching the pre-existing rigid-wood-vs-shimmering-foliage distinction (§141).
 const FOLIAGE_LAYERS = ['Pine_forest_foliage2', 'Weeping_Willow', 'Main_tree_foliage'];
 
-// #RAM-level (Han 2026-08-11, "de animated lagen moeten geanimeerd worden"): tiles sourced from these two
-// tilesets are pulled OUT of the static ground canvas entirely and instead driven by
-// `LdtkAnimatedTiles.jsx`'s frame-cycling overlay — see that file for the exact per-tileset animation
-// rule (Han's own spec: campfire cycles all "on" rows from a random start frame, or shows the single
-// "off" cell statically; water always cycles its own row).
+// #RAM-level (Han 2026-08-11, "de animated lagen moeten geanimeerd worden"): Campfire is pulled OUT of
+// the static ground canvas entirely and instead driven by `LdtkAnimatedTiles.jsx`'s frame-cycling DOM
+// overlay (Han's own spec: campfire cycles all "on" rows from a random start frame, or shows the single
+// "off" cell statically). Water instead renders through the SAME WebGL shimmer pipeline as foliage
+// (`useLdtkWaterInstances.js`) — for pass-classification purposes (`classifyLayer` below) water is a
+// `'shimmer'`-kind layer, not `'campfire'`-kind, even though both live in this lookup table.
 //
 // Water reads each level's own PRE-BAKED `autoLayerTiles` (`staticLayerTiles`, not the live rule
 // engine): its one rule group isn't season/city-gated at all, so there's nothing to re-evaluate live,
@@ -268,16 +284,6 @@ const FOLIAGE_LAYERS = ['Pine_forest_foliage2', 'Weeping_Willow', 'Main_tree_fol
 // entirely for a case that turned out to need it least (LDtk's editor already solved it once, use that
 // answer directly).
 const ANIMATED_LAYERS = { water: 'Water_tile', campfire: 'Campfire' };
-
-// Everything else with authored art: one tier, always shown, never toggled. Includes whatever plain decor
-// layers exist in the file beyond the ones with dedicated handling above/below — kept as an explicit list
-// (not a blanket "everything else" scan) so a newly-added LAYER TYPE (e.g. a future tiered/gated one)
-// doesn't silently fall through here without a deliberate decision; `staticLayerTiles` itself already
-// no-ops gracefully if an identifier is ever removed from the file.
-const STATIC_TILE_LAYERS = [
-    'Blacksmith_level_3_full', 'Alchemist_level_3_full', 'Decor', 'Pine_forest_trunks', 'Main_tree_trunk',
-    'Interior_Back_Walls', 'Alchemist_decor',
-];
 
 // Background/scenery layers, farthest -> nearest by LDtk layer order (bottom of `layerInstances` =
 // farthest back); parallax factor assigned by depth, generalizing RpgLevelPanel's existing 0.2-0.8
@@ -312,93 +318,173 @@ function withAnimMeta(tile) {
     };
 }
 
-// Prefers each level's own pre-baked, group-filtered tiles (exact fidelity — real chance/RNG outcome,
-// real pivot-adjusted `px`, no re-derivation risk); falls back to the live rule engine PER LEVEL only
-// for a level whose bake didn't include the requested groups at all (e.g. a season that level wasn't
-// saved showing) — done per-level (not once for the whole merged result) so one un-baked level doesn't
-// blank out the others' correctly-baked tiles.
-function grassTilesFor(identifier, groupNames) {
-    const out = [];
-    for (const { lvl, layers } of LEVEL_LAYERS) {
-        const preBaked = preBakedTilesForLevel(lvl, layers[identifier], identifier, groupNames);
-        out.push(...(preBaked.length > 0 ? preBaked : autoLayerTilesForLevel(lvl, layers, identifier, groupNames)));
+// #1195 (Han 2026-09-05, "het is heel simpel: houd gewoon áltijd de volgorde van LDTK aan... er is een
+// foliage Fg groep en een foliage Bg groep, die kun je 'flattenen' en dan de shimmer/pixel swap
+// toepassen"): every layer identifier the file defines, ordered BACK-TO-FRONT — highest `LAYER_INDEX`
+// (farthest back) first, lowest (frontmost) last — which is the file's own real paint order (§925's own
+// header comment: index 0 = frontmost). This replaces the old STATIC_TILE_LAYERS/GENERIC_LAYERS
+// whitelists AND the old single "everything ground, then everything foliage on top" split entirely: a
+// brand-new plain decor layer now needs ZERO code changes (falls through `classifyLayer`'s default), and
+// — the bug this was built to fix — its stacking position relative to foliage/water/background/tiers
+// follows the file's own order instead of an app-invented "ground bucket vs foliage bucket" rule
+// (architecture.md §382/#1195: City_Walls's stone bridge rendering BEHIND Weeping_Willow instead of in
+// front of it, exactly as LDtk's own layer order says).
+const PAINT_ORDER_IDENTIFIERS = Object.keys(LAYER_INDEX).sort((a, b) => LAYER_INDEX[b] - LAYER_INDEX[a]);
+
+// #1195 follow-up (Han 2026-09-05, "er zijn nog water tiles, die moeten dezelfde shimmer als het andere
+// water krijgen"): Han added a SECOND water layer, `Water_FG` ("extra tegels voor het water") — a
+// different identifier from `ANIMATED_LAYERS.water` ('Water_tile'), so the exact-identifier check below
+// missed it entirely and it fell through to the plain `'ground'` default (flat, no shimmer). Rather than
+// hand-typing `Water_FG` alongside `Water_tile` (CLAUDE.md §6c — the exact whitelist mistake #1195 itself
+// was built to stop making), this derives "is this a water layer" from what actually makes a layer
+// water: which TILESET it draws from. Every instance of `Water_FG`, in every level, resolves to the SAME
+// `Animated_Water_Tiles` tileset `Water_tile` uses (verified against the raw file) — checking the first
+// reachable level that has an instance of this identifier is enough, since a layer's tileset doesn't vary
+// per level. Generalizes automatically to any FUTURE water-named layer painted from the same tileset, no
+// code change needed.
+function usesTileset(identifier, tilesetIdentifier) {
+    for (const { layers } of LEVEL_LAYERS) {
+        const li = layers[identifier];
+        const tileset = li && tilesetForLayerInstance(li);
+        if (tileset) return tileset.identifier === tilesetIdentifier;
     }
-    return out;
+    return false;
+}
+// `Water_tile`'s OWN resolved tileset identifier, computed once — reused below to recognize any OTHER
+// layer painted from the same tileset as "water-like" too.
+const WATER_TILESET_IDENTIFIER = (() => {
+    for (const { layers } of LEVEL_LAYERS) {
+        const li = layers[ANIMATED_LAYERS.water];
+        const tileset = li && tilesetForLayerInstance(li);
+        if (tileset) return tileset.identifier;
+    }
+    return null;
+})();
+const isWaterLikeLayer = (identifier) => identifier === ANIMATED_LAYERS.water
+    || (WATER_TILESET_IDENTIFIER != null && usesTileset(identifier, WATER_TILESET_IDENTIFIER));
+
+// Classifies ONE layer identifier into a rendering "kind" `buildPasses` groups contiguous runs of.
+// `null` = excluded from rendering entirely: `Terrain` (the IntGrid rule-engine SOURCE the Terrain_Tiles/
+// Pavement/grass rule groups read — it has no tiles of its own to draw), `Collision_mask` (height data
+// only — CLAUDE.md's "masking gets special treatment", per Han), and an INACTIVE tavern/bridge tier (the
+// tiers this call's `tavernTier`/`bridgeTier` did NOT select).
+function classifyLayer(identifier, { tavernTier, bridgeTier }) {
+    if (identifier === 'Entities') return 'entities';
+    if (identifier === 'Collision_mask' || identifier === 'Terrain') return null;
+    if (BACKGROUND_LAYERS.some((b) => b.identifier === identifier)) return 'background';
+    if (identifier === ANIMATED_LAYERS.campfire) return 'campfire';
+    if (isWaterLikeLayer(identifier)) return 'shimmer';
+    if (FOLIAGE_LAYERS.includes(identifier) || identifier === 'Grass_decoration_bg' || identifier === 'Grass_decoration_fg') return 'shimmer';
+    // #1195 (Han: "apart, ik ga de tiering herbouwen" — tiering itself is a separate, later effort): a
+    // `_level_`-named layer that ISN'T one of these two hand-wired maps' values (e.g. a future tier Han
+    // adds before wiring it in here) simply doesn't render yet, same as today — never guessed at from
+    // the name string.
+    if (Object.values(TAVERN_TIER_LAYERS).includes(identifier)) return identifier === TAVERN_TIER_LAYERS[tavernTier] ? 'ground' : null;
+    if (Object.values(BRIDGE_TIER_LAYERS).includes(identifier)) return identifier === BRIDGE_TIER_LAYERS[bridgeTier] ? 'ground' : null;
+    return 'ground';
 }
 
-const splitByFront = (tiles) => ({ back: tiles.filter((t) => !t.inFront), front: tiles.filter((t) => t.inFront) });
-
-// `{ season: 'Summer'|'Fall', city: 'No_City'|'City', tavernTier, bridgeTier }` -> renderable world.
-// Every tile bucket is split into `back`/`front` (relative to the `Entities` layer's own position in
-// LDtk's paint order — see `isInFrontOfEntities`) so `RpgLevelPanel.jsx` can render behind-entities
-// scenery, THEN the hero/pet/Wisp/Slime, THEN in-front-of-entities scenery (Grass_decoration_fg's edge
-// decoration, Blacksmith/Alchemist buildings, interior walls — all genuinely in front of the Entities
-// layer in the source file). Tiles are drawn from EVERY reachable level (`REACHABLE_LEVELS`), stitched
-// into one continuous strip — see the `#925` comments above for how levels are chosen and offset.
-export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = 'Tent', bridgeTier = 'Log' } = {}) {
+// Fetches ONE identifier's tiles the correct way for its content: the season/city-gated rule-engine
+// layers and the two grass-decoration rule-groups each need their own existing helper; water/campfire
+// need `withAnimMeta`'s per-tile animation metadata + a `kind` tag; everything else (tiers, plain decor,
+// any newly-added layer) is a plain authored `Tiles`/`AutoLayer`, read via `staticLayerTiles`.
+function tilesForIdentifier(identifier, { season, city }) {
     const seasonGroup = season === 'Fall' ? 'Grass_Fall' : 'Grass_Summer';
     const terrainGroup = season === 'Fall' ? 'Terrain_Fall' : 'Terrain_Summer';
     // City gates the Pavement rule group specifically (Han: "de pavement tiles hangen af van de city
     // biome") — Grass_decoration_fg also carries a Pavement-edge rule group alongside its season group,
     // so both are included together only when City is on.
     const grassFgGroups = city === 'City' ? [seasonGroup, 'Pavement'] : [seasonGroup];
+    if (identifier === 'Terrain_Tiles') return autoLayerTilesFor('Terrain_Tiles', [terrainGroup]);
+    if (identifier === 'Pavement') return city === 'City' ? autoLayerTilesFor('Pavement', ['Pavement']) : [];
+    if (identifier === 'Grass_decoration_bg') return grassTilesFor('Grass_decoration_bg', [seasonGroup]);
+    if (identifier === 'Grass_decoration_fg') return grassTilesFor('Grass_decoration_fg', grassFgGroups);
+    if (isWaterLikeLayer(identifier)) return staticLayerTiles(identifier).map((t) => ({ ...withAnimMeta(t), kind: 'water' }));
+    if (identifier === ANIMATED_LAYERS.campfire) return staticLayerTiles(identifier).map((t) => ({ ...withAnimMeta(t), kind: 'campfire' }));
+    return staticLayerTiles(identifier);
+}
 
-    const groundTiles = [
-        ...autoLayerTilesFor('Terrain_Tiles', [terrainGroup]),
-        ...(city === 'City' ? autoLayerTilesFor('Pavement', ['Pavement']) : []),
-        ...staticLayerTiles(TAVERN_TIER_LAYERS[tavernTier]),
-        ...staticLayerTiles(BRIDGE_TIER_LAYERS[bridgeTier]),
-        ...STATIC_TILE_LAYERS.flatMap(staticLayerTiles),
-    ];
+// Walks `PAINT_ORDER_IDENTIFIERS` back-to-front, classifies each, and merges contiguous same-kind
+// identifiers into ONE pass — `RpgLevelPanel.jsx` renders `world.passes` in array order (back to front)
+// via a `.map()`, mounting the ONE renderer each kind already uses (`LdtkScenery` for `'ground'`/
+// `'background'`, `ForegroundFoliageLayer` for `'shimmer'`, `LdtkAnimatedTiles` for `'campfire'`, the
+// hero/pet/Wisp/Slime block for `'entities'`), so a kind change in the file's own order (ground -> shimmer
+// -> ground, exactly City_Walls sitting between Grass_decoration_fg and Grass_decoration_bg) becomes a
+// new pass boundary instead of being silently absorbed into one bucket. An identifier contributing zero
+// tiles this call (an inactive tier already excluded by `classifyLayer`, or a layer simply empty in every
+// reachable level) is skipped WITHOUT flushing — it doesn't break up a run of its neighbours.
+//
+// `'background'` passes keep each source layer's own `{identifier, factor, tiles}` rather than flattening
+// them together — `LdtkScenery`'s `backgroundLayers` prop already renders a LIST of independently
+// parallaxing canvases (CLAUDE.md §6d: reuse, don't reimplement), so a pass here is just "however many
+// background layers happen to be paint-order-contiguous this walk" (currently all 5, since none of them
+// are interleaved with anything else in the file).
+function buildPasses(params) {
+    const passes = [];
+    let current = null;
+    const flush = () => { if (current) { passes.push(current); current = null; } };
+    for (const identifier of PAINT_ORDER_IDENTIFIERS) {
+        const kind = classifyLayer(identifier, params);
+        if (!kind) continue;
+        if (kind === 'entities') { flush(); passes.push({ kind: 'entities' }); continue; }
+        if (kind === 'background') {
+            const tiles = staticLayerTiles(identifier);
+            if (tiles.length === 0) continue;
+            const factor = BACKGROUND_LAYERS.find((b) => b.identifier === identifier).factor;
+            if (current?.kind !== 'background') { flush(); current = { kind: 'background', layers: [] }; }
+            current.layers.push({ identifier, factor, tiles });
+            continue;
+        }
+        const tiles = tilesForIdentifier(identifier, params);
+        if (tiles.length === 0) continue;
+        if (current?.kind !== kind) { flush(); current = { kind, tiles: [] }; }
+        current.tiles.push(...tiles);
+    }
+    flush();
+    return passes;
+}
+
+// `{ season: 'Summer'|'Fall', city: 'No_City'|'City', tavernTier, bridgeTier }` -> renderable world.
+// `passes` (see `buildPasses` above) IS the paint order — `RpgLevelPanel.jsx` renders it directly, no
+// further back/front splitting. Tiles are drawn from EVERY reachable level (`REACHABLE_LEVELS`), stitched
+// into one continuous strip — see the `#925` comments above for how levels are chosen and offset.
+export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = 'Tent', bridgeTier = 'Log' } = {}) {
+    const passes = buildPasses({ season, city, tavernTier, bridgeTier });
     // #wind §363 (Han 2026-09-01, "windgeluid uit de foliage, geen gras"): TREE foliage only —
-    // FOLIAGE_LAYERS (Pine/Willow/Main_tree), NOT the Grass_decoration_* layers. Reused below both for
-    // the rendered `foliageTiles` and for `foliageChunkSet` (which world-chunks rustle).
+    // FOLIAGE_LAYERS (Pine/Willow/Main_tree), NOT the Grass_decoration_* layers. A small, standalone
+    // geometry query — independent of `passes`' render-order grouping above, so computed separately.
     const treeFoliageTiles = FOLIAGE_LAYERS.flatMap(staticLayerTiles);
-    const foliageTiles = [
-        ...grassTilesFor('Grass_decoration_bg', [seasonGroup]),
-        ...grassTilesFor('Grass_decoration_fg', grassFgGroups),
-        ...treeFoliageTiles,
-    ];
     // The set of CHUNK_PX world-chunks (ABSOLUTE X — `staticLayerTiles` worldX is canvas-local, 0-based
-    // from LEVEL_MIN_X, same convention as the water tiles) that hold at least one tree-foliage tile.
+    // from LEVEL_MIN_X, same convention as every other tile) that hold at least one tree-foliage tile.
     // Precomputed once per world so the ambient wind audio can cheaply ask, per screen-third, "is there
     // rustling foliage here?".
     const foliageChunkSet = new Set(
         treeFoliageTiles.map((t) => Math.floor((t.worldX + LEVEL_MIN_X) / CHUNK_PX)),
     );
-    const animatedTiles = [
-        ...staticLayerTiles(ANIMATED_LAYERS.water).map((t) => ({ ...withAnimMeta(t), kind: 'water' })),
-        ...staticLayerTiles(ANIMATED_LAYERS.campfire).map((t) => ({ ...withAnimMeta(t), kind: 'campfire' })),
-    ];
-    const backgroundLayers = BACKGROUND_LAYERS.map(({ identifier, factor }) => ({ factor, tiles: staticLayerTiles(identifier) }));
-
-    const ground = splitByFront(groundTiles);
-    const foliage = splitByFront(foliageTiles);
-    const animated = splitByFront(animatedTiles);
-
-    return {
-        groundTilesBack: ground.back, groundTilesFront: ground.front,
-        foliageTilesBack: foliage.back, foliageTilesFront: foliage.front,
-        foliageChunkSet,
-        animatedTilesBack: animated.back, animatedTilesFront: animated.front,
-        backgroundLayers, gridSize: LEVEL_LAYERS[0].layers.Terrain.__gridSize,
-    };
+    return { passes, foliageChunkSet, gridSize: LEVEL_LAYERS[0].layers.Terrain.__gridSize };
 }
 
 // #1032 (Han 2026-08-17, water reflection interview: "tree, decor, entities... allemaal wel... voor bomen
 // mag je de ruwe laag pakken, dus shimmer negeren. parallax hoeft niet, en terrain ook niet (want water is
-// nooit ónder terrain)"): trees/decor/structures — deliberately excludes Terrain_Tiles/Pavement (real
-// terrain, never visible under water) and BACKGROUND_LAYERS (parallax, explicitly excluded).
-// #1032 round 8 bugfix (Han: "ik kan de brug niet zien op het water"): the ORIGINAL version only included
-// STATIC_TILE_LAYERS/FOLIAGE_LAYERS (a fixed list, computed once) — bridge/tavern tiers are NOT fixed
-// layers, they're chosen dynamically per `buildWorld({tavernTier, bridgeTier})` call
-// (`TAVERN_TIER_LAYERS[tavernTier]`/`BRIDGE_TIER_LAYERS[bridgeTier]`), so a hardcoded once-computed list
-// could never have included whichever one is actually active. Now a function taking the SAME
-// `{tavernTier, bridgeTier}` buildWorld() itself takes, reusing its own tier-lookup tables (§6c) —
-// callers re-derive it whenever those tiers change, same as buildWorld() itself.
+// nooit ónder terrain)"): every `'ground'` identifier except the real terrain (Terrain_Tiles/Pavement,
+// never visible UNDER water) plus every `'shimmer'` identifier except water reflecting itself.
+// #1195 generalization (Han 2026-09-05): this used to be a fixed STATIC_TILE_LAYERS/FOLIAGE_LAYERS list —
+// missing any new layer by construction (exactly the #1032-round-8 "ik kan de brug niet zien op het
+// water" bug, which was the OLD bridge tiers not being in that list; the SAME class of bug would have hit
+// `City_Walls`'s new stone bridge again). Now derived from `classifyLayer` the same way `buildPasses` is,
+// so a new ground/shimmer layer reflects automatically, with no list to remember to update.
 export function reflectableTilesFor({ tavernTier = 'Tent', bridgeTier = 'Log' } = {}) {
-    return [...STATIC_TILE_LAYERS, ...FOLIAGE_LAYERS, TAVERN_TIER_LAYERS[tavernTier], BRIDGE_TIER_LAYERS[bridgeTier]]
-        .flatMap(staticLayerTiles);
+    const params = { tavernTier, bridgeTier };
+    const out = [];
+    for (const identifier of PAINT_ORDER_IDENTIFIERS) {
+        const kind = classifyLayer(identifier, params);
+        if (kind === 'ground' && identifier !== 'Terrain_Tiles' && identifier !== 'Pavement') {
+            out.push(...staticLayerTiles(identifier));
+        } else if (kind === 'shimmer' && !isWaterLikeLayer(identifier)) {
+            out.push(...staticLayerTiles(identifier));
+        }
+    }
+    return out;
 }
 
 // #1040 (Han 2026-08-17, "tenzij anders vermeld, moet karakter 'op de collision map' wandelen... geen

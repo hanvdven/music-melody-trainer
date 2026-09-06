@@ -656,6 +656,21 @@ const movingProgress = (ff) => {
 // #693 (Han round 3): moved to `src/utils/oscillate.js` so the bestiary portrait panels can reuse the SAME
 // wobble instead of a second hand-copied version — imported below, this local definition is gone.
 
+// Perf (#1192-jank, Han 2026-09-04): two tiny pure helpers for the entity X-position interpolation
+// described at `RPG_ENTITY_THROTTLE_MS`'s own comment below. `entry` is whichever per-entity object the
+// caller already tracks (a `slimeRefsMap`/`critterRefsMap` Map value, or a parallel interpolation-state
+// slot for the plain-array `switchRefsArr`) — these never touch Y, frame, or oscillation, only the final
+// X that was actually written to the DOM at the last throttle tick.
+function tickInterpX(entry, freshX) {
+    entry.prevX = entry.currX != null ? entry.currX : freshX;
+    entry.currX = freshX;
+}
+function interpX(entry, frac) {
+    if (entry == null || entry.currX == null) return null;
+    if (entry.prevX == null) return entry.currX;
+    return entry.prevX + (entry.currX - entry.prevX) * frac;
+}
+
 // Ensure the hero has at least a skin so it is never invisible.
 function ensureVisible(char) {
     if (char.layers?.skin) return char;
@@ -1030,6 +1045,26 @@ export default function SheetRpgLayer({
     // exact op de noot landen" — throttling that specific scan previously caused an audible desync bug).
     const RPG_ENTITY_THROTTLE_MS = 33;   // ~30fps ceiling for entities; note scroll itself is never throttled
     const lastRpgEntityUpdateMsRef = useRef(0);
+    // Perf (#1192-jank, Han 2026-09-04, "ik zie dit soort problemen ook in de muzieklevels"): the
+    // scroll-transform above runs every rAF frame (60fps) but entity positions only get a fresh
+    // `sideScrollX` call every `RPG_ENTITY_THROTTLE_MS` — a real, deliberate perf fix (#1050, see this
+    // section's own header comment) that must NOT be undone (an unthrottled full recompute of
+    // frame/animation-selection + oscillation for every slime/critter/projectile is exactly what made
+    // "the performance sucks" in the first place). The visible symptom Han reported is narrower than
+    // that: entities visibly JUMP relative to the smoothly-scrolling staff, because their on-screen X
+    // only updates in ~33ms steps while the background glides continuously. Fix: keep the throttle for
+    // all the EXPENSIVE per-entity work exactly as before, but on the frames IN BETWEEN throttle ticks,
+    // cheaply interpolate just the already-known X from the previous tick's value toward the current
+    // tick's value (standard "hold last two snapshots, ease between them" — like client-side netcode
+    // interpolation) — a ~33ms display lag, imperceptible, in exchange for a smooth glide instead of a
+    // jump. Y/frame/oscillation are NOT touched here (still only refreshed at the throttled rate,
+    // unchanged) — narrowly scoped to the one thing Han actually reported.
+    // `entityTickIntervalMsRef` holds the OBSERVED gap between the last two throttle ticks (rAF timing
+    // jitters, so this is measured, not assumed to be exactly RPG_ENTITY_THROTTLE_MS).
+    const entityTickIntervalMsRef = useRef(RPG_ENTITY_THROTTLE_MS);
+    // `switchRefsArr` below holds the imperative handles directly (no per-entry wrapper object to attach
+    // interpolation state to, unlike the Maps) — a parallel same-length array carries it instead.
+    const switchInterpRef = useRef([]);
     const [killedCount, setKilledCount] = useState(0);     // static: killed count; side-scroll: RESOLVED count
     // dying is a LIST (Han 2026-08-02): with the ±1/2-beat graded window two kills can overlap one death
     // animation (notes a beat apart, played fast) — a single `dying` slot would swallow the second kill.
@@ -1601,7 +1636,14 @@ export default function SheetRpgLayer({
             // one consistent frame) read the identical value. The scroll-transform push itself is NOT
             // gated by this — seebelow.
             const runRpgEntityUpdates = nowMs - lastRpgEntityUpdateMsRef.current >= RPG_ENTITY_THROTTLE_MS;
-            if (runRpgEntityUpdates) lastRpgEntityUpdateMsRef.current = nowMs;
+            // Perf (#1192-jank): capture the PREVIOUS tick's timestamp before it's overwritten below, so
+            // the interpolation pass (in the `else` branch further down) knows the real observed gap
+            // between the last two ticks — rAF timing jitters, so this is measured each time, not assumed.
+            const prevRpgEntityTickMs = lastRpgEntityUpdateMsRef.current;
+            if (runRpgEntityUpdates) {
+                entityTickIntervalMsRef.current = prevRpgEntityTickMs ? Math.max(1, nowMs - prevRpgEntityTickMs) : RPG_ENTITY_THROTTLE_MS;
+                lastRpgEntityUpdateMsRef.current = nowMs;
+            }
             try {
             if (g.sideScroll && g.dist > 0 && g.beatMs > 0) {
                 // Scroll transform — mirrors the render body's own scrollPx/scrollPPT formula exactly
@@ -1640,16 +1682,27 @@ export default function SheetRpgLayer({
                     if (entry.kind === 'projectile') {
                         const oscX = oscillate(sl.key, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
                         const oscY = oscillate(sl.key + 1000, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
-                        entry.el.setPosition(p.noteX + oscX, g.projectileCenterY + oscY);
+                        const finalX = p.noteX + oscX;
+                        const finalY = g.projectileCenterY + oscY;
+                        entry.el.setPosition(finalX, finalY);
                         entry.el.setFrame(Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES);
+                        // perf (#1192-jank): `lastY` must be the OSCILLATING value actually written, not a
+                        // fresh `g.projectileCenterY` recompute — `oscY` is itself continuous/time-varying
+                        // (unlike `g.slimeY`/`g.bassSlimeY` below, which are fixed layout lanes), so holding
+                        // it at the last tick's sample (not silently dropping it) avoids a NEW Y jitter.
+                        entry.lastY = finalY;
+                        tickInterpX(entry, finalX);
                     } else {
                         // point 8: add the (frameTick-cadence-refreshed) wiggle shake for the ONE slime
                         // currently wiggling, exactly as the old declarative `wdx` addition did.
                         const wig = wiggleRef.current;
                         const wdx = wig && wig.index === entry.idx ? wig.wdx : 0;
-                        entry.el.setPosition(p.slimeX + wdx, g.slimeY);
+                        const finalX = p.slimeX + wdx;
+                        entry.el.setPosition(finalX, g.slimeY);
                         const wf = slimeWalkOrIdleFrame(p);
                         entry.el.setFrame(wf.row, wf.frame);
+                        entry.lastY = g.slimeY;
+                        tickInterpX(entry, finalX);   // perf (#1192-jank): see RPG_ENTITY_THROTTLE_MS comment
                     }
                 });
                 // Live bass-slimes (Level 15 twoHanded) — same pattern, no wizard/wiggle branch (§862).
@@ -1660,6 +1713,8 @@ export default function SheetRpgLayer({
                     entry.el.setPosition(p.slimeX, g.bassSlimeY);
                     const bwf = slimeWalkOrIdleFrame(p);
                     entry.el.setFrame(bwf.row, bwf.frame);
+                    entry.lastY = g.bassSlimeY;
+                    tickInterpX(entry, p.slimeX);   // perf (#1192-jank): see RPG_ENTITY_THROTTLE_MS comment
                 });
                 // Live critters (under rests) — position+frame update together (critterDraw ties them via
                 // the flying-anim oscillation, see the Critter component above).
@@ -1678,7 +1733,14 @@ export default function SheetRpgLayer({
                     const gF = gatedFrozenRef.current
                         ? Math.floor(rawTRawMsRef.current / (g.frameMs || 1)) % 1000
                         : Math.floor(p.ff) % 1000;
-                    entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF, gatedFrozenRef.current);
+                    const finalX = p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2;
+                    entry.el.update(finalX, g.slimeY, gF, gatedFrozenRef.current);
+                    // perf (#1192-jank): interpolating between ticks replays this SAME (Y, gF, frozen) —
+                    // see RPG_ENTITY_THROTTLE_MS's own comment and the `else` branch below.
+                    entry.lastY = g.slimeY;
+                    entry.lastGF = gF;
+                    entry.lastFrozen = gatedFrozenRef.current;
+                    tickInterpX(entry, finalX);
                 });
                 // Level 11 switch-flourish (StaticProjectile2) — fixed SWITCH_LOOKAHEAD array, plain index.
                 SWITCH_LOOKAHEAD.forEach((k, i) => {
@@ -1688,8 +1750,49 @@ export default function SheetRpgLayer({
                     const p = sideScrollX(switchBeat, t, tRawMs);
                     el.setCenter(p.noteX, g.projectileCenterY);
                     el.setFrame(Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES);
+                    // perf (#1192-jank): `switchInterpRef` is a parallel array — `el` itself (the
+                    // imperative handle) has no per-entry object of its own to attach interpolation state to.
+                    if (!switchInterpRef.current[i]) switchInterpRef.current[i] = {};
+                    switchInterpRef.current[i].lastY = g.projectileCenterY;
+                    tickInterpX(switchInterpRef.current[i], p.noteX);
                 });
                 }   // runRpgEntityUpdates
+                else {
+                    // Perf (#1192-jank): the throttle-skipped frames — glide each entity's X from its
+                    // previous tick's value toward its current tick's value instead of leaving it frozen
+                    // until the next full recompute (see RPG_ENTITY_THROTTLE_MS's own comment for why this
+                    // exists and what it deliberately does NOT touch: Y, frame, and oscillation all stay
+                    // exactly as they were at the last throttle tick).
+                    const frac = Math.min(1, (nowMs - lastRpgEntityUpdateMsRef.current) / entityTickIntervalMsRef.current);
+                    slimeRefsMap.current.forEach((entry, key) => {
+                        const sl = slimesRef.current[entry.idx];
+                        if (!sl || sl.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        // `ix`/`entry.lastY` already carry whatever oscillation/wiggle offset was baked
+                        // into `finalX`/`finalY` at the last throttle tick (see the `tickInterpX` calls
+                        // above) — nothing to re-add, and Y must NOT be freshly recomputed here (a
+                        // projectile's Y includes a continuous `oscY` term this branch never evaluates).
+                        if (ix != null && entry.lastY != null) entry.el.setPosition(ix, entry.lastY);
+                    });
+                    bassSlimeRefsMap.current.forEach((entry, key) => {
+                        const sl = bassSlimesRef.current[entry.idx];
+                        if (!sl || sl.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        if (ix != null && entry.lastY != null) entry.el.setPosition(ix, entry.lastY);
+                    });
+                    critterRefsMap.current.forEach((entry, key) => {
+                        const c = crittersRef.current[entry.idx];
+                        if (!c || c.key !== key) return;
+                        const ix = interpX(entry, frac);
+                        if (ix != null) entry.el.update(ix, entry.lastY ?? g.slimeY, entry.lastGF ?? 0, entry.lastFrozen ?? false);
+                    });
+                    SWITCH_LOOKAHEAD.forEach((k, i) => {
+                        const el = switchRefsArr.current[i];
+                        const slot = switchInterpRef.current[i];
+                        const ix = interpX(slot, frac);
+                        if (el && ix != null && slot.lastY != null) el.setCenter(ix, slot.lastY);
+                    });
+                }
             }
 
             // #863 round 2 (Han 2026-08-10 follow-up: INP still "needs improvement" after round 1) — the

@@ -3272,10 +3272,11 @@ const App = () => {
                         // (and, while squeezed toward the 192-gpx floor, up to its bottom 16 gpx —
                         // that bottom crop ramps 16→0 over gpxH 192→208, Han 2026-09-01, see worldLayout cropFor).
                         overflow: inWorldLevel ? 'hidden' : undefined,
-                        // #348: when the ladder grows the world block past the 272-gpx level art
-                        // (`world.skyPadGpx > 0`), the RpgLevelPanel layer still renders 272·N tall,
-                        // bottom-anchored — this fill shows through the exposed strip on top. `#8fd0d9`
-                        // is the top colour of RpgLevelPanel's own sky gradient, so the seam is invisible.
+                        // #348/#379 bugfix (Han 2026-09-05): `WORLD_ART_GPX_H` now equals `WORLD_GPX_H_MAX`
+                        // (320, up from 272 — see worldLayout.js), so `world.skyPadGpx` is always 0 and this
+                        // fill never actually shows through anymore. Left in place (harmless, `#8fd0d9` still
+                        // matches RpgLevelPanel's own sky gradient top colour) as a safety net in case the two
+                        // constants ever diverge again.
                         background: inWorldLevel ? '#8fd0d9' : undefined,
                         position: 'relative'
                     }}
@@ -3289,11 +3290,12 @@ const App = () => {
                     {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} context={context} worldScale={inWorld ? worldLayout.scale : undefined} />}
                     {characterScreen === 'scales' && <ScalesTopPanel debugMode={debugMode} worldScale={inWorld ? worldLayout.scale : undefined} selected={selectedScale} onSelect={setSelectedScale} />}
                     {characterScreen === 'rpg-level' && (inWorldLevel ? (
-                        // #UI-overhaul Stap 3: RpgLevelPanel always renders the FULL 272-gpx level at
-                        // scale N inside a 272*N-tall layer; this box (height = world.screenH, overflow
-                        // hidden) shows only `world.gpxH` gpx of it. `bottom: -(bottomCrop*N)` pushes the
-                        // level's bottom `bottomCropGpx` gpx below the box; the remaining overflow
-                        // (topCropGpx*N) clips off the top. `zoom` stays exactly N (272*N / 272).
+                        // #UI-overhaul Stap 3: RpgLevelPanel always renders the FULL WORLD_ART_GPX_H-gpx
+                        // level (320, since #348/#379 bugfix 2026-09-05 — was 272) at scale N inside a
+                        // WORLD_ART_GPX_H*N-tall layer; this box (height = world.screenH, overflow hidden)
+                        // shows only `world.gpxH` gpx of it. `bottom: -(bottomCrop*N)` pushes the level's
+                        // bottom `bottomCropGpx` gpx below the box; the remaining overflow (topCropGpx*N)
+                        // clips off the top. `zoom` stays exactly N (WORLD_ART_GPX_H*N / WORLD_ART_GPX_H).
                         <div style={{
                             position: 'absolute', left: 0, right: 0,
                             bottom: -(worldLayout.world.bottomCropGpx * worldLayout.scale),
@@ -3306,7 +3308,7 @@ const App = () => {
                     ))}
                     {/* UI world-height toggle (Han 2026-09-04) — top-right of the world block. A sibling
                         of the RpgLevelPanel wrapper above, NOT a child of it: that inner div is the
-                        full 272*N-tall (uncropped) art layer, offset by `bottom: -(bottomCrop*N)` — a
+                        full WORLD_ART_GPX_H*N-tall (uncropped) art layer, offset by `bottom: -(bottomCrop*N)` — a
                         button anchored inside it would scroll off-screen with the crop. This outer
                         container is the CLIPPED, correctly-sized (`world.screenH`) box the player
                         actually sees, so `top-right` here means top-right of the visible world. */}

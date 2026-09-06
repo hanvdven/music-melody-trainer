@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LEVEL_MIN_X as LDTK_MIN_X, LEVEL_MAX_X as LDTK_MAX_X, ENTITY_WORLD_X } from '../levels/ldtk/ldtkWorld';
 import { LOREM_IPSUM_PARAGRAPHS } from '../model/conversationContent';
+import { randomNpcLine } from '../model/npcDialogue';
 import useFrameLoop from './useFrameLoop';
 
 // #693 (Han 2026-08-04, RPG Level tab round 2): the movement/pet/NPC-dialogue state for the RPG Level
@@ -43,12 +44,13 @@ const NPC_INTERACT_RANGE = 48;
 // #922 (Han: "wisp: geef een uit 5 random zinnen, als je erop klikt. Sommige korter, sommige langer."):
 // varying length on purpose — the typewriter reveal (useConversationTypewriter) reads noticeably different
 // at 3 words vs a full sentence, so a flat "5 near-identical lines" wouldn't actually exercise that.
+// *asterisk* runs render in Bitfantasy (rest SandyForest) — see OscillatingText.parseEmphasis.
 const WISP_LINES = [
-    'Hello there!',
-    'Have you seen my friends? They wandered off again.',
-    'The music keeps me warm, you know.',
-    'Careful, the slimes bite.',
-    'I like the way you play.',
+    '*Hello there!*',
+    'Have you seen my friends? They *wandered off* again.',
+    'The music *keeps me warm*, you know.',
+    'Careful, the slimes *bite*.',
+    'I like *the way you play*.',
 ];
 
 // #RAM-level (Han 2026-08-10): the walkable world's bounds are now derived from `RAM level.ldtk`'s own
@@ -59,6 +61,12 @@ const WISP_LINES = [
 export const LEVEL_MIN_X = LDTK_MIN_X;
 export const LEVEL_MAX_X = LDTK_MAX_X;
 const clampToLevel = (x) => Math.min(LEVEL_MAX_X, Math.max(LEVEL_MIN_X, x));
+
+// Perf (#1192-jank, Han 2026-09-04/05): the shared "how often does a per-frame-computed physics value get
+// mirrored into React state for secondary/non-critical consumers" cadence — first used for `playerX`/
+// `petX` below, then reused as-is (§6c: one shared constant, not a second hand-picked number) for
+// RpgLevelPanel's own `cameraX` throttle (docs/architecture.md §376/§382), the same bug shape one loop over.
+export const POSITION_STATE_THROTTLE_MS = 60;
 
 // #RAM-level (Han 2026-08-11, "spawn personage op entity hero (staat in het level)"): hero/pet/NPC now
 // spawn at the `.ldtk` file's own Hero/Pet/Wisp `Entities` markers (`ENTITY_WORLD_X`, ldtkWorld.js)
@@ -89,8 +97,17 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     const keysRef = useRef({ left: false, right: false });
     const targetRef = useRef(null);                   // world x the player is walking toward (click/tap/NPC)
     const onArriveRef = useRef(null);                 // callback fired once the target is reached
-    const playerXRef = useRef(playerX); playerXRef.current = playerX;
-    const petXRef = useRef(petX); petXRef.current = petX;
+    // Perf (#1192-jank, Han 2026-09-04, "hero die rent hakkelt, soms zie ik hem dubbel"): `playerXRef`/
+    // `petXRef` are the SOLE source of truth for physics, written EVERY rAF frame inside the movement loop
+    // below. They must NOT be resynced from `playerX`/`petX` state on every render (as they used to be,
+    // unconditionally) once `setPlayerX`/`setPetX` are throttled (see POSITION_STATE_THROTTLE_MS below) —
+    // App.jsx (the sole owner of this hook instance) re-renders far more often than the throttle window for
+    // reasons unrelated to movement, and a per-render `.current = playerX` would periodically clobber the
+    // freshest physics value with a stale throttled one, breaking movement continuity. RpgLevelPanel now
+    // reads these refs directly (returned below) for both the camera follow AND the hero/pet DOM position,
+    // so they stay accurate at full frame rate independent of how often React re-renders.
+    const playerXRef = useRef(playerX);
+    const petXRef = useRef(petX);
     const facingRef = useRef(facing); facingRef.current = facing;
     // #922 (Han: "weglopen sluit het gesprek") — read inside the movement tick loop below (mounted once,
     // `[]` deps) without needing `dialogue`/the entity's X in that effect's dependency array. Set whenever
@@ -106,6 +123,10 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     const advanceDialogueRef = useRef(null);
     const clickNpcRef = useRef(null);
     const clickSlimeRef = useRef(null);
+    // #weather (Han 2026-09-04): extra keyboard-interactable world entities (the worker NPCs), each
+    // `{ x, run }`, registered by RpgLevelPanel via `registerWorldInteractables` below — their world X
+    // comes from the LDtk "NPC" markers, which live in RpgLevelPanel, not this hook.
+    const worldInteractablesRef = useRef([]);
     const petFollowingRef = useRef(false);
     // Perf fix (Han 2026-08-06, "hakkelig beeld... te veel geladen?"): `moving`/`petMoving` used to be set
     // UNCONDITIONALLY every rAF tick (60/sec) even while standing still, which re-invokes App.jsx's render
@@ -131,11 +152,20 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
                 const t = e.target;
                 if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
                 if (dialogueRef.current) { e.preventDefault(); advanceDialogueRef.current?.(); return; }
+                // #weather (Han 2026-09-04, "'f' of 'spatie' werken niet om gesprek te starten"): the
+                // key now interacts with the NEAREST of the wisp, the slime, AND every worker NPC
+                // (registered from RpgLevelPanel via `registerWorldInteractables`, since their positions
+                // come from the LDtk markers this hook has no direct access to).
                 const px = playerXRef.current;
-                const dNpc = Math.abs(px - npcX);
-                const dSlime = Math.abs(px - slimeX);
-                if (dNpc <= NPC_INTERACT_RANGE && dNpc <= dSlime) { e.preventDefault(); clickNpcRef.current?.(); }
-                else if (dSlime <= NPC_INTERACT_RANGE) { e.preventDefault(); clickSlimeRef.current?.(); }
+                const candidates = [
+                    { d: Math.abs(px - npcX), run: () => clickNpcRef.current?.() },
+                    { d: Math.abs(px - slimeX), run: () => clickSlimeRef.current?.() },
+                    ...worldInteractablesRef.current.map((it) => ({ d: Math.abs(px - it.x), run: it.run })),
+                ];
+                const best = candidates
+                    .filter((c) => c.d <= NPC_INTERACT_RANGE)
+                    .sort((a, b) => a.d - b.d)[0];
+                if (best) { e.preventDefault(); best.run(); }
             }
         };
         const up = (e) => {
@@ -195,6 +225,23 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     const clickSlime = useCallback(() => {
         openEntityDialogue(slimeX, 'slime', LOREM_IPSUM_PARAGRAPHS);
     }, [slimeX, openEntityDialogue]);
+
+    // #weather (Han 2026-09-04, "geef alle NPC's in de RPG-wereld wat tekst ... en een naam"): click a
+    // worker NPC -> walk over -> one random line from its pool (npcDialogue.js). `name` is the bestiary
+    // base name (RpgLevelPanel's `workerNpcs[i].name`), which is ALSO the `NPC_DIALOGUE` /
+    // `ENTITY_AUDIO_PROFILE` key, so it doubles as the `entity` for the audio profile + name-plate lookup.
+    const clickWorkerNpc = useCallback((name, worldX) => {
+        const line = randomNpcLine(name);
+        if (!line) return;
+        openEntityDialogue(worldX, name, [line]);
+    }, [openEntityDialogue]);
+
+    // #weather (Han 2026-09-04): RpgLevelPanel calls this (in an effect) with the current worker-NPC
+    // roster as `[{ x, run }]` so the F/Space/Enter key can start a conversation with the nearest one.
+    // Cleared to [] on unmount / when leaving LDtk scenery.
+    const registerWorldInteractables = useCallback((list) => {
+        worldInteractablesRef.current = Array.isArray(list) ? list : [];
+    }, []);
     // Mirror the latest callbacks into the refs the mount-once keyboard effect reads.
     clickNpcRef.current = clickNpc;
     clickSlimeRef.current = clickSlime;
@@ -207,6 +254,16 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
     // header comment), and since this hook's callers re-render on every `setPlayerX`/`setPetX` etc. (i.e.
     // very often), a plain closure `let` here would reset on every render instead of persisting per-tick.
     const lastTickMsRef = useRef(performance.now());
+    // Perf (#1192-jank): React `playerX`/`petX` state is now a THROTTLED trailing snapshot of the refs
+    // above — still needed for consumers that must re-render on movement (pet-facing-vs-player comparison,
+    // the hero point-light position, water-reflection `worldX`), but no longer the thing driving on-screen
+    // position (that's the refs, read directly + written imperatively — see RpgLevelPanel's camera loop).
+    // 60ms (~16Hz) keeps those secondary consumers visually current without forcing a full React commit
+    // of the whole entity subtree on every one of the physics loop's 60 frames/sec. Module-level + exported
+    // (§6c) so RpgLevelPanel's OWN `cameraX` throttle (the same bug shape, one loop over) reuses the exact
+    // same cadence instead of a second hand-picked number.
+    const lastPlayerXStateMsRef = useRef(0);
+    const lastPetXStateMsRef = useRef(0);
     useFrameLoop((now) => {
         {
             const dt = Math.min(0.05, (now - lastTickMsRef.current) / 1000);
@@ -231,7 +288,10 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
                 // the player itself is still clamped to the generated 200-tile world's own bounds.
                 playerXRef.current = clampToLevel(playerXRef.current + vx * speed * dt);
                 if (vx !== facingRef.current) { facingRef.current = vx; setFacing(vx); }
-                setPlayerX(playerXRef.current);
+                if (now - lastPlayerXStateMsRef.current >= POSITION_STATE_THROTTLE_MS) {
+                    lastPlayerXStateMsRef.current = now;
+                    setPlayerX(playerXRef.current);
+                }
                 // #922 (Han: "weglopen sluit het gesprek") — only relevant while actually moving (distance
                 // to the NPC can only grow on a tick where the player moved).
                 if (dialogueRef.current && Math.abs(playerXRef.current - dialogueAnchorXRef.current) > NPC_TALK_RANGE) {
@@ -242,7 +302,13 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
                 if (runningRef.current) { runningRef.current = false; setRunning(false); }
             }
             const nextMoving = vx !== 0;
-            if (nextMoving !== movingRef.current) { movingRef.current = nextMoving; setMoving(nextMoving); }
+            if (nextMoving !== movingRef.current) {
+                movingRef.current = nextMoving;
+                setMoving(nextMoving);
+                // Flush the final resting position immediately on stop — otherwise the throttled state could
+                // lag up to POSITION_STATE_THROTTLE_MS behind the ref, leaving light/reflection stale at rest.
+                if (!nextMoving) setPlayerX(playerXRef.current);
+            }
 
             // Pet: hangs back until the leash (PET_FOLLOW_GAP) stretches taut, THEN keeps walking (even as
             // the gap shrinks back below that trigger distance) until it's right up next to the player
@@ -255,21 +321,31 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAUL
             if (petIsWalking) {
                 const dir = gap > 0 ? 1 : -1;
                 petXRef.current += dir * WALK_SPEED * dt;
-                setPetX(petXRef.current);
+                if (now - lastPetXStateMsRef.current >= POSITION_STATE_THROTTLE_MS) {
+                    lastPetXStateMsRef.current = now;
+                    setPetX(petXRef.current);
+                }
             }
             // #693 (Han: "i expect the fox to use the 'walk' animation when walking") — exposed so the
             // panel can pick the classified 'move' vs 'idle' animation cells (bestiaryAssets.js) instead
             // of always showing idle.
-            if (petIsWalking !== petMovingRef.current) { petMovingRef.current = petIsWalking; setPetMoving(petIsWalking); }
+            if (petIsWalking !== petMovingRef.current) {
+                petMovingRef.current = petIsWalking;
+                setPetMoving(petIsWalking);
+                if (!petIsWalking) setPetX(petXRef.current);   // flush final resting position, see above
+            }
         }
     }, [], { priority: 'critical' });
 
     return {
         playerX, petX, facing, moving, running, petMoving, dialogue, setDialogue,
-        closeDialogue: () => setDialogue(null), moveTo, clickNpc, clickSlime, setHeldDirection,
+        closeDialogue: () => setDialogue(null), moveTo, clickNpc, clickSlime, clickWorkerNpc, registerWorldInteractables, setHeldDirection,
         autoContinue, toggleAutoContinue: () => setAutoContinue((a) => !a),
         // #UI-overhaul (Han 2026-08-27): RpgLevelBottomPanel points this at useConversationDialogue's
         // `handleTextClick` so the Enter/F/Space key can advance the dialogue.
         advanceDialogueRef,
+        // Perf (#1192-jank): the live, full-frame-rate physics refs — RpgLevelPanel reads these directly for
+        // the camera dead-zone follow AND the hero/pet DOM position, instead of the throttled state above.
+        playerXRef, petXRef,
     };
 }
