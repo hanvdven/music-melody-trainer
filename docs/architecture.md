@@ -27454,3 +27454,181 @@ stays smooth.
 frame" goal F5 preserves); §376/§378 (the earlier "un-throttle the derivation" fixes F5 is careful not
 to regress — the sky still *advances* every frame, F5 just skips *drawing* the zero-motion ones);
 §381 (`<SkyGradientBackdrop>`, already handled); `IMPLEMENTATION_PLAN.md` (the F1–F6 diagnostic).
+
+### §387. Wereld-silhouetmasker — één silhouet voor álle randbelichting (#1222, Han 2026-09-06, "alle entiteiten op de main layer als één behandeld ... het silhouet van de 'wereld' en niet van de tile laag")
+
+**Purpose / Symptom.** Han meldde drie samenhangende klachten over de RPG-wereldbelichting:
+*"aan de rand pixels die niet reageren op de illum, sheen, of andere lighting"*; *"'s nachts pixels die
+niet donker worden en dus fel afsteken tegen de rest, en overdag pixels die over worden geslagen door de
+sheen van de zon"*; en *"ik zie soms licht op de naden van 16x16 grid waaruit foliage is opgebouwd"*.
+Zijn eigen eis erbij is meteen de juiste diagnose: de sheen moet het silhouet van de **wereld** volgen,
+niet dat van een losse tile of een losse tak.
+
+**Root cause.** Elke randgevoelige belichtingsterm — `edgeLightFactor` (§141 r10/r14), `moonRimFactor`
+(§370 r2), `sunInwardGlow` (§377 r4) — beantwoordde de vraag *"lig ik op een silhouetrand?"* door de
+**diffuse-textuur van het fragment zelf** af te tasten. Die textuur is per laag iets anders, en in geen
+enkel geval het wereldsilhouet:
+
+1. **Foliage: één 16×16 atlascel.** `useLdtkFoliageAtlas` pakt 447 unieke crops strak tegen elkaar in een
+   352×352 atlas (22 kolommen), **zonder gutter** — die was in #1221 teruggedraaid. `sunInwardGlow`
+   klemde zijn taps bewust *niet*, met als motivering in de comment: *"so an external edge still detects
+   the transparent atlas gutter past the crop"*. Die gutter bestond niet meer. Alle taps van 1–3 texels
+   buiten de cel lazen dus een **willekeurige andere boom-tile**. Buurcrop daar ondoorzichtig ⇒ een échte
+   silhouetrand werd nooit gedetecteerd ⇒ geen zon-sheen ("overdag overgeslagen pixels"). Buurcrop daar
+   leeg ⇒ valse rand op een interieurpixel ⇒ felwitte rim 's nachts ("pixels die niet donker worden").
+   Eén bug, beide symptomen, in tegengestelde richting — de handtekening van een randtest waarvan het
+   antwoord in feite willekeurig is.
+2. **De uvRect-klem en de `internalEdges`-gating zijn no-ops op gespiegelde tiles.** Bij `flipX`/`flipY`
+   keert het teken van `texelSize` om, dus de tap loopt de andere kant op en `max(tap, min(rect))` klemt
+   nooit. **200 van de 1599 foliage-tiles in dit level zijn flipX** — daar liepen de taps volledig
+   ongeklemd én zonder naadonderdrukking. Dit is Hans eigen §377 UAT r6-vraag (*"heeft het met de
+   richting te maken?"*) beantwoord: ja, letterlijk de spiegelrichting.
+3. **`internalEdges` kan het wereldsilhouet principieel niet beschrijven.** De bitmask (#1221) kende
+   alleen **orthogonale** buren (nooit een diagonale zuster) en alleen **foliage**-buren — nooit het
+   gebouw achter de tak. Vandaar dat de gutter-poging werd teruggedraaid: hij verplaatste het probleem.
+4. **Grond/gebouwen/decor: het composiet van één pass.** `buildWorld()` levert voor dit level **14
+   passes**: 6 × ground, 5 × shimmer, 1 background, 1 campfire, 1 entities — ground en shimmer
+   afwisselend. Een muur in pass 5 en het terrein in pass 1 waren dus losse silhouetten, en hun
+   contactlijn kreeg rim alsof daar open lucht zat.
+
+**How it works.** `useWorldSilhouetteMask.js` bouwt één **level-groot alfamasker**: de unie van elke
+non-parallax, non-entity pass (terrein, gebouwen, decor, foliage, water, campfire), via dezelfde
+`ldtkTileCompositing`-bliterlus die `LdtkScenery`/`useLdtkLitGroundTextures` al gebruiken (§6c/§6d).
+Het wordt éénmaal per wereldconfiguratie (season/city/tier) gebouwd. `createWorldMaskTexture` (zelfde
+module — één plek definieert het GPU-contract) uploadt het als **`gl.ALPHA`**: 1 byte per texel in plaats
+van 4, wat telt bij ~2,1 M texels × de 11 WebGL-contexten die dit level draait (≈23 MB in plaats van
+≈94 MB), met NEAREST + CLAMP_TO_EDGE zoals elke andere textuur hier.
+
+In `foliageLightingGLSL.js` is `worldMaskAt(highp vec2 levelPx)` nu de enige primitief waarop alle
+randlogica rust. Daarbovenop:
+
+| was | is | gedeeld door |
+|---|---|---|
+| `edgeLightFactor(tex, duv, texelSize, ...)` | `worldEdgeLightFactor(levelPx, edgeLitOnly)` | beide shaders |
+| `moonRimFactor(tex, duv, texelSize, uvRect, internalEdges)` | `worldRimFactor(levelPx)` | beide shaders |
+| `sunInwardGlow(tex, duv, texelSize, uvRect, internalEdges)` | `worldInwardGlow(levelPx)` | `applySunGlow` |
+
+De §370 r2/r6-rimspec (boven .55/.35/.05, links .55/.15, rechts .35, hoogste wint) en §377 r4's
+isotrope 3-px gradiënt (1.0/0.75/0.5) zijn **ongewijzigd** — alleen *waarnaar* ze kijken is veranderd.
+Verdwenen: `edgeIsInternal`, `anyNeighborBelowAlpha`, `anyNeighborTransparent`, het `internalEdges`-
+attribuut/varying, `foliageCellSet` en de per-tile adjacency-scan in `atlasFoliageInstanceFor`.
+
+**Coördinaten.** `LdtkLitGround` had `levelPx` al (`localX`/`localY`) — geen nieuwe varying, geen nieuwe
+uniform, geen extra rekenwerk. `ForegroundFoliageLayer` leidt het af uit waarden die het al heeft:
+`tileTopLeft = (worldCenterX - worldWidth/2, maskHeight - (groundDistOffset + worldHeight))`, en telt
+daar `(maskNativeX + 0.5, nativeY + 0.5)` bij op. Omdat dit in level-/schermruimte gebeurt en de
+flip al in de UV-rect verwerkt zit, is de opzoeking **flip-agnostisch** — bugklasse 2 hierboven verdwijnt
+per constructie.
+
+**Wind / texel-swap.** Het masker is de **ruststand** en dat is geen benadering. De windbend
+*verplaatst* een texel (bemonstert bronkolom `shiftedNativeX`, tekent hem op doelkolom `nativeX`); de
+shader zoekt het masker op bij de **broncoördinaat** van die texel. De pixel wordt dus belicht als de
+pixel die hij werkelijk is, met de omgeving waar hij werkelijk vandaan komt — de rim reist gratis met de
+bladeren mee, zonder per-frame silhouet-render (geen FBO, geen tweede pass). `maskNativeX` volgt daarbij
+óók de wind-hole-fill terug naar de rustkolom, zodat het altijd de getekende texel beschrijft. Hierdoor
+kon de `windPushedOut`/`atExtremeCol`-geforceerde-rim-hack wég: die bestond alleen omdat de oude test
+niet voorbij zijn eigen atlascel kon kijken.
+
+**Bewust buiten het masker** (Hans interviewantwoorden, 2026-09-06): parallax-`background`-passes (die
+schuiven met hun eigen `factor` en hebben dus geen vaste plek in levelruimte — zij houden hun gebakken
+DOM-rim, `LdtkScenery` `computeMoonRim`) en de `entities`-pass (*"geen deel van silhouet, mag zo
+blijven"*). **Wél** in het masker: water (*"water doet mee in wereldsilhouet"*) en grond (*"klopt,
+onderrand boom geen rim"* — een boom op het gras heeft geen lucht onder zich).
+
+**Fallback-canvas donkerder (D4).** `LdtkScenery`'s `GroundCanvas` is de opzettelijke on-shimmerende
+fallbacksprite (#RAM-level: *"toon dan de default ongemodificeerde sprite, ipv niets"*) die ónder de
+WebGL-laag ligt die diezelfde tiles herbelicht. Hij droeg géén dag/nacht-multiply, in de veronderstelling
+dat de shader hem exact afdekt. Dat klopt niet helemaal: dit canvas wordt door de browser CSS-geschaald
+(fractionele `left`, `imageRendering: pixelated`) terwijl de WebGL-quads hun vier randen naar hele
+**device**-pixels snappen (§364 r2) — bij fractionele dpr (Windows 125 %/150 %) verschillen die twee
+afrondingen tot een device-pixel. Een sliver van dit canvas schijnt dan door langs een silhouet, in volle
+daglichtkleur, náást buren die de shader wél verduisterd heeft: een felle randpixel die niet op de
+belichting lijkt te reageren. `GroundCanvas` bakt nu dezelfde multiply (+ `destination-in` herklip naar
+het tile-silhouet) die `BgLayer` al deed — de fallback blijft dus bestaan, maar een doorschijnende sliver
+valt niet meer op. `darkenColor` is al gekwantiseerd op 0,05-stappen, dus een nachtovergang kost ~13
+re-bakes, niet één per frame.
+
+**Debug channel 4 — "Edge mask".** De foliage-debugknop cyclet nu door 5 kanalen; het nieuwe kanaal 4
+toont de rand**test** zelf in plaats van zijn effect op de kunst: **rood** = `worldRimFactor`, **groen** =
+`worldInwardGlow`, **gedimd blauw** = de ruwe maskerdekking. Beide belichtingslagen tonen hetzelfde beeld,
+dus een naad die van een gebouw in een boom overloopt is als één plaatje leesbaar. Dit is het instrument
+dat bij de #1221/§377-rondes ontbrak: een valse rim op een interne naad, of een echte contour die de glow
+overslaat, is hier direct zichtbaar in plaats van af te leiden uit het eindbeeld.
+
+**Invariants.**
+- Er is precies **één** definitie van "rand van de wereld": `worldMaskAt` + `RIM_EMPTY_ALPHA`. Een nieuwe
+  randgevoelige term mag nooit opnieuw de eigen diffuse-textuur van een fragment aftasten.
+- Elke level-ruimte-coördinaat in de shaders is expliciet **`highp`**, inclusief functieparameters.
+  `LEVEL_PX_WIDTH` is 7872; mediump garandeert 2^-10 relatieve precisie ≈ 7,7 px fout daar, wat de
+  maskeropzoeking een halve tile kan verschuiven. Desktopdrivers implementeren mediump als float32,
+  dus dit zou stil blijven werken op Hans machine en op mobiel rotten (zelfde valkuilklasse als
+  #141 ronde 23).
+- `uWorldMaskSize` is **altijd** de echte levelomvang, ook zolang de 1×1-placeholdertextuur gebonden is —
+  de bounds-test én de normalisatie hebben de echte omvang nodig, en een 1×1-textuur binnen bereik levert
+  simpelweg "solide" op, dus géén rim in plaats van een willekeurig omlijnde wereld.
+- Het masker is de ruststand; foliage zoekt op bij de **bron**kolom. Wie de windbend aanpast, moet
+  `maskNativeX` mee laten lopen met wat `duv` uiteindelijk bemonstert.
+
+**Files:** `src/components/character/useWorldSilhouetteMask.js` (nieuw — hook + `createWorldMaskTexture`),
+`foliageLightingGLSL.js` (`WORLD_MASK_UNIFORMS_GLSL`, `worldMaskAt`/`worldAnyNeighborEmpty`/
+`worldEdgeLightFactor`/`worldRimFactor`/`worldInwardGlow`, nieuwe `applySunGlow`-signatuur,
+`RIM_EMPTY_ALPHA` verplaatst), `ForegroundFoliageLayer.jsx` (beide fragment-shaders, mask-uniforms/
+textuur-unit 2, `internalEdges` verwijderd, debug kanaal 4), `LdtkLitGround.jsx` (idem, plus `highp` op
+`screenPx`/`localX`/`localY`), `LdtkScenery.jsx` (`GroundCanvas` darken-bake), `RpgLevelPanel.jsx`
+(`useWorldSilhouetteMask`, `worldMask`/`bgDarkenColor` bedrading, `foliageCellSet`/`internalEdges`
+verwijderd, debugknop 5 kanalen). Nieuwe foutcode **E040-WORLD-MASK-COMPOSITE**.
+
+**Cross-references.** §141 (de shimmer-shader en zijn edge-lit-rondes); §370 (de maan-sheen/rim waarvan
+de spec hier ongewijzigd overgenomen is); §377 (#1193, de zon-glow); #1221 (de per-tile `internalEdges`-
+aanpak die dit vervangt); §383 (de pass-lijst waaruit het masker zijn tiles haalt); §925 (`LdtkLitGround`).
+
+#### §387a. Nevenbevinding — de windbend laat hele texelkolommen vallen (gemeten)
+
+Han, bij de UAT-screenshot: *"De zwarte pixels die niet meegenomen worden in de sheen lijken me kleiner
+dan een texel. Ik ben door andere agents verzekerd dat de pixel swap per texel gaat en niet per
+(sub)-pixel; en dat ze pixel perfect zijn. Klopt dat wel?"*
+
+**Deels.** De swap is inderdaad per hele texel — elke doelkolom bemonstert precies één bronkolom, nooit
+een mengsel. Maar de afbeelding is **niet bijectief**, en dat is wél zichtbaar.
+
+`skewShiftPx = floor(sway * heightRatio² * uSkewAmount + 0.5)` waarbij `sway` uit
+`computeWave01(worldX, ...)` komt en `worldX` uit `nativeX` — de **kolom**. De skew-verschuiving varieert
+dus per kolom, niet per rij. Commit fdc7b2f9 stelde expliciet *"SKEW (rigid per-row translation) has no
+such artefact"* toen stretch om precies deze reden werd uitgezet; **die aanname is onjuist**. Met
+`noiseScaleB = 0.17` verandert de tweede noise-octaaf ~0,36 noise-eenheden per game-pixel, en
+`SKEW_CONTRAST = 5` versterkt dat vóór de afronding.
+
+Gemeten door de shader-math (hash21/valueNoise/blotchNoise/computeWave01/skewShiftPx) 1-op-1 naar JS te
+porten en over 40 tijdstappen × vele tileposities × alle 16 rijen te bemonsteren:
+
+| `skewAmount` | kolomgrenzen die een bronkolom **laten vallen** | die er één **verdubbelen** | max abs(delta shift) tussen buurkolommen |
+|---|---|---|---|
+| 1 | 6,0 % | 6,2 % | 1 |
+| 2 (default) | 11,7 % | 12,1 % | 2 |
+| 3 (volle wind) | 17,5 % | 17,6 % | 3 |
+
+Bij de standaardwind verliest dus ongeveer **één op de zes** kolomgrenzen binnen elke 16-px tile een hele
+game-pixelkolom. Een 1 texel brede donkere bladcontour die op zo'n weggevallen kolom staat, verdwijnt —
+en zijn buren lopen door, waardoor het overblijvende stukje *smaller dan een texel* lijkt. Alleen tijdens
+wind (bij `skewAmount = 0` is de verschuiving overal 0) en alleen op foliage/gras (`skew: true`), precies
+zoals Han het beschrijft.
+
+**Wat het NIET is:** het device-pixelraster. Een aparte meting van de quad-snap (vier randen naar hele
+device-px, §364 r2) plus de fragment-kolomafleiding laat zien dat een game-pixel bij elke geteste
+zoom/dpr-combinatie hooguit 1 device-pixel in breedte varieert (bijv. 4 of 5 bij zoom 3 / dpr 1,5) en
+nooit smaller wordt dan `floor(zoom*dpr)`. Dat is de onvermijdelijke consequentie van een fractionele
+schaal, niet een fout — het raster is zo pixel-perfect als het kan zijn.
+
+**Status: bewust NIET gewijzigd.** Han: *"De texel swap werkt zoals ik wil."* Het weghalen van het
+kolomverlies verandert het wind-uiterlijk, en dat is zijn keuze, niet die van een agent (§9k). De
+opties, mocht hij het willen:
+- **(a)** Skew per **rij** in plaats van per kolom evalueren (`wave01` op de instantie-X in plaats van de
+  fragment-X): bijectief, nul verlies, en de boom buigt als één tak in plaats van per kolom te rafelen.
+  Let op: naïef per tile evalueren geeft een naad op elke 16-px tilegrens — het moet een continu veld
+  blijven over de hele canopy.
+- **(b)** Alleen de lage octaaf gebruiken voor de skew (`noiseScale 0.03`, periode ~33 px), zodat
+  `floor()` nog maar eens per ~10 kolommen stapt: ordegrootte minder verlies, veld blijft continu.
+- **(c)** Laten zoals het is en het als korrel/ruis van de wind accepteren.
+
+**Files:** geen (analyse). De meetscripts stonden in de scratchpad; de cijfers hierboven zijn het
+resultaat.

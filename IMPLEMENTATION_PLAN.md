@@ -9011,3 +9011,65 @@ ref die elke tick de SAMEN `left`/`bottom`-waarden van de echte sprite kopieert 
 
 **Visueel bevestigd**: eend-reflectie duidelijk zichtbaar direct onder de eend. 1484 tests groen, build/
 lint schoon (0 errors).
+
+## 🐞 Foliage/wereld-belichting: randpixels reageren niet op licht (Han 2026-09-06)
+
+Han: "aan de rand pixels die niet reageren op de illum, sheen, of andere lighting — 's nachts pixels die
+niet donker worden en fel afsteken, overdag pixels die overgeslagen worden door de zon-sheen. Ook licht op
+de naden van het 16x16 grid. Bedoeling: alle entiteiten op de main layer worden als ÉÉN behandeld voor de
+sheen — het silhouet van de WERELD, niet van de tile-laag."
+
+🔨 Diagnostiek uitgevoerd (2026-09-06). Bevindingen (zie chat-rapport voor detail):
+- D1 `sunInwardGlow` doet BEWUST ongeklemde taps "om de transparante atlas-gutter te zien" — maar die
+  gutter is in #1221 teruggedraaid (`useLdtkFoliageAtlas.js` `atlasLayout`, cellen tegen elkaar).
+  Taps lezen dus de BUURCROP (352x352 atlas, 22 kolommen, 447 crops) => willekeurig gemiste én valse
+  randen. Verklaart beide symptomen tegelijk.
+- D2 `moonRimFactor`/`sunInwardGlow` uvRect-klem + `internalEdges`-gating zijn ALLEEN correct voor
+  niet-geflipte tiles: bij flipX/flipY draait `texelSize` van teken om, waardoor `max(tap, min(rect))` /
+  `min(tap, max(rect))` nooit klemmen. 200 van 1599 foliage-tiles zijn flipX.
+- D3 Structureel: het rand-/silhouettest is PER TILE (uvRect) en PER PASS (14 passes: 6 ground-composites,
+  5 shimmer-passes). Er bestaat nergens één wereld-silhouet. `internalEdges` is orthogonaal-only
+  (diagonale zusters gemist) en kent alleen foliage-buren, geen grond/gebouw/decor-buren.
+- D4 Elke pass heeft een PLATTE, ONBELICHTE `GroundCanvas` eronder als fallback; die wordt nooit verborgen
+  zodra de shader-laag draait, en krijgt geen dag/nacht-multiply. Sub-pixel-afrondingsverschil tussen
+  CSS-geschaalde canvas en de device-px-gesnapte WebGL-quads kan een onbelichte sliver laten doorschijnen.
+- D5 Foliage-normal-maps worden per geïsoleerde 16x16 crop ge-Sobeld (replicate-clamp aan de croprand) —
+  milde valse reliëfrand op elke tile-naad. Lit-ground doet dit wél over het hele composiet.
+- D6 Nevenbevinding: 11 WebGL-contexten tegelijk (6 LdtkLitGround + 5 ForegroundFoliageLayer).
+
+⏳ Voorstel: wereld-silhouetmasker (één level-groot alfa-masker, unie van alle non-parallax/non-entity
+passes) als SSOT voor `edgeLightFactor`/`moonRimFactor`/`sunInwardGlow`; foliage kijkt op zijn BRON-
+levelcoördinaat (tile-oorsprong + shiftedNativeX) zodat de rand met de wind-texelswap meebeweegt zonder
+per-frame FBO. Vervangt `internalEdges`, `foliageCellSet`, de uvRect-klem en de `windPushedOut`-hack.
+⏳ Wacht op interview-antwoorden van Han (§4b) voordat er ook maar één regel wordt geïmplementeerd.
+
+### ✅ Opgelost via §387 — wereld-silhouetmasker (impl 2026-09-06)
+
+Han's antwoorden op de interviewvragen: grond **wel** in het masker (onderrand boom geen rim);
+entiteiten **niet** (mag zo blijven); water **wel**; "doe maar gewoon alles" (geen aparte
+instrument-oplevering eerst); en over D1: *"je mag gewoon echt de logica van moonrim gebruiken"*.
+
+✅ **D1 + D2 + D3 in één keer**: nieuw `useWorldSilhouetteMask.js` bouwt één level-groot `gl.ALPHA`-masker
+(unie van alle non-parallax/non-entity passes). `foliageLightingGLSL.js` heeft nu `worldMaskAt` als enige
+rand-primitief; `edgeLightFactor`/`moonRimFactor`/`sunInwardGlow` → `worldEdgeLightFactor`/
+`worldRimFactor`/`worldInwardGlow`, allemaal in LEVEL-px. Weg: `edgeIsInternal`, `internalEdges`
+(attribuut + varying + `foliageCellSet` + adjacency-scan), de uvRect-klem, de `windPushedOut`-hack.
+Foliage zoekt op bij de **bron**kolom (`maskNativeX`), dus de rim beweegt mee met de wind zonder FBO.
+✅ **D4**: `GroundCanvas` bakt nu dezelfde dag/nacht-multiply als `BgLayer` — de onbelichte fallback-sliver
+steekt niet meer fel af. Fallback zelf blijft bestaan (bewust: verbergen heropent de "toon dan niets"-bug).
+✅ **Stap 0 alsnog geleverd**: foliage-debugknop heeft nu 5 kanalen; kanaal 4 "Edge mask" toont de randtest
+zelf (rood = rim, groen = inward glow, blauw = maskerdekking) op beide belichtingslagen.
+⏳ **D5 (per-crop Sobel normal-maps)** bewust uitgesteld — mild effect vergeleken met D1–D3; met kanaal 4
+is nu meetbaar of er na §387 nog naad overblijft. Niet blind patchen.
+
+🐞→📋 **§387a, nevenbevinding op Hans subpixel-vraag.** De texel-swap is inderdaad per hele texel (andere
+agents hadden gelijk), maar **niet bijectief**: `skewShiftPx` hangt via `wave01(worldX)` van de **kolom**
+af, niet van de rij. Commit fdc7b2f9 nam expliciet aan dat skew "a rigid per-row translation" is en zette
+alleen stretch uit — die aanname is onjuist. Gemeten (shader-math 1-op-1 naar JS geport): bij
+`skewAmount = 2` laat **11,7 %** van de kolomgrenzen een hele bronkolom vallen en verdubbelt **12,1 %** er
+één; bij volle wind (3) is dat 17,5 % / 17,6 %. Dat is Hans "zwarte pixels kleiner dan een texel".
+Het device-pixelraster is **niet** de oorzaak: gemeten varieert een game-pixel hooguit 1 device-px in
+breedte en nooit onder `floor(zoom*dpr)`. Bewust NIET gewijzigd — het verandert het wind-uiterlijk en Han
+zei "de texel swap werkt zoals ik wil"; drie opties staan in architecture.md §387a, keuze is aan Han.
+
+lint 0 errors · build clean · 1484 tests groen. Klaar voor UAT.

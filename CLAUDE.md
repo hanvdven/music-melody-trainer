@@ -470,6 +470,11 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   painting the procedural cloud-mottle noise layer in `SkyGradientBackdrop.jsx` threw. The mottle
   layer was removed when the overcast sky became a plain white/grey subtle gradient; the code no
   longer emits this. Left listed so old logs still resolve — do not reuse the number.
+- **E040-WORLD-MASK-COMPOSITE** — compositing the RPG world's silhouette mask (`useWorldSilhouetteMask.js`,
+  architecture.md §387 — the ONE level-space alpha mask every edge/rim/sun-glow lighting term tests
+  against) threw. The mask stays `null`; both WebGL lighting layers then bind a 1×1 fully-opaque
+  placeholder, which reports "solid everywhere", so every rim/glow term simply reads 0 and the world
+  renders lit but with no edge highlights — a quiet degradation rather than a world outlined at random
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

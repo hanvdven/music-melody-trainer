@@ -24,13 +24,13 @@ uniform vec3 uLightColor[MAX_LIGHTS];
 // Every lighting-related tunable dial `foliageParams`/the debug panel already drives — shared verbatim so
 // both shaders read the SAME uniform names from the SAME JS-side `params` object (RpgLevelPanel.jsx).
 // Perf (#1162, Fase 10b, docs/architecture.md §338): `uEdgeLitOnly` used to live in this shared block and
-// `edgeLightFactor` (below) read it as an implicit global — fine while every consumer set it as a plain
+// `worldEdgeLightFactor` (below, `edgeLightFactor` back then) read it as an implicit global — fine while every consumer set it as a plain
 // per-draw-call `uniform int`, but ForegroundFoliageLayer's upcoming INSTANCED shader needs it to be a
 // per-instance `varying float` instead (GLSL ES 1.00 varyings can't be `int`), and a `varying` can't share
 // a declaration with a `uniform` of the same name. Moved OUT of this shared block — each consumer now
 // declares `uEdgeLitOnly` itself (LdtkLitGround.jsx and ForegroundFoliageLayer's existing non-instanced
 // shader: unchanged `uniform int`; the new instanced shader: `varying float`) and passes it explicitly
-// into `edgeLightFactor` as a parameter instead of relying on it being globally visible by name.
+// into `worldEdgeLightFactor` as a parameter instead of relying on it being globally visible by name.
 export const LIGHTING_PARAM_UNIFORMS_GLSL = `
 uniform float uLightRadius;
 uniform float uLightHeightRadius;
@@ -62,6 +62,23 @@ uniform highp vec2 uSunScreenPos;   // sun screen pos, normalised BY CANVAS WIDT
 uniform highp float uSunGlowRadius; // glow reach, in those SAME canvas-width-normalised units
 `;
 
+// §387 (#1222, Han 2026-09-06): the ONE world silhouette every edge-sensitive lighting term now tests
+// against — see useWorldSilhouetteMask.js's header for the full "why a per-tile/per-pass test can't
+// answer this" story. A gl.ALPHA texture covering the level's whole native extent; only `.a` is read.
+//
+// PRECISION IS LOAD-BEARING HERE, not decoration. Level X runs to LEVEL_PX_WIDTH (7872 px in Han's
+// level). Both consumers open their fragment stage with `precision mediump float;`, and mediump's
+// guaranteed relative precision is 2^-10 — that is ~7.7 px of error at x = 7872, i.e. the mask lookup
+// could land half a tile away from the fragment that asked for it. Desktop GL drivers happen to
+// implement mediump as full float32 so it would "work" on Han's machine and rot silently on anything
+// mobile. Every level-space coordinate below is therefore explicitly `highp`, including the function
+// PARAMETERS (a plain `vec2` parameter would take the stage default and quietly truncate the argument
+// at the call boundary). Same class of trap as #141 round 23's cross-stage precision mismatch.
+export const WORLD_MASK_UNIFORMS_GLSL = `
+uniform sampler2D uWorldMask;
+uniform highp vec2 uWorldMaskSize;   // the mask's own extent in LEVEL px == (LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT)
+`;
+
 // #141 round 10/14 (Han: edge-only lighting for crates/fences, later "buitenste pixels licht op, de
 // pixels daarna voor 50%, de pixels daarna niet"). #925 follow-up (Han 2026-08-16): changed 3.0 -> 2.0
 // per his explicit choice to share ONE constant across every edge-lit consumer (crates/fences AND the
@@ -75,6 +92,15 @@ export const AMBIENT_DARK_COLOR = 'vec3(0.03, 0.06, 0.17)';
 export const LIGHTING_FUNCTIONS_GLSL = `
 const float EDGE_LIGHT_PIXELS = ${EDGE_LIGHT_PIXELS.toFixed(1)};
 const vec3 AMBIENT_DARK_COLOR = ${AMBIENT_DARK_COLOR};
+// The "is this neighbour empty?" cutoff for every edge test (edge-lit falloff, moon rim, sun inward
+// glow). §377 UAT r4 raised this to 0.7 to catch anti-aliased edge texels — but the art is composited
+// with no smoothing and sampled NEAREST, so its alpha is strictly 0 or 1 and 0.7 behaves identically to
+// the 0.5 cutout discard (Han, UAT r5: "mijn pixel art heeft geen sub-1 alpha"). Back to 0.5 = one
+// honest threshold, matching the discard. Kept as a named constant so any future AA-d art has one place
+// to lift it. §387 moved it up here from beside the rim, because it is now the cutoff the shared
+// worldMaskAt-based primitives use and GLSL ES 1.00 needs it declared before its first use.
+// (No backticks in comments in this template literal — they terminate it.)
+const float RIM_EMPTY_ALPHA = 0.5;
 
 // Standard HSV round-trip (round 9) — kept as blend-mode option 1, see blendLight below.
 vec3 rgb2hsv(vec3 c) {
@@ -135,28 +161,37 @@ vec3 blendLightDual(vec3 base, vec3 lightColor, float intensity, int modeA, int 
     return mix(a, b, 0.5);
 }
 
-// #141 round 10/14 (Han: edge-only lighting): samples the diffuse alpha some native px out in each
-// cardinal direction; three tiers — inside EDGE_LIGHT_PIXELS = full light, inside EDGE_LIGHT_PIXELS*2 =
-// 50%, beyond = fully dark (ambient/wave-lit only, no point-light contribution).
-bool anyNeighborBelowAlpha(sampler2D tex, vec2 duv, vec2 off, float thr) {
-    if (texture2D(tex, duv + vec2(off.x, 0.0)).a < thr) return true;
-    if (texture2D(tex, duv - vec2(off.x, 0.0)).a < thr) return true;
-    if (texture2D(tex, duv + vec2(0.0, off.y)).a < thr) return true;
-    if (texture2D(tex, duv - vec2(0.0, off.y)).a < thr) return true;
+// §387 (#1222): "is the world empty at this LEVEL pixel?" — the single primitive every edge term below
+// is now built from. Out of bounds counts as EMPTY, so the level's own outer contour rims correctly
+// instead of smearing its edge texel outward (CLAMP_TO_EDGE would otherwise report the border as solid).
+// RIM_EMPTY_ALPHA (declared below, next to the rim it was tuned for) is the ONE opacity cutoff in the
+// system, matching the shaders' own alpha-cutout discard.
+highp float worldMaskAt(highp vec2 levelPx) {
+    if (levelPx.x < 0.0 || levelPx.y < 0.0 || levelPx.x >= uWorldMaskSize.x || levelPx.y >= uWorldMaskSize.y) return 0.0;
+    return texture2D(uWorldMask, levelPx / uWorldMaskSize).a;
+}
+
+// #141 round 10/14 (Han: edge-only lighting for crates/fences — "buitenste pixels lichten op, de pixels
+// daarna voor 50%, de pixels daarna niet"): three tiers — inside EDGE_LIGHT_PIXELS = full light, inside
+// EDGE_LIGHT_PIXELS*2 = 50%, beyond = fully dark (ambient/wave-lit only, no point-light contribution).
+// §387 rewrite: was 'edgeLightFactor(tex, duv, texelSize, ...)', sampling the fragment's OWN diffuse —
+// which for a front-of-entities decor tile meant the building right behind it read as "empty", so the
+// decor's interior was treated as edge and got full light. Now tested against the world mask in level
+// px, exactly like the rim/glow below, so all three edge terms agree on one silhouette by construction.
+// 'edgeLitOnly' stays an explicit float parameter (see LIGHTING_PARAM_UNIFORMS_GLSL's own comment for
+// why it is not a shared global): callers with a 'uniform int uEdgeLitOnly' pass float(uEdgeLitOnly);
+// the < 0.5 test works identically for that cast and for a genuine per-instance float varying.
+bool worldAnyNeighborEmpty(highp vec2 levelPx, highp float off) {
+    if (worldMaskAt(levelPx + vec2(off, 0.0)) < RIM_EMPTY_ALPHA) return true;
+    if (worldMaskAt(levelPx - vec2(off, 0.0)) < RIM_EMPTY_ALPHA) return true;
+    if (worldMaskAt(levelPx + vec2(0.0, off)) < RIM_EMPTY_ALPHA) return true;
+    if (worldMaskAt(levelPx - vec2(0.0, off)) < RIM_EMPTY_ALPHA) return true;
     return false;
 }
-// The rim helpers pass RIM_EMPTY_ALPHA; edgeLitOnly crates/fences pass a literal 0.5 via the wrapper.
-bool anyNeighborTransparent(sampler2D tex, vec2 duv, vec2 off) {
-    return anyNeighborBelowAlpha(tex, duv, off, 0.5);
-}
-// edgeLitOnly: was a bare global uniform read (uEdgeLitOnly == 0, always an int); now an explicit float
-// parameter (see this file's own comment above LIGHTING_PARAM_UNIFORMS_GLSL for why) — callers with an
-// existing uniform int uEdgeLitOnly pass float(uEdgeLitOnly); a < 0.5 check works identically for
-// that cast (0/1 -> 0.0/1.0) and for a genuine per-instance float varying.
-float edgeLightFactor(sampler2D tex, vec2 duv, vec2 texelSize, float edgeLitOnly) {
+float worldEdgeLightFactor(highp vec2 levelPx, float edgeLitOnly) {
     if (edgeLitOnly < 0.5) return 1.0;
-    if (anyNeighborTransparent(tex, duv, texelSize * EDGE_LIGHT_PIXELS)) return 1.0;
-    if (anyNeighborTransparent(tex, duv, texelSize * EDGE_LIGHT_PIXELS * 2.0)) return 0.5;
+    if (worldAnyNeighborEmpty(levelPx, EDGE_LIGHT_PIXELS)) return 1.0;
+    if (worldAnyNeighborEmpty(levelPx, EDGE_LIGHT_PIXELS * 2.0)) return 0.5;
     return 0.0;
 }
 
@@ -237,15 +272,6 @@ const float MOON_SHEEN_SCALE = 0.5;  // "duidelijk zichtbaar maar licht" — d*h
 // UAT r4 (Han: "interieur sheen mag sterker"): 0.5 → 0.8 — the sun's near-object glow now reads
 // STRONGER than the moon's supporting sheen, per Han's explicit ask. Set to 0.0 for strictly-edges-only.
 const float SUN_SHEEN_SCALE = 0.8;
-// The "is this neighbour empty?" cutoff for the rim / inward-glow edge test. UAT r4 raised this to 0.7
-// to catch anti-aliased edge texels — but the LDtk foliage atlas is composited with no smoothing and
-// sampled NEAREST, so its alpha is strictly 0 or 1 and 0.7 behaves identically to the 0.5 cutout
-// discard (Han, UAT r5: "mijn pixel art heeft geen sub-1 alpha"). Back to 0.5 = one honest threshold,
-// matching the discard. The actual dark-fringe fix is the inward-glow giving full rim strength on the
-// outermost texel. Kept as a named constant so any future AA-d art has one place to lift it.
-// (No backticks in comments in this template literal — they terminate it.)
-const float RIM_EMPTY_ALPHA = 0.5;
-
 // §370 r4 (Han: moonlight "moet echt alleen zichtbaar zijn in de nacht. Fade op tijd uit voor dawn"):
 // gate the moon on illumination — 0 by day AND at dusk/dawn (illum 0.33), 1 only deep in the night
 // (illum <= 0.08). Fades in as dusk crosses into night and back out well before dawn's brightness ramps.
@@ -254,48 +280,40 @@ float moonPresence() {
 }
 
 // #weather §370 r2 (Han's exact spec): a directional moon RIM. For an opaque pixel, look for an EMPTY
-// (transparent) pixel toward screen-UP / LEFT / RIGHT and set an opacity:
+// pixel toward screen-UP / LEFT / RIGHT and set an opacity:
 //   above  → adjacent px .70, next down .50, next .20
 //   left   → adjacent px .70, next right .30
 //   right  → adjacent px .50
 //   clash  → the highest opacity wins.
-// Neighbour samples are clamped to the tile's own UV rect so the gap-free foliage atlas never bleeds an
-// adjacent tile's alpha in. On the foliage path duv already carries the wind pixel-switch
-// (shiftedNativeX), so the rim shifts along with the leaves for free.
+// (§370 r6, Han: "15 procentpunten minder fel — opacity 70→55 etc" — hence the .55/.35/.05/.15 below.)
 //
-// #1221 option b: a tree canopy is a grid of separate LDtk tile instances, each sampling its own atlas
-// cell. The per-cell uvRect clamp makes every INTERNAL tile boundary read as a silhouette edge, so the
-// rim / inward glow lit up seam lines. internalEdges (packed JS-side from grid adjacency, mapped into
-// atlas/sample space for flips) flags which of the four sample directions abut a sister tile:
-// 1 = atlas-up (-v), 2 = atlas-down (+v), 4 = atlas-left (-u), 8 = atlas-right (+u). GLSL ES 1.00 has no
-// bit ops, hence the mod/floor test. (No backticks in comments in this template literal.)
-//
-// UAT r6 (Han, screenshot: "geen sheen op sommige pixels zelfs, ook dicht bij de zon. heeft het met de
-// richting te maken?"): the first pass skipped a flagged direction WHOLESALE, which also killed the
-// genuine leaf-gap edges INSIDE a densely-neighboured interior tile (mask 15). Now a tap is dropped
-// ONLY when its direction is internal AND that specific tap coordinate would be CLAMPED onto the shared
-// boundary — an interior tap that lands inside the tile still detects real edges and lights normally.
-bool edgeIsInternal(float mask, float bit) {
-    return mod(floor(mask / bit), 2.0) >= 0.5;
-}
-float moonRimFactor(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float internalEdges) {
-    float vUp = min(uvRect.y, uvRect.w);     // atlases are drawn top-down → smaller v = higher on screen
-    float uL = min(uvRect.x, uvRect.z);
-    float uR = max(uvRect.x, uvRect.z);
-    bool upInt = edgeIsInternal(internalEdges, 1.0);
-    bool leftInt = edgeIsInternal(internalEdges, 4.0);
-    bool rightInt = edgeIsInternal(internalEdges, 8.0);
-    // §370 r6 (Han: "15 procentpunten minder fel — opacity 70→55 etc"). Empty test = RIM_EMPTY_ALPHA.
+// §387 (#1222) REWRITE — the spec above is untouched, only what it looks AT changed. It used to sample
+// the fragment's own diffuse texture, with the taps clamped to the tile's atlas cell and a per-tile
+// 'internalEdges' bitmask (#1221) trying to tell a real silhouette edge from a canopy's internal tile
+// seam. Three things were wrong with that, all fixed here by construction rather than by another patch:
+//   1. the uvRect clamp and the internalEdges gating are NO-OPS on a flipped tile — flipX/flipY invert
+//      the sign of texelSize, so the tap walks the other way and 'max(tap, min(rect))' never clamps.
+//      200 of this level's 1599 foliage tiles are flipX, and their taps ran straight into a neighbouring,
+//      unrelated atlas crop. That is Han's own UAT r6 question ("heeft het met de richting te maken?"),
+//      answered: yes, literally the mirror direction;
+//   2. internalEdges only knew ORTHOGONAL foliage sisters — never a diagonal one, and never the building
+//      or terrain behind the branch, so a foliage/building contact line rimmed as if it were open sky;
+//   3. it could only ever describe ONE tile's silhouette, when Han's actual requirement is the WORLD's
+//      ("alle entiteiten op de main layer als één behandeld ... het silhouet van de 'wereld', niet van de
+//      tile laag").
+// Now: four cheap taps into the level-space world mask (§387, useWorldSilhouetteMask.js). No clamping,
+// no bitmask, no flip handling — level space has no cells to fall out of and no mirror to get wrong.
+// The whole 'edgeIsInternal' helper and the 'internalEdges' attribute/varying/JS adjacency scan are gone
+// with it. On the foliage path the caller passes the texel's SOURCE level coordinate (the wind
+// pixel-switch's 'shiftedNativeX'), so the rim still shifts along with the leaves for free.
+float worldRimFactor(highp vec2 levelPx) {
     float r = 0.0;
-    float uy1 = duv.y - texelSize.y, uy2 = duv.y - texelSize.y * 2.0, uy3 = duv.y - texelSize.y * 3.0;
-    if      (!(upInt && uy1 < vUp) && texture2D(tex, vec2(duv.x, max(uy1, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.55);
-    else if (!(upInt && uy2 < vUp) && texture2D(tex, vec2(duv.x, max(uy2, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
-    else if (!(upInt && uy3 < vUp) && texture2D(tex, vec2(duv.x, max(uy3, vUp))).a < RIM_EMPTY_ALPHA) r = max(r, 0.05);
-    float lx1 = duv.x - texelSize.x, lx2 = duv.x - texelSize.x * 2.0;
-    if      (!(leftInt && lx1 < uL) && texture2D(tex, vec2(max(lx1, uL), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.55);
-    else if (!(leftInt && lx2 < uL) && texture2D(tex, vec2(max(lx2, uL), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.15);
-    float rx1 = duv.x + texelSize.x;
-    if (!(rightInt && rx1 > uR) && texture2D(tex, vec2(min(rx1, uR), duv.y)).a < RIM_EMPTY_ALPHA) r = max(r, 0.35);
+    if      (worldMaskAt(levelPx + vec2(0.0, -1.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.55);
+    else if (worldMaskAt(levelPx + vec2(0.0, -2.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.35);
+    else if (worldMaskAt(levelPx + vec2(0.0, -3.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.05);
+    if      (worldMaskAt(levelPx + vec2(-1.0, 0.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.55);
+    else if (worldMaskAt(levelPx + vec2(-2.0, 0.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.15);
+    if (worldMaskAt(levelPx + vec2(1.0, 0.0)) < RIM_EMPTY_ALPHA) r = max(r, 0.35);
     return r;
 }
 
@@ -321,33 +339,35 @@ vec3 applyMoonLight(vec3 currentColor, vec3 baseColor, vec3 normal, float edgeFa
     return clamp(lit, 0.0, 1.0);
 }
 
-// §377 UAT r4 (Han: "dicht bij de zon tot 3px doordringen met een gradient"). moonRimFactor only lights
+// §377 UAT r4 (Han: "dicht bij de zon tot 3px doordringen met een gradient"). worldRimFactor only lights
 // the single outermost silhouette texel; near the sun Han wants the glow to bite ~3 game-px INTO the
 // sprite with a smooth gradient. Isotropic distance-to-edge: an opaque texel 1 px from an empty
-// neighbour returns 1.0, 2 px → 0.6, 3 px → 0.3, deeper → 0.0. Reuses anyNeighborBelowAlpha at the
-// RIM_EMPTY_ALPHA threshold. Up to 12 texture2D reads, but returns on the first hit (a true edge texel
-// costs 4) and applySunGlow only calls it for fragments already inside the sun's screen-space mask.
-// Sun-only — the moon keeps its thin rim. UAT r6 (Han: "geen sheen op sommige pixels dicht bij de zon"):
-// per-tap gating like moonRimFactor — a direction's tap is dropped ONLY when it is internal AND that
-// tap coordinate has crossed the tile's own uvRect boundary; an interior tap (still inside the tile)
-// runs, so genuine leaf-gap edges inside a densely-neighboured tile still glow. Samples are NOT clamped
-// (unlike moonRimFactor) so an external edge still detects the transparent atlas gutter past the crop.
-float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float internalEdges) {
-    float vT = min(uvRect.y, uvRect.w), vB = max(uvRect.y, uvRect.w);
-    float uL = min(uvRect.x, uvRect.z), uR = max(uvRect.x, uvRect.z);
-    bool upInt = edgeIsInternal(internalEdges, 1.0);
-    bool downInt = edgeIsInternal(internalEdges, 2.0);
-    bool leftInt = edgeIsInternal(internalEdges, 4.0);
-    bool rightInt = edgeIsInternal(internalEdges, 8.0);
+// neighbour returns 1.0, 2 px → 0.75, 3 px → 0.5, deeper → 0.0. Up to 12 mask reads, but it returns on
+// the first hit (a true edge texel costs 4) and applySunGlow only calls it for fragments already inside
+// the sun's screen-space mask. Sun-only — the moon keeps its thin rim.
+//
+// §387 (#1222) REWRITE, and this one is the single biggest cause of what Han reported on 2026-09-06
+// ("aan de rand pixels die niet reageren op de illum, sheen, of andere lighting"). The old version
+// sampled the fragment's own diffuse and DELIBERATELY did not clamp its taps, with this justification
+// in its comment: "Samples are NOT clamped (unlike moonRimFactor) so an external edge still detects the
+// transparent atlas gutter past the crop." That gutter no longer exists — #1221 reverted it
+// (useLdtkFoliageAtlas.js 'atlasLayout' packs the 16x16 crops edge to edge, 22 per row). So for all 1599
+// foliage tiles these taps read whatever unrelated crop happened to be packed alongside:
+//   • neighbour opaque there ⇒ a GENUINE silhouette edge is never detected ⇒ no sun sheen on a pixel
+//     that should have it ("overdag pixels die over worden geslagen door de sheen van de zon");
+//   • neighbour empty there ⇒ a FALSE edge on an interior pixel ⇒ a bright white rim at night on a pixel
+//     surrounded by darkened ones ("'s nachts pixels die niet donker worden en dus fel afsteken").
+// One bug, both symptoms, in opposite directions — which is exactly the signature of an edge test whose
+// answer is effectively random. Against the level-space world mask there is nothing to run off the end
+// of, so the taps are simply honest: no clamp, no gutter, no internalEdges gate (Han, 2026-09-06: "je
+// mag gewoon echt de logica van moonrim gebruiken").
+float worldInwardGlow(highp vec2 levelPx) {
     for (int k = 1; k <= 3; k++) {
-        float fk = float(k);
-        float uy = duv.y - texelSize.y * fk, dy = duv.y + texelSize.y * fk;
-        float lx = duv.x - texelSize.x * fk, rx = duv.x + texelSize.x * fk;
-        bool hit = false;
-        if (!(upInt    && uy < vT) && texture2D(tex, vec2(duv.x, uy)).a < RIM_EMPTY_ALPHA) hit = true;
-        if (!(downInt  && dy > vB) && texture2D(tex, vec2(duv.x, dy)).a < RIM_EMPTY_ALPHA) hit = true;
-        if (!(leftInt  && lx < uL) && texture2D(tex, vec2(lx, duv.y)).a < RIM_EMPTY_ALPHA) hit = true;
-        if (!(rightInt && rx > uR) && texture2D(tex, vec2(rx, duv.y)).a < RIM_EMPTY_ALPHA) hit = true;
+        highp float fk = float(k);
+        bool hit = worldMaskAt(levelPx + vec2(0.0, -fk)) < RIM_EMPTY_ALPHA
+                || worldMaskAt(levelPx + vec2(0.0,  fk)) < RIM_EMPTY_ALPHA
+                || worldMaskAt(levelPx + vec2(-fk, 0.0)) < RIM_EMPTY_ALPHA
+                || worldMaskAt(levelPx + vec2( fk, 0.0)) < RIM_EMPTY_ALPHA;
         if (hit) return fk < 1.5 ? 1.0 : (fk < 2.5 ? 0.75 : 0.5);   // §377 UAT: "iets hoger" (was 0.6/0.3)
     }
     return 0.0;
@@ -361,19 +381,19 @@ float sunInwardGlow(sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float 
 //   • everything is multiplied by that distance mask around the sun's own on-screen position, so only
 //     sprites "vlakbij de zon" light up ("felle zon door de bomen", "zon vlak over daken").
 // NOTE for future editors: no backticks in comments inside this template literal — they terminate it.
-// 'rimFactor' is the SAME moonRimFactor value the call site already computed for §370 — reusing it
+// 'rimFactor' is the SAME worldRimFactor value the call site already computed for §370 — reusing it
 // costs zero extra texture fetches and keeps ONE thin-rim definition in the codebase. Its fixed
 // up/left/right bias is fine here: the sun is above the horizon whenever this term is non-zero at all.
-// UAT r4: the rim term is now max(rimFactor, sunInwardGlow(...)) — the isotropic 3-px inward gradient
-// takes over near the sun (where moonRimFactor's one-texel outline is not enough) and never weakens it.
-// sunInwardGlow is computed HERE, after the two early-outs, so the up-to-12 extra texture reads are
-// only paid by fragments that are both near the sun on-screen AND while the sun is up — hence the
-// sampler/duv/texelSize params (tex is each consumer's own diffuse atlas).
+// UAT r4: the rim term is now max(rimFactor, worldInwardGlow(...)) — the isotropic 3-px inward gradient
+// takes over near the sun (where worldRimFactor's one-texel outline is not enough) and never weakens it.
+// worldInwardGlow is computed HERE, after the two early-outs, so the up-to-12 extra mask reads are only
+// paid by fragments that are both near the sun on-screen AND while the sun is up — hence the 'levelPx'
+// param (§387: this fragment's position in LEVEL px, which each consumer already has to hand).
 // 'fragUnit' is this fragment's TOP-DOWN screen position divided by the canvas WIDTH — the same
 // scalar for both axes, so the metric stays isotropic (a circle is a circle at any aspect ratio) and
 // devicePixelRatio cancels exactly ((cssPx·dpr)/(cssW·dpr) == cssPx/cssW). Each consumer computes it
 // from the gl_FragCoord/uCanvasSize flip it ALREADY has; no new varying anywhere.
-vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, sampler2D tex, vec2 duv, vec2 texelSize, vec4 uvRect, float internalEdges, vec2 fragUnit) {
+vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rimFactor, highp vec2 levelPx, vec2 fragUnit) {
     if (uSunGlowStrength <= 0.0) return currentColor;   // night / overcast / consumer never uploads it
     // GLSL ES 1.00 leaves smoothstep UNDEFINED when edge0 >= edge1, so the "inverted" form
     // smoothstep(uSunGlowRadius, 0.0, d) must NOT be written. Same curve, defined behaviour.
@@ -396,7 +416,7 @@ vec3 applySunGlow(vec3 currentColor, vec3 baseColor, float edgeFactor, float rim
     float hi = smoothstep(MOON_LUM_LO, MOON_LUM_HI, lum);
     float sheen = clamp(edgeFactor * hi * uSunGlowStrength * near * SUN_SHEEN_SCALE, 0.0, 1.0);
     vec3 lit = screenBlend(currentColor, uSunGlowColor * sheen);
-    float rimSrc = max(rimFactor, sunInwardGlow(tex, duv, texelSize, uvRect, internalEdges));   // UAT r4: 3-px inward gradient
+    float rimSrc = max(rimFactor, worldInwardGlow(levelPx));   // UAT r4: 3-px inward gradient
     float rim = clamp(rimSrc * uSunGlowStrength * near, 0.0, 1.0);
     if (rim > 0.0) lit = screenBlend(lit, uSunGlowColor * rim);
     return clamp(lit, 0.0, 1.0);

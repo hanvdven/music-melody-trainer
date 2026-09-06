@@ -1,10 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import useFrameLoop from '../../hooks/useFrameLoop';
-import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, WORLD_MASK_UNIFORMS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
 // §377: the sun's own yellow — the upload fallback for a caller that does not drive the sun-glow
 // channels. Imported, never retyped (CLAUDE.md §6c).
 import { SUN_GLOW_RGB } from './celestialModel';
+// §387 (#1222): the world-silhouette mask's own GPU upload convention lives with the mask itself.
+import { createWorldMaskTexture } from './useWorldSilhouetteMask';
 
 // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en reageren
 // op licht"): a SECOND, lightweight WebGL layer (own canvas/context, same ~8-16-context budget reasoning
@@ -65,6 +67,7 @@ uniform int uEdgeLitOnly;
 
 ${LIGHT_UNIFORMS_GLSL}
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
+${WORLD_MASK_UNIFORMS_GLSL}
 ${LIGHTING_FUNCTIONS_GLSL}
 
 void main() {
@@ -72,9 +75,11 @@ void main() {
     // coordinate (unlike an interpolated varying), and this quad already covers the WHOLE canvas, so
     // there's no benefit to routing through a varying only to reconstruct the same value less precisely
     // (the same reasoning #141 round 20/the #925 Y-axis fix applied to ForegroundFoliageLayer.jsx).
-    vec2 screenPx = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y);
-    float localX = (screenPx.x - uLevelLeftPx) / uZoom;
-    float localY = (screenPx.y - uCanvasBottomScreenY) / uZoom + uLevelPxHeight;
+    // §387: highp on all three — these feed the level-space world-mask lookup, where mediump's 2^-10
+    // relative precision would be several px of error at LEVEL_PX_WIDTH. See WORLD_MASK_UNIFORMS_GLSL.
+    highp vec2 screenPx = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y);
+    highp float localX = (screenPx.x - uLevelLeftPx) / uZoom;
+    highp float localY = (screenPx.y - uCanvasBottomScreenY) / uZoom + uLevelPxHeight;
     if (localX < 0.0 || localX >= uLevelPxWidth || localY < 0.0 || localY >= uLevelPxHeight) discard;
 
     if (uDebugChannel == 3) discard;
@@ -90,8 +95,10 @@ void main() {
 
     vec3 sampledNormal = normalize(texture2D(uNormal, uv).rgb * 2.0 - 1.0);
     vec3 n = normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
-    vec2 texelSize = vec2(1.0 / uLevelPxWidth, 1.0 / uLevelPxHeight);
-    float edgeFactor = edgeLightFactor(uDiffuse, uv, texelSize, float(uEdgeLitOnly));
+    // §387 (#1222): this fragment's position in LEVEL px — the coordinate every edge term now shares.
+    // This layer already had it (localX/localY above); no new varying, no new uniform, no extra math.
+    highp vec2 levelPx = vec2(localX, localY);
+    float edgeFactor = worldEdgeLightFactor(levelPx, float(uEdgeLitOnly));
 
     // Same coordinate convention ForegroundFoliageLayer.jsx's instances already use for worldX
     // (canvas-local to the stitched multi-level strip, NOT LDtk's absolute world coords) and groundDist
@@ -123,14 +130,23 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, n, worldX, groundDist, edgeFactor);
-    // #weather §370: top-left moon rim on the ground/building/decor silhouettes (uv rect = the whole
-    // composited canvas). texelSize/uv are the same ones edgeLightFactor above already uses.
-    float moonRim = moonRimFactor(uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0), 0.0);   // #1221: one composite, no per-tile seams
+    // #weather §370: top-left moon rim on the ground/building/decor silhouettes. §387: against the WORLD
+    // mask, not this pass's own composite — this level interleaves SIX ground passes with five shimmer
+    // passes, so a wall in one pass and the terrain in another used to be separate silhouettes whose
+    // contact line rimmed as if it were open sky. Now every pass reads the same union.
+    float moonRim = worldRimFactor(levelPx);
+    // §387 (#1222) debug channel 4, 'Edge mask' — see ForegroundFoliageLayer's identical block for what
+    // the three channels mean. Same view on both lighting layers, so a seam that crosses from a building
+    // into a tree is legible as one picture.
+    if (uDebugChannel == 4) {
+        gl_FragColor = vec4(moonRim, worldInwardGlow(levelPx), worldMaskAt(levelPx) * 0.3, 1.0);
+        return;
+    }
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377 (#1193): the sun edge-glow on roof ridges / decor outlines ("zon vlak over daken"). Reuses
     // the 'screenPx' local computed at the top of main() — the SAME top-down canvas-px value the sun
     // mask needs — divided by the canvas WIDTH on both axes (isotropic, dpr-free). No recomputation.
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, uv, texelSize, vec4(0.0, 0.0, 1.0, 1.0), 0.0, screenPx / uCanvasSize.x);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, levelPx, screenPx / uCanvasSize.x);   // §377 / §387
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -190,9 +206,14 @@ function createTextureFromCanvas(gl, canvas) {
 function LdtkLitGround({
     widthPx, heightPx, textures, levelPxWidth, levelPxHeight, leftPx, canvasBottomScreenY, zoom,
     lights = [], params, edgeLitOnly, debugChannel = 0, cameraOffsetRef = ZERO_OFFSET_REF,
+    // §387 (#1222): the level-sized world silhouette every edge/rim/glow term tests against
+    // (useWorldSilhouetteMask). `null` while it is still compositing — handled by createWorldMaskTexture's
+    // 1x1 opaque placeholder, which reports "no edges" rather than outlining the world at random.
+    worldMask = null,
 }) {
     const canvasRef = useRef(null);
     const textureIds = useRef({ diffuse: null, normal: null });
+    const worldMaskTexRef = useRef(null);
     const glRef = useRef(null);
     const uniformsRef = useRef(null);
     const liveRef = useRef({});
@@ -272,6 +293,9 @@ function LdtkLitGround({
             uSunGlowRadius: gl.getUniformLocation(program, 'uSunGlowRadius'),
             uEdgeLitOnly: gl.getUniformLocation(program, 'uEdgeLitOnly'),
             uDebugChannel: gl.getUniformLocation(program, 'uDebugChannel'),
+            // §387 (#1222)
+            uWorldMask: gl.getUniformLocation(program, 'uWorldMask'),
+            uWorldMaskSize: gl.getUniformLocation(program, 'uWorldMaskSize'),
         };
         // #925 diagnostic (Han: point-light params like flat illumination/hue-pull have no visible
         // effect on this layer even in the real final view, channel 0): a null uniform location means the
@@ -309,6 +333,10 @@ function LdtkLitGround({
             gl.uniform1f(u.uZoom, z * dpr);
             gl.uniform1f(u.uLevelPxWidth, lw);
             gl.uniform1f(u.uLevelPxHeight, lh);
+            // §387: ALWAYS the real level extent, even while the 1x1 placeholder texture is bound — the
+            // shader's out-of-bounds test and its levelPx/size normalisation both need the true extent,
+            // and a 1x1 texture sampled anywhere in range simply returns "solid".
+            gl.uniform2f(u.uWorldMaskSize, lw, lh);
             gl.uniform1i(u.uEdgeLitOnly, elo ? 1 : 0);
             gl.uniform1i(u.uDebugChannel, dc);
 
@@ -367,6 +395,9 @@ function LdtkLitGround({
             gl.activeTexture(gl.TEXTURE1);
             gl.bindTexture(gl.TEXTURE_2D, ids.normal);
             gl.uniform1i(u.uNormal, 1);
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, worldMaskTexRef.current);   // §387
+            gl.uniform1i(u.uWorldMask, 2);
 
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         };
@@ -392,6 +423,20 @@ function LdtkLitGround({
             logger.error('LdtkLitGround', 'E031-LDTK-LIT-GROUND-DRAW-FRAME', err);
         }
     }, [], { priority: 'critical' });
+
+    // §387 (#1222): the world mask, uploaded once per mask build (a world-config change) — separate from
+    // the diffuse/normal effect below because it has its own, independent source and lifetime. The
+    // placeholder branch runs on mount too, so the sampler is never left unbound.
+    useEffect(() => {
+        const gl = glRef.current;
+        if (!gl) return undefined;
+        const tex = createWorldMaskTexture(gl, worldMask);
+        worldMaskTexRef.current = tex;
+        return () => {
+            gl.deleteTexture(tex);
+            worldMaskTexRef.current = null;
+        };
+    }, [worldMask]);
 
     // Textures are re-uploaded only when the composited canvases themselves change (a new world config —
     // season/city/tier toggle) — NOT every frame, unlike the live uniform values above.

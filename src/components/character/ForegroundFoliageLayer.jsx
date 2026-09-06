@@ -1,7 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import logger from '../../utils/logger';
 import useFrameLoop from '../../hooks/useFrameLoop';
-import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, WORLD_MASK_UNIFORMS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
+// §387 (#1222): the world-silhouette mask's own GPU upload convention lives with the mask itself.
+import { createWorldMaskTexture } from './useWorldSilhouetteMask';
 // §377: the sun's own yellow — imported, never retyped (CLAUDE.md §6c). Used as the no-op default and
 // as the upload fallback for any caller that does not drive the sun-glow channels.
 import { SUN_GLOW_RGB } from './celestialModel';
@@ -263,6 +265,7 @@ float quantizeWave(float wave01, float worldX, float groundDist) {
 // verbatim with LdtkLitGround.jsx's static lighting shader (CLAUDE.md §6d). blendHighlight/
 // blendHighlightDual below (the wave-specific highlight, NOT shared — no equivalent in a static shader)
 // still use rgb2hsv/hsv2rgb/compositeBlend, which is why this block must come before them.
+${WORLD_MASK_UNIFORMS_GLSL}
 ${LIGHTING_FUNCTIONS_GLSL}
 
 // #141 round 11 debug blend-mode selector (Han: "Kun je zorgen dat ik in debug verschillende blend modes
@@ -360,7 +363,6 @@ void main() {
     float pxPerNativeY = max(uSizePx.y / uWorldHeight, 0.0001);
     float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, uWorldHeight - 1.0);
     float groundDist = uWorldHeight - (nativeY + 0.5) + uGroundDistOffset;
-    vec2 texelSize = vec2((uDiffuseUV.z - uDiffuseUV.x) / uWorldWidth, (uDiffuseUV.w - uDiffuseUV.y) / uWorldHeight);
 
     // Channel 3 (Disabled) and instances with BOTH wave and skew switched off skip the noise sample
     // entirely — computed once here (raw, pre-quantization) so both the skew below and the highlight
@@ -438,10 +440,23 @@ void main() {
         clamp((nativeY + 0.5) / uWorldHeight, 0.0, 1.0)
     );
 
+    // §387 (#1222): where this texel lives in LEVEL px — the coordinate every edge/rim/glow term now
+    // shares with the ground layer, replacing all per-tile atlas-UV edge testing. Derived from values
+    // this shader already has: uWorldCenterX is the instance's centre in canvas-local level px, and
+    // uGroundDistOffset is its bottom edge measured UP from the level's bottom, so
+    // (maskHeight - (offset + worldHeight)) is its TOP edge measured DOWN from the level's top.
+    // The COLUMN used is shiftedNativeX — the wind bend's SOURCE column — so a displaced texel is
+    // tested against the neighbourhood it actually came from, and the rim travels with the wind.
+    highp vec2 tileTopLeftLevelPx = vec2(
+        uWorldCenterX - uWorldWidth * 0.5,
+        uWorldMaskSize.y - (uGroundDistOffset + uWorldHeight)
+    );
+    highp vec2 maskLevelPx = tileTopLeftLevelPx + vec2(shiftedNativeX + 0.5, nativeY + 0.5);
+
     vec4 diffuse = texture2D(uDiffuse, duv);
     if (uInstanceKind == 0 && diffuse.a < 0.5) discard;
 
-    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, float(uEdgeLitOnly));
+    float edgeFactor = worldEdgeLightFactor(maskLevelPx, float(uEdgeLitOnly));
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -509,20 +524,28 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = trueColor * ambientTint;
     vec3 lit = applyPointLights(trueColor, darkened, nPoint, worldX, groundDist, edgeFactor);
-    // Legacy-mode foliage is one sprite per object — no internal tile seams, so internalEdges = 0.0 (#1221).
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, uDiffuseUV, 0.0);   // #weather §370
-    // Force a rim on the outermost column where the wind bent the sample past [0,W-1] (see the instanced
-    // shader's fuller comment) — one sprite, so no sister-tile check needed.
-    float windPushedOut = step(uWorldWidth - 0.5, nativeX + totalShiftPx) + step(nativeX + totalShiftPx, -0.5);
-    float atExtremeCol = step(uWorldWidth - 1.5, nativeX) + step(nativeX, 0.5);
-    moonRim = max(moonRim, min(windPushedOut, 1.0) * min(atExtremeCol, 1.0) * 0.55);
+    // #weather §370 / §387: the moon rim, from the world silhouette. The old per-sprite version needed a
+    // companion hack here — a forced 0.55 rim on the outermost column whenever the wind bend clamped its
+    // sample past [0,W-1] — because the sprite-local test could not see the sky beyond its own texture.
+    // Gone: in level space the clamped source column IS a genuine rest-silhouette edge and rims on its
+    // own merits, so there is nothing left to force.
+    float moonRim = worldRimFactor(maskLevelPx);
+    // §387 (#1222) debug channel 4, 'Edge mask' — the edge TEST itself, not its effect on the art. Red =
+    // worldRimFactor (the thin moon/sun rim), green = worldInwardGlow (the sun's 3-px inward gradient),
+    // dim blue = the raw world-mask coverage so the silhouette is readable behind them. This is the
+    // instrument the §387 diagnosis lacked: a false rim on an internal seam, or a genuine outline the
+    // glow skips, is directly visible here instead of having to be inferred from the final image.
+    if (uDebugChannel == 4) {
+        gl_FragColor = vec4(moonRim, worldInwardGlow(maskLevelPx), worldMaskAt(maskLevelPx) * 0.3, 1.0);
+        return;
+    }
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow, masked to a screen-space disc around the sun. Reuses the SAME
     // gl_FragCoord → top-down canvas-px flip localYPx already does above (uCanvasSize.y - gl_FragCoord.y),
     // normalised by the canvas WIDTH on BOTH axes so the mask is isotropic and dpr-free. Reuses the
     // moonRim value too — one rim definition, zero extra texture fetches.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, uDiffuseUV, 0.0, sunFragUnit);   // §377
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, maskLevelPx, sunFragUnit);   // §377 / §387
     gl_FragColor = vec4(lit, diffuse.a);
 }
 `;
@@ -542,7 +565,9 @@ void main() {
 //   aInstance1 = (diffuseU0, diffuseV0, diffuseU1, diffuseV1)   — the atlas UV rect
 //   aInstance2 = (worldCenterX, worldWidth, worldHeight, groundDistOffset)
 //   aInstance3 = (instanceKind, hasWave, hasSkew, edgeLitOnly)  — 0.0/1.0 floats, GLSL ES 1.00 varyings can't be int
-//   aInstance4 = (whiteCapThreshold, whiteCapStrength, internalEdges, 0)  — internalEdges: #1221 seam-suppress bitmask
+//   aInstance4 = (whiteCapThreshold, whiteCapStrength, 0, 0)  — .zw unused since §387 retired #1221's
+//                 per-tile `internalEdges` seam-suppress bitmask (the world mask makes it meaningless);
+//                 the vec4 slot is kept so the 20-float stride/offset layout above stays as-is
 const VERTEX_SRC_INSTANCED = `
 attribute vec2 aPos;
 attribute vec4 aInstance0;
@@ -565,7 +590,6 @@ varying float vHasSkew;
 varying float vEdgeLitOnly;
 varying float vWhiteCapThreshold;
 varying float vWhiteCapStrength;
-varying float vInternalEdges;
 void main() {
     vec2 screenPos = aInstance0.xy;
     vec2 sizePx = aInstance0.zw;
@@ -587,7 +611,6 @@ void main() {
     vEdgeLitOnly = aInstance3.w;
     vWhiteCapThreshold = aInstance4.x;
     vWhiteCapStrength = aInstance4.y;
-    vInternalEdges = aInstance4.z;   // #1221: which of this tile's 4 edges abut a sister canopy tile
 }
 `;
 
@@ -632,7 +655,6 @@ uniform int uWaveBlendMode2;
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
 varying float vWhiteCapThreshold;
 varying float vWhiteCapStrength;
-varying float vInternalEdges;
 
 const float GRAIN_CELL = 1.0;
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
@@ -670,6 +692,7 @@ float quantizeWave(float wave01, float worldX, float groundDist) {
     float waveDithered = clamp(wave01 + grain * uDitherAmount, 0.0, 1.0);
     return floor(waveDithered * uWaveSteps) / max(uWaveSteps - 1.0, 1.0);
 }
+${WORLD_MASK_UNIFORMS_GLSL}
 ${LIGHTING_FUNCTIONS_GLSL}
 vec3 blendHighlight(vec3 base, vec3 tintColor, float waveQuant, float strengthScale, int mode) {
     float strength = waveQuant * strengthScale;
@@ -703,7 +726,6 @@ void main() {
     float pxPerNativeY = max(vSizePx.y / vWorldHeight, 0.0001);
     float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, vWorldHeight - 1.0);
     float groundDist = vWorldHeight - (nativeY + 0.5) + vGroundDistOffset;
-    vec2 texelSize = vec2((vDiffuseUV.z - vDiffuseUV.x) / vWorldWidth, (vDiffuseUV.w - vDiffuseUV.y) / vWorldHeight);
 
     bool wantsWave = uDebugChannel != 3 && (vHasWave > 0.5 || vHasSkew > 0.5);
     float wave01 = 0.0;
@@ -728,9 +750,14 @@ void main() {
     // (Han: het is juist de bedoeling dat pixels buiten de oorspronkelijke sprite terecht kunnen komen,
     // dat geeft net het wind effect). Everything downstream (discard, colour, edge/rim/sheen, darken)
     // reads this same duv so a wind-moved texel is lit exactly as itself — coherent, no half-lit
-    // ghosts. #1221's internalEdges still suppresses the per-tile atlas-cell seam. (r7's duv0 split
+    // ghosts. §387's world mask (not the tile's own atlas cell) now decides what counts as an edge,
+    // so nothing here has to know about tile seams any more. (r7's duv0 split
     // was reverted — it froze the silhouette and killed the bend.)
     float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, vWorldWidth - 1.0);
+    // §387 (#1222): the tile-local column the lighting's world-mask lookup must use. It tracks whichever
+    // column 'duv' ends up sampling — the wind-bent source column normally, or the REST column when the
+    // wind-hole fill below falls back — so the silhouette test always describes the texel actually drawn.
+    float maskNativeX = shiftedNativeX;
     vec2 duv = vec2(
         mix(vDiffuseUV.x, vDiffuseUV.z, (shiftedNativeX + 0.5) / vWorldWidth),
         mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
@@ -762,11 +789,21 @@ void main() {
             mix(vDiffuseUV.y, vDiffuseUV.w, (nativeY + 0.5) / vWorldHeight)
         );
         vec4 restDiffuse = texture2D(uDiffuse, duvRest);
-        if (restDiffuse.a >= 0.5) { diffuse = restDiffuse; duv = duvRest; normalUV = duvRest; }
+        if (restDiffuse.a >= 0.5) { diffuse = restDiffuse; duv = duvRest; normalUV = duvRest; maskNativeX = nativeX; }
     }
     if (vInstanceKind < 0.5 && diffuse.a < 0.5) discard;
 
-    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize, vEdgeLitOnly);
+    // §387 (#1222): this texel's position in LEVEL px — the one coordinate every edge/rim/glow term now
+    // shares with LdtkLitGround, replacing the per-atlas-cell UV tests (and their uvRect clamp, their
+    // internalEdges bitmask, and the flip-direction bugs in both). See the non-instanced shader above for
+    // the derivation; identical, just reading the per-instance varyings.
+    highp vec2 tileTopLeftLevelPx = vec2(
+        vWorldCenterX - vWorldWidth * 0.5,
+        uWorldMaskSize.y - (vGroundDistOffset + vWorldHeight)
+    );
+    highp vec2 maskLevelPx = tileTopLeftLevelPx + vec2(maskNativeX + 0.5, nativeY + 0.5);
+
+    float edgeFactor = worldEdgeLightFactor(maskLevelPx, vEdgeLitOnly);
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -815,22 +852,29 @@ void main() {
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
     vec3 darkened = baseColor * ambientTint;
     vec3 lit = applyPointLights(baseColor, darkened, nPoint, worldX, groundDist, edgeFactor);
-    float moonRim = moonRimFactor(uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges);   // #weather §370 / #1221
-    // Han ("pixels aan de rand van de boom krijgen geen glow"): where the WIND bend pushed this tile's
-    // sample past its own [0,W-1] range, the clamped edge column IS the new (bent) silhouette — but
-    // moonRimFactor clamps its neighbour taps to the tile rect and can't see the sky beyond, so it
-    // never rims there. Force a rim on that outermost column, unless a sister tile sits alongside (then
-    // it's an internal seam, not an outline). One texel wide (nativeX at the extreme).
-    float windPushedOut = step(vWorldWidth - 0.5, nativeX + totalShiftPx) + step(nativeX + totalShiftPx, -0.5);
-    float atExtremeCol = step(vWorldWidth - 1.5, nativeX) + step(nativeX, 0.5);
-    float horizSister = max(edgeIsInternal(vInternalEdges, 4.0) ? 1.0 : 0.0, edgeIsInternal(vInternalEdges, 8.0) ? 1.0 : 0.0);
-    moonRim = max(moonRim, min(windPushedOut, 1.0) * min(atExtremeCol, 1.0) * (1.0 - horizSister) * 0.55);
+    // #weather §370 / §387: the moon rim, from the world silhouette. Three pieces of machinery died here:
+    //   • the 'vInternalEdges' bitmask (#1221) — grid adjacency can only ever describe foliage sisters,
+    //     orthogonally, and its per-tap gating was a no-op on flipX tiles anyway;
+    //   • the forced-rim hack for the wind-bent outermost column (Han: "pixels aan de rand van de boom
+    //     krijgen geen glow") — that column now rims on its own merits, because the mask lookup follows
+    //     the texel's source position instead of being trapped inside one atlas cell;
+    //   • the 'horizSister' suppression that hack needed to avoid re-lighting internal seams.
+    float moonRim = worldRimFactor(maskLevelPx);
+    // §387 (#1222) debug channel 4, 'Edge mask' — the edge TEST itself, not its effect on the art. Red =
+    // worldRimFactor (the thin moon/sun rim), green = worldInwardGlow (the sun's 3-px inward gradient),
+    // dim blue = the raw world-mask coverage so the silhouette is readable behind them. This is the
+    // instrument the §387 diagnosis lacked: a false rim on an internal seam, or a genuine outline the
+    // glow skips, is directly visible here instead of having to be inferred from the final image.
+    if (uDebugChannel == 4) {
+        gl_FragColor = vec4(moonRim, worldInwardGlow(maskLevelPx), worldMaskAt(maskLevelPx) * 0.3, 1.0);
+        return;
+    }
     lit = applyMoonLight(lit, diffuse.rgb, n, edgeFactor, moonRim);   // #weather §362/§370 — moon sheen + rim
     // §377: the sun edge-glow — LIGHTING, so it belongs in this block (immediately after the moon),
     // NOT with the "shimmer LAST" block below (§368 r2). Same fragUnit derivation as the non-instanced
     // shader; see applySunGlow's own comment in foliageLightingGLSL.js.
     vec2 sunFragUnit = vec2(gl_FragCoord.x, uCanvasSize.y - gl_FragCoord.y) / uCanvasSize.x;
-    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, uDiffuse, duv, texelSize, vDiffuseUV, vInternalEdges, sunFragUnit);   // §377 / #1221
+    lit = applySunGlow(lit, diffuse.rgb, edgeFactor, moonRim, maskLevelPx, sunFragUnit);   // §377 / §387
 
     // --- shimmer LAST, on the fully-lit colour ---
     if (vHasWave > 0.5 && wantsWave) {
@@ -1052,6 +1096,15 @@ function ForegroundFoliageLayer({
     // texture-loading path in this file already has.
     atlas = null,
     atlasInstances = [],
+    // §387 (#1222): the level-sized world silhouette every edge/rim/glow term now tests against
+    // (useWorldSilhouetteMask) plus its own native extent in LEVEL px. `null` while it is still
+    // compositing — createWorldMaskTexture's 1x1 opaque placeholder then reports "no edges anywhere",
+    // so the foliage simply renders without rim/glow until the real mask lands. Passed as two scalars
+    // rather than a [w,h] array so the caller's React.memo boundaries survive (a fresh array every
+    // render would break them, the same reason `bgDarkenColor` is a css string).
+    worldMask = null,
+    worldMaskWidth = 0,
+    worldMaskHeight = 0,
 }) {
     const canvasRef = useRef(null);
     const instancesRef = useRef(instances);
@@ -1070,6 +1123,11 @@ function ForegroundFoliageLayer({
     // batches. Mirrors `LdtkLitGround.jsx`'s own "textures re-uploaded only when the composited canvases
     // themselves change" pattern.
     const atlasTexRef = useRef({ diffuse: null, normal: null });
+    // §387 (#1222): the world mask's own texture + live extent, on refs for the same reason every other
+    // per-frame value here is — the draw loop reads them without needing a React re-render.
+    const worldMaskTexRef = useRef(null);
+    const worldMaskSizeRef = useRef([0, 0]);
+    worldMaskSizeRef.current = [worldMaskWidth, worldMaskHeight];
     // Perf (#1162, Fase 10c): holds the live WebGL context so the atlas-texture-upload effect below (keyed
     // on `atlas`, separate from the GL-setup effect which only runs once) can reach it — same `glRef`
     // pattern `LdtkLitGround.jsx` already established for its own textures-change-independently-of-GL-setup
@@ -1184,6 +1242,9 @@ function ForegroundFoliageLayer({
         const uSunGlowColor = gl.getUniformLocation(program, 'uSunGlowColor');
         const uSunScreenPos = gl.getUniformLocation(program, 'uSunScreenPos');
         const uSunGlowRadius = gl.getUniformLocation(program, 'uSunGlowRadius');
+        // §387 (#1222) — the world silhouette mask both edge terms and the rim/glow test against.
+        const uWorldMask = gl.getUniformLocation(program, 'uWorldMask');
+        const uWorldMaskSize = gl.getUniformLocation(program, 'uWorldMaskSize');
 
         // Perf (#1162, Fase 10c, docs/architecture.md §339/§340): the instanced program is compiled
         // ADDITIONALLY, alongside the original per-instance `program` above — both stay live for the whole
@@ -1221,6 +1282,8 @@ function ForegroundFoliageLayer({
                 'uGlobalIllumination', 'uNormalStrength', 'uFlatIllumination', 'uMoonStrength',
                 // §377 (#1193) — the sun edge-glow, same four as the per-instance program above.
                 'uSunGlowStrength', 'uSunGlowColor', 'uSunScreenPos', 'uSunGlowRadius',
+                // §387 (#1222) — the world silhouette mask, same two as the per-instance program above.
+                'uWorldMask', 'uWorldMaskSize',
             ].forEach((name) => { instUniforms[name] = gl.getUniformLocation(instProgram, name); });
             instLocs = { aPos: instAPos, aInstance: instAInstanceLocs, uniforms: instUniforms };
         }
@@ -1352,6 +1415,13 @@ function ForegroundFoliageLayer({
             gl.uniform3f(uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
             gl.uniform2f(uSunScreenPos, sunPos[0], sunPos[1]);
             gl.uniform1f(uSunGlowRadius, p.sunGlowRadius ?? 0);
+            // §387 (#1222): the world silhouette. `uWorldMaskSize` is ALWAYS the real level extent, even
+            // while the 1x1 placeholder is bound — the shader's bounds test and its levelPx normalisation
+            // both need the true extent, and a 1x1 texture read in range simply returns "solid".
+            gl.uniform2f(uWorldMaskSize, worldMaskSizeRef.current[0], worldMaskSizeRef.current[1]);
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, worldMaskTexRef.current);
+            gl.uniform1i(uWorldMask, 2);
             // uWhiteCapThreshold/uWhiteCapStrength: no longer set here — round 8 made white caps
             // per-instance-only (water exclusive), see the draw loop below.
 
@@ -1454,7 +1524,7 @@ function ForegroundFoliageLayer({
                     data.set(inst.diffuseUV, off + 4);
                     data.set([inst.worldX, inst.worldWidth, inst.worldHeight, inst.groundDistOffset || 0], off + 8);
                     data.set([inst.kind === 'floor' ? 1 : 0, inst.wave === false ? 0 : 1, inst.skew ? 1 : 0, inst.edgeLitOnly ? 1 : 0], off + 12);
-                    data.set([inst.isWater ? p.waterWhiteCapThreshold : 1.0, inst.isWater ? p.waterWhiteCapStrength : 0.0, inst.internalEdges || 0, 0], off + 16);
+                    data.set([inst.isWater ? p.waterWhiteCapThreshold : 1.0, inst.isWater ? p.waterWhiteCapStrength : 0.0, 0, 0], off + 16);   // §387: .zw unused (was #1221 internalEdges)
                 });
 
                 gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
@@ -1499,6 +1569,7 @@ function ForegroundFoliageLayer({
                 gl.uniform3f(iu.uSunGlowColor, sunCol[0] / 255, sunCol[1] / 255, sunCol[2] / 255);
                 gl.uniform2f(iu.uSunScreenPos, sunPos[0], sunPos[1]);
                 gl.uniform1f(iu.uSunGlowRadius, p.sunGlowRadius ?? 0);
+                gl.uniform2f(iu.uWorldMaskSize, worldMaskSizeRef.current[0], worldMaskSizeRef.current[1]);   // §387
 
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.diffuse);
@@ -1506,6 +1577,9 @@ function ForegroundFoliageLayer({
                 gl.activeTexture(gl.TEXTURE1);
                 gl.bindTexture(gl.TEXTURE_2D, atlasTex.normal);
                 gl.uniform1i(iu.uNormal, 1);
+                gl.activeTexture(gl.TEXTURE2);
+                gl.bindTexture(gl.TEXTURE_2D, worldMaskTexRef.current);   // §387
+                gl.uniform1i(iu.uWorldMask, 2);
 
                 // ONE draw call for the whole visible atlas-backed set — this is the entire point of Fase
                 // 10c: replaces what would otherwise be `visibleAtlas.length` separate `gl.drawArrays` +
@@ -1559,6 +1633,20 @@ function ForegroundFoliageLayer({
             atlasTexRef.current = { diffuse: null, normal: null };
         };
     }, [atlas]);
+
+    // §387 (#1222): the world silhouette mask, uploaded once per mask build (a world-config change) — its
+    // own effect because it has an independent source and lifetime from the atlas above. The placeholder
+    // branch runs on mount too, so unit 2's sampler is never left unbound.
+    useEffect(() => {
+        const gl = glRef.current;
+        if (!gl) return undefined;
+        const tex = createWorldMaskTexture(gl, worldMask);
+        worldMaskTexRef.current = tex;
+        return () => {
+            gl.deleteTexture(tex);
+            worldMaskTexRef.current = null;
+        };
+    }, [worldMask]);
 
     // Perf (#1162, Fase 9, docs/architecture.md §331): migrated onto the shared `useFrameLoop` ticker.
     // `drawingRef` is the whole reason this migration needed more than a mechanical swap (unlike

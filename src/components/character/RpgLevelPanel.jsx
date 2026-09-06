@@ -30,6 +30,8 @@ import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
 import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, WATER_STAND_HEIGHT_PX, WATER_REFLECTION_AXIS_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH, groundHeightAt, reflectableTilesFor } from '../../levels/ldtk/ldtkWorld';
 import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
 import LdtkLitGround from './LdtkLitGround';
+// §387 (#1222, Han 2026-09-06): the ONE world silhouette every edge/rim/glow lighting term tests against.
+import useWorldSilhouetteMask from './useWorldSilhouetteMask';
 import useWorldAmbientMusic from '../../hooks/useWorldAmbientMusic';
 import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
 import { oscillate } from '../../utils/oscillate';
@@ -911,7 +913,7 @@ function useRegisteredRef(panElsRef, key) {
 // its own draw loop, so a pan needs no re-render here.
 const GroundPass = React.memo(function GroundPass({
     passKey, tiles, edgeLitOnly, cameraOffsetRef, panElsRef, groundLeftPx, zoom,
-    size, ldtkLights, foliageParams, foliageDebugChannel, gridSize,
+    size, ldtkLights, foliageParams, foliageDebugChannel, gridSize, worldMask, bgDarkenColor,
 }) {
     const groundScrollRef = useRegisteredRef(panElsRef, passKey);
     const litGroundTextures = useLdtkLitGroundTextures(tiles, gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT);
@@ -921,6 +923,7 @@ const GroundPass = React.memo(function GroundPass({
                 groundTiles={tiles} gridSize={gridSize}
                 groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
                 zoom={zoom} groundAnchor={0}
+                bgDarkenColor={bgDarkenColor}
             />
             {litGroundTextures && (
                 <LdtkLitGround
@@ -929,6 +932,7 @@ const GroundPass = React.memo(function GroundPass({
                     leftPx={groundLeftPx} cameraOffsetRef={cameraOffsetRef} canvasBottomScreenY={size.h} zoom={zoom}
                     lights={ldtkLights}
                     params={foliageParams} edgeLitOnly={edgeLitOnly} debugChannel={foliageDebugChannel}
+                    worldMask={worldMask}
                 />
             )}
         </>
@@ -978,7 +982,7 @@ const BackgroundPass = React.memo(function BackgroundPass({
 const ShimmerPass = React.memo(function ShimmerPass({
     passKey, tiles, panElsRef, groundLeftPx, zoom,
     size, cameraOffsetRef, foliageDebugChannel, ldtkLights, foliageParams, gridSize,
-    foliageAtlas, atlasFoliageInstanceFor, foliageInstanceProps,
+    foliageAtlas, atlasFoliageInstanceFor, foliageInstanceProps, worldMask, bgDarkenColor,
 }) {
     const groundScrollRef = useRegisteredRef(panElsRef, passKey);
     const waterTiles = useMemo(() => tiles.filter((t) => t.kind === 'water'), [tiles]);
@@ -999,6 +1003,7 @@ const ShimmerPass = React.memo(function ShimmerPass({
                 groundTiles={tiles} gridSize={gridSize}
                 groundScrollRef={groundScrollRef} groundLeftPx={groundLeftPx}
                 zoom={zoom} groundAnchor={0}
+                bgDarkenColor={bgDarkenColor}
             />
             {(atlasInstances.length > 0 || waterInstances.length > 0) && (
                 <ForegroundFoliageLayer
@@ -1011,6 +1016,9 @@ const ShimmerPass = React.memo(function ShimmerPass({
                     debugChannel={foliageDebugChannel}
                     lights={ldtkLights}
                     params={foliageParams}
+                    worldMask={worldMask}
+                    worldMaskWidth={LEVEL_PX_WIDTH}
+                    worldMaskHeight={LEVEL_PX_HEIGHT}
                 />
             )}
         </>
@@ -1141,7 +1149,9 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const envAudioRef = useRef(null);
     // #141 round 2 (Han: "Can you implement 3 maps and let me toggle?" — in the spirit of the Factorio FFF's
     // own color-coded shader debug view): cycles ForegroundFoliageLayer's debugChannel (0 final shimmer, 1
-    // raw normal map, 2 wave band alone). Gated on `debugMode` like every other debug affordance (§3a).
+    // raw normal map, 2 wave band alone, 3 disabled, 4 = §387's edge mask — the silhouette TEST itself,
+    // red rim / green inward glow / dim blue coverage, on BOTH lighting layers at once).
+    // Gated on `debugMode` like every other debug affordance (§3a).
     const [foliageDebugChannel, setFoliageDebugChannel] = useState(0);
     // #141 round 11 (Han: "Kun je zorgen dat ik wat van de parameters kan tunen in het level debug ... Zet
     // alle params die je gebruikt in de debug"): every tunable foliage-shader dial, live-editable via the
@@ -1398,19 +1408,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // covers all of them).
     const allShimmerTiles = useMemo(() => shimmerPasses.flatMap((p) => p.tiles), [shimmerPasses]);
     const foliageAtlas = useLdtkFoliageAtlas(allShimmerTiles, world.gridSize);
-    // #1221 (Han: sun sheen lights internal tile SEAMS of multi-tile canopies): every occupied foliage
-    // grid cell, so `atlasFoliageInstanceFor` below can flag which of a tile's four edges abut a sister
-    // tile of the same canopy. Those edges are NOT real silhouette — the rim / inward-glow must skip
-    // them. Water excluded (its own un-atlased path). One flat Set, rebuilt only when the tile set does.
-    const foliageCellSet = useMemo(() => {
-        const g = world.gridSize;
-        const s = new Set();
-        for (const t of allShimmerTiles) {
-            if (t.kind === 'water') continue;
-            s.add(`${Math.round(t.worldX / g)},${Math.round(t.worldY / g)}`);
-        }
-        return s;
-    }, [allShimmerTiles, world.gridSize]);
+    // §387 (#1222, Han 2026-09-06, "alle entiteiten op de main layer als één behandeld ... het silhouet
+    // van de 'wereld' en niet van de tile laag"): the ONE level-space silhouette every WebGL lighting
+    // layer's edge/rim/glow term tests against, replacing #1221's per-tile `foliageCellSet`/`internalEdges`
+    // adjacency bitmask entirely (it could only ever see orthogonal FOLIAGE sisters — never a diagonal
+    // one, never the building behind the branch — and its uvRect clamp was a no-op on flipped tiles).
+    // Built once per world config; see useWorldSilhouetteMask.js for the full story.
+    const worldMask = useWorldSilhouetteMask(world.passes, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT);
     // #1220 (Han: "beperken van de sheen-straal moet ALLEEN wanneer bedekt door parallax-lagen, niet
     // door de gewone laag"): per parallax background layer, its own occupied grid cells + its parallax
     // `factor` (so the sun's screen X maps back to THAT layer's local X with `cameraX * factor`).
@@ -2096,22 +2100,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         const [u0, v0, u1, v1] = uv;
         const localX = tile.worldX + world.gridSize / 2;
         const localBottomFromLevelBottom = LEVEL_PX_HEIGHT - tile.worldY - world.gridSize;
-        // #1221: which of this tile's four world-space edges abut a sister foliage tile. The shader
-        // samples in ATLAS space (−v / +v / −u / +u) and its neighbour direction is mirrored by a flip
-        // (the flipX/flipY UV-rect swap above), so map world→atlas the same way. Bits: 1 = atlas-up
-        // (−v), 2 = atlas-down (+v), 4 = atlas-left (−u), 8 = atlas-right (+u).
-        const g = world.gridSize;
-        const cx = Math.round(tile.worldX / g);
-        const cy = Math.round(tile.worldY / g);
-        const occ = (x, y) => foliageCellSet.has(`${x},${y}`);
-        const wUp = occ(cx, cy - 1), wDown = occ(cx, cy + 1), wLeft = occ(cx - 1, cy), wRight = occ(cx + 1, cy);
-        const aUp = tile.flipY ? wDown : wUp;
-        const aDown = tile.flipY ? wUp : wDown;
-        const aLeft = tile.flipX ? wRight : wLeft;
-        const aRight = tile.flipX ? wLeft : wRight;
-        // Bits 1/2/4/8 = atlas up/down/left/right adjacency, mapped through the flip because the shader's
-        // rim / inward-glow taps sample in atlas space. They suppress the per-tile atlas-cell seam.
-        const internalEdges = (aUp ? 1 : 0) + (aDown ? 2 : 0) + (aLeft ? 4 : 0) + (aRight ? 8 : 0);
+        // §387 (#1222): #1221's per-tile `internalEdges` adjacency bitmask used to be computed here and
+        // packed into the instance buffer. Gone — the shader now tests the world silhouette mask in LEVEL
+        // space, where a canopy's internal tile boundaries simply are not edges, so there is nothing to
+        // suppress and no atlas-space flip mapping to get wrong.
         return {
             diffuseUV: [
                 tile.flipX ? u1 : u0, tile.flipY ? v1 : v0,
@@ -2122,13 +2114,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             widthPx: world.gridSize * zoom, heightPx: world.gridSize * zoom,
             worldX: localX, worldWidth: world.gridSize, worldHeight: world.gridSize,
             groundDistOffset: localBottomFromLevelBottom,
-            internalEdges,
             // Same as `useLdtkFoliageInstances.js`'s `instanceFor`: all LDtk foliage tiles wave+skew, none
             // are `kind:'floor'` or water (water stays on the un-atlased path — see `useLdtkFoliageAtlas.js`
             // header comment) or edge-lit-only.
             wave: true, skew: true,
         };
-    }, [foliageAtlas, foliageCellSet, world.gridSize, localWorldToScreenXLocal, size.h, zoom]);
+    }, [foliageAtlas, world.gridSize, localWorldToScreenXLocal, size.h, zoom]);
     // #1195 (Han 2026-09-05): `atlasFoliageInstanceFor`/`foliageInstanceProps` themselves stay HERE
     // (shared, stable `useCallback`s every shimmer pass reuses) — but the PER-PASS instance lists these
     // used to build (`atlasFoliageInstancesBack/Front`, `localFoliageInstancesBack/Front`) and the
@@ -2293,6 +2284,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                             cameraOffsetRef={cameraOffsetRef} panElsRef={panElsRef}
                             groundLeftPx={groundLeftPxLocal} zoom={zoom} size={size} ldtkLights={ldtkLights}
                             foliageParams={foliageParamsRender} foliageDebugChannel={foliageDebugChannel} gridSize={world.gridSize}
+                            worldMask={worldMask} bgDarkenColor={bgDarkenColor}
                         />
                     );
                 }
@@ -2317,6 +2309,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                             ldtkLights={ldtkLights} foliageParams={foliageParamsRender} gridSize={world.gridSize}
                             foliageAtlas={foliageAtlas} atlasFoliageInstanceFor={atlasFoliageInstanceFor}
                             foliageInstanceProps={foliageInstanceProps}
+                            worldMask={worldMask} bgDarkenColor={bgDarkenColor}
                         />
                     );
                 }
@@ -2438,7 +2431,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 un-shimmered art is still visible instead of the whole layer vanishing. */}
             {debugMode && (
                 <button
-                    onClick={(e) => { e.stopPropagation(); setFoliageDebugChannel((c) => (c + 1) % 4); }}
+                    onClick={(e) => { e.stopPropagation(); setFoliageDebugChannel((c) => (c + 1) % 5); }}
                     style={{
                         position: 'absolute', top: 8, right: 8, zIndex: 6,
                         padding: '4px 8px', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 12,
@@ -2446,7 +2439,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         borderRadius: 4, cursor: 'pointer',
                     }}
                 >
-                    Foliage debug: {['Shimmer', 'Normal map', 'Wave band', 'Disabled'][foliageDebugChannel]}
+                    Foliage debug: {['Shimmer', 'Normal map', 'Wave band', 'Disabled', 'Edge mask'][foliageDebugChannel]}
                 </button>
             )}
 

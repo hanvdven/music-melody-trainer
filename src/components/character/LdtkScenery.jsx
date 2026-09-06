@@ -300,30 +300,71 @@ const BgLayer = React.memo(function BgLayer({
 });
 
 // The ground plane (factor 1) — one big composited canvas, no rim of its own (LdtkLitGround's shader
-// paints the §370 moon rim on it) and no DOM darken (the shader darkens it).
-const GroundCanvas = React.memo(function GroundCanvas({ tiles, gridSize, leftPx, zoom, groundAnchor }) {
+// paints the §370 moon rim on it).
+//
+// §387 D4 (#1222, Han 2026-09-06, "'s nachts pixels die niet donker worden en dus fel afsteken tegen de
+// rest"). This canvas is the deliberate un-shimmering FALLBACK sprite (#RAM-level: "toon dan de default
+// ongemodificeerde sprite, ipv niets") that sits UNDER the WebGL layer which relights the same tiles. It
+// used to carry no day/night darken at all, on the assumption that the shader on top covers it exactly.
+// It does not, quite: this canvas is CSS-scaled by the browser (fractional 'left', 'imageRendering:
+// pixelated') while the WebGL quads snap their four edges to whole DEVICE px (ForegroundFoliageLayer,
+// §364 r2), and on a fractional dpr — Windows 125% / 150% display scaling — those two roundings
+// disagree by up to a device pixel. A sliver of THIS canvas then shows along a silhouette, in full
+// daylight colour, next to neighbours the shader has darkened: a bright edge pixel that appears not to
+// react to the lighting at all. Baking the same multiply the shader applies makes such a sliver
+// invisible instead of glaring, WITHOUT giving up the fallback (hiding this canvas once the shader is
+// live would re-open the "toon dan niets" bug). Reuses BgLayer's exact darken bake above — multiply,
+// then 'destination-in' re-clip to the tile silhouette so transparent sky does not pick up the tint
+// (CLAUDE.md §6d). 'darkenColor' is already quantised to 0.05 steps by RpgLevelPanel, so a full-night
+// crossfade costs ~13 re-bakes, not one per frame.
+const GroundCanvas = React.memo(function GroundCanvas({ tiles, gridSize, leftPx, zoom, groundAnchor, darkenColor = null }) {
     const canvasRef = useRef(null);
-    const [ready, setReady] = useState(false);
+    const srcRef = useRef(null);        // tiles-only, composited once
+    const [gen, setGen] = useState(0);  // bumped when src is (re)built
+
     useEffect(() => {
         let cancelled = false;
-        setReady(false);
-        const canvas = canvasRef.current;
-        if (!canvas || tiles.length === 0) return undefined;
+        srcRef.current = null;
+        setGen((g) => g + 1);
+        if (tiles.length === 0) return undefined;
         loadTileImages(tiles).then((imgByUrl) => {
             if (cancelled) return;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawTilesToCanvas(ctx, tiles, gridSize, imgByUrl);
-            setReady(true);
+            const src = document.createElement('canvas');
+            src.width = LEVEL_PX_WIDTH; src.height = LEVEL_PX_HEIGHT;
+            drawTilesToCanvas(src.getContext('2d'), tiles, gridSize, imgByUrl);
+            srcRef.current = src;
+            setGen((g) => g + 1);
         });
         return () => { cancelled = true; };
     }, [tiles, gridSize]);
+
+    // Re-bake the shown canvas only when its pixels actually change (a new src, or a new quantised
+    // darken step) — never per animation frame.
+    useEffect(() => {
+        const canvas = canvasRef.current, src = srcRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!src) return;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.drawImage(src, 0, 0);
+        if (darkenColor) {
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = darkenColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'destination-in';   // re-clip to the tile silhouette
+            ctx.drawImage(src, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
+        }
+    }, [gen, darkenColor]);
+
     return (
         <canvas
             ref={canvasRef}
             width={LEVEL_PX_WIDTH}
             height={LEVEL_PX_HEIGHT}
-            style={layerStyle(leftPx, zoom, groundAnchor, { opacity: ready ? 1 : 0 })}
+            style={layerStyle(leftPx, zoom, groundAnchor, { opacity: srcRef.current ? 1 : 0 })}
         />
     );
 });
@@ -360,7 +401,8 @@ function LdtkScenery({
                 with <SkyGradientBackdrop>, which bakes its OWN night mix in — a second multiply on top of
                 that was the #26 "achtergrond verdwijnt" double-darken, so this div is GONE. `bgDarkenColor`
                 is still consumed below: each parallax BgLayer bakes it into its own canvas (clipped to
-                the tile silhouette). */}
+                the tile silhouette), and since §387 the ground/shimmer fallback `GroundCanvas` bakes the
+                same multiply for the same reason — see its own header comment. */}
             {/* #weather §370 r3: each background parallax layer = ONE canvas with its darken + moon rim
                 baked in, so it z-orders naturally against the other layers (and the sky stays visible —
                 the isolated-wrapper version made every layer's transparent sky region a solid blue veil). */}
@@ -375,7 +417,7 @@ function LdtkScenery({
                 />
             ))}
             <div ref={groundScrollRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                <GroundCanvas tiles={groundTiles} gridSize={gridSize} leftPx={groundLeftPx} zoom={zoom} groundAnchor={groundAnchor} />
+                <GroundCanvas tiles={groundTiles} gridSize={gridSize} leftPx={groundLeftPx} zoom={zoom} groundAnchor={groundAnchor} darkenColor={bgDarkenColor} />
             </div>
         </>
     );
